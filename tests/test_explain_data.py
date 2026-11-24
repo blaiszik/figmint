@@ -164,7 +164,7 @@ def test_log_trend_facts_state_decades_and_x_is_rounded() -> None:
         unit="S/cm",
     )
     fact = panel.facts[0]
-    assert "falls 1.5 decades" in fact and "%" not in fact.split("(")[1]
+    assert "falls 33-fold, 1.5 decades" in fact and "%" not in fact.split("(")[1]
     assert f"3{TIMES}10⁻⁴ S/cm" in fact
     rounded = fm.trend([1.0, 3.0303, 5.0], {"a": [1, 5, 2]}, label="y").facts[0]
     assert "peak 5 at 3.03" in rounded
@@ -366,8 +366,10 @@ def test_matrix_facts_off_diagonal_row_mean_and_empty_cells() -> None:
     ).facts
     assert f"largest off-diagonal: z {TIMES} y = 12" in facts
     assert "1 of 9 cells empty (no value)" in facts
+    # A constant diagonal is left out of the row means and said once (was "a (0.333").
     eye = fm.matrix(np.eye(3), rows=list("abc"), cols=list("abc")).facts
-    assert any(f.startswith("highest row mean: a (0.333") for f in eye)
+    assert "diagonal is 1 throughout (excluded)" in eye
+    assert "highest row mean: a (0)" in eye
 
 
 # --------------------------------------------------------------------------- #

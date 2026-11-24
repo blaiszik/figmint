@@ -49,14 +49,17 @@ fig = fm.explain(
              x_label="Training step"),
     source="runs/ablation_2026-11 (5 seeds per variant)",   # say if synthetic or estimated
 )
-print(fig.save("ablation.png"))             # prints a JSON summary
+summary = fig.save("ablation.png")          # a dict (summary["facts"] etc.); print() shows it as JSON
+print(summary)
 ```
 
 No Python handy? The same figure as JSON: `figmint explain spec.json --out fig.png` (`figmint explain --example` prints a spec to start from; `-` reads stdin). Exit code `2` means the spec broke a rule and nothing was drawn: apply `fix_hint`.
 
 **4. Check the summary, then look at the image.**
 
+- `summary` is a plain dict, already parsed (do not `json.loads` it): `summary["panels"][i]["facts"]`, `summary["issues"]`, `summary["ok"]`.
 - `facts` are computed from the data (highest and lowest, ratios, differences from the highlighted item, whether intervals overlap, first-to-last change, medians, r, missing values). **Your takeaway must agree with them**; if it does not, fix the sentence, not the chart.
+- A trend's `a → b from x0 to x1` fact is the two endpoint values: for noisy daily data it misleads. Check claims against the event, baseline and median facts instead.
 - `issues` lists warnings with a `fix_hint` each. `ok: false` means an error-level issue; the PNG is still written so you can see it.
 - **Open the PNG.** The checks do not catch every collision or awkward label; your eyes are the last check. Fix what the issues and your look turn up, in at most two rounds of re-rendering (a call rejected with an error before anything is drawn does not count), then show it with any remaining caveat stated.
 
@@ -74,6 +77,8 @@ fm.explain(takeaway, *panels,
     width="chat")           # keep "chat" in a conversation
 
 # Shared by every form: title=, label=, unit=, highlight= (a name or a list of up to 3), fmt=
+# compare, trend, distribution also take baseline= (a control or "before"): drawn in ink, not
+#   highlighted; facts then state every highlighted (or every other) item against it
 
 fm.compare(values,          # {name: number}
     sort=True,              # True/"desc" largest first | "asc" smallest first (lower is better) | False keep order
@@ -85,7 +90,7 @@ fm.compare(values,          # {name: number}
 
 fm.trend(x, series,         # x: numbers, dates/ISO strings, or ordered labels; series: {name: [numbers]}, None for gaps
                             # (omit series when points= supplies the data: fm.trend(x, points={...}))
-    x_label=None,
+    x_label=None,           # end it with the x unit in brackets, "Time after dose (h)": facts then say "19 h", not "19"
     log=False, log_x=False, # log value (y) axis / log x axis; an Arrhenius plot is log=True against 1000/T
     zero=False,             # True forces the y axis to include zero
     band=None,              # {name: (low_list, high_list)} or {name: half_width}; band_label= says what it is
@@ -103,9 +108,10 @@ fm.distribution(groups,     # {name: [raw observations]}, at least 3 per group; 
     stat="median",          # "median" (median and middle half) | "mean" (mean and ± 1 s.d.)
     log=False, reference=None)
 
-fm.relate(x, y, x_label=, y_label=,   # both required
+fm.relate(x, y, x_label=, y_label=,   # both required; y_label is the panel's measure line
     names=None,             # one name per point; highlight= then labels those points
     groups=None,            # one group label per point (at most 4) -> coloured, directly labelled;
+                            # facts give the pooled r and each group's r;
                             # highlight= may name a group (the others turn grey but stay labelled)
     fit=False,              # least-squares line (per group if groups=), r and n reported
     log_x=False, log_y=False,
@@ -121,7 +127,9 @@ fm.matrix(values, rows=[...], cols=[...],   # 2-D list/array (or a DataFrame: ro
 fm.custom(draw_fn, height_mm=48.0, describe="...")   # draw_fn(ax): last resort when no form fits
 ```
 
-`fig.save("x.png", write_spec=True)` also writes `x.json`. Inputs may be dicts, lists, numpy arrays, pandas Series or DataFrames.
+`fig.save("x.png", write_spec=True)` also writes `x.json`. Inputs may be dicts, lists, numpy arrays, pandas Series or DataFrames: `trend(df.index, df)` takes a wide frame (index = x, one column per series; `df.pivot(index="date", columns="region", values="p99")`); `compare`, `change` and `share` take a Series (index = names); `distribution` takes a dict of lists or a wide frame (one column per group, NaN dropped), not a long frame; `matrix` takes a frame (index = rows, columns = cols).
+
+**Before/after an event:** `fm.trend(x, series, events={"2026-10-15": "config change"}, highlight=["us-west"])` — facts give each coloured series' median before the event and from it on, with the change. For the day-to-day spread, add `fm.distribution({"before": [...], "after": [...]}, baseline="before")`.
 
 ### Scientific data
 
@@ -142,10 +150,11 @@ fm.custom(draw_fn, height_mm=48.0, describe="...")   # draw_fn(ax): last resort 
 - **Small n:** groups with fewer than five observations show the points and a centre mark only; say n in the title or note.
 - **More than four ordered levels** (five doping levels, six doses): colour the one to three the claim is about with `highlight=` and let the rest be labelled grey context, or use `facet=True`. There is no colour ramp for lines.
 - **Derived numbers** (fits, IC50, activation energies) are yours to compute; say how in `source=` or `note=`, and check them against `facts` where a fact covers them (crossings of a `reference=` value, fold changes, slopes on log axes).
+- **Log-axis slopes:** with `trend(log=True)` and numeric x, `facts` give the least-squares slope of log₁₀(y) per x unit with R². A series that rises then falls (absorption then elimination, a doping optimum) is fitted separately up to and from its peak, never across it; quote the side your claim is about.
 
 ### Colour
 
-A name keeps one colour in every panel of a figure, so "no retrieval" is the same red in the dot plot and in the curve beside it. `highlight=` decides who is emphasised; the first name you highlight is red, and a lone unhighlighted series is blue. To keep a name's colour the same across several figures in one conversation, pass `colors={"no retrieval": "red", "full model": "blue"}` to each `fm.explain` call; the summary's `colors` key reports what the last figure used, ready to pass on.
+A name keeps one colour in every panel of a figure, so "no retrieval" is the same red in the dot plot and in the curve beside it. `highlight=` decides who is emphasised: colours go red, blue, green, amber in highlight order unless pinned, and a lone unhighlighted series is blue. A `baseline=` (control, "before") is drawn in ink, so it never takes the red. To keep a name's colour the same across several figures in one conversation, pass `colors={"no retrieval": "red", "full model": "blue"}` to each `fm.explain` call; the summary's `colors` key reports what the last figure used, ready to pass on.
 
 ### Rules the forms enforce (do not work around them)
 

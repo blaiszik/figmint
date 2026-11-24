@@ -113,6 +113,13 @@ class Theme:
         # "∝", "ℏ") from the next family in this list instead of a missing-glyph box.
         # DejaVu Sans ships with Matplotlib, so the fallback exists on every host.
         params["font.family"] = ["sans-serif", "DejaVu Sans"]
+        # The "custom" mathtext fontset looks up every slot when it first lays out a
+        # super/subscript, including \mathcal's default "cursive" stack, whose first
+        # installed entry on some systems has no usable weight: Matplotlib then logs a
+        # "findfont: Failed to find font weight normal" warning on every run. Chat
+        # figures never draw \mathcal ($...$ is not math there), so point the slot at
+        # the body font and the cursive stack is never probed.
+        params["mathtext.cal"] = params["mathtext.rm"]
         if self.name == "figmint" and not self.extra_rc:
             return params
 
@@ -123,6 +130,7 @@ class Theme:
             params["mathtext.it"] = f"{font_name}:italic"
             params["mathtext.bf"] = f"{font_name}:bold"
             params["mathtext.sf"] = font_name
+            params["mathtext.cal"] = font_name
 
         if self.title_family is not None:
             params["font.serif"] = list(self.title_family)
