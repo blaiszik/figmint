@@ -97,6 +97,7 @@ fm.trend(x, series,         # x: numbers, dates/ISO strings, or ordered labels; 
     band=None,              # {name: (low_list, high_list)} or {name: half_width}; band_label= says what it is
     band_label=None,
     points=None,            # raw replicates {name: [[reps at x0], [reps at x1], ...]} -> arithmetic-mean line + dots
+    points_label=None,      # what the dots are when not replicates: "tasks", "wells" (default "replicates")
     events=None,            # {x_value: "short label"} vertical markers; any x on a numeric axis, not only data points
     reference=None,         # (value, "label") horizontal line
     end_values=True,        # False keeps the name at the line end but drops the last value

@@ -1351,3 +1351,109 @@ def test_every_value_in_a_fact_carries_its_unit() -> None:
     assert any("lowest 10 ms" in f and "highest 5 ms" in f for f in dist.facts), dist.facts
     money = fm.compare({"a": 1.2, "b": 1.5}, error=0.1, error_label="CI", unit="$").facts
     assert "a $1.1\N{EN DASH}$1.3 does not overlap b $1.4\N{EN DASH}$1.6" in money, money
+
+
+def test_relate_log_axes_keep_highlighted_extreme_points_in_view() -> None:
+    fig = fm.explain(
+        "Rate scales as mass^0.75 across six decades",
+        fm.relate(
+            [0.002, 0.02, 0.2, 2.0, 20.0],
+            [0.005, 0.05, 0.5, 5.0, 50.0],
+            x_label="Conc (µM)",
+            y_label="Signal",
+            log_x=True,
+            log_y=True,
+            fit=True,
+            names=["p1", "p2", "p3", "p4", "p5"],
+            highlight=["p1", "p5"],
+            title="Both extremes stay visible",
+        ),
+        source="synthetic",
+    )
+    ax = fig["a"]
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    assert x0 <= 0.002 and x1 >= 20.0, (x0, x1)
+    assert y0 <= 0.005 and y1 >= 50.0, (y0, y1)
+    assert fig.summary()["ok"] is True
+
+
+def test_latex_dollar_markup_warns_without_flagging_currency() -> None:
+    bad = fm.explain(
+        r"Slope fits cleanly ($R^2 = 0.99$) across $\mu\mathrm{M}$ doses",
+        fm.compare({"a": 1.0, "b": 2.0}, label="Rate", unit="µM/s", title="Linear"),
+    )
+    rules = [i["rule"] for i in bad.issues]
+    assert "latex_markup" in rules
+    money = fm.explain(
+        "Revenue grew from $10M to $25M after launch",
+        fm.compare({"before": 10.0, "after": 25.0}, label="Revenue", unit="$", title="Up 2.5×"),
+    )
+    assert "latex_markup" not in [i["rule"] for i in money.issues]
+
+
+def test_share_highlight_explains_items_folded_into_other() -> None:
+    parts = {f"Cat {i}": 20 - i for i in range(1, 10)} | {"Tiny Z": 1}
+    with pytest.raises(fm.ExplainError) as err:
+        fm.share(parts, top=5, highlight="Tiny Z")
+    assert "folded into 'Other (5)'" in err.value.message
+    assert "top=10" in err.value.fix_hint
+
+
+def test_signed_compare_and_distribution_avoid_misleading_ratios_and_negative_dashes() -> None:
+    cmp = fm.compare(
+        {"search": -190.0, "checkout": -15.0, "billing": 1.0, "auth": 2.0},
+        error={"search": (-200.0, -180.0), "checkout": (-20.0, -10.0), "billing": (0.0, 2.0), "auth": (1.0, 3.0)},
+        error_label="95% CI",
+        unit="ms",
+        highlight="search",
+    )
+    assert not any("next highest" in f for f in cmp.facts), cmp.facts
+    assert any("\N{MINUS SIGN}200 to \N{MINUS SIGN}180 ms" in f for f in cmp.facts), cmp.facts
+    dist = fm.distribution(
+        {
+            "Control": [-0.2, -0.1, 0.0, 0.1, 0.2, 0.3],
+            "Variant": [-3.0, 1.2, 4.5, 7.8, 12.0, 2.1],
+        },
+        baseline="Control",
+        highlight="Variant",
+        unit="pts",
+    )
+    vs = next(f for f in dist.facts if f.startswith("Variant vs Control:"))
+    assert "%" not in vs, vs
+
+
+def test_trend_points_label_customises_subtitle_facts_and_spec_roundtrip(tmp_path) -> None:
+    fig = fm.explain(
+        "Average solve time fell from 30 s to 18 s",
+        fm.trend(
+            ["r1", "r2"],
+            points={"agent": [[25, 32, 33], [16, 18, 20]]},
+            points_label="tasks",
+            label="Solve time",
+            unit="s",
+            title="Each dot is one task",
+        ),
+        source="synthetic",
+    )
+    assert any("3 tasks per x" in f for f in fig.summary()["panels"][0]["facts"])
+    assert any("dots: tasks" in t.get_text() for t in fig.fig.texts)
+    out = tmp_path / "tasks.png"
+    fig.save(out)
+    assert fm.load(out).to_spec()["panels"][0]["points_label"] == "tasks"
+
+
+def test_matrix_nan_cells_show_em_dash_marker() -> None:
+    fig = fm.explain(
+        "Model C leads on math (91%) and has no multimodal score",
+        fm.matrix(
+            [[78.0, 64.0], [91.0, np.nan]],
+            rows=["A", "C"],
+            cols=["math", "multimodal"],
+            label="Score",
+            unit="%",
+            title="Scores",
+        ),
+        source="synthetic",
+    )
+    assert "\N{EM DASH}" in [t.get_text() for t in fig["a"].texts]

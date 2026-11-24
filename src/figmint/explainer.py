@@ -1057,10 +1057,16 @@ def _with_unit(text: str, unit: str | None) -> str:
 
 def _range_with_unit(lo: str, hi: str, unit: str | None) -> str:
     """A range with its unit once at the end ("32\N{EN DASH}52%", "12\N{EN DASH}15 ms"), or on
-    both ends for a currency, which leads its number ("$1.20\N{EN DASH}$1.50")."""
+    both ends for a currency, which leads its number ("$1.20\N{EN DASH}$1.50"). When either bound
+    is negative, use " to " ("−1.7 to −1.1%") rather than colliding a dash and a minus sign."""
+    sep = (
+        " to "
+        if (lo.startswith(("\N{MINUS SIGN}", "-")) or hi.startswith(("\N{MINUS SIGN}", "-")))
+        else "\N{EN DASH}"
+    )
     if unit in _CURRENCY_UNITS:
-        return f"{_with_unit(lo, unit)}\N{EN DASH}{_with_unit(hi, unit)}"
-    return f"{lo}\N{EN DASH}{_with_unit(hi, unit)}"
+        return f"{_with_unit(lo, unit)}{sep}{_with_unit(hi, unit)}"
+    return f"{lo}{sep}{_with_unit(hi, unit)}"
 
 
 def _inline_unit(unit: str | None) -> bool:
@@ -2350,7 +2356,7 @@ def compare(
             # A spread is a width: no sign (even from a signed fmt), in points for "%".
             spread = _diff_with_unit(_unsigned(span_fmt(data[top] - data[bottom])), unit)
             facts.append(f"range: {_u(data[bottom])} to {_u(data[top])} (spread {spread})")
-    if ratios and len(descending) > 2:
+    if ratios and not diverging and len(descending) > 2:
         second = descending[1]
         if data[second] > 0 and data[top] > 0 and data[top] / data[second] >= 1.1:
             facts.append(
@@ -2596,11 +2602,21 @@ def share(
     ranked = sorted(data, key=lambda nm: data[nm], reverse=True)
     kept = ranked if len(ranked) <= top + 1 else ranked[:top]
     rest = [nm for nm in ranked if nm not in kept]
+    other_name = f"Other ({len(rest)})"
+    if highlight is not None and rest:
+        req = [highlight] if isinstance(highlight, str) else [str(h) for h in highlight]
+        folded = [nm for nm in req if nm in rest]
+        if folded:
+            needed = max(ranked.index(nm) + 1 for nm in folded)
+            raise ExplainError(
+                f"share(highlight) names {folded!r} that were folded into '{other_name}' (top={top}).",
+                fix_hint=f"Increase top={needed} to keep them out of Other, or highlight from: "
+                f"{', '.join(map(repr, kept[:12]))}.",
+            )
     hl = _names(highlight, kept, "share(highlight)")
 
     names = list(kept)
     pct = [100.0 * data[nm] / total for nm in kept]
-    other_name = f"Other ({len(rest)})"
     if rest:
         names.append(other_name)
         pct.append(100.0 * sum(data[nm] for nm in rest) / total)
@@ -3398,6 +3414,7 @@ def trend(
     band: Any = None,
     band_label: str | None = None,
     points: Any = None,
+    points_label: str | None = None,
     events: Mapping[Any, str] | None = None,
     reference: float | tuple[float, str] | None = None,
     zero: bool = False,
@@ -3742,6 +3759,7 @@ def trend(
             )
         )
     if reps:
+        dot_word = (points_label or "").strip() or "replicates"
         for name, per_x in reps.items():
             counts = [r.size for r in per_x]
             measured = [c for c in counts if c]
@@ -3749,7 +3767,7 @@ def trend(
             facts.append(
                 f"{name or (label or 'values')}: line is the mean of n = "
                 + (f"{lo_n}" if lo_n == hi_n else f"{lo_n}\N{EN DASH}{hi_n}")
-                + " replicates per x"
+                + f" {dot_word} per x"
             )
     if bands:
         facts.append(_interval_mode_text(band_modes, "bands"))
@@ -4242,6 +4260,7 @@ def trend(
         band=band_spec or None,
         band_label=band_label,
         points={k: [r.tolist() for r in v] for k, v in reps.items()} or None,
+        points_label=points_label,
         events={str(_jsonable(k)): str(v) for k, v in (events or {}).items()} or None,
         reference=list(ref) if ref else None,
         zero=zero or None,
@@ -4250,11 +4269,12 @@ def trend(
         end_values=None if end_values else False,
         fmt=fmt,
     )
+    dot_label = (points_label or "").strip() or "replicates"
     notes = [
         nt
         for nt in (
             f"band: {band_label}" if bands and band_label else None,
-            "dots: replicates" if reps else None,
+            f"dots: {dot_label}" if reps else None,
         )
         if nt
     ]
@@ -5085,9 +5105,16 @@ def distribution(
     elif pairs:
         diffs = [(h, other, stats[h][1] - stats[other][1]) for h, other in pairs]
         diff_fmt = _formatter([d for _, _, d in diffs], fmt, unit=unit)
+        signed_spread = float(everything.min()) < 0 < float(everything.max())
         for h, other, _d in diffs:
             if base is not None:
-                vs = _vs_text(stats[h][1], stats[other][1], unit=unit, diff_fmt=diff_fmt)
+                vs = _vs_text(
+                    stats[h][1],
+                    stats[other][1],
+                    unit=unit,
+                    diff_fmt=diff_fmt,
+                    relative=not signed_spread,
+                )
                 facts.append(f"{h} vs {other}: {stat} {vs}")
                 continue
             shown = _diff_with_unit(_signed(diff_fmt(_d)), unit)
@@ -5763,6 +5790,22 @@ def relate(
                 linewidth=0.4,
                 zorder=2,
             )
+        # Plot highlighted point markers before autoscale_view() so log-axis limits
+        # never clip an extreme highlighted point off the canvas.
+        called_points: list[tuple[str, int, str]] = []
+        for i, name in enumerate(called):
+            idx = point_names.index(name)  # type: ignore[union-attr]
+            col = ctx.colors.get(name, theme.accent_colors[i % len(theme.accent_colors)])
+            ax.scatter(
+                [xs[idx]],
+                [ys[idx]],
+                s=(5.4 * sz.scale) ** 2,
+                color=col,
+                edgecolor=theme.background,
+                linewidth=0.7,
+                zorder=5,
+            )
+            called_points.append((name, idx, col))
         if ref is not None:
             ax.axhline(ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=2)
             if ref[1]:
@@ -5815,20 +5858,10 @@ def relate(
                 color=theme.muted,
                 bbox=ctx.halo_bbox(0.15, alpha=0.9),
             )
-        for i, name in enumerate(called):
-            idx = point_names.index(name)  # type: ignore[union-attr]
-            col = ctx.colors.get(name, theme.accent_colors[i % len(theme.accent_colors)])
-            ax.scatter(
-                [xs[idx]],
-                [ys[idx]],
-                s=(5.4 * sz.scale) ** 2,
-                color=col,
-                edgecolor=theme.background,
-                linewidth=0.7,
-                zorder=5,
-            )
+        point_notes: list[tuple[Any, bool]] = []
+        for name, idx, col in called_points:
             right_half = (fx[idx] - fx.min()) > 0.62 * (np.ptp(fx) or 1.0)
-            ax.annotate(
+            note = ax.annotate(
                 _plain(name, theme),
                 (xs[idx], ys[idx]),
                 xytext=(-6.0 if right_half else 6.0, 5.0),
@@ -5841,8 +5874,53 @@ def relate(
                 zorder=6,
                 bbox=ctx.halo_bbox(0.12),
             )
+            point_notes.append((note, right_half))
+
+        def _clear_point_notes() -> None:
+            if not point_notes:
+                return
+            renderer = ctx.fig.canvas.get_renderer()
+            ax_box = ax.get_window_extent(renderer)
+            fit_paths = [
+                ln.get_transform().transform_path(ln.get_path())
+                for ln in ax.lines
+                if ln.get_visible() and ln.get_label() == "_fit"
+            ]
+            placed: list[Bbox] = []
+            for note, right_half in point_notes:
+                cands = (
+                    ((-6.0, 5.0, "right", "bottom"), (0.0, 10.0, "right", "bottom"),
+                     (-6.0, -6.0, "right", "top"), (0.0, 16.0, "right", "bottom"),
+                     (6.0, -6.0, "left", "top"))
+                    if right_half
+                    else ((6.0, 5.0, "left", "bottom"), (0.0, 10.0, "left", "bottom"),
+                          (6.0, -6.0, "left", "top"), (0.0, 16.0, "left", "bottom"),
+                          (-6.0, 5.0, "right", "bottom"), (8.0, -2.0, "left", "top"))
+                )
+                best = cands[0]
+                for dx, dy, ha, va in cands:
+                    note.set_position((dx, dy))
+                    note.set_ha(ha)
+                    note.set_va(va)
+                    bb = note.get_window_extent(renderer)
+                    inside = (
+                        bb.x0 >= ax_box.x0 - 2
+                        and bb.x1 <= ax_box.x1 + 2
+                        and bb.y0 >= ax_box.y0 - 2
+                        and bb.y1 <= ax_box.y1 + 2
+                    )
+                    hits_line = any(p.intersects_bbox(bb, filled=False) for p in fit_paths)
+                    hits_other = any(bb.overlaps(pb) for pb in placed)
+                    if inside and not hits_line and not hits_other:
+                        best = (dx, dy, ha, va)
+                        break
+                note.set_position((best[0], best[1]))
+                note.set_ha(best[2])
+                note.set_va(best[3])
+                placed.append(note.get_window_extent(renderer))
+
         if not group_names:
-            return None
+            return _clear_point_notes if point_notes else None
 
         # Group names sit at each group's right end (its fit line end when fitted).
         anchors: list[tuple[str, float, float, str, bool]] = []
@@ -6276,7 +6354,8 @@ def matrix(
             t = (grid - lo) / ((hi - lo) or 1.0)
             rgb = _ramp(theme.seq_stops, np.nan_to_num(t))
         bg_rgb = np.array(to_rgb(theme.background))
-        rgb = np.where(np.isfinite(grid)[..., None], rgb, bg_rgb)
+        empty_rgb = 0.85 * bg_rgb + 0.15 * np.array(to_rgb(theme.context_fill))
+        rgb = np.where(np.isfinite(grid)[..., None], rgb, empty_rgb)
 
         _bare_axes(ax)
         ax.imshow(
@@ -6312,6 +6391,17 @@ def matrix(
         ax.tick_params(length=0, labelsize=sz.small, labelcolor=theme.ink, pad=3)
         for (i, j), value in np.ndenumerate(grid):
             if not math.isfinite(value):
+                note = ax.text(
+                    j,
+                    i,
+                    "\N{EM DASH}",
+                    ha="center",
+                    va="center",
+                    fontsize=sz.small,
+                    color=theme.muted,
+                    zorder=3,
+                )
+                note._figmint_heatmap_text = True  # type: ignore[attr-defined]
                 continue
             dark = (
                 _relative_luminance(
@@ -7304,6 +7394,40 @@ def load(path: str | Path) -> Explanation:
     return explain_from_spec(json.loads(text["figmint:spec"]))
 
 
+_LATEX_DOLLAR = re.compile(r"\$[^$\n]*(?:\\[A-Za-z]+|[\^_])[^$\n]*\$")
+
+
+def _latex_issues(
+    texts: Sequence[str | None], panel_map: Mapping[str, Panel]
+) -> list[dict[str, Any]]:
+    """Warn when caller text contains Matplotlib-style $...$ LaTeX markup."""
+    hits: list[str] = []
+    for text in texts:
+        if isinstance(text, str):
+            hits.extend(_LATEX_DOLLAR.findall(text))
+    for panel in panel_map.values():
+        for val in (
+            panel.title,
+            panel.label,
+            panel.unit,
+            panel.spec.get("x_label"),
+            panel.spec.get("y_label"),
+        ):
+            if isinstance(val, str):
+                hits.extend(_LATEX_DOLLAR.findall(val))
+    if not hits:
+        return []
+    shown = ", ".join(repr(h) for h in list(dict.fromkeys(hits))[:3])
+    return [
+        _issue(
+            "latex_markup",
+            "warning",
+            f"Literal LaTeX math ({shown}) is drawn as plain characters in fm.explain.",
+            "Write Unicode directly (e.g. R², µm, ×10⁻³, °C, χ²); $...$ is not parsed as math.",
+        )
+    ]
+
+
 def _takeaway_issues(takeaway: str) -> list[dict[str, Any]]:
     words = takeaway.split()
     if len(words) < 4 or (_TOPIC_TITLE.search(takeaway) and not _HAS_DIGIT.search(takeaway)):
@@ -7473,6 +7597,7 @@ def explain(
     rows = _validate_layout(layout, keys) if layout is not None else _auto_layout(keys)
 
     issues: list[dict[str, Any]] = list(_takeaway_issues(takeaway))
+    issues.extend(_latex_issues((takeaway, subtitle, source, note), panel_map))
     issues.extend(colour_issues)
     if len(built) > COMFORTABLE_PANELS:
         issues.append(
