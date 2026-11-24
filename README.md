@@ -61,7 +61,27 @@ The same figure from JSON, with no Python: `figmint explain spec.json --out fig.
 
 **Visual styles (`style=`)** change the surface only, never the rules: `"figmint"` (default, white ground), `"bold"` (heavy lines on a matte-gray ground), `"editorial"` (serif headline, dotted gridlines) and `"sketch"` (hand-drawn, for illustrative points; warns unless `source=`/`note=` says the data is illustrative).
 
-The full argument reference is in the agent skill, [src/figmint/assets/SKILL.md](src/figmint/assets/SKILL.md); a test fails if any public argument is missing from it or if its example stops running. Reference renders: [gallery/explain_science_examples.py](gallery/explain_science_examples.py) → `gallery/output/explain_science/`, [gallery/explain_chat_examples.py](gallery/explain_chat_examples.py) → `gallery/output/explain/`, and [gallery/explain_style_showcase.py](gallery/explain_style_showcase.py) → `gallery/output/explain_styles/`. An `Explanation` also works with the publication path: return it from `build()` and `figmint run` preflights and bundles it, or pass `target="nature"`.
+The full argument reference is in the agent skill, [src/figmint/assets/SKILL.md](src/figmint/assets/SKILL.md); a test fails if any public argument is missing from it or if its example stops running. An `Explanation` also works with the publication path: return it from `build()` and `figmint run` preflights and bundles it, or pass `target="nature"`.
+
+### Gallery of primary functions
+
+Browse the **[full visual gallery with code snippets](gallery/README.md)** (covering every `fm.explain` form, all four styles, and journal plates). Highlights across each primary function:
+
+| `fm.compare` (intervals, `n=`, `baseline=`) | `fm.trend` (dates, `events=`, gaps) |
+| :---: | :---: |
+| ![fm.compare with 95% CIs](gallery/output/explain_forms/compare_intervals.png) | ![fm.trend with dates and events](gallery/output/explain_forms/trend_dates_events.png) |
+| **`fm.trend` (`log=True, log_x=True` power laws)** | **`fm.trend` (`facet=True` small multiples)** |
+| ![fm.trend log-log scaling](gallery/output/explain_forms/trend_log_log.png) | ![fm.trend faceted small multiples](gallery/output/explain/regional_orders.png) |
+| **`fm.change` (paired slopegraph)** | **`fm.distribution` (log raw observations)** |
+| ![fm.change slopegraph](gallery/output/explain/benchmark_gains.png) | ![fm.distribution log fold changes](gallery/output/explain_forms/distribution_log.png) |
+| **`fm.relate` (grouped linear fits + 95% CIs)** | **`fm.relate` (log-log with named points)** |
+| ![fm.relate grouped scatter with fits](gallery/output/explain_forms/relate_groups_fit.png) | ![fm.relate log-log allometry](gallery/output/explain_forms/relate_log_allometry.png) |
+| **`fm.share` (part-to-whole bars)** | **`fm.matrix` (heat table + missing cells)** |
+| ![fm.share build time](gallery/output/explain/build_time.png) | ![fm.matrix with missing cell dashes](gallery/output/explain_forms/matrix_missing.png) |
+| **`fm.matrix` (`diverging=True` correlations)** | **`fm.explain` (4-panel story, shared colours)** |
+| ![fm.matrix diverging correlations](gallery/output/explain_science/descriptor_correlations.png) | ![fm.explain four-panel story](gallery/output/explain/checkout_story.png) |
+
+Reference generators: [gallery/explain_form_gallery.py](gallery/explain_form_gallery.py) → `gallery/output/explain_forms/`, [gallery/explain_science_examples.py](gallery/explain_science_examples.py) → `gallery/output/explain_science/`, [gallery/explain_chat_examples.py](gallery/explain_chat_examples.py) → `gallery/output/explain/`, and [gallery/explain_style_showcase.py](gallery/explain_style_showcase.py) → `gallery/output/explain_styles/`.
 
 ### Design rules, and where they come from
 
@@ -215,8 +235,11 @@ Built-in palettes: `nature`, `nature_muted`, `science`, `okabe_ito`, `tol_bright
 
 ## Showcase Gallery & Empirical Validation
 
-- **Showcase figures & benchmarks**: run `.venv/bin/python gallery/generate_showcase.py` to generate before/after comparisons, a 4-panel *Nature* double-column plate with CVD proof sheet, and a one-line *Nature* vs. *Science* switch comparison (detailed 8-dimension audit in [gallery/benchmark_comparison.md](gallery/benchmark_comparison.md)).
-- **Empirical validation gate**: `evals/` benchmarks `figmint run --json` + `fix_hint` repair loops across 10 clean control scripts and 25 realistic messy agent-written scripts (`evals/eval_report.md`).
+- **Visual gallery**: see **[gallery/README.md](gallery/README.md)** for rendered examples and code snippets of every primary `fm.explain` function, all four visual styles (`figmint`, `bold`, `editorial`, `sketch`), before/after comparisons, and multi-panel *Nature*, *Science*, *Cell*, and NeurIPS plates.
+- **Publication showcase & benchmarks**: run `.venv/bin/python gallery/generate_showcase.py` to generate before/after comparisons, a 4-panel *Nature* double-column plate with CVD proof sheet, and a one-line *Nature* vs. *Science* switch comparison (detailed 8-dimension audit in [gallery/benchmark_comparison.md](gallery/benchmark_comparison.md)).
+- **Empirical validation gates**: `evals/` benchmarks `figmint run --json` + `fix_hint` repair loops across 10 clean control scripts and 25 messy agent scripts (`evals/eval_report.md`), and `evals/figure_bench/` benchmarks end-to-end chat figure generation with fresh agents (`evals/figure_bench/README.md`).
+
+![Before vs After default Matplotlib on an 89 mm Nature single-column figure](gallery/output/before_after_nature.png)
 
 ## Development & Testing
 

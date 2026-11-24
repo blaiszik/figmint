@@ -1,0 +1,78 @@
+{
+  "takeaway": "Drug treatment activates p53 targets (median 2.75×) and halves proliferation genes",
+  "subtitle": "Bulk RNA-seq, 24 h post-treatment; each dot is one gene",
+  "source": "synthetic example data",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "distribution",
+      "groups": {
+        "p53 targets": [
+          2.18,
+          2.74,
+          3.09,
+          1.78,
+          3.27,
+          2.73,
+          3.29,
+          2.75,
+          3.75,
+          1.8
+        ],
+        "Stress response": [
+          2.73,
+          2.29,
+          1.34,
+          1.95,
+          1.83,
+          0.95,
+          1.91,
+          1.34,
+          1.48,
+          1.34
+        ],
+        "Housekeeping": [
+          0.97,
+          1.0,
+          1.01,
+          0.91,
+          0.98,
+          0.92,
+          0.93,
+          0.98,
+          1.05,
+          1.04
+        ],
+        "Proliferation": [
+          0.47,
+          0.46,
+          0.45,
+          0.57,
+          0.7,
+          0.55,
+          0.65,
+          0.6,
+          0.8,
+          0.33
+        ]
+      },
+      "highlight": [
+        "p53 targets",
+        "Proliferation"
+      ],
+      "baseline": "Housekeeping",
+      "reference": [
+        1.0,
+        "no change"
+      ],
+      "log": true,
+      "title": "Every p53 target rises while every proliferation gene falls",
+      "label": "Expression fold change",
+      "unit": "×"
+    }
+  ]
+}

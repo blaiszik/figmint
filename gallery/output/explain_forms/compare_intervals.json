@@ -1,0 +1,66 @@
+{
+  "takeaway": "High-dose therapy cuts HbA1c by 1.4 points, 1.6 points below placebo",
+  "subtitle": "24-week randomised cohort; intervals are 95% confidence intervals",
+  "source": "synthetic example data",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "High dose": -1.4,
+        "Standard dose": -0.7,
+        "Low dose": -0.3,
+        "Diet only": -0.1,
+        "Placebo": 0.2
+      },
+      "highlight": [
+        "High dose"
+      ],
+      "baseline": "Placebo",
+      "sort": "asc",
+      "zero": true,
+      "error": {
+        "High dose": [
+          -1.7,
+          -1.1
+        ],
+        "Standard dose": [
+          -1.0,
+          -0.4
+        ],
+        "Low dose": [
+          -0.6,
+          0.0
+        ],
+        "Diet only": [
+          -0.4,
+          0.2
+        ],
+        "Placebo": [
+          -0.1,
+          0.5
+        ]
+      },
+      "error_label": "95% CI",
+      "reference": [
+        0.0,
+        "no change"
+      ],
+      "fmt": "+.1f",
+      "n": {
+        "High dose": 62,
+        "Standard dose": 60,
+        "Low dose": 58,
+        "Diet only": 55,
+        "Placebo": 61
+      },
+      "title": "Both active doses stay well below zero",
+      "label": "Change in HbA1c at 24 weeks",
+      "unit": "%"
+    }
+  ]
+}

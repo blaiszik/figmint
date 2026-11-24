@@ -1,0 +1,69 @@
+{
+  "takeaway": "The insulation retrofit cut Lab annex daily power use by 28%; the Gym stayed flat",
+  "source": "synthetic example data",
+  "note": "Lab annex meter was offline during the Jan 25 switchover week.",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "trend",
+      "x": [
+        "2026-01-04",
+        "2026-01-11",
+        "2026-01-18",
+        "2026-01-25",
+        "2026-02-01",
+        "2026-02-08",
+        "2026-02-15",
+        "2026-02-22"
+      ],
+      "series": {
+        "Lab annex": [
+          418.0,
+          425.0,
+          412.0,
+          null,
+          298.0,
+          304.0,
+          295.0,
+          301.0
+        ],
+        "Library": [
+          360.0,
+          355.0,
+          362.0,
+          358.0,
+          296.0,
+          291.0,
+          298.0,
+          294.0
+        ],
+        "Gym (control)": [
+          285.0,
+          290.0,
+          282.0,
+          288.0,
+          284.0,
+          279.0,
+          286.0,
+          281.0
+        ]
+      },
+      "x_label": "Week",
+      "highlight": [
+        "Lab annex",
+        "Library"
+      ],
+      "baseline": "Gym (control)",
+      "events": {
+        "2026-01-25": "retrofit"
+      },
+      "title": "Both retrofitted buildings dropped immediately after Jan 25",
+      "label": "Daily electricity use",
+      "unit": "kWh"
+    }
+  ]
+}

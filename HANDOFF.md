@@ -1,9 +1,10 @@
 # figmint — handoff
 
-Written 2026-11-24 at the end of the review-and-fix pass, and updated the same
-day after a second pass on agent usability (section 4b) and a third pass that
-built a timed benchmark and ran three fix cycles against it (section 4c). Self-contained: you do
-not need the previous conversations.
+Written 2026-11-24 at the end of the review-and-fix pass, updated after a
+second pass on agent usability (section 4b), a third pass with figure-bench
+(section 4c), and a fourth pass reviewing the benchmark work, adding a full
+GitHub gallery and fixing newly discovered agent rough edges (section 4d).
+Self-contained: you do not need the previous conversations.
 
 ## 1. What this project is for
 
@@ -300,12 +301,73 @@ Left over from the runs (not fixed):
 - The benchmark runs with a pandas-equipped venv outside the repo; give it its
   own environment before relying on it. `runs/` keep only `results.md` in git.
 
+## 4d. Fourth pass: review, GitHub gallery, and rough-edge fixes
+
+Reviewed commits `5aa665e` and `fa9ebcf`, probed all seven `fm.explain` forms
+across 14+ edge-case figures (inspected visually and with `bench.audit_layout`),
+fixed eight newly surfaced rough edges, and built a full GitHub gallery.
+
+Fixes applied in `src/figmint/explainer.py` (with `SKILL.md` updated and 6 new
+regression tests in `tests/test_explain_final.py`, 521 tests total):
+
+1. **`fm.relate` log-axis clipping & point-label clearance:** highlighted points
+   (`names=` + `highlight=`) were scattered *after* `autoscale_view()` and
+   `set_xlim`/`set_ylim`, clipping extreme highlighted points completely off the
+   canvas on `log_x=True` or `log_y=True` with `ok=True` and `issues=[]`. They
+   are now scattered before autoscaling, and a candidate-offset finisher keeps
+   highlighted point labels clear of fitted lines (`_fit`) and axes bounds.
+2. **`latex_markup` warning:** Matplotlib-habit `$...$` math (e.g. `$R^2 = 0.99$`,
+   `$\mu\mathrm{M}$`) previously rendered literally with no warning. `explain()`
+   now emits a `latex_markup` warning with a Unicode `fix_hint` without flagging
+   currency like `$10M`.
+3. **`share(highlight=...)` folded-item hint:** highlighting a valid part that
+   fell below `top=` previously said "not in the data"; it now explains that the
+   part was folded into `"Other (n)"` and states the exact `top=` needed.
+4. **`compare()` signed ratio suppression:** `"auth is 2.0× the next highest"`
+   was still emitted on signed/diverging data (e.g. `−190 ms` to `+2 ms`); now
+   suppressed when `diverging` is true.
+5. **`distribution()` signed-range `%` suppression:** when values cross zero,
+   `baseline=` facts no longer print near-zero percentage blow-ups (e.g. `+6500%`
+   against a `0.05` control median).
+6. **`_range_with_unit` negative bounds:** ranges with a negative bound now use
+   `" to "` (`"−1.7 to −1.1%"`) instead of colliding an en-dash and minus sign
+   (`"−1.7–−1.1%"`).
+7. **`trend(points_label=...)`:** optional label for `points=` dots (default
+   `"replicates"`), carried through the spec and documented in `SKILL.md`, so
+   non-replicate dots (tasks, wells, patients) do not force `"dots: replicates"`.
+8. **`matrix()` missing (`NaN`) cells:** empty cells now render with a subtle
+   neutral tint and a centred em-dash (`—`) instead of blending invisibly into
+   the white canvas.
+
+GitHub gallery additions (without overwriting any tracked `gallery/output/*` files):
+- `gallery/explain_form_gallery.py` → `gallery/output/explain_forms/` (8 new
+  clean PNG + JSON examples covering signed/CI `compare`, ISO-date/event/gap
+  `trend`, log-log `trend`, `points_label=` `trend`, log `distribution`, grouped
+  and log-log `relate`, and missing-cell `matrix`; all 8 pass `ok=True`,
+  `issues=[]`, and `bench.audit_layout`).
+- `gallery/README.md`: full visual showcase for GitHub covering every primary
+  function (`fm.explain`, `fm.compare`, `fm.trend`, `fm.change`,
+  `fm.distribution`, `fm.relate`, `fm.share`, `fm.matrix`), all four styles,
+  `fm.load` / CLI, and publication plates (`fm.figure`, `fm.Plate`).
+- Root `README.md`: added a visual 2-column primary-function gallery grid plus a
+  before/after publication preview linking to `gallery/README.md`.
+
+Additional review notes (not changed):
+- `evals/figure_bench/.gitignore` ignores `runs/*/results.json`, so
+  `make_progress.py` cannot be re-run from a fresh clone without committing
+  those small JSON files (or reading `results.md`).
+- A naive `number_not_in_facts` warning would false-positive on unit conversions
+  (`0.01 µM` → `10 nM`), point deltas (`0.08` → `8 points`), version numbers
+  (`v2.3`), and rounded estimates (`~460`), breaking `figure-bench`'s zero-warning
+  gate; design it carefully or expose `fig.summary()` earlier in the agent loop.
+- `src/figmint/explainer.py` is now ~8,100 lines and remains the top refactoring
+  candidate.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
 
-- `pytest`: 515 passed (440 after the first pass, 467 after the second).
-  `ruff check src tests gallery evals`: clean.
+- `pytest`: 521 passed (515 after pass 3). `ruff check src tests gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host

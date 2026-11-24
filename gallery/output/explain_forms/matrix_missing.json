@@ -1,0 +1,59 @@
+{
+  "takeaway": "Model C leads on math (91%) and coding (88%) but has no multimodal score yet",
+  "source": "synthetic example data",
+  "note": "Dash (—) marks an evaluation suite not yet run for that checkpoint.",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "matrix",
+      "values": [
+        [
+          74.0,
+          78.0,
+          62.0,
+          69.0
+        ],
+        [
+          83.0,
+          81.0,
+          77.0,
+          75.0
+        ],
+        [
+          91.0,
+          88.0,
+          null,
+          84.0
+        ]
+      ],
+      "rows": [
+        "Model A",
+        "Model B",
+        "Model C"
+      ],
+      "cols": [
+        "Math",
+        "Code",
+        "Multimodal",
+        "Long context"
+      ],
+      "highlight": [
+        [
+          "Model C",
+          "Math"
+        ],
+        [
+          "Model C",
+          "Code"
+        ]
+      ],
+      "title": "Missing evaluations appear as dashes rather than zeros",
+      "label": "Benchmark pass rate",
+      "unit": "%"
+    }
+  ]
+}

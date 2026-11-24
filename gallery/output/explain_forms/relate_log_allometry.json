@@ -1,0 +1,55 @@
+{
+  "takeaway": "Basal metabolic rate scales as body mass^0.75 across six decades of size",
+  "source": "synthetic example data",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "relate",
+      "title": "A single 3/4-power line spans mouse to elephant",
+      "unit": "W",
+      "x": [
+        0.02,
+        0.1,
+        0.5,
+        2.0,
+        15.0,
+        70.0,
+        400.0,
+        3000.0
+      ],
+      "y": [
+        0.05,
+        0.17,
+        0.58,
+        1.7,
+        7.6,
+        24.0,
+        88.0,
+        410.0
+      ],
+      "x_label": "Body mass (kg)",
+      "y_label": "Metabolic rate (W)",
+      "names": [
+        "mouse",
+        "rat",
+        "pigeon",
+        "cat",
+        "dog",
+        "human",
+        "horse",
+        "elephant"
+      ],
+      "highlight": [
+        "mouse",
+        "elephant"
+      ],
+      "fit": true,
+      "log_x": true,
+      "log_y": true
+    }
+  ]
+}

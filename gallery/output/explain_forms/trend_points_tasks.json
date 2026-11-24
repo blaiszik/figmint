@@ -1,0 +1,104 @@
+{
+  "takeaway": "Three fix passes cut mean solve time by 39% (30.9 s to 18.8 s) on core and held-out tasks",
+  "source": "synthetic example data",
+  "colors": {
+    "Core suite": "blue",
+    "Held-out suite": "amber"
+  },
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "trend",
+      "x": [
+        "Baseline",
+        "Pass 1",
+        "Pass 2",
+        "Pass 3"
+      ],
+      "highlight": [
+        "Core suite",
+        "Held-out suite"
+      ],
+      "points": {
+        "Core suite": [
+          [
+            34.3,
+            32.3,
+            30.7,
+            17.1,
+            33.6,
+            18.2,
+            36.5,
+            34.6,
+            36.0,
+            36.0
+          ],
+          [
+            21.0,
+            18.1,
+            18.9,
+            25.3,
+            18.0,
+            19.2,
+            17.5,
+            18.2,
+            18.9,
+            20.9
+          ],
+          [
+            19.1,
+            18.9,
+            18.0,
+            20.3,
+            15.7,
+            20.2,
+            24.2,
+            17.5,
+            19.9,
+            27.0
+          ],
+          [
+            16.5,
+            14.6,
+            18.2,
+            24.9,
+            25.6,
+            15.9,
+            21.2,
+            19.5,
+            17.7,
+            13.7
+          ]
+        ],
+        "Held-out suite": [
+          [],
+          [],
+          [
+            25.1,
+            17.6,
+            22.2,
+            21.3,
+            28.5,
+            25.7
+          ],
+          [
+            15.8,
+            18.9,
+            23.4,
+            15.1,
+            18.4,
+            20.6
+          ]
+        ]
+      },
+      "points_label": "tasks",
+      "title": "Held-out tasks match the core suite once introduced in Pass 2",
+      "label": "Time to clean figure",
+      "unit": "s"
+    }
+  ]
+}
