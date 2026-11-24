@@ -363,11 +363,45 @@ Additional review notes (not changed):
 - `src/figmint/explainer.py` is now ~8,100 lines and remains the top refactoring
   candidate.
 
+## 4e. Fifth pass: `fm.histogram` / `distribution(bins=)`, themes & palettes, and README redesign
+
+Added binned histogram support, expanded themes and color palettes, and redesigned
+both `README.md` and `gallery/README.md` as visual first impressions on GitHub:
+
+1. **`fm.histogram` & `fm.distribution(..., bins=...)`:** `distribution()` now
+   accepts `bins="auto"`, an integer `2–60`, any numpy bin estimator, or explicit
+   sorted bin edges (with log-spaced bins when `log=True`). Single-variable inputs
+   draw a crisp vertical histogram with dashed median/mean marker and optional
+   `reference=`; 2–4 groups draw shared-axis stacked small multiples (never muddy
+   overlapping bars). Facts report bin count/width, each group's peak bin, and
+   `% above reference`. `fm.histogram(values, bins="auto", ...)` is exported as a
+   first-class alias (and `"kind": "histogram"` works in JSON specs).
+2. **Three new built-in themes (`style=`):** `dark` (slate charcoal `#14181F`
+   ground for dark UIs/slides), `paper` (warm ivory `#FAF7F0` with serif headlines),
+   and `mono` (monochrome print with a single vermilion highlight accent), bringing
+   `THEMES` to 7 (`figmint`, `bold`, `editorial`, `paper`, `dark`, `mono`, `sketch`).
+   Fixed `preflight._check_text_on_data` to measure ink relative to the axes/figure
+   background (supporting transparent axes and dark grounds) and matrix cell text
+   contrast on dark grounds.
+3. **Independent color schemes (`palette=`):** added `EXPLAIN_PALETTES` (`default`,
+   `okabe_ito`, `tol`, `earth`, `ocean`, `berry`) in `themes.py`, wired into
+   `fm.explain(..., palette=...)`, `to_spec()`, `summary()`, `explain_from_spec()`,
+   and CLI `figmint explain --palette`, with automatic contrast lifting on dark
+   grounds. Every theme and palette is verified in `tests/test_explain_styles.py`
+   for deuteranopia, protanopia, grayscale separation (`>= 0.05`), and WCAG 4.5:1
+   text contrast.
+4. **Gallery & README redesign:** added `histogram_bimodal` and `histogram_groups`
+   to `gallery/explain_form_gallery.py`, added `gallery/explain_theme_palette_gallery.py`
+   → `gallery/output/explain_themes/` (all 7 styles, all 6 explain palettes, and
+   `palettes_overview.png`), put compact visual thumbnails for every primary form
+   directly in the main `README.md` table plus the palette overview card, and
+   expanded `gallery/README.md` with full theme & palette side-by-side grids.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
 
-- `pytest`: 521 passed (515 after pass 3). `ruff check src tests gallery evals`: clean.
+- `pytest`: 601 passed (521 after pass 4; expanded 7-theme × 13-form matrix, 6-palette CVD/roundtrip tests, and histogram tests). `ruff check src tests gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host

@@ -1,39 +1,42 @@
-# figmint Gallery
+# figmint Visual Gallery
 
-Visual examples of every primary function in `figmint`, rendered directly from the scripts in this folder (all datasets are synthetic).
+Every primary function, visual theme, color palette, and publication plate in `figmint`, rendered directly from the deterministic scripts in this folder (all datasets are synthetic).
 
-- **Conversation figures (`fm.explain`)**: [Multi-panel `fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [Visual styles (`style=`)](#visual-styles-style) · [Editing & CLI (`fm.load`)](#editing-returned-figures-and-cli)
-- **Publication figures (`fm.figure`, `fm.Plate`, `figmint run`)**: [Before vs. After](#before-vs-after-default-matplotlib) · [Journal plates](#multi-panel-publication-plates)
+| Section | Jump to |
+| :--- | :--- |
+| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) |
+| **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`fm.load`)](#editing-returned-figures-and-cli) |
+| **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
 ---
 
 ## `fm.explain` — Multi-panel arguments
 
-Combine two to four panels when an argument has steps (*what*, *since when*, *how spread*, *so what*). One entity name keeps one colour across every panel, and `fig.save()` returns computed `facts` for each panel to verify the takeaway.
+Combine 2–4 panels when an argument has steps (*what*, *since when*, *how spread*, *so what*). One entity name keeps one colour across every panel, and `fig.save()` returns computed `facts` per panel to verify the takeaway.
 
 ### Two-panel scientific ablation (`fm.compare` + `fm.trend`)
 
 ![Ablation study with 95% CIs and training curves](output/explain_science/ablation.png)
 
-*Source: [`explain_science_examples.py`](explain_science_examples.py)*
+*Generator: [`explain_science_examples.py`](explain_science_examples.py)*
 
 ### Three-panel materials optimum (`fm.compare` log + `fm.trend` Arrhenius + `fm.compare`)
 
 ![Doping optimum across conductivity, Arrhenius curves, and activation energy](output/explain_science/doping_optimum.png)
 
-*Source: [`explain_science_examples.py`](explain_science_examples.py)*
+*Generator: [`explain_science_examples.py`](explain_science_examples.py)*
 
-### Four-panel incident story (`fm.compare` + `fm.trend` + `fm.distribution` + `fm.share`)
+### Four-panel regression story (`fm.compare` + `fm.trend` + `fm.distribution` + `fm.share`)
 
 ![Four-panel latency regression story](output/explain/checkout_story.png)
 
-*Source: [`explain_chat_examples.py`](explain_chat_examples.py)*
+*Generator: [`explain_chat_examples.py`](explain_chat_examples.py)*
 
 ---
 
 ## `fm.compare` — Size and intervals
 
-Sorted bars from zero by default; switches automatically to dots with whiskers when `error=`, `zero=False`, or `log=True` is passed. Use `baseline=` to draw a control in ink and state every highlighted item against it in `facts`, and `n=` to show sample sizes under each name.
+Sorted bars from zero by default; switches automatically to dots with whiskers when `error=`, `zero=False`, or `log=True` is passed. Use `baseline=` to draw a control in ink and state every highlighted item against it in `facts`, and `n=` to show sample counts under each name.
 
 ### Signed effects with 95% CIs, `n=`, `baseline=`, and `reference=`
 
@@ -57,19 +60,19 @@ fm.explain(
 )
 ```
 
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
+*Generator: [`explain_form_gallery.py`](explain_form_gallery.py)*
 
 ### Ranked bars paired with a timeline (`fm.compare` + `fm.trend`)
 
 ![Latency regression compare bars and trend](output/explain/latency_regression.png)
 
-*Source: [`explain_chat_examples.py`](explain_chat_examples.py)*
+*Generator: [`explain_chat_examples.py`](explain_chat_examples.py)*
 
 ---
 
 ## `fm.trend` — Change over time, dose, or scale
 
-Direct end labels (no legend), vertical `events=` markers, missing-value gaps, shaded uncertainty `band=`, raw observations via `points=` (with optional `points_label=`), log axes (`log=`, `log_x=`), and small multiples (`facet=True`).
+Direct end labels (no legend), vertical `events=` markers, missing-value gaps, shaded uncertainty `band=`, raw observations via `points=` (with custom `points_label=`), log axes (`log=`, `log_x=`), and small multiples (`facet=True`).
 
 ### ISO dates, `events=`, `baseline=`, and a missing-data gap
 
@@ -93,31 +96,15 @@ fm.explain(
 )
 ```
 
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
+*Generator: [`explain_form_gallery.py`](explain_form_gallery.py)*
 
-### Log-log scaling curves (`log=True, log_x=True`) with automatic power-law exponent facts
+| Log-log power-law scaling (`log=True, log_x=True`) | Individual observations (`points=` + `points_label=`) |
+| :---: | :---: |
+| ![Log-log scaling trend](output/explain_forms/trend_log_log.png) | ![Trend with individual task dots](output/explain_forms/trend_points_tasks.png) |
+| **Triplicate wells on log dose (`points=`, `log_x=True`)** | **Small multiples (`facet=True`) for > 4 series** |
+| ![Dose-response curves](output/explain_science/dose_response.png) | ![Faceted regional orders](output/explain/regional_orders.png) |
 
-![Log-log scaling trend](output/explain_forms/trend_log_log.png)
-
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
-
-### Individual observations along ordered stages (`points=` + `points_label=`)
-
-![Trend with individual task dots and mean lines](output/explain_forms/trend_points_tasks.png)
-
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
-
-### Raw replicates on a log dose axis (`points=`, `log_x=True`, `reference=`)
-
-![Dose-response curves with replicate wells and shared colours](output/explain_science/dose_response.png)
-
-*Source: [`explain_science_examples.py`](explain_science_examples.py)*
-
-### Small multiples for more than four series (`facet=True`)
-
-![Faceted small multiples across six regions](output/explain/regional_orders.png)
-
-*Source: [`explain_chat_examples.py`](explain_chat_examples.py)*
+*Generators: [`explain_form_gallery.py`](explain_form_gallery.py), [`explain_science_examples.py`](explain_science_examples.py), [`explain_chat_examples.py`](explain_chat_examples.py)*
 
 ---
 
@@ -138,7 +125,7 @@ fm.explain(
 )
 ```
 
-*Source: [`explain_chat_examples.py`](explain_chat_examples.py)*
+*Generator: [`explain_chat_examples.py`](explain_chat_examples.py)*
 
 ---
 
@@ -164,23 +151,70 @@ fm.explain(
 )
 ```
 
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
-
 ### Small-n perturbation paired with mechanism (`fm.distribution` + `fm.relate`)
 
 ![Gene knockout migration distance distribution and speed-area scatter](output/explain_science/knockout.png)
 
-*Source: [`explain_science_examples.py`](explain_science_examples.py)*
+*Generators: [`explain_form_gallery.py`](explain_form_gallery.py), [`explain_science_examples.py`](explain_science_examples.py)*
+
+---
+
+## `fm.histogram` — Binned distributions
+
+First-class alias for `fm.distribution(..., bins=...)`. Pass a single sequence for a histogram with automatic modal-bin and `% above reference` facts, or a dict of up to 4 groups for stacked shared-axis histograms (never muddy overlapping translucent bars).
+
+### Single-variable bimodal histogram (`fm.histogram`)
+
+![Bimodal request latency histogram with median and SLA threshold](output/explain_forms/histogram_bimodal.png)
+
+```python
+fm.explain(
+    "Request latency splits into two modes near 18 ms and 44 ms; 32% exceed the 35 ms SLA",
+    fm.histogram(
+        latencies,
+        bins=18,
+        reference=(35.0, "35 ms SLA"),
+        label="Response time",
+        unit="ms",
+        title="Cache hits cluster around 18 ms while misses peak near 44 ms",
+    ),
+    subtitle="220 sampled API requests over 1 hour; dashed line marks overall median",
+    source="synthetic example data",
+)
+```
+
+### Multi-group stacked histograms (`fm.distribution(..., bins=16)`)
+
+![Shared-axis stacked histograms comparing Before and After cohorts](output/explain_forms/histogram_groups.png)
+
+```python
+fm.explain(
+    "The new checkout flow cuts median latency by 120 ms and drops >500 ms sessions from 34% to 3%",
+    fm.distribution(
+        {"Before": before, "After": after},
+        bins=16,
+        baseline="Before",
+        highlight="After",
+        reference=(500.0, "500 ms target"),
+        label="Session latency",
+        unit="ms",
+        title="Both the centre and the slow right tail shifted left",
+    ),
+    source="synthetic example data",
+)
+```
+
+*Generator: [`explain_form_gallery.py`](explain_form_gallery.py)*
 
 ---
 
 ## `fm.relate` — Two continuous measures
 
-Scatter plot with optional `groups=` (up to 4, directly labelled), `names=` (to call out specific points with `highlight=`), `fit=True` least-squares lines with computed `r`, `n`, and 95% slope CIs, and `log_x=`/`log_y=`.
+Scatter plot with optional `groups=` (up to 4, directly labelled), `names=` (call out specific points with `highlight=`), `fit=True` least-squares lines with computed `r`, `n`, and 95% slope CIs, and `log_x=`/`log_y=`.
 
-### Grouped scatter with per-group linear fits and 95% slope CIs
-
-![Hall-Petch yield strength vs inverse square root grain size across three alloys](output/explain_forms/relate_groups_fit.png)
+| Grouped scatter with per-group fits & 95% slope CIs | Log-log scatter with fitted power law & named points |
+| :---: | :---: |
+| ![Hall-Petch grouped scatter](output/explain_forms/relate_groups_fit.png) | ![Log-log allometry scatter](output/explain_forms/relate_log_allometry.png) |
 
 ```python
 fm.explain(
@@ -195,19 +229,13 @@ fm.explain(
 )
 ```
 
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
-
-### Log-log scatter with fitted power law and highlighted points (`names=`)
-
-![Log-log allometric scaling from mouse to elephant](output/explain_forms/relate_log_allometry.png)
-
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
+*Generator: [`explain_form_gallery.py`](explain_form_gallery.py)*
 
 ---
 
 ## `fm.share` — Part of a whole
 
-Sorted percentage bars (never a pie), folding smaller parts past `top=` into one muted `"Other (n)"` bar while reporting the total in the panel subtitle and combined highlighted shares in `facts`.
+Sorted percentage bars (never a pie), folding smaller parts past `top=` into one muted `"Other (n)"` bar while reporting the total and combined highlighted share in `facts`.
 
 ![Build time share bars with folded Other category](output/explain/build_time.png)
 
@@ -223,45 +251,61 @@ fm.explain(
 )
 ```
 
-*Source: [`explain_chat_examples.py`](explain_chat_examples.py)*
+*Generator: [`explain_chat_examples.py`](explain_chat_examples.py)*
 
 ---
 
 ## `fm.matrix` — Two categorical dimensions
 
-Heat table with a number in every cell, automatic high-contrast text colour, highlighted cells/rows/columns, diverging ramps (`diverging=True`) for signed data, and em-dash (`—`) markers for missing cells.
+Heat table with a number in every cell, automatic high-contrast text colour, highlighted cells/rows/columns, diverging ramps (`diverging=True`) for signed/correlation data, and centred em-dash (`—`) markers for missing (`NaN`) cells.
 
-### Sequential matrix with outlier cell highlight
-
-![Agent task solve rate matrix with highlighted failure cell](output/explain/agent_matrix.png)
-
-*Source: [`explain_chat_examples.py`](explain_chat_examples.py)*
+| Sequential with outlier highlight | Missing (`NaN`) cells as `—` |
+| :---: | :---: |
+| ![Agent task solve rate matrix](output/explain/agent_matrix.png) | ![Matrix with missing cell dashes](output/explain_forms/matrix_missing.png) |
 
 ### Diverging correlation matrix (`diverging=True`)
 
 ![Diverging Pearson correlation matrix across materials descriptors](output/explain_science/descriptor_correlations.png)
 
-*Source: [`explain_science_examples.py`](explain_science_examples.py)*
-
-### Rectangular matrix with missing (`NaN`) cells
-
-![Evaluation matrix showing em-dash markers for missing cells](output/explain_forms/matrix_missing.png)
-
-*Source: [`explain_form_gallery.py`](explain_form_gallery.py)*
+*Generators: [`explain_chat_examples.py`](explain_chat_examples.py), [`explain_form_gallery.py`](explain_form_gallery.py), [`explain_science_examples.py`](explain_science_examples.py)*
 
 ---
 
-## Visual styles (`style=`)
+## Themes & Color Palettes
 
-Styles change the visual surface only — never the information-design rules. Pass `style="figmint"` (default), `"bold"`, `"editorial"`, or `"sketch"` (hand-drawn for illustrative data).
+Every built-in surface theme (`style=`) and color palette (`palette=`) is verified for deuteranopia, protanopia, grayscale luminance separation (`≥ 0.05`), and WCAG 4.5:1 text contrast. Mix and match freely: `fm.explain(..., style="paper", palette="okabe_ito")`.
 
-| `figmint` (default) | `bold` |
+![Overview of all figmint color palettes, surface themes, and editorial colormaps](output/explain_themes/palettes_overview.png)
+
+### Themes (`style=`)
+
+The same two-panel comparison + trend rendered across all seven built-in surface styles:
+
+| `style="figmint"` (default) | `style="editorial"` |
 | :---: | :---: |
-| ![figmint style](output/explain/latency_regression.png) | ![bold style](output/explain_styles/bold/latency_regression.png) |
-| **`editorial`** | **`sketch`** |
-| ![editorial style](output/explain_styles/editorial/latency_regression.png) | ![sketch style](output/explain_styles/sketch/latency_regression.png) |
+| ![figmint theme](output/explain_themes/style_figmint.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
+| **`style="paper"`** (warm ivory + serif) | **`style="bold"`** (matte gray + heavy strokes) |
+| ![paper theme](output/explain_themes/style_paper.png) | ![bold theme](output/explain_themes/style_bold.png) |
+| **`style="dark"`** (slate charcoal for dark UIs & slides) | **`style="mono"`** (monochrome print + single accent) |
+| ![dark theme](output/explain_themes/style_dark.png) | ![mono theme](output/explain_themes/style_mono.png) |
 
-*All six general examples in all four styles: [`explain_style_showcase.py`](explain_style_showcase.py) → `output/explain_styles/`.*
+#### `style="sketch"` (hand-drawn, for conceptual or illustrative data)
+
+![sketch theme](output/explain_themes/style_sketch.png)
+
+### Color Palettes (`palette=`)
+
+All six `fm.explain` color palettes shown on a four-series figure (so every colour slot — 3 accents + 4th series hue — is visible):
+
+| `palette="default"` | `palette="okabe_ito"` |
+| :---: | :---: |
+| ![default palette](output/explain_themes/palette_default.png) | ![okabe_ito palette](output/explain_themes/palette_okabe_ito.png) |
+| **`palette="tol"`** | **`palette="earth"`** |
+| ![tol palette](output/explain_themes/palette_tol.png) | ![earth palette](output/explain_themes/palette_earth.png) |
+| **`palette="ocean"`** | **`palette="berry"`** |
+| ![ocean palette](output/explain_themes/palette_ocean.png) | ![berry palette](output/explain_themes/palette_berry.png) |
+
+*Generator: [`explain_theme_palette_gallery.py`](explain_theme_palette_gallery.py) (plus the 6-figure style matrix in [`explain_style_showcase.py`](explain_style_showcase.py) → `output/explain_styles/`).*
 
 ---
 
@@ -271,7 +315,8 @@ Every PNG saved by `fm.explain` embeds its normalized JSON spec. Rebuild and mod
 
 ```python
 spec = fm.load("ablation.png").to_spec()
-spec["style"] = "editorial"
+spec["style"] = "paper"
+spec["palette"] = "okabe_ito"
 spec["panels"][0]["highlight"] = ["no fine-tuning"]
 print(fm.explain_from_spec(spec).save("ablation_v2.png", write_spec=True))
 ```
@@ -281,7 +326,7 @@ Or from the command line with no Python script:
 ```bash
 figmint explain --example | figmint explain - --out latency.png
 figmint explain --show-spec latency.png
-figmint explain latency.png --style bold --out latency_bold.png
+figmint explain latency.png --style dark --palette ocean --out latency_dark.png
 ```
 
 ---
@@ -294,13 +339,13 @@ Exact physical millimetre geometry, uniform sans-serif typography and math, Type
 
 ![Before vs After single-column Nature figure](output/before_after_nature.png)
 
-*Source: [`generate_showcase.py`](generate_showcase.py)*
+*Generator: [`generate_showcase.py`](generate_showcase.py)*
 
 ### One-line journal switch (*Nature* 183 mm vs. *Science* 184 mm)
 
 ![Nature vs Science one-line journal switch](output/nature_vs_science.png)
 
-*Source: [`generate_showcase.py`](generate_showcase.py)*
+*Generator: [`generate_showcase.py`](generate_showcase.py)*
 
 ### Multi-panel publication plates
 

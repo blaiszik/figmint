@@ -261,12 +261,57 @@ def matrix_missing() -> fm.Explanation:
     )
 
 
+def histogram_bimodal() -> fm.Explanation:
+    """fm.histogram: binned single-variable distribution revealing two modes and an SLA threshold."""
+    rng = np.random.default_rng(51)
+    fast = rng.normal(18.0, 3.2, 145)
+    slow = rng.normal(44.0, 4.8, 75)
+    latencies = np.concatenate([fast, slow]).clip(6.0, 62.0).round(1).tolist()
+    return fm.explain(
+        "Request latency splits into two modes near 18 ms and 44 ms; 32% exceed the 35 ms SLA",
+        fm.histogram(
+            latencies,
+            bins=18,
+            reference=(35.0, "35 ms SLA"),
+            label="Response time",
+            unit="ms",
+            title="Cache hits cluster around 18 ms while misses peak near 44 ms",
+        ),
+        subtitle="220 sampled API requests over 1 hour; dashed line marks overall median",
+        source=SOURCE,
+    )
+
+
+def histogram_groups() -> fm.Explanation:
+    """fm.distribution(..., bins=...): shared-axis stacked histograms comparing two groups."""
+    rng = np.random.default_rng(63)
+    before = rng.lognormal(np.log(410), 0.32, 180).clip(150, 1150).round(0).tolist()
+    after = rng.lognormal(np.log(310), 0.24, 180).clip(140, 1150).round(0).tolist()
+    return fm.explain(
+        "The new checkout flow cuts median latency by 120 ms and drops >500 ms sessions from 34% to 3%",
+        fm.distribution(
+            {"Before": before, "After": after},
+            bins=16,
+            baseline="Before",
+            highlight="After",
+            reference=(500.0, "500 ms target"),
+            label="Session latency",
+            unit="ms",
+            title="Both the centre and the slow right tail shifted left",
+        ),
+        subtitle="180 sessions per cohort on identical 60 ms bins",
+        source=SOURCE,
+    )
+
+
 EXAMPLES = {
     "compare_intervals": compare_intervals,
     "trend_dates_events": trend_dates_events,
     "trend_log_log": trend_log_log,
     "trend_points_tasks": trend_points_tasks,
     "distribution_log": distribution_log,
+    "histogram_bimodal": histogram_bimodal,
+    "histogram_groups": histogram_groups,
     "relate_groups_fit": relate_groups_fit,
     "relate_log_allometry": relate_log_allometry,
     "matrix_missing": matrix_missing,

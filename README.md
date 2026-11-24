@@ -1,87 +1,119 @@
 # figmint
 
-**Figures that say one thing.** A Python toolkit, CLI and agent skill for two jobs:
+**Figures that say one thing.**
 
-1. **An agent explaining a scientific result to a person** — `fm.explain`: one takeaway sentence plus evidence panels, with the information-design rules built in and a machine-readable summary the agent checks its claim against.
-2. **Journal-ready plates** — exact millimetre geometry, uniform typography, preflight QA and reproducible bundles for *Nature*, *Science*, *Cell*, PNAS and NeurIPS.
+A Python library, CLI, and AI-agent skill built on Matplotlib for two jobs:
 
-Both build on Matplotlib.
+1. **Explaining results in a conversation (`fm.explain`)** — one takeaway sentence plus evidence panels, with information-design rules built in, CVD-verified themes and palettes, and machine-readable `facts` that let an agent verify its own claim.
+2. **Journal-ready publication plates (`fm.Plate`, `figmint run`)** — exact millimetre MediaBox geometry, uniform sans-serif typography and math, preflight QA, CVD proof sheets, and reproducible bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
 
-![Dose-response figure: replicates on a log dose axis, one colour per compound in both panels](gallery/output/explain_science/dose_response.png)
+[Quickstart](#quickstart) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
 
-![Ablation figure: named confidence intervals, then the training curves](gallery/output/explain_science/ablation.png)
+---
 
-## Explain a result in a conversation (`fm.explain`)
+![Dose-response figure: triplicate wells on a log dose axis, one colour per compound across panels](gallery/output/explain_science/dose_response.png)
 
-Text is a poor carrier for five numbers, a trend or a spread; a default plot is a poor carrier for a conclusion. `fm.explain` asks the agent for the conclusion first and picks the encoding from the question each panel answers.
+---
+
+## Quickstart
+
+The distribution name on PyPI is still being finalised, so install directly from GitHub:
+
+```bash
+pip install git+https://github.com/blaiszik/figmint
+# or, inside a clone
+uv sync --extra dev
+```
+
+Give your coding agent the bundled skill (Claude Code, Antigravity, Cursor, Codex, `AGENTS.md`):
+
+```bash
+figmint skill --install
+```
+
+### Explain a result (`fm.explain`)
+
+Write the conclusion first, then pick each panel by the question it answers. `fig.save()` returns a JSON summary containing computed `facts` per panel, any `issues` with a `fix_hint`, `alt_text`, and measured legibility at chat width:
 
 ```python
 import figmint as fm
 
 fig = fm.explain(
     "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",
-    fm.compare({"full model": 0.82, "no retrieval": 0.74, "no fine-tuning": 0.69},
-               error={"full model": (0.80, 0.84), "no retrieval": (0.71, 0.77),
-                      "no fine-tuning": (0.66, 0.72)},
-               error_label="95% CI, 5 seeds",
-               title="Both losses are outside seed noise", label="Test accuracy",
-               highlight=["no retrieval", "no fine-tuning"]),
-    fm.trend([0, 500, 1000, 1500, 2000],
-             {"full model": [0.02, 0.61, 0.76, 0.80, 0.82],
-              "no retrieval": [0.02, 0.52, 0.67, 0.72, 0.74],
-              "no fine-tuning": [0.01, 0.44, 0.60, 0.66, 0.69]},
-             title="The gap opens in the first 500 steps", label="Validation accuracy",
-             x_label="Training step"),
+    fm.compare(
+        {"full model": 0.82, "no retrieval": 0.74, "no fine-tuning": 0.69},
+        error={"full model": (0.80, 0.84), "no retrieval": (0.71, 0.77),
+               "no fine-tuning": (0.66, 0.72)},
+        error_label="95% CI, 5 seeds",
+        title="Both losses are outside seed noise",
+        label="Test accuracy",
+        highlight=["no retrieval", "no fine-tuning"],
+    ),
+    fm.trend(
+        [0, 500, 1000, 1500, 2000],
+        {"full model": [0.02, 0.61, 0.76, 0.80, 0.82],
+         "no retrieval": [0.02, 0.52, 0.67, 0.72, 0.74],
+         "no fine-tuning": [0.01, 0.44, 0.60, 0.66, 0.69]},
+        title="The gap opens in the first 500 steps",
+        label="Validation accuracy",
+        x_label="Training step",
+    ),
     source="runs/ablation_2026-11 (5 seeds per variant)",
 )
-print(fig.save("ablation.png"))   # JSON: facts to check the claim against, issues to fix, alt text
+print(fig.save("ablation.png"))
 ```
 
-| Question the panel answers | Form | Encoding |
-| :--- | :--- | :--- |
-| How do items differ in size? | `fm.compare` | sorted bars from zero; dots with whiskers when intervals are given, zero is meaningless or the scale is log |
-| How does it change over time, dose or order? | `fm.trend` | lines labelled at their ends, measured points marked, replicates as dots, grey context, small multiples with `facet=True` |
-| What moved between two states? | `fm.change` | slopegraph |
-| How are raw values spread within groups? | `fm.distribution` | every observation as a dot with a median or mean mark |
-| Do two measures move together? | `fm.relate` | scatter, optional groups, least-squares line with computed r and n |
-| What makes up the total? | `fm.share` | sorted percentage bars, small parts folded into "Other" |
-| How do two categorical dimensions interact? | `fm.matrix` | heat table with a number in every cell |
+No Python script needed? Render directly from JSON or stdin with `figmint explain`:
 
-What makes it usable for scientific work:
+```bash
+figmint explain --example | figmint explain - --style editorial --palette okabe_ito --out fig.png
+```
 
-- **Uncertainty is first class and must be named.** Raw replicates (`distribution`, `trend(points=)`), intervals (`compare(error=, error_label=)`) and bands (`trend(band=, band_label=)`); an interval with no stated meaning raises a warning.
-- **Numbers keep their magnitude.** Values are shown to about three significant figures, as `1.3×10⁻⁷` when very small or large, and never rounded to zero. Log axes on `compare`, `trend`, `distribution` and `relate`.
-- **One colour per entity.** A name keeps its colour in every panel of a figure, and `colors=` pins it across the figures of a conversation.
-- **A summary the agent can check.** `fig.save()` returns JSON with computed `facts` per panel (highest, ratios, differences from the highlighted item, whether intervals overlap, crossings, missing values), `issues` with a `fix_hint` each, `alt_text`, and the smallest text size at chat width.
-- **Errors that teach.** A broken rule or a wrong argument raises `ExplainError` with the fix in the message, so an agent recovers in one step.
-- **Figures that come back.** Every PNG embeds its own spec: `fm.load("fig.png")` rebuilds it, so a returned figure can be revised from its data rather than redrawn from memory.
-- **Inputs as they are.** Dicts, lists, numpy arrays, pandas Series and DataFrames; Unicode units and symbols (`µm`, `cm⁻³`, `χ²`).
+---
 
-The same figure from JSON, with no Python: `figmint explain spec.json --out fig.png` (`--example` prints a starter spec, `-` reads stdin, a figmint PNG is accepted as the spec source, `--show-spec fig.png` prints the embedded spec, `--style` overrides the visual style, `--write-spec` saves the normalised spec). Exit codes: `0` rendered, `1` rendered with an error-level issue, `2` the spec broke a rule and nothing was drawn.
+## Pick the form by the question
 
-**Visual styles (`style=`)** change the surface only, never the rules: `"figmint"` (default, white ground), `"bold"` (heavy lines on a matte-gray ground), `"editorial"` (serif headline, dotted gridlines) and `"sketch"` (hand-drawn, for illustrative points; warns unless `source=`/`note=` says the data is illustrative).
+Every form enforces its own perceptual rules (zero baselines, direct labels, no pies, no rotated text, named uncertainty) and computes panel `facts` automatically. **[Browse all 35+ rendered examples with full code in the Gallery →](gallery/README.md)**
 
-The full argument reference is in the agent skill, [src/figmint/assets/SKILL.md](src/figmint/assets/SKILL.md); a test fails if any public argument is missing from it or if its example stops running. An `Explanation` also works with the publication path: return it from `build()` and `figmint run` preflights and bundles it, or pass `target="nature"`.
+| Form | Question it answers & encoding | Example |
+| :--- | :--- | :---: |
+| **`fm.compare`**<br><sub>[more examples](gallery/README.md#fmcompare--size-and-intervals)</sub> | **How do items differ in size?**<br>Sorted bars from zero; switches to dots with whiskers for `error=`, `zero=False`, or `log=True`. Supports `n=`, `baseline=`, and `reference=`. | <img src="gallery/output/explain_forms/compare_intervals.png" width="380" alt="fm.compare with 95% CIs, n counts, and baseline"> |
+| **`fm.trend`**<br><sub>[more examples](gallery/README.md#fmtrend--change-over-time-dose-or-scale)</sub> | **How does it change over time, dose, or scale?**<br>Direct end labels, ISO dates, `events=`, gaps, `band=`, raw `points=` (with `points_label=`), `log=`/`log_x=` power laws, and `facet=True` small multiples. | <img src="gallery/output/explain_forms/trend_dates_events.png" width="380" alt="fm.trend with ISO dates, retrofit event, baseline, and gap"> |
+| **`fm.change`**<br><sub>[more examples](gallery/README.md#fmchange--paired-before-and-after)</sub> | **What moved between two states?**<br>Paired slopegraph with inline deltas; wraps cleanly in narrow columns. | <img src="gallery/output/explain/benchmark_gains.png" width="380" alt="fm.change paired slopegraph"> |
+| **`fm.distribution`**<br><sub>[more examples](gallery/README.md#fmdistribution--raw-observations-and-spread)</sub> | **How are raw observations spread across groups?**<br>Every observation as a dot with a median/IQR (or mean/±1 s.d.) mark, `n=`, `log=True`, and automatic range-separation facts. | <img src="gallery/output/explain_forms/distribution_log.png" width="380" alt="fm.distribution log fold changes"> |
+| **`fm.histogram`**<br><sub>alias: `distribution(bins=)`</sub><br><sub>[more examples](gallery/README.md#fmhistogram--binned-distributions)</sub> | **What is the binned shape or modality?**<br>Single-variable or shared-axis stacked histograms (up to 4 groups), dashed centre line, modal bin and `% above reference` facts. | <img src="gallery/output/explain_forms/histogram_bimodal.png" width="380" alt="fm.histogram bimodal distribution with SLA reference"> |
+| **`fm.relate`**<br><sub>[more examples](gallery/README.md#fmrelate--two-continuous-measures)</sub> | **Do two continuous measures move together?**<br>Scatter with optional `groups=` (directly labelled), `names=`, `fit=True` least-squares lines with computed `r`, `n`, and 95% slope CIs, plus `log_x=`/`log_y=`. | <img src="gallery/output/explain_forms/relate_groups_fit.png" width="380" alt="fm.relate grouped scatter with linear fits"> |
+| **`fm.share`**<br><sub>[more examples](gallery/README.md#fmshare--part-of-a-whole)</sub> | **What makes up the total?**<br>Sorted percentage bars (never a pie), folding smaller parts past `top=` into `"Other (n)"` with combined highlight shares in `facts`. | <img src="gallery/output/explain/build_time.png" width="380" alt="fm.share build time breakdown"> |
+| **`fm.matrix`**<br><sub>[more examples](gallery/README.md#fmmatrix--two-categorical-dimensions)</sub> | **How do two categorical dimensions interact?**<br>Heat table with a number in every cell, `diverging=True` for signed/correlation data, cell/row/column highlights, and `—` for missing values. | <img src="gallery/output/explain_forms/matrix_missing.png" width="380" alt="fm.matrix evaluation pass rates with missing cell dashes"> |
+| **`fm.explain`**<br><sub>[more examples](gallery/README.md#fmexplain--multi-panel-arguments)</sub> | **Tell a multi-step argument in one glance.**<br>Compose 2–4 panels with one shared colour per entity across views, automatic `layout=`, and embedded spec round-tripping (`fm.load`). | <img src="gallery/output/explain/checkout_story.png" width="380" alt="fm.explain four-panel regression story"> |
 
-### Gallery of primary functions
+### Built for scientific agents
 
-Browse the **[full visual gallery with code snippets](gallery/README.md)** (covering every `fm.explain` form, all four styles, and journal plates). Highlights across each primary function:
+- **Uncertainty is first class and must be named.** Raw observations (`distribution`, `histogram`, `trend(points=)`), intervals (`compare(error=, error_label=)`), and bands (`trend(band=, band_label=)`); an unlabelled interval triggers a warning.
+- **Numbers keep their magnitude.** Values format to ~3 significant figures (`1.3×10⁻⁷` when tiny or huge, never silently rounded to zero) with log axes on `compare`, `trend`, `distribution`, `histogram`, and `relate`.
+- **One colour per entity.** A name keeps its colour across every panel of a figure, and `colors=` pins it across figures in a conversation.
+- **Facts the agent checks its claim against.** `fig.save()` returns computed `facts` per panel (ratios, baseline differences, interval overlaps, log slopes & power-law exponents with 95% CIs, event medians, modal bins, `% above reference`), actionable `issues`, and `alt_text`.
+- **Errors that teach & figures that come back.** Invalid arguments raise `ExplainError` with the exact fix; every PNG embeds its spec so `fm.load("fig.png").to_spec()` rebuilds and edits returned figures without redrawing from memory.
+- **Native data inputs & Unicode.** Dicts, lists, NumPy arrays, pandas Series and DataFrames, plus direct Unicode symbols (`µm`, `cm⁻³`, `°C`, `χ²`). Full argument reference: [src/figmint/assets/SKILL.md](src/figmint/assets/SKILL.md) (verified by tests against the live API).
 
-| `fm.compare` (intervals, `n=`, `baseline=`) | `fm.trend` (dates, `events=`, gaps) |
-| :---: | :---: |
-| ![fm.compare with 95% CIs](gallery/output/explain_forms/compare_intervals.png) | ![fm.trend with dates and events](gallery/output/explain_forms/trend_dates_events.png) |
-| **`fm.trend` (`log=True, log_x=True` power laws)** | **`fm.trend` (`facet=True` small multiples)** |
-| ![fm.trend log-log scaling](gallery/output/explain_forms/trend_log_log.png) | ![fm.trend faceted small multiples](gallery/output/explain/regional_orders.png) |
-| **`fm.change` (paired slopegraph)** | **`fm.distribution` (log raw observations)** |
-| ![fm.change slopegraph](gallery/output/explain/benchmark_gains.png) | ![fm.distribution log fold changes](gallery/output/explain_forms/distribution_log.png) |
-| **`fm.relate` (grouped linear fits + 95% CIs)** | **`fm.relate` (log-log with named points)** |
-| ![fm.relate grouped scatter with fits](gallery/output/explain_forms/relate_groups_fit.png) | ![fm.relate log-log allometry](gallery/output/explain_forms/relate_log_allometry.png) |
-| **`fm.share` (part-to-whole bars)** | **`fm.matrix` (heat table + missing cells)** |
-| ![fm.share build time](gallery/output/explain/build_time.png) | ![fm.matrix with missing cell dashes](gallery/output/explain_forms/matrix_missing.png) |
-| **`fm.matrix` (`diverging=True` correlations)** | **`fm.explain` (4-panel story, shared colours)** |
-| ![fm.matrix diverging correlations](gallery/output/explain_science/descriptor_correlations.png) | ![fm.explain four-panel story](gallery/output/explain/checkout_story.png) |
+---
 
-Reference generators: [gallery/explain_form_gallery.py](gallery/explain_form_gallery.py) → `gallery/output/explain_forms/`, [gallery/explain_science_examples.py](gallery/explain_science_examples.py) → `gallery/output/explain_science/`, [gallery/explain_chat_examples.py](gallery/explain_chat_examples.py) → `gallery/output/explain/`, and [gallery/explain_style_showcase.py](gallery/explain_style_showcase.py) → `gallery/output/explain_styles/`.
+## Themes & Palettes
+
+Surface **themes (`style=`)** and **color palettes (`palette=`)** change only aesthetics — never the information-design rules. Every built-in theme and palette is quantitatively tested for deuteranopia, protanopia, grayscale luminance separation, and WCAG 4.5:1 text contrast.
+
+![figmint color palettes, surface themes, and editorial colormaps](gallery/output/explain_themes/palettes_overview.png)
+
+- **7 surface themes (`style=`):** `figmint` (default), `editorial` (serif headline, dotted grids), `paper` (warm ivory ground), `bold` (matte gray, heavy lines), `dark` (charcoal slate for dark UIs & slides), `mono` (monochrome print + single vermilion accent), and `sketch` (hand-drawn for illustrative points).
+- **6 `fm.explain` color palettes (`palette=`):** `default`, `okabe_ito`, `tol`, `earth`, `ocean`, and `berry` — mixable with any surface theme (`fm.explain(..., style="paper", palette="okabe_ito")`).
+
+| `style="dark"` | `style="paper"` | `palette="berry"` |
+| :---: | :---: | :---: |
+| ![dark theme](gallery/output/explain_themes/style_dark.png) | ![paper theme](gallery/output/explain_themes/style_paper.png) | ![berry palette](gallery/output/explain_themes/palette_berry.png) |
+
+**[See all 7 themes and all 6 palettes rendered side-by-side in the Gallery →](gallery/README.md#themes--color-palettes)**
+
+---
 
 ### Design rules, and where they come from
 
@@ -89,139 +121,31 @@ Reference generators: [gallery/explain_form_gallery.py](gallery/explain_form_gal
 | :--- | :--- |
 | The title is the conclusion as a sentence; each panel has its own headline | Assertion–evidence structure (Alley & Neeley, *Technical Communication* 2005) |
 | Quantities are encoded by position or length on a common scale; bars start at zero; no pies | Cleveland & McGill, *JASA* 1984 (ranking of elementary perceptual tasks) |
-| At most 4 coloured series and 3 highlights; the rest is grey context or small multiples | Working-memory capacity of about four items (Cowan, *Behavioral and Brain Sciences* 2001); small multiples (Tufte 1983) |
+| At most 4 coloured series and 3 highlights; the rest is grey context or small multiples | Working-memory capacity of ~4 items (Cowan, *BBS* 2001); small multiples (Tufte 1983) |
 | Labels sit on the data, not in a legend; all text horizontal | Spatial contiguity / split attention (Mayer, *Multimedia Learning*) |
-| Raw observations and named intervals are shown rather than hidden in bars | Weissgerber et al., *PLoS Biology* 2015; Cumming et al., *J. Cell Biol.* 2007 (error bars must be defined) |
+| Raw observations and named intervals are shown rather than hidden in bars | Weissgerber et al., *PLoS Biology* 2015; Cumming et al., *J. Cell Biol.* 2007 |
 | A name keeps one colour across panels | Consistency of visual encoding across views (Qu & Hullman, *IEEE TVCG* 2018) |
-| Series colours are separable under deuteranopia, protanopia and in grayscale; small text has at least 4.5:1 contrast | Machado et al. 2009 simulation; WCAG 2 contrast |
+| Series colours separate under deuteranopia, protanopia, and grayscale; text ≥ 4.5:1 contrast | Machado et al. 2009 simulation; WCAG 2 contrast |
 | Text is at least 11 px tall at a 700 px chat column | Legibility floor, measured after layout and reported in the summary |
 
-## Publication figures
+---
 
-Default Matplotlib plots break journal guidelines in subtle ways when dropped into manuscripts: oversized 6.4" canvases shrink text below 5 pt when scaled to an 89 mm column, `bbox_inches="tight"` silently mutates your PDF MediaBox, Type 3 fonts break Adobe Illustrator editing, Computer Modern serif math clashes with Helvetica labels, and 50k-point scatters create multi-megabyte laggy PDFs. The publication path handles the geometry, rendering, verification and agent-automation layers:
+## Publication Figures
 
-- **Exact physical column widths** — locked PDF MediaBox dimensions (`89.0 mm`, `120.0 mm`, `183.0 mm` for *Nature*; `55.0 mm`, `120.0 mm`, `184.0 mm` for *Science*) with internal `constrained_layout` and versioned journal spec provenance (`spec_version`, `last_verified`, `source_url`).
-- **Uniform sans-serif typography & math** — resolves Helvetica/Arial/Liberation Sans/DejaVu Sans for both body text and mathtext (`$10^{-4}$`, `$\mu\mathrm{m}$`, `$\Delta T$`, `$\mathrm{IC}_{50}$`) with TrueType Type 42 PDF embedding (`pdf.fonttype = 42`) and editable SVG text (`svg.fonttype = "none"`).
-- **Multi-panel `Plate` engine** — grid and mosaic layouts with automatically aligned bold panel labels (`a, b, c` at 8 pt for *Nature*; `A, B, C` at 8.5 pt for *Science*) and per-panel issue attribution.
-- **Publication & Tufte editorial primitives** — collision-free auto-stacked `sig_bracket`, microscopy `scalebar`, margin-trimmed `direct_labels`, `zoom_inset`, `despine`, `style_colorbar`, `emphasize`, plus Tufte primitives: `range_frame` (with optional marginal rugs), `ghost_context` (peer curves for small multiples), `tufte_boxplot`, `slopegraph`, and `sparkline`.
-- **Hybrid vector/raster export** — `save_figure(..., rasterize_above=10_000)` selectively rasterizes dense scatter/mesh/line layers above a threshold (default 10,000 points) at journal combo DPI while keeping axes, ticks, and text crisp vector; the live figure's rasterization state is restored after saving (call `rasterize_heavy` directly to apply it permanently).
-- **Reproducible exports** — PDF and SVG output omits creation timestamps and uses a fixed SVG id salt, so re-running the same script through `figmint run` yields byte-identical `figure.pdf`, `figure.svg`, and `preview.png`. `figmint run` and `figmint explain` pin `PYTHONHASHSEED=0`, because Matplotlib's embedding of bold fonts in PDF depends on Python's per-process hash seed; when saving from your own Python process, set `PYTHONHASHSEED=0` yourself for byte-identical PDFs.
-- **One-command manuscript bundles & agent runner (`figmint run`)** — executes a plotting script, runs 14 high-precision checks (9 compliance rules + 5 clarity warnings: `color_separation`, `clarity_metadata`, `bar_baseline_nonzero`, `chartjunk_hints`, `text_on_data`) with `panels`, `element_locations`, and actionable `fix_hint`s in `schema_version: "0.2"` JSON, and exports a complete bundle (`figure.pdf`, `figure.svg`, `preview.png`, `proof.png`, `figure.tex`, `figure.json`, `reproduce.py`, `report.json`).
-- **Built-in agent skill installer (`figmint skill --install`)** — ships curated `SKILL.md` and `AGENTS.md` instructions for Claude Code, Antigravity, Cursor, and Codex with a 2-loop repair cap.
+Default Matplotlib figures break journal specifications in subtle ways: 6.4" canvases shrink text below 5 pt when scaled to an 89 mm column, `bbox_inches="tight"` mutates PDF MediaBox dimensions, Type 3 fonts break Illustrator editing, Computer Modern serif math clashes with Helvetica labels, and 50k-point scatters produce sluggish multi-megabyte PDFs.
 
-## Installation
+![Before vs After default Matplotlib on an 89 mm Nature single-column figure](gallery/output/before_after_nature.png)
 
-The name `figmint` is not available on PyPI, so install from the repository for now:
+- **Exact physical column widths** — locked PDF MediaBox dimensions with `constrained_layout` and versioned journal spec provenance.
+- **Uniform sans-serif typography & math** — Helvetica/Arial/Liberation Sans/DejaVu Sans for body text and mathtext, Type 42 PDF embedding (`pdf.fonttype = 42`), editable SVG text (`svg.fonttype = "none"`).
+- **Multi-panel `Plate` engine & Tufte primitives** — aligned bold panel labels (`a, b, c` / `A, B, C`), auto-stacked `sig_bracket`, `scalebar`, `direct_labels`, `zoom_inset`, `range_frame`, `ghost_context`, `tufte_boxplot`, `slopegraph`, and `sparkline`.
+- **Hybrid vector/raster & byte-reproducible bundles** — `save_figure(..., rasterize_above=10_000)` keeps axes crisp vector while rasterizing dense scatter/mesh layers; `figmint run --bundle out/` emits `figure.pdf`, `figure.svg`, `preview.png`, `proof.png` (CVD + grayscale scorecard), `figure.tex`, `figure.json`, `reproduce.py`, and `report.json`.
 
-```bash
-pip install git+https://github.com/blaiszik/figmint
-# or, in a clone
-uv sync --extra dev
-```
+**[View the Nature, Science, Cell, and NeurIPS publication plates in the Gallery →](gallery/README.md#publication-figures-fmfigure-fmplate-figmint-run)** · [8-dimension journal audit](gallery/benchmark_comparison.md)
 
-Then give your agent the skill: `figmint skill --install` (Claude Code, Antigravity, Cursor, Codex, `AGENTS.md`).
+### Supported journal & screen specs
 
-## Publication quickstart
-
-### Single-panel figure
-
-```python
-import numpy as np
-import figmint as fm
-
-fig, ax = fm.figure("nature", width="single", height_mm=62.0)
-x = np.linspace(0, 10, 200)
-ax.plot(x, np.exp(-x / 3.0), label="Control")
-ax.plot(x, np.exp(-x / 6.0), label="Treated")
-ax.set_xlabel("Time (h)")
-ax.set_ylabel(r"Normalized signal ($\mu\mathrm{M}$)")
-fm.direct_labels(ax)
-
-fm.save_figure(fig, "figure1.pdf", journal="nature")
-```
-
-`journal=` accepts a journal name or `JournalSpec` and sets the default export DPI; when omitted, the journal tagged on the figure by `fm.figure` / `fm.Plate` is used.
-
-### Multi-panel composite plate & manuscript bundle
-
-```python
-import figmint as fm
-
-
-def build(journal: str = "nature") -> fm.Plate:
-    plate = fm.Plate(
-        journal=journal,    # switch to "science" for 184 mm + uppercase A, B, C
-        width="double",     # 183.0 mm for Nature
-        height_mm=118.0,
-        layout=[["a", "b"], ["c", "d"]],
-    )
-    # Plot into plate["a"], plate["b"], plate["c"], plate["d"] ...
-    plate.label_panels()
-    return plate
-
-
-if __name__ == "__main__":
-    plate = build()
-    bundle = plate.bundle("out/fig2", caption="Single-cell perturbation dynamics.")
-    print(bundle.report.summary())
-```
-
-## CLI Workflow (`figmint run`, `check`, `specs`, `skill`)
-
-### Run, preflight, and bundle a plotting script
-
-`figmint run` executes a script exposing `def build(...) -> Plate | Figure` (or module-level `plate` / `fig`) under the headless Agg backend (so interactive backends cannot snap the canvas to whole screen pixels), validates against the target journal spec, and writes a complete manuscript bundle:
-
-```bash
-figmint run plot.py --journal nature --bundle out/ --json
-figmint run plot.py --journal science --width full --bundle out_sci/ --strict
-```
-
-Exit codes:
-- `0`: preflight passed (and 0 warnings under `--strict`)
-- `1`: preflight error(s) found — inspect `issues[].rule`, `panel`, `panels`, `elements`, `element_locations`, and `fix_hint`
-- `2`: script contract violation or Python runtime exception (still returns valid `schema_version: "0.2"` JSON)
-
-Optional module-level metadata (`CAPTION`, `LABEL`, `TAKEAWAY`, `PANEL_NOTES`) in the script is automatically picked up by `figmint run --bundle`.
-
-Each `--bundle out/` directory contains:
-- `figure.pdf` — locked-mm Type 42 vector PDF (Adobe Illustrator editable, 0 Type 3 fonts)
-- `figure.svg` — editable vector SVG (`svg.fonttype="none"`)
-- `preview.png` — 300 DPI crisp preview for immediate inspection
-- `proof.png` — compliance scorecard + Deuteranopia, Protanopia, and Grayscale print views
-- `figure.tex` — ready-to-paste LaTeX `\begin{figure}` snippet with exact `\includegraphics[width=...mm]` and spec provenance comments
-- `figure.json` — message-first sidecar with `takeaway`, `caption`, per-panel reading notes, encodings, and `reproduce_sha256`
-- `reproduce.py` — copied source script for full reproducibility
-- `report.json` — structured `schema_version: "0.2"` preflight report and artifact manifest
-
-### Install bundled AI agent skills
-
-Install `figmint`'s skill and repository instructions for Claude Code, Antigravity, Cursor, Codex, `AGENTS.md`, or `CLAUDE.md` (marker-based updates are strictly idempotent):
-
-```bash
-# Default targets: claude, antigravity, agents-md
-figmint skill --install
-
-# Select specific targets
-figmint skill --install --target claude,antigravity,cursor,codex,agents-md,claude-md --root .
-
-# Inspect skill or snippet without writing files
-figmint skill --print
-figmint skill --snippet
-```
-
-### Check existing PDFs & inspect journal specs
-
-```bash
-figmint check figure2.pdf --journal nature
-figmint check figure2.pdf --journal science --json --strict
-figmint specs
-figmint specs --journal nature --json
-```
-
-## Supported Journal & Screen Specs
-
-| Target | Width Presets (mm) | Max Height (mm) | Body / Tick / Panel Label | Panel Case | Default Palette | Combo / Line DPI |
+| Target | Width Presets (mm) | Max Height (mm) | Body / Tick / Panel | Panel Case | Default Palette | Combo / Line DPI |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: |
 | **Nature Portfolio** (`nature`) | `single`: 89, `mid`/`1.5col`: 120, `double`/`full`: 183 | 170 (247 page) | 6.5 / 6.0 / 8.0 pt | `a, b, c` | `nature` | 500 / 1000 |
 | **Science (AAAS)** (`science`) | `single`: 55, `double`/`2col`: 120, `full`/`3col`: 184 | 180 (230 page) | 7.0 / 6.0 / 8.5 pt | `A, B, C` | `science` | 600 / 1200 |
@@ -231,19 +155,59 @@ figmint specs --journal nature --json
 | **NeurIPS** (`neurips`) | `half`/`single`: 67, `mid`: 111.8, `double`/`full`: 139.7 | 180 (228.6 page) | 7.5 / 6.5 / 8.5 pt | `a, b, c` | `nature_muted` | 500 / 1000 |
 | **Screen / Chat** (`screen`) | `chat`/`single`: 140, `wide`/`double`: 180, `slide`: 240 | 135 (160 page) | 8.5 / 7.5 / 10.0 pt | `a, b, c` | `nature_muted` | 220 / 300 |
 
-Built-in palettes: `nature`, `nature_muted`, `science`, `okabe_ito`, `tol_bright`, `tol_muted`. Editorial colormaps: `figmint_navy`, `figmint_teal`, `figmint_coral`, `figmint_div`.
+### Publication quickstart
 
-## Showcase Gallery & Empirical Validation
+```python
+import numpy as np
+import figmint as fm
 
-- **Visual gallery**: see **[gallery/README.md](gallery/README.md)** for rendered examples and code snippets of every primary `fm.explain` function, all four visual styles (`figmint`, `bold`, `editorial`, `sketch`), before/after comparisons, and multi-panel *Nature*, *Science*, *Cell*, and NeurIPS plates.
-- **Publication showcase & benchmarks**: run `.venv/bin/python gallery/generate_showcase.py` to generate before/after comparisons, a 4-panel *Nature* double-column plate with CVD proof sheet, and a one-line *Nature* vs. *Science* switch comparison (detailed 8-dimension audit in [gallery/benchmark_comparison.md](gallery/benchmark_comparison.md)).
-- **Empirical validation gates**: `evals/` benchmarks `figmint run --json` + `fix_hint` repair loops across 10 clean control scripts and 25 messy agent scripts (`evals/eval_report.md`), and `evals/figure_bench/` benchmarks end-to-end chat figure generation with fresh agents (`evals/figure_bench/README.md`).
 
-![Before vs After default Matplotlib on an 89 mm Nature single-column figure](gallery/output/before_after_nature.png)
+def build(journal: str = "nature") -> fm.Plate:
+    plate = fm.Plate(journal=journal, width="double", height_mm=118.0, layout=[["a", "b"], ["c", "d"]])
+    x = np.linspace(0, 10, 200)
+    plate["a"].plot(x, np.exp(-x / 3.0), label="Control")
+    plate["a"].plot(x, np.exp(-x / 6.0), label="Treated")
+    plate["a"].set_xlabel("Time (h)")
+    plate["a"].set_ylabel(r"Normalized signal ($\mu\mathrm{M}$)")
+    fm.direct_labels(plate["a"])
+    # Plot into plate["b"], plate["c"], plate["d"] ...
+    plate.label_panels()
+    return plate
+```
 
-## Development & Testing
+---
+
+## CLI & Agent Skill
 
 ```bash
-.venv/bin/pytest -v
+# Chat figures from JSON or an embedded-spec PNG
+figmint explain spec.json --out fig.png --write-spec
+figmint explain fig.png --style dark --palette okabe_ito --out fig_dark.png
+figmint explain --show-spec fig.png
+
+# Publication scripts: execute, preflight (14 rules), and export reproducible bundle
+figmint run plot.py --journal nature --bundle out/ --json
+figmint run plot.py --journal science --width full --bundle out_sci/ --strict
+
+# Audit existing PDFs & inspect specs
+figmint check figure2.pdf --journal nature --json
+figmint specs --journal nature --json
+
+# Install bundled agent skill (Claude Code, Antigravity, Cursor, Codex, AGENTS.md, CLAUDE.md)
+figmint skill --install
+figmint skill --install --target claude,antigravity,cursor,codex,agents-md,claude-md --root .
+```
+
+Exit codes: `0` clean pass · `1` error-level issue (or warning under `--strict`) · `2` invalid spec, script contract violation, or runtime error.
+
+---
+
+## Benchmarks & Development
+
+- **Chat figure benchmark (`evals/figure_bench/`)**: timed end-to-end benchmark of fresh agents reading only `SKILL.md` across 10 core tasks and 5 held-out tasks with an independent drawn-text layout audit ([evals/figure_bench/README.md](evals/figure_bench/README.md)).
+- **Publication repair eval (`evals/`)**: 10 clean control scripts and 25 messy agent-written scripts testing `figmint run --json` + `fix_hint` repair loops ([evals/eval_report.md](evals/eval_report.md)).
+
+```bash
+.venv/bin/pytest -q
 .venv/bin/ruff check src tests gallery evals
 ```
