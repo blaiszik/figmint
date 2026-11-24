@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "science",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.science.org/content/page/instructions-preparing-revised-manuscript",
+  "dimensions_mm": {
+    "width": 183.9,
+    "height": 121.92
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "gallery/output/masterpiece_3_climate",
+    "figure_pdf": "gallery/output/masterpiece_3_climate/figure.pdf",
+    "figure_svg": "gallery/output/masterpiece_3_climate/figure.svg",
+    "preview_png": "gallery/output/masterpiece_3_climate/preview.png",
+    "proof_png": "gallery/output/masterpiece_3_climate/proof.png",
+    "figure_tex": "gallery/output/masterpiece_3_climate/figure.tex",
+    "reproduce_py": "gallery/output/masterpiece_3_climate/reproduce.py",
+    "report_json": "gallery/output/masterpiece_3_climate/report.json"
+  }
+}

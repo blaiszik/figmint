@@ -1,0 +1,88 @@
+{
+  "takeaway": "Checkout is the slow service: its p99 is 4x the next worst",
+  "subtitle": "API latency by service, week of 16 Nov",
+  "source": "synthetic example data",
+  "style": "bold",
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "checkout": 1840.0,
+        "search": 460.0,
+        "auth": 310.0,
+        "catalog": 280.0,
+        "cart": 240.0,
+        "profile": 120.0
+      },
+      "highlight": [
+        "checkout"
+      ],
+      "sort": true,
+      "zero": true,
+      "title": "Checkout stands alone",
+      "label": "p99 latency",
+      "unit": "ms"
+    },
+    {
+      "kind": "trend",
+      "x": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "series": {
+        "checkout": [
+          540.0,
+          560.0,
+          550.0,
+          570.0,
+          980.0,
+          1400.0,
+          1700.0,
+          1840.0
+        ],
+        "search": [
+          450.0,
+          470.0,
+          455.0,
+          465.0,
+          460.0,
+          450.0,
+          470.0,
+          460.0
+        ],
+        "auth": [
+          300.0,
+          310.0,
+          305.0,
+          315.0,
+          300.0,
+          320.0,
+          305.0,
+          310.0
+        ]
+      },
+      "x_label": "Week",
+      "highlight": [
+        "checkout"
+      ],
+      "events": {
+        "4": "v2.3 deploy"
+      },
+      "title": "It regressed after the v2.3 deploy",
+      "label": "p99 latency",
+      "unit": "ms"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "nature",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.nature.com/nature/for-authors/final-submission",
+  "dimensions_mm": {
+    "width": 183.0,
+    "height": 126.0
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "gallery/output/nature_quantum_critical_dome",
+    "figure_pdf": "gallery/output/nature_quantum_critical_dome/figure.pdf",
+    "figure_svg": "gallery/output/nature_quantum_critical_dome/figure.svg",
+    "preview_png": "gallery/output/nature_quantum_critical_dome/preview.png",
+    "proof_png": "gallery/output/nature_quantum_critical_dome/proof.png",
+    "figure_tex": "gallery/output/nature_quantum_critical_dome/figure.tex",
+    "reproduce_py": "gallery/output/nature_quantum_critical_dome/reproduce.py",
+    "report_json": "gallery/output/nature_quantum_critical_dome/report.json"
+  }
+}

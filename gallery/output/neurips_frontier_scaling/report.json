@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "neurips",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://neurips.cc/Conferences/2025/PaperInformation/StyleFiles",
+  "dimensions_mm": {
+    "width": 139.7,
+    "height": 106.0
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 11
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "gallery/output/neurips_frontier_scaling",
+    "figure_pdf": "gallery/output/neurips_frontier_scaling/figure.pdf",
+    "figure_svg": "gallery/output/neurips_frontier_scaling/figure.svg",
+    "preview_png": "gallery/output/neurips_frontier_scaling/preview.png",
+    "proof_png": "gallery/output/neurips_frontier_scaling/proof.png",
+    "figure_tex": "gallery/output/neurips_frontier_scaling/figure.tex",
+    "reproduce_py": "gallery/output/neurips_frontier_scaling/reproduce.py",
+    "report_json": "gallery/output/neurips_frontier_scaling/report.json",
+    "figure_json": "gallery/output/neurips_frontier_scaling/figure.json"
+  }
+}

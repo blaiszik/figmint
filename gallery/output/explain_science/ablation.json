@@ -1,0 +1,111 @@
+{
+  "takeaway": "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",
+  "source": "synthetic example data",
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "full model": 0.82,
+        "no retrieval": 0.74,
+        "no fine-tuning": 0.69,
+        "no augmentation": 0.8,
+        "smaller encoder": 0.78
+      },
+      "highlight": [
+        "no retrieval",
+        "no fine-tuning"
+      ],
+      "sort": true,
+      "zero": true,
+      "error": {
+        "full model": [
+          0.8,
+          0.84
+        ],
+        "no retrieval": [
+          0.71,
+          0.77
+        ],
+        "no fine-tuning": [
+          0.66,
+          0.72
+        ],
+        "no augmentation": [
+          0.78,
+          0.82
+        ],
+        "smaller encoder": [
+          0.75,
+          0.81
+        ]
+      },
+      "error_label": "95% CI, 5 seeds",
+      "title": "Both losses are outside seed noise",
+      "label": "Test accuracy"
+    },
+    {
+      "kind": "trend",
+      "x": [
+        0,
+        250,
+        500,
+        750,
+        1000,
+        1250,
+        1500,
+        1750,
+        2000
+      ],
+      "series": {
+        "full model": [
+          0.0,
+          0.465,
+          0.664,
+          0.75,
+          0.789,
+          0.804,
+          0.815,
+          0.822,
+          0.817
+        ],
+        "no retrieval": [
+          -0.002,
+          0.42,
+          0.601,
+          0.68,
+          0.711,
+          0.728,
+          0.737,
+          0.734,
+          0.738
+        ],
+        "no fine-tuning": [
+          -0.006,
+          0.306,
+          0.475,
+          0.574,
+          0.622,
+          0.656,
+          0.671,
+          0.679,
+          0.677
+        ]
+      },
+      "x_label": "Training step",
+      "band": {
+        "full model": 0.02,
+        "no retrieval": 0.02,
+        "no fine-tuning": 0.02
+      },
+      "band_label": "± 1 s.d.",
+      "title": "The gap opens in the first 500 steps",
+      "label": "Validation accuracy"
+    }
+  ]
+}

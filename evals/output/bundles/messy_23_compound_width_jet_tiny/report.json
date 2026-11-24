@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "nature",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.nature.com/nature/for-authors/final-submission",
+  "dimensions_mm": {
+    "width": 182.88,
+    "height": 121.92
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny",
+    "figure_pdf": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/figure.pdf",
+    "figure_svg": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/figure.svg",
+    "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/preview.png",
+    "proof_png": null,
+    "figure_tex": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/figure.tex",
+    "reproduce_py": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/reproduce.py",
+    "report_json": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/report.json"
+  }
+}

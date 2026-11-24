@@ -1,0 +1,1400 @@
+{
+  "control_set": {
+    "total": 10,
+    "false_positive_errors": 0,
+    "false_positive_warnings": 0,
+    "clean_pass_rate": 1.0
+  },
+  "messy_set": {
+    "total": 25,
+    "loop0_error_free": 4,
+    "loop0_clean_zero_warn": 0,
+    "loop1_error_free": 24,
+    "loop1_clean_zero_warn": 23,
+    "loop2_error_free": 25,
+    "loop2_clean_zero_warn": 24,
+    "loop2_error_free_rate": 1.0,
+    "loop2_clean_rate": 0.96
+  },
+  "contact_sheet_scripts": [
+    "messy_01_default_scatter.py",
+    "messy_05_volcano_jet_cmap.py",
+    "messy_06_heatmap_rainbow_cmap.py",
+    "messy_08_survival_tiny_text.py",
+    "messy_11_bar_clipped_xlabel.py",
+    "messy_13_scatter_colliding_labels.py",
+    "messy_15_cramped_xticks_overlap.py",
+    "messy_16_legend_collides_annotation.py",
+    "messy_24_compound_multipanel_mess.py"
+  ],
+  "clean_records": [
+    {
+      "script": "clean_01_nature_single_dose.py",
+      "journal": "nature",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 88.9,
+        "height": 63.84
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_02_nature_double_2x2.py",
+      "journal": "nature",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 182.88,
+        "height": 111.93
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_03_nature_mid_mosaic.py",
+      "journal": "nature",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 119.89,
+        "height": 81.96
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_04_science_1col_spectra.py",
+      "journal": "science",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 54.86,
+        "height": 49.95
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_05_science_2col_volcano.py",
+      "journal": "science",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 119.89,
+        "height": 75.86
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_06_science_3col_climate.py",
+      "journal": "science",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 183.9,
+        "height": 67.9
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_07_sciadv_double_roc.py",
+      "journal": "science_advances",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 174.92,
+        "height": 74.0
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_08_nature_umap_25k.py",
+      "journal": "nature",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 88.9,
+        "height": 71.97
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_09_nature_confocal_scalebar.py",
+      "journal": "nature",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 88.9,
+        "height": 71.97
+      },
+      "issues": []
+    },
+    {
+      "script": "clean_10_nature_box_sig.py",
+      "journal": "nature",
+      "exit_code": 0,
+      "ok": true,
+      "errors": 0,
+      "warnings": 0,
+      "dimensions_mm": {
+        "width": 88.9,
+        "height": 67.9
+      },
+      "issues": []
+    }
+  ],
+  "messy_records": [
+    {
+      "script": "messy_01_default_scatter.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 182.88,
+        "height": 137.16
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_01_default_scatter/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 2,
+          "error_rules": [
+            "dimensions"
+          ],
+          "warn_rules": [
+            "font_sizes",
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_02_wide_line_kinetics.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 182.88,
+        "height": 109.73
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_02_wide_line_kinetics/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 2,
+          "error_rules": [
+            "dimensions"
+          ],
+          "warn_rules": [
+            "font_sizes",
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_03_bar_default_figsize.py",
+      "journal": "science",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 183.9,
+        "height": 131.23
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_03_bar_default_figsize/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 2,
+          "error_rules": [
+            "dimensions"
+          ],
+          "warn_rules": [
+            "font_sizes",
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_04_violin_oversized_text.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 119.89,
+        "height": 74.85
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_04_violin_oversized_text/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 2,
+          "error_rules": [
+            "dimensions"
+          ],
+          "warn_rules": [
+            "font_sizes",
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_05_volcano_jet_cmap.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 65.87
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_05_volcano_jet_cmap/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "colormaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_06_heatmap_rainbow_cmap.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 69.93
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_06_heatmap_rainbow_cmap/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "colormaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_07_phase_hsv_cmap.py",
+      "journal": "science",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 119.89,
+        "height": 75.86
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_07_phase_hsv_cmap/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "colormaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_08_survival_tiny_text.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 65.87
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_08_survival_tiny_text/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "font_sizes"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_09_residuals_tiny_ticks.py",
+      "journal": "science",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 119.89,
+        "height": 71.97
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_09_residuals_tiny_ticks/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "font_sizes"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_10_roc_tiny_auc.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 65.87
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_10_roc_tiny_auc/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "font_sizes"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_11_bar_clipped_xlabel.py",
+      "journal": "nature",
+      "loops_used": 2,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": false,
+      "loop2_ok": true,
+      "loop2_clean": false,
+      "final_ok": true,
+      "final_warnings": 1,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 57.91
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 1,
+          "error_rules": [
+            "canvas_clipping"
+          ],
+          "warn_rules": [
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 1,
+          "error_rules": [],
+          "warn_rules": [
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": true
+        },
+        {
+          "loop": 2,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 1,
+          "error_rules": [],
+          "warn_rules": [
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_12_heatmap_clipped_title.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 63.84
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_12_heatmap_clipped_title/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "canvas_clipping"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_13_scatter_colliding_labels.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 67.9
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_13_scatter_colliding_labels/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "text_overlaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_14_line_overlapping_annotations.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 65.87
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_14_line_overlapping_annotations/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "text_overlaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_15_cramped_xticks_overlap.py",
+      "journal": "science",
+      "loops_used": 2,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": false,
+      "loop1_clean": false,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 54.86,
+        "height": 55.88
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_15_cramped_xticks_overlap/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "text_overlaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "text_overlaps"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 2,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_16_legend_collides_annotation.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": true,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 65.87
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_16_legend_collides_annotation/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 1,
+          "error_rules": [],
+          "warn_rules": [
+            "text_overlaps"
+          ],
+          "clean_pass": false,
+          "error_free": true
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_17_serif_times_override.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": true,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 63.84
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_17_serif_times_override/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 1,
+          "error_rules": [],
+          "warn_rules": [
+            "font_family"
+          ],
+          "clean_pass": false,
+          "error_free": true
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_18_cm_serif_mathtext.py",
+      "journal": "science",
+      "loops_used": 1,
+      "loop0_ok": true,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 119.89,
+        "height": 75.86
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_18_cm_serif_mathtext/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 3,
+          "error_rules": [],
+          "warn_rules": [
+            "font_sizes",
+            "font_family",
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": true
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_19_hairline_strokes.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": true,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 63.84
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_19_hairline_strokes/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 1,
+          "error_rules": [],
+          "warn_rules": [
+            "hairline_strokes"
+          ],
+          "clean_pass": false,
+          "error_free": true
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_20_oversized_height.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 182.88,
+        "height": 154.94
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_20_oversized_height/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "dimensions"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_21_contract_missing_export.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 88.9,
+        "height": 63.84
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 2,
+          "stage": "contract",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "script_contract"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_22_contract_local_only.py",
+      "journal": "science",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 119.89,
+        "height": 74.0
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_22_contract_local_only/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 2,
+          "stage": "contract",
+          "ok": false,
+          "errors": 1,
+          "warnings": 0,
+          "error_rules": [
+            "script_contract"
+          ],
+          "warn_rules": [],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_23_compound_width_jet_tiny.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 182.88,
+        "height": 121.92
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_23_compound_width_jet_tiny/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 3,
+          "warnings": 1,
+          "error_rules": [
+            "dimensions",
+            "font_sizes",
+            "colormaps"
+          ],
+          "warn_rules": [
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_24_compound_multipanel_mess.py",
+      "journal": "nature",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 182.88,
+        "height": 133.1
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_24_compound_multipanel_mess/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 4,
+          "warnings": 1,
+          "error_rules": [
+            "dimensions",
+            "font_sizes",
+            "text_overlaps",
+            "colormaps"
+          ],
+          "warn_rules": [
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    },
+    {
+      "script": "messy_25_compound_science_clip_overlap_jet.py",
+      "journal": "science",
+      "loops_used": 1,
+      "loop0_ok": false,
+      "loop0_clean": false,
+      "loop1_ok": true,
+      "loop1_clean": true,
+      "loop2_ok": true,
+      "loop2_clean": true,
+      "final_ok": true,
+      "final_warnings": 0,
+      "final_errors": 0,
+      "final_dimensions_mm": {
+        "width": 119.89,
+        "height": 74.85
+      },
+      "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/preview.png",
+      "history": [
+        {
+          "loop": 0,
+          "exit_code": 1,
+          "stage": "preflight",
+          "ok": false,
+          "errors": 4,
+          "warnings": 2,
+          "error_rules": [
+            "dimensions",
+            "text_overlaps",
+            "canvas_clipping",
+            "colormaps"
+          ],
+          "warn_rules": [
+            "font_sizes",
+            "vector_fonts"
+          ],
+          "clean_pass": false,
+          "error_free": false
+        },
+        {
+          "loop": 1,
+          "exit_code": 0,
+          "stage": "preflight",
+          "ok": true,
+          "errors": 0,
+          "warnings": 0,
+          "error_rules": [],
+          "warn_rules": [],
+          "clean_pass": true,
+          "error_free": true
+        }
+      ]
+    }
+  ]
+}

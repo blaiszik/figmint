@@ -1,0 +1,155 @@
+{
+  "takeaway": "Knocking out the gene cuts migration distance by about 40%, and the rescue restores it",
+  "source": "synthetic example data",
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "distribution",
+      "groups": {
+        "wild type": [
+          15.3,
+          7.9,
+          12.7,
+          11.1,
+          11.3,
+          11.7,
+          8.8,
+          11.6,
+          10.6
+        ],
+        "knockout": [
+          13.2,
+          7.6,
+          6.6,
+          6.7,
+          6.0,
+          5.3,
+          6.5,
+          8.1
+        ],
+        "rescue": [
+          10.9,
+          12.9,
+          11.0,
+          11.3,
+          13.9,
+          12.2,
+          10.4,
+          11.0,
+          12.2
+        ]
+      },
+      "highlight": [
+        "knockout"
+      ],
+      "title": "Each dot is one cell",
+      "label": "Migration distance in 6 h",
+      "unit": "µm"
+    },
+    {
+      "kind": "relate",
+      "title": "Larger knockout cells do not speed up",
+      "x": [
+        340.0,
+        443.0,
+        190.0,
+        420.0,
+        307.0,
+        211.0,
+        405.0,
+        497.0,
+        250.0,
+        394.0,
+        281.0,
+        432.0,
+        426.0,
+        254.0,
+        476.0,
+        274.0,
+        371.0,
+        316.0,
+        388.0,
+        247.0,
+        241.0,
+        434.0,
+        436.0,
+        373.0,
+        493.0,
+        250.0,
+        469.0,
+        237.0
+      ],
+      "y": [
+        10.71,
+        15.54,
+        8.34,
+        14.21,
+        10.25,
+        8.35,
+        14.09,
+        18.17,
+        10.19,
+        14.0,
+        11.44,
+        14.78,
+        13.93,
+        10.16,
+        4.95,
+        1.15,
+        3.04,
+        3.56,
+        3.01,
+        4.42,
+        1.89,
+        4.05,
+        2.8,
+        4.76,
+        3.95,
+        2.66,
+        2.33,
+        4.46
+      ],
+      "x_label": "Cell area (µm²)",
+      "y_label": "Speed (µm/h)",
+      "groups": [
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "wild type",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout",
+        "knockout"
+      ],
+      "highlight": [
+        "knockout"
+      ],
+      "fit": true
+    }
+  ]
+}

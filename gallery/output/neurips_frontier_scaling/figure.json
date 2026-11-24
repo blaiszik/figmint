@@ -1,0 +1,76 @@
+{
+  "schema_version": "0.2",
+  "journal": "neurips",
+  "display_name": "NeurIPS",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://neurips.cc/Conferences/2025/PaperInformation/StyleFiles",
+  "dimensions_mm": {
+    "width": 139.7,
+    "height": 106.0
+  },
+  "takeaway": "Compute-optimal pre-training, RLVR post-training, and log-linear inference-time scaling compound smoothly while preserving >=96% retrieval to 1M context.",
+  "takeaway_subtitle": null,
+  "caption": "Synthetic frontier-model release telemetry (NeurIPS full width, 139.7 mm). (a) Pre-training validation loss across five parameter scales (1B\u2013400B) and the compute-optimal power-law frontier. (b) Reinforcement learning post-training trajectories (mean \u00b1 1 SD across 5 seeds) on AIME '25, GPQA Diamond, and SWE-bench. (c) Test-time compute scaling with thinking-token budget versus no-thinking baseline. (d) Long-context needle retrieval recall from 4k to 1M tokens across document depth. All data are synthetic.",
+  "label": "fig:frontier_scaling",
+  "reproduce_sha256": "653fab12bfc3b3a4dd080895ba68d9384775cac67b357b1ba26b63ca2f2a6c52",
+  "panels": [
+    {
+      "key": "a",
+      "title": null,
+      "xlabel": "Pre-training compute, $C$ (FLOPs)",
+      "ylabel": "Validation loss, $L$ (nats)",
+      "note": "Five model scales (1B\u2013400B) trace a power-law Pareto envelope with alpha = 0.054 above L_inf = 1.24 nats.",
+      "series": [],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "log",
+      "yscale": "linear"
+    },
+    {
+      "key": "b",
+      "title": null,
+      "xlabel": "RLVR optimization steps",
+      "ylabel": "Pass@1 accuracy (%)",
+      "note": "RLVR post-training lifts AIME '25 from 38% to 88%, GPQA to 82%, and SWE-bench to 77% over 40k steps.",
+      "series": [
+        "AIME '25",
+        "GPQA",
+        "SWE-bench"
+      ],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    },
+    {
+      "key": "c",
+      "title": null,
+      "xlabel": "Thinking budget (tokens)",
+      "ylabel": "Math accuracy (%)",
+      "note": "Scaling thinking tokens from 256 to 64k adds +35 pts on Frontier-400B, outperforming Prior Gen at every budget.",
+      "series": [
+        "Frontier-400B",
+        "Frontier-32B",
+        "Prior Gen"
+      ],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "log",
+      "yscale": "linear"
+    },
+    {
+      "key": "d",
+      "title": null,
+      "xlabel": "Context length (tokens)",
+      "ylabel": "Needle depth",
+      "note": "Single-needle recall stays 99\u2013100% through 512k tokens and 96\u201399% across depths at 1M context.",
+      "series": [],
+      "colormaps": [
+        "figmint_teal"
+      ],
+      "has_colorbar": true,
+      "xscale": "linear",
+      "yscale": "linear"
+    }
+  ]
+}

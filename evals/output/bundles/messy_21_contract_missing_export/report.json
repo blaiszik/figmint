@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "nature",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.nature.com/nature/for-authors/final-submission",
+  "dimensions_mm": {
+    "width": 88.9,
+    "height": 63.84
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export",
+    "figure_pdf": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/figure.pdf",
+    "figure_svg": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/figure.svg",
+    "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/preview.png",
+    "proof_png": null,
+    "figure_tex": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/figure.tex",
+    "reproduce_py": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/reproduce.py",
+    "report_json": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_21_contract_missing_export/report.json"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "science",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.science.org/content/page/instructions-preparing-revised-manuscript",
+  "dimensions_mm": {
+    "width": 119.89,
+    "height": 74.85
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet",
+    "figure_pdf": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/figure.pdf",
+    "figure_svg": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/figure.svg",
+    "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/preview.png",
+    "proof_png": null,
+    "figure_tex": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/figure.tex",
+    "reproduce_py": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/reproduce.py",
+    "report_json": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_25_compound_science_clip_overlap_jet/report.json"
+  }
+}

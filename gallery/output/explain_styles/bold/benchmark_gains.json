@@ -1,0 +1,40 @@
+{
+  "takeaway": "The new model gains most where the old one was weakest: +50 points on AIME",
+  "source": "synthetic example data",
+  "style": "bold",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "change",
+      "before": {
+        "MATH-500": 79.0,
+        "AIME": 38.0,
+        "MMLU-Pro": 74.0,
+        "GPQA": 61.0,
+        "SWE-bench": 49.0,
+        "SimpleQA": 31.0
+      },
+      "after": {
+        "MATH-500": 95.0,
+        "AIME": 88.0,
+        "MMLU-Pro": 86.0,
+        "GPQA": 82.0,
+        "SWE-bench": 77.0,
+        "SimpleQA": 58.0
+      },
+      "labels": [
+        "Prior",
+        "New"
+      ],
+      "highlight": [
+        "AIME"
+      ],
+      "label": "Accuracy",
+      "unit": "%"
+    }
+  ]
+}

@@ -1,0 +1,217 @@
+{
+  "example1": {
+    "before_pdf_metrics": {
+      "file": "_tmp_before_matplotlib.pdf",
+      "journal": "nature",
+      "width_mm": 162.56,
+      "height_mm": 121.92,
+      "size_kb": 29.0,
+      "font_subtypes": [
+        "/Type3"
+      ],
+      "font_names": [
+        "/BSEUYQ+Cmmi10",
+        "/DNYSVN+Cmr10",
+        "/GNRHSL+DejaVuSans",
+        "/GXDUII+DejaVuSans"
+      ],
+      "type3_count": 4,
+      "preflight_passed": false,
+      "warnings": 0,
+      "failures": 3,
+      "checks": [
+        {
+          "rule": "dimensions",
+          "status": "fail",
+          "message": "width 162.6 mm does not match allowed nature widths [89, 120, 183] mm (\u00b10.5 mm); height 121.9 mm <= 170.0 mm"
+        },
+        {
+          "rule": "pdf_fonts",
+          "status": "fail",
+          "message": "Found 4 Type 3 outlined font(s) (/F1, /F2, /F3, /F4); export with pdf.fonttype=42 for editable TrueType fonts"
+        },
+        {
+          "rule": "font_family",
+          "status": "fail",
+          "message": "Serif font(s) embedded in PDF: BSEUYQ+Cmmi10, DNYSVN+Cmr10 (sans-serif required)"
+        },
+        {
+          "rule": "file_size",
+          "status": "pass",
+          "message": "PDF file size 29.0 KB (0.03 MB) <= 10.0 MB"
+        }
+      ]
+    },
+    "after_pdf_metrics": {
+      "file": "example1_nature_single.pdf",
+      "journal": "nature",
+      "width_mm": 89.0,
+      "height_mm": 64.0,
+      "size_kb": 29.7,
+      "font_subtypes": [
+        "/Type0"
+      ],
+      "font_names": [
+        "/HJKHXE+Helvetica"
+      ],
+      "type3_count": 0,
+      "preflight_passed": true,
+      "warnings": 0,
+      "failures": 0,
+      "checks": [
+        {
+          "rule": "dimensions",
+          "status": "pass",
+          "message": "width 89.0 mm matches 'single' (89.0 mm); height 64.0 mm <= 170.0 mm"
+        },
+        {
+          "rule": "pdf_fonts",
+          "status": "pass",
+          "message": "Zero Type 3 fonts; 1 editable font ref(s) (HJKHXE+Helvetica)"
+        },
+        {
+          "rule": "font_family",
+          "status": "pass",
+          "message": "All embedded PDF fonts are sans-serif (Helvetica)"
+        },
+        {
+          "rule": "file_size",
+          "status": "pass",
+          "message": "PDF file size 29.7 KB (0.03 MB) <= 10.0 MB"
+        }
+      ]
+    },
+    "figure_preflight_passed": true
+  },
+  "example2": {
+    "pdf_metrics": {
+      "file": "example2_nature_plate.pdf",
+      "journal": "nature",
+      "width_mm": 183.0,
+      "height_mm": 118.0,
+      "size_kb": 985.5,
+      "font_subtypes": [
+        "/Type0"
+      ],
+      "font_names": [
+        "/DQALVB+Helvetica",
+        "/GKAWUI+Helvetica-Bold"
+      ],
+      "type3_count": 0,
+      "preflight_passed": true,
+      "warnings": 0,
+      "failures": 0,
+      "checks": [
+        {
+          "rule": "dimensions",
+          "status": "pass",
+          "message": "width 183.0 mm matches 'double' (183.0 mm); height 118.0 mm <= 170.0 mm"
+        },
+        {
+          "rule": "pdf_fonts",
+          "status": "pass",
+          "message": "Zero Type 3 fonts; 2 editable font ref(s) (DQALVB+Helvetica, GKAWUI+Helvetica-Bold)"
+        },
+        {
+          "rule": "font_family",
+          "status": "pass",
+          "message": "All embedded PDF fonts are sans-serif (Helvetica, Helvetica-Bold)"
+        },
+        {
+          "rule": "file_size",
+          "status": "pass",
+          "message": "PDF file size 985.5 KB (0.96 MB) <= 10.0 MB"
+        }
+      ]
+    },
+    "figure_preflight_passed": true,
+    "figure_warnings": 0,
+    "figure_failures": 0
+  },
+  "example3": {
+    "nature_pdf_metrics": {
+      "file": "example3_nature.pdf",
+      "journal": "nature",
+      "width_mm": 183.0,
+      "height_mm": 104.0,
+      "size_kb": 34.3,
+      "font_subtypes": [
+        "/Type0"
+      ],
+      "font_names": [
+        "/BSRLKI+Helvetica",
+        "/CJIGXG+Helvetica",
+        "/EYIZPP+Helvetica-Bold"
+      ],
+      "type3_count": 0,
+      "preflight_passed": true,
+      "warnings": 0,
+      "failures": 0,
+      "checks": [
+        {
+          "rule": "dimensions",
+          "status": "pass",
+          "message": "width 183.0 mm matches 'double' (183.0 mm); height 104.0 mm <= 170.0 mm"
+        },
+        {
+          "rule": "pdf_fonts",
+          "status": "pass",
+          "message": "Zero Type 3 fonts; 3 editable font ref(s) (BSRLKI+Helvetica, CJIGXG+Helvetica, EYIZPP+Helvetica-Bold)"
+        },
+        {
+          "rule": "font_family",
+          "status": "pass",
+          "message": "All embedded PDF fonts are sans-serif (Helvetica, Helvetica-Bold)"
+        },
+        {
+          "rule": "file_size",
+          "status": "pass",
+          "message": "PDF file size 34.3 KB (0.03 MB) <= 10.0 MB"
+        }
+      ]
+    },
+    "science_pdf_metrics": {
+      "file": "example3_science.pdf",
+      "journal": "science",
+      "width_mm": 184.0,
+      "height_mm": 104.0,
+      "size_kb": 34.1,
+      "font_subtypes": [
+        "/Type0"
+      ],
+      "font_names": [
+        "/BSRLKI+Helvetica",
+        "/CJIGXG+Helvetica",
+        "/EKZFVT+Helvetica-Bold"
+      ],
+      "type3_count": 0,
+      "preflight_passed": true,
+      "warnings": 0,
+      "failures": 0,
+      "checks": [
+        {
+          "rule": "dimensions",
+          "status": "pass",
+          "message": "width 184.0 mm matches 'full' (184.0 mm); height 104.0 mm <= 180.0 mm"
+        },
+        {
+          "rule": "pdf_fonts",
+          "status": "pass",
+          "message": "Zero Type 3 fonts; 3 editable font ref(s) (BSRLKI+Helvetica, CJIGXG+Helvetica, EKZFVT+Helvetica-Bold)"
+        },
+        {
+          "rule": "font_family",
+          "status": "pass",
+          "message": "All embedded PDF fonts are sans-serif (Helvetica, Helvetica-Bold)"
+        },
+        {
+          "rule": "file_size",
+          "status": "pass",
+          "message": "PDF file size 34.1 KB (0.03 MB) <= 10.0 MB"
+        }
+      ]
+    },
+    "nature_figure_passed": true,
+    "science_figure_passed": true
+  }
+}

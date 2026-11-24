@@ -1,0 +1,66 @@
+{
+  "schema_version": "0.2",
+  "journal": "neurips",
+  "display_name": "NeurIPS",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://neurips.cc/Conferences/2025/PaperInformation/StyleFiles",
+  "dimensions_mm": {
+    "width": 139.7,
+    "height": 124.0
+  },
+  "takeaway": "Frontier-400B follows a clean C^-0.054 scaling envelope, lifts reasoning benchmarks up to +50 pts over Prior Gen, scales log-linearly with thinking tokens across domains, and trains stably within target telemetry bands.",
+  "takeaway_subtitle": null,
+  "caption": "Synthetic frontier-model release technical report engineered with Tufte visual grammar (NeurIPS full width, 139.7 mm). (a) Pre-training scaling laws across five parameter scales (1B\u2013400B) with range-framed spines trimmed to data bounds and marginal checkpoint rug ticks. (b) Paired evaluation slopegraph from Prior Gen to Frontier-400B across eight reasoning, coding, and knowledge benchmarks, highlighting the largest agentic leaps. (c) Shared-axis small multiples for inference-time thinking-token scaling across Math, Coding, and Science with muted ghost curves of peer domains and dashed Prior Gen baselines. (d) Frameless training telemetry sparklines with shaded target bands and final values. All data are synthetic.",
+  "label": "fig:frontier_tufte",
+  "reproduce_sha256": "185636655e0be714a36989d042b7d65ccad47a984e98920c1279bd09802a1a60",
+  "panels": [
+    {
+      "key": "a",
+      "title": null,
+      "xlabel": "Pre-training compute, $C$ (FLOPs)",
+      "ylabel": "Validation loss, $L$ (nats)",
+      "note": "Range-framed scaling curves (1B\u2013400B) trace L - L_inf ~ C^-0.054 above L_inf = 1.24 nats.",
+      "series": [],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "log",
+      "yscale": "linear"
+    },
+    {
+      "key": "b",
+      "title": null,
+      "xlabel": null,
+      "ylabel": null,
+      "note": "Slopegraph shows broad gains across all 8 benchmarks, led by AIME '25 (+50), SWE-bench (+28), and SimpleQA (+27).",
+      "series": [],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    },
+    {
+      "key": "c",
+      "title": null,
+      "xlabel": null,
+      "ylabel": null,
+      "note": "Shared-axis small multiples with ghosted peers isolate log-linear test-time scaling in Math, Coding, and Science.",
+      "series": [],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    },
+    {
+      "key": "d",
+      "title": null,
+      "xlabel": null,
+      "ylabel": null,
+      "note": "Four sparklines confirm smooth loss decay (1.71), bounded grad norm (0.42), 54.8% MFU, and 0.018 RLVR KL.",
+      "series": [],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    }
+  ]
+}

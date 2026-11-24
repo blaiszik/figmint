@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "cell",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.cell.com/figureguidelines",
+  "dimensions_mm": {
+    "width": 174.0,
+    "height": 118.0
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 11
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "gallery/output/cell_lineage_bifurcation",
+    "figure_pdf": "gallery/output/cell_lineage_bifurcation/figure.pdf",
+    "figure_svg": "gallery/output/cell_lineage_bifurcation/figure.svg",
+    "preview_png": "gallery/output/cell_lineage_bifurcation/preview.png",
+    "proof_png": "gallery/output/cell_lineage_bifurcation/proof.png",
+    "figure_tex": "gallery/output/cell_lineage_bifurcation/figure.tex",
+    "reproduce_py": "gallery/output/cell_lineage_bifurcation/reproduce.py",
+    "report_json": "gallery/output/cell_lineage_bifurcation/report.json",
+    "figure_json": "gallery/output/cell_lineage_bifurcation/figure.json"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "science",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.science.org/content/page/instructions-preparing-revised-manuscript",
+  "dimensions_mm": {
+    "width": 184.0,
+    "height": 122.0
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "gallery/output/science_exoplanet_atmosphere",
+    "figure_pdf": "gallery/output/science_exoplanet_atmosphere/figure.pdf",
+    "figure_svg": "gallery/output/science_exoplanet_atmosphere/figure.svg",
+    "preview_png": "gallery/output/science_exoplanet_atmosphere/preview.png",
+    "proof_png": "gallery/output/science_exoplanet_atmosphere/proof.png",
+    "figure_tex": "gallery/output/science_exoplanet_atmosphere/figure.tex",
+    "reproduce_py": "gallery/output/science_exoplanet_atmosphere/reproduce.py",
+    "report_json": "gallery/output/science_exoplanet_atmosphere/report.json"
+  }
+}

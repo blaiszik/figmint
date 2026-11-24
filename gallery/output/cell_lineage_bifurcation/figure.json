@@ -1,0 +1,77 @@
+{
+  "schema_version": "0.2",
+  "journal": "cell",
+  "display_name": "Cell Press",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.cell.com/figureguidelines",
+  "dimensions_mm": {
+    "width": 174.0,
+    "height": 118.0
+  },
+  "takeaway": "Hematopoietic progenitors bifurcate sharply at t* = 0.44 along an antagonistic GATA1\u2013SPI1 switch whose perturbation reverses erythroid versus myeloid lineage bias.",
+  "takeaway_subtitle": null,
+  "caption": "Synthetic single-cell CRISPRi perturbation and hematopoietic lineage bifurcation atlas (Cell Press double column, 174.0 mm). (A) Two-dimensional developmental landscape with velocity stream lines showing progenitor bifurcation into erythroid and myeloid fates at commitment pseudotime t* = 0.44. (B) Pseudotime-ordered expression cascade of ten lineage transcription factors (z-scored). (C) CRISPRi knockdown log-odds shift toward erythroid versus myeloid fate (mean and 95% CI). (D) Opposing dynamics of GATA1 and SPI1 across pseudotime with single-cell scatter and smooth 95% confidence ribbons. All data are synthetic.",
+  "label": "fig:cell_lineage_bifurcation",
+  "reproduce_sha256": "170ba11534ba3910a40aa2fc6264b13d2c979beccc6f181a36522e19ed04a340",
+  "panels": [
+    {
+      "key": "A",
+      "title": null,
+      "xlabel": "Diffusion component 1",
+      "ylabel": "Diffusion component 2",
+      "note": "RNA velocity stream lines split progenitors cleanly into erythroid (upper) and myeloid (lower) branches.",
+      "series": [
+        "Erythroid",
+        "Myeloid"
+      ],
+      "colormaps": [
+        "waddington_mist",
+        "unnamed"
+      ],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    },
+    {
+      "key": "B",
+      "title": null,
+      "xlabel": "Pseudotime, $t$",
+      "ylabel": "Transcription factor",
+      "note": "Ten master regulators wave sequentially along pseudotime, diverging cleanly past the t* = 0.44 rail.",
+      "series": [],
+      "colormaps": [
+        "figmint_navy"
+      ],
+      "has_colorbar": true,
+      "xscale": "linear",
+      "yscale": "linear"
+    },
+    {
+      "key": "C",
+      "title": null,
+      "xlabel": "Erythroid fate shift, $\\Delta\\mathrm{logit}\\,P$ (95% CI)",
+      "ylabel": "CRISPRi target",
+      "note": "GATA1/KLF1 knockdown depletes erythroid fate (-1.9 to -1.3 log-odds) whereas SPI1/IRF8 knockdown enriches it.",
+      "series": [],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    },
+    {
+      "key": "D",
+      "title": null,
+      "xlabel": "Pseudotime, $t$",
+      "ylabel": "Normalized expression ($\\mathrm{log1p}$)",
+      "note": "GATA1 and SPI1 trajectories cross precisely at t* = 0.44 before locking into mutually exclusive states.",
+      "series": [
+        "$GATA1$",
+        "$SPI1$"
+      ],
+      "colormaps": [],
+      "has_colorbar": false,
+      "xscale": "linear",
+      "yscale": "linear"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "nature",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.nature.com/nature/for-authors/final-submission",
+  "dimensions_mm": {
+    "width": 88.9,
+    "height": 57.91
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 1,
+    "passed": 7
+  },
+  "recommended_max_loops": 2,
+  "issues": [
+    {
+      "rule": "vector_fonts",
+      "severity": "warning",
+      "panel": null,
+      "elements": [
+        "pdf.fonttype=3 (expected 42)",
+        "svg.fonttype='path' (expected 'none')"
+      ],
+      "message": "Non-editable vector font config: pdf.fonttype=3 (expected 42); svg.fonttype='path' (expected 'none')",
+      "fix_hint": "Use fm.use('nature') or fm.save_figure(...) to enforce pdf.fonttype=42 and svg.fonttype='none'."
+    }
+  ],
+  "artifacts": {
+    "out_dir": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel",
+    "figure_pdf": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/figure.pdf",
+    "figure_svg": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/figure.svg",
+    "preview_png": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/preview.png",
+    "proof_png": null,
+    "figure_tex": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/figure.tex",
+    "reproduce_py": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/reproduce.py",
+    "report_json": "/Users/ben/Desktop/git/ag/evals/output/bundles/messy_11_bar_clipped_xlabel/report.json"
+  }
+}

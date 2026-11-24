@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.2",
+  "ok": true,
+  "journal": "nature",
+  "spec_version": "2025.1",
+  "spec_source_url": "https://www.nature.com/nature/for-authors/final-submission",
+  "dimensions_mm": {
+    "width": 182.88,
+    "height": 121.92
+  },
+  "summary": {
+    "errors": 0,
+    "warnings": 0,
+    "passed": 8
+  },
+  "recommended_max_loops": 2,
+  "issues": [],
+  "artifacts": {
+    "out_dir": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics",
+    "figure_pdf": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/figure.pdf",
+    "figure_svg": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/figure.svg",
+    "preview_png": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/preview.png",
+    "proof_png": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/proof.png",
+    "figure_tex": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/figure.tex",
+    "reproduce_py": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/reproduce.py",
+    "report_json": "/Users/ben/Desktop/git/ag/gallery/output/masterpiece_2_omics/report.json"
+  }
+}

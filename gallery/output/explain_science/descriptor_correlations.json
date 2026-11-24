@@ -1,0 +1,73 @@
+{
+  "takeaway": "Density and volume per atom carry the same information (r = −0.81)",
+  "source": "synthetic example data",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "matrix",
+      "values": [
+        [
+          1.0,
+          -0.42,
+          -0.31,
+          0.12,
+          0.28
+        ],
+        [
+          -0.42,
+          1.0,
+          0.08,
+          -0.36,
+          0.11
+        ],
+        [
+          -0.31,
+          0.08,
+          1.0,
+          0.74,
+          -0.81
+        ],
+        [
+          0.12,
+          -0.36,
+          0.74,
+          1.0,
+          -0.66
+        ],
+        [
+          0.28,
+          0.11,
+          -0.81,
+          -0.66,
+          1.0
+        ]
+      ],
+      "rows": [
+        "band gap",
+        "formation energy",
+        "density",
+        "bulk modulus",
+        "volume per atom"
+      ],
+      "cols": [
+        "band gap",
+        "formation energy",
+        "density",
+        "bulk modulus",
+        "volume per atom"
+      ],
+      "diverging": true,
+      "center": 0.0,
+      "highlight": [
+        "density",
+        "volume per atom"
+      ],
+      "fmt": ".2f",
+      "label": "Pearson r across 412 compounds"
+    }
+  ]
+}

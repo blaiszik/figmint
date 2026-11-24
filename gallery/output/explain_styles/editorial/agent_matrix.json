@@ -1,0 +1,74 @@
+{
+  "takeaway": "Rust performance work is the one cell where the agent fails most tasks",
+  "source": "synthetic example data",
+  "style": "editorial",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "matrix",
+      "values": [
+        [
+          52.0,
+          59.0,
+          86.0,
+          75.0,
+          52.0
+        ],
+        [
+          68.0,
+          71.0,
+          56.0,
+          83.0,
+          53.0
+        ],
+        [
+          66.0,
+          72.0,
+          68.0,
+          76.0,
+          22.0
+        ],
+        [
+          93.0,
+          61.0,
+          78.0,
+          81.0,
+          62.0
+        ],
+        [
+          48.0,
+          94.0,
+          62.0,
+          63.0,
+          90.0
+        ]
+      ],
+      "rows": [
+        "Python",
+        "Go",
+        "Rust",
+        "TypeScript",
+        "Java"
+      ],
+      "cols": [
+        "bugfix",
+        "refactor",
+        "tests",
+        "docs",
+        "perf"
+      ],
+      "highlight": [
+        [
+          "Rust",
+          "perf"
+        ]
+      ],
+      "label": "Tasks solved",
+      "unit": "%"
+    }
+  ]
+}
