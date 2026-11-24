@@ -265,6 +265,13 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Color palette override: default, okabe_ito, tol, earth, ocean, or berry.",
     )
     explain_parser.add_argument(
+        "--lenient",
+        "--no-strict",
+        action="store_true",
+        dest="lenient",
+        help="Non-strict mode: auto-adjust soft limits instead of rejecting, and ship if no visual defects remain.",
+    )
+    explain_parser.add_argument(
         "--write-spec",
         action="store_true",
         help="Also write <out>.json, the normalised spec that reproduces the figure.",
@@ -387,7 +394,7 @@ def _run_explain(args: argparse.Namespace) -> int:
     if args.palette is not None:
         spec = {**spec, "palette": args.palette}
     try:
-        explanation = explain_from_spec(spec)
+        explanation = explain_from_spec(spec, strict=not args.lenient)
     except ExplainError as exc:
         return _reject(exc.message, exc.fix_hint, exc.rule)
     except (KeyError, TypeError, ValueError) as exc:

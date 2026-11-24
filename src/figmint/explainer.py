@@ -29,6 +29,8 @@ Rules enforced here (sources in README, "Design rules"):
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import difflib
 import functools
 import inspect
@@ -39,7 +41,7 @@ import numbers
 import re
 import unicodedata
 import zlib
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -481,6 +483,57 @@ def _pairs(obj: object) -> list[tuple[Any, Any]]:
     return list(obj.items())  # type: ignore[attr-defined]
 
 
+#: Issues that indicate a real visual or legibility defect (as opposed to advisory polish).
+_VISUAL_DEFECT_RULES: frozenset[str] = frozenset(
+    {
+        "text_collision",
+        "canvas_clipping",
+        "glyph_missing",
+        "latex_markup",
+        "event_label_collides",
+        "reference_label_collides",
+        "value_label_on_reference",
+        "text_on_data",
+        "small_at_chat_size",
+    }
+)
+
+_STRICT: contextvars.ContextVar[bool] = contextvars.ContextVar("figmint_strict", default=True)
+_ADJUSTMENTS: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "figmint_adjustments", default=None
+)
+
+
+def _is_strict() -> bool:
+    return _STRICT.get()
+
+
+def _record_adjustment(message: str) -> None:
+    log = _ADJUSTMENTS.get()
+    if log is not None and message not in log:
+        log.append(message)
+
+
+@contextlib.contextmanager
+def lenient() -> Iterator[None]:
+    """Non-strict context for fast chat figures: auto-adjusts soft limits instead of raising.
+
+    Inside ``with fm.lenient():`` (or when passing ``strict=False`` to :func:`explain`),
+    figmint auto-facets >4 trend series, trims oversized lists/highlights, drops missing
+    entries, stacks cramped side-by-side panels into full-width rows, and separates minor
+    advisory warnings from real visual defects so an agent can ship a good-enough figure
+    on the first try. Every adjustment is recorded in ``summary["adjustments"]``.
+    """
+    tok_s = _STRICT.set(False)
+    existing = _ADJUSTMENTS.get()
+    tok_a = _ADJUSTMENTS.set([] if existing is None else existing)
+    try:
+        yield
+    finally:
+        _STRICT.reset(tok_s)
+        _ADJUSTMENTS.reset(tok_a)
+
+
 def _named_values(values: object, what: str, *, allow_nan: bool = False) -> dict[str, float]:
     """Normalise a mapping or a sequence of ``(name, value)`` pairs to ``{name: float}``.
 
@@ -502,6 +555,7 @@ def _named_values(values: object, what: str, *, allow_nan: bool = False) -> dict
             fix_hint='Pass a dict such as {"checkout": 1840, "search": 460}.',
         )
     out: dict[str, float] = {}
+    dropped_nan: list[str] = []
     for name, value in items:
         key = str(name)
         if getattr(value, "ndim", 0) >= 1:  # a DataFrame column, a list
@@ -517,11 +571,16 @@ def _named_values(values: object, what: str, *, allow_nan: bool = False) -> dict
             )
         number = _to_float(value, f"{what}[{key!r}]")
         if not math.isfinite(number) and not allow_nan:
+            if not _is_strict():
+                dropped_nan.append(key)
+                continue
             raise ExplainError(
                 f"{what}[{key!r}] is not finite ({value!r}).",
                 fix_hint="Drop or impute missing values before plotting, and say so in `note`.",
             )
         out[key] = number
+    if dropped_nan and out:
+        _record_adjustment(f"{what}: dropped non-finite item(s) {dropped_nan[:4]!r}")
     if not out:
         raise ExplainError(f"{what} is empty.", fix_hint="Pass at least one named value.")
     return out
@@ -533,18 +592,28 @@ def _names(highlight: object, valid: Sequence[str], what: str = "highlight") -> 
     names = [highlight] if isinstance(highlight, str) else [str(h) for h in highlight]  # type: ignore[union-attr]
     unknown = [n for n in names if n not in valid]
     if unknown:
-        raise ExplainError(
-            f"{what} names {unknown!r} that are not in the data.",
-            fix_hint=f"Use names from: {', '.join(map(repr, list(valid)[:12]))}.",
-        )
+        if not _is_strict():
+            names = [n for n in names if n in valid]
+            _record_adjustment(f"{what}: ignored unknown name(s) {unknown[:4]!r}")
+        else:
+            raise ExplainError(
+                f"{what} names {unknown!r} that are not in the data.",
+                fix_hint=f"Use names from: {', '.join(map(repr, list(valid)[:12]))}.",
+            )
     if len(names) > MAX_HIGHLIGHTS:
-        raise ExplainError(
-            f"{what} lists {len(names)} items; more than {MAX_HIGHLIGHTS} highlights nothing.",
-            fix_hint=f"At most {MAX_HIGHLIGHTS} highlights: name only the items the takeaway "
-            "sentence names (the rest stay as grey context), or split the claim across two "
-            "panels with up to 3 highlights each.",
-            rule="too_many_highlights",
-        )
+        if not _is_strict():
+            _record_adjustment(
+                f"{what}: trimmed {len(names)} highlights to first {MAX_HIGHLIGHTS}"
+            )
+            names = names[:MAX_HIGHLIGHTS]
+        else:
+            raise ExplainError(
+                f"{what} lists {len(names)} items; more than {MAX_HIGHLIGHTS} highlights nothing.",
+                fix_hint=f"At most {MAX_HIGHLIGHTS} highlights: name only the items the takeaway "
+                "sentence names (the rest stay as grey context), or split the claim across two "
+                "panels with up to 3 highlights each.",
+                rule="too_many_highlights",
+            )
     return names
 
 
@@ -564,6 +633,7 @@ _EXPLAIN_ARGS = (
     "style",
     "palette",
     "colors",
+    "strict",
     "out",
 )
 _LOG_X_WORDS = {"x_scale", "xscale", "x_log", "logx", "log_x", "xlog", "log_scale_x"}
@@ -1236,17 +1306,26 @@ def _baseline_name(
         )
     name = str(baseline)
     if name not in names:
+        if not _is_strict():
+            _record_adjustment(f"{kind}(baseline={name!r}): ignored (not in items)")
+            return None
         raise ExplainError(
             f"{kind}(baseline={name!r}) is not one of the items.",
             fix_hint=f"Use one of: {', '.join(map(repr, list(names)[:12]))}.",
         )
     if name in highlight:
-        raise ExplainError(
-            f"{kind}(baseline={name!r}) is also in highlight.",
-            fix_hint="The baseline is the reference, drawn in ink; highlight only the items "
-            f"compared against it, e.g. highlight=[...] without {name!r}.",
-        )
+        if not _is_strict() and isinstance(highlight, list):
+            highlight.remove(name)
+            _record_adjustment(f"{kind}: kept baseline {name!r} in ink instead of highlight")
+        else:
+            raise ExplainError(
+                f"{kind}(baseline={name!r}) is also in highlight.",
+                fix_hint="The baseline is the reference, drawn in ink; highlight only the items "
+                f"compared against it, e.g. highlight=[...] without {name!r}.",
+            )
     if len(names) < 2:
+        if not _is_strict():
+            return None
         raise ExplainError(
             f"{kind}(baseline=...) needs at least one other item to compare with it.",
             fix_hint="Drop baseline=, or add the items to compare.",
@@ -2275,16 +2354,37 @@ def compare(
     """
     data = _named_values(values, "compare(values)")
     names = list(data)
-    if len(names) > MAX_COMPARE_ITEMS:
-        raise ExplainError(
-            f"compare() got {len(names)} items; a ranked list longer than "
-            f"{MAX_COMPARE_ITEMS} is scanned, not read.",
-            fix_hint=f"compare() takes at most {MAX_COMPARE_ITEMS} items: show the top 10 (say "
-            "so in the title, the rest in note=), use distribution() for the spread of many "
-            "values, or matrix() if the items form a grid.",
-            rule="too_many_items",
-        )
     order = _sort_order(sort)
+    if len(names) > MAX_COMPARE_ITEMS:
+        if not _is_strict():
+            keep_req: list[str] = []
+            if highlight is not None:
+                req_hl = [highlight] if isinstance(highlight, str) else [str(h) for h in highlight]
+                keep_req.extend(nm for nm in req_hl if nm in data)
+            if baseline is not None and str(baseline) in data:
+                keep_req.append(str(baseline))
+            ranked_all = sorted(
+                names, key=lambda nm: data[nm], reverse=(order != "asc")
+            )
+            chosen: list[str] = list(dict.fromkeys(keep_req))
+            for nm in ranked_all:
+                if len(chosen) >= MAX_COMPARE_ITEMS:
+                    break
+                if nm not in chosen:
+                    chosen.append(nm)
+            chosen_set = set(chosen)
+            data = {nm: data[nm] for nm in names if nm in chosen_set}
+            _record_adjustment(f"compare(): trimmed {len(names)} items to top {len(data)}")
+            names = list(data)
+        else:
+            raise ExplainError(
+                f"compare() got {len(names)} items; a ranked list longer than "
+                f"{MAX_COMPARE_ITEMS} is scanned, not read.",
+                fix_hint=f"compare() takes at most {MAX_COMPARE_ITEMS} items: show the top 10 (say "
+                "so in the title, the rest in note=), use distribution() for the spread of many "
+                "values, or matrix() if the items form a grid.",
+                rule="too_many_items",
+            )
     hl = _names(highlight, names)
     base = _baseline_name(baseline, names, hl, "compare")
     ref = _reference_line(reference, "compare(reference)")
@@ -2622,11 +2722,18 @@ def share(
         folded = [nm for nm in req if nm in rest]
         if folded:
             needed = max(ranked.index(nm) + 1 for nm in folded)
-            raise ExplainError(
-                f"share(highlight) names {folded!r} that were folded into '{other_name}' (top={top}).",
-                fix_hint=f"Increase top={needed} to keep them out of Other, or highlight from: "
-                f"{', '.join(map(repr, kept[:12]))}.",
-            )
+            if not _is_strict() and needed <= 12:
+                top = needed
+                kept = ranked if len(ranked) <= top + 1 else ranked[:top]
+                rest = [nm for nm in ranked if nm not in kept]
+                other_name = f"Other ({len(rest)})"
+                _record_adjustment(f"share(): raised top={top} so {folded!r} stays out of Other")
+            else:
+                raise ExplainError(
+                    f"share(highlight) names {folded!r} that were folded into '{other_name}' (top={top}).",
+                    fix_hint=f"Increase top={needed} to keep them out of Other, or highlight from: "
+                    f"{', '.join(map(repr, kept[:12]))}.",
+                )
     hl = _names(highlight, kept, "share(highlight)")
 
     names = list(kept)
@@ -3525,23 +3632,45 @@ def trend(
     hl = _names(highlight, names)
     base = _baseline_name(baseline, names, hl, "trend")
     if len(names) - (base is not None) > MAX_COLORED_SERIES and not hl and not facet:
-        raise ExplainError(
-            f"trend() got {len(names)} series and no highlight; more than "
-            f"{MAX_COLORED_SERIES} coloured lines cannot be told apart or held in mind.",
-            fix_hint=f"At most {MAX_COLORED_SERIES} series get a colour: pass highlight=[...] "
-            f"with the 1-{MAX_HIGHLIGHTS} series the takeaway names (others turn grey), or "
-            f"facet=True for small multiples (up to {MAX_FACETS}).",
-            rule="too_many_series",
-        )
+        if not _is_strict():
+            facet = True
+            _record_adjustment(f"trend(): enabled facet=True for {len(names)} series")
+        else:
+            raise ExplainError(
+                f"trend() got {len(names)} series and no highlight; more than "
+                f"{MAX_COLORED_SERIES} coloured lines cannot be told apart or held in mind.",
+                fix_hint=f"At most {MAX_COLORED_SERIES} series get a colour: pass highlight=[...] "
+                f"with the 1-{MAX_HIGHLIGHTS} series the takeaway names (others turn grey), or "
+                f"facet=True for small multiples (up to {MAX_FACETS}).",
+                rule="too_many_series",
+            )
     if facet and len(names) > MAX_FACETS:
-        raise ExplainError(
-            f"trend(facet=True) got {len(names)} series; more than {MAX_FACETS} small "
-            "multiples is a wall.",
-            fix_hint=f"facet=True takes at most {MAX_FACETS} series: keep the most relevant "
-            f"ones, or drop facet= and highlight 1-{MAX_HIGHLIGHTS} in one panel (any number "
-            "of the rest stay grey).",
-            rule="too_many_series",
-        )
+        if not _is_strict():
+            keep = list(dict.fromkeys([*hl, *([base] if base else [])]))
+            by_span = sorted(
+                names,
+                key=lambda nm: float(np.nanmax(data[nm]) - np.nanmin(data[nm])),
+                reverse=True,
+            )
+            for nm in by_span:
+                if len(keep) >= MAX_FACETS:
+                    break
+                if nm not in keep:
+                    keep.append(nm)
+            keep_set = set(keep)
+            data = {nm: data[nm] for nm in names if nm in keep_set}
+            reps = {nm: reps[nm] for nm in reps if nm in keep_set}
+            _record_adjustment(f"trend(facet=True): trimmed {len(names)} series to top {len(data)}")
+            names = list(data)
+        else:
+            raise ExplainError(
+                f"trend(facet=True) got {len(names)} series; more than {MAX_FACETS} small "
+                "multiples is a wall.",
+                fix_hint=f"facet=True takes at most {MAX_FACETS} series: keep the most relevant "
+                f"ones, or drop facet= and highlight 1-{MAX_HIGHLIGHTS} in one panel (any number "
+                "of the rest stay grey).",
+                rule="too_many_series",
+            )
     ref = _reference_line(reference, "trend(reference)")
     bands, band_spec, band_modes = _trend_bands(band, data, n)
     event_items: list[tuple[float, str]] = []
@@ -4613,10 +4742,16 @@ def change(
     right = _named_values(after, "change(after)")
     if set(left) != set(right):
         missing = sorted(set(left) ^ set(right))
-        raise ExplainError(
-            f"change() needs the same items before and after; unmatched: {missing[:6]!r}.",
-            fix_hint="Drop items that lack one of the two values, and say so in `note`.",
-        )
+        shared = [nm for nm in left if nm in right]
+        if not _is_strict() and shared:
+            left = {nm: left[nm] for nm in shared}
+            right = {nm: right[nm] for nm in shared}
+            _record_adjustment(f"change(): dropped unmatched item(s) {missing[:6]!r}")
+        else:
+            raise ExplainError(
+                f"change() needs the same items before and after; unmatched: {missing[:6]!r}.",
+                fix_hint="Drop items that lack one of the two values, and say so in `note`.",
+            )
     if isinstance(labels, (str, bytes)) or len(labels) != 2:
         raise ExplainError(
             "change(labels) needs exactly two names.", fix_hint='e.g. ("2024", "2025").'
@@ -4624,13 +4759,31 @@ def change(
     labels = (str(labels[0]), str(labels[1]))
     names = sorted(right, key=lambda nm: right[nm], reverse=True)
     if len(names) > MAX_CHANGE_ITEMS:
-        raise ExplainError(
-            f"change() got {len(names)} items; a slopegraph tangles beyond {MAX_CHANGE_ITEMS}.",
-            fix_hint=f"change() takes at most {MAX_CHANGE_ITEMS} items: keep the items the "
-            f"takeaway is about, or use compare() on the differences (up to {MAX_COMPARE_ITEMS} "
-            "items, baseline= for a reference).",
-            rule="too_many_items",
-        )
+        if not _is_strict():
+            req_hl = (
+                [highlight]
+                if isinstance(highlight, str)
+                else ([str(h) for h in highlight] if highlight is not None else [])
+            )
+            keep = [nm for nm in req_hl if nm in right]
+            for nm in sorted(names, key=lambda k: abs(right[k] - left[k]), reverse=True):
+                if len(keep) >= MAX_CHANGE_ITEMS:
+                    break
+                if nm not in keep:
+                    keep.append(nm)
+            keep_set = set(keep)
+            left = {nm: left[nm] for nm in names if nm in keep_set}
+            right = {nm: right[nm] for nm in names if nm in keep_set}
+            _record_adjustment(f"change(): trimmed {len(names)} items to top {len(keep)} movers")
+            names = sorted(right, key=lambda nm: right[nm], reverse=True)
+        else:
+            raise ExplainError(
+                f"change() got {len(names)} items; a slopegraph tangles beyond {MAX_CHANGE_ITEMS}.",
+                fix_hint=f"change() takes at most {MAX_CHANGE_ITEMS} items: keep the items the "
+                f"takeaway is about, or use compare() on the differences (up to {MAX_COMPARE_ITEMS} "
+                "items, baseline= for a reference).",
+                rule="too_many_items",
+            )
     hl = _names(highlight, names)
     fmt_fn = _formatter([*left.values(), *right.values()], fmt, unit=unit)
     deltas = {nm: right[nm] - left[nm] for nm in names}
@@ -5114,14 +5267,36 @@ def distribution(
     if not data:
         raise ExplainError("distribution(groups) is empty.", fix_hint="Pass at least one group.")
     names = list(data)
-    if len(names) > MAX_GROUPS:
-        raise ExplainError(
-            f"distribution() got {len(names)} groups; more than {MAX_GROUPS} rows of dots blur together.",
-            fix_hint=f"distribution() takes at most {MAX_GROUPS} groups: keep the groups the "
-            f"takeaway compares, or compare() their medians (up to {MAX_COMPARE_ITEMS} items, "
-            "with error= for an interval).",
-            rule="too_many_items",
-        )
+    group_limit = MAX_HIST_GROUPS if bins is not None else MAX_GROUPS
+    if len(names) > group_limit:
+        if not _is_strict():
+            req_hl = (
+                [highlight]
+                if isinstance(highlight, str)
+                else ([str(h) for h in highlight] if highlight is not None else [])
+            )
+            keep = [nm for nm in req_hl if nm in data]
+            if baseline is not None and str(baseline) in data and str(baseline) not in keep:
+                keep.append(str(baseline))
+            for nm in names:
+                if len(keep) >= group_limit:
+                    break
+                if nm not in keep:
+                    keep.append(nm)
+            keep_set = set(keep)
+            data = {nm: data[nm] for nm in names if nm in keep_set}
+            given = {nm: given[nm] for nm in names if nm in keep_set}
+            dropped = {nm: dropped[nm] for nm in names if nm in keep_set}
+            _record_adjustment(f"distribution(): trimmed {len(names)} groups to {len(data)}")
+            names = list(data)
+        elif bins is None:
+            raise ExplainError(
+                f"distribution() got {len(names)} groups; more than {MAX_GROUPS} rows of dots blur together.",
+                fix_hint=f"distribution() takes at most {MAX_GROUPS} groups: keep the groups the "
+                f"takeaway compares, or compare() their medians (up to {MAX_COMPARE_ITEMS} items, "
+                "with error= for an interval).",
+                rule="too_many_items",
+            )
     hl = _names(highlight, names)
     base = _baseline_name(baseline, names, hl, "distribution")
     ref = _reference_line(reference, "distribution(reference)")
@@ -7574,6 +7749,9 @@ class Explanation:
         width: str | float,
         issues: list[dict[str, Any]],
         colors: dict[str, str] | None = None,
+        strict: bool = True,
+        adjustments: Sequence[str] = (),
+        advisories: Sequence[dict[str, Any]] = (),
     ) -> None:
         self.fig = fig
         self.colors = colors
@@ -7592,6 +7770,9 @@ class Explanation:
         self.layout = layout
         self.width = width
         self.issues = issues
+        self.strict = strict
+        self.adjustments = list(adjustments)
+        self.advisories = list(advisories)
         self.saved_path: Path | None = None
         self.saved_px: tuple[int, int] | None = None
 
@@ -7609,6 +7790,15 @@ class Explanation:
     @property
     def ok(self) -> bool:
         return not any(issue["severity"] == "error" for issue in self.issues)
+
+    @property
+    def ship(self) -> bool:
+        """True when the figure has no errors and no visual/legibility defects.
+
+        Advisory polish warnings (e.g. ``many_items``, ``too_tall``,
+        ``fit_on_weak_relationship``) do not block ``ship``.
+        """
+        return self.ok and not any(issue["rule"] in _VISUAL_DEFECT_RULES for issue in self.issues)
 
     @property
     def min_text_px(self) -> float:
@@ -7676,31 +7866,35 @@ class Explanation:
 
     def summary(self) -> Summary:
         """What to check before showing the figure: facts to verify the claim, and issues to fix."""
-        return Summary(
-            {
-                "schema_version": "0.2",
-                "ok": self.ok,
-                "style": self.theme.name,
-                "palette": self.palette or "default",
-                "path": str(self.saved_path) if self.saved_path else None,
-                "size_px": list(self.saved_px) if self.saved_px else None,
-                "size_mm": [round(self.width_mm, 1), round(self.height_mm, 1)],
-                "display": {
-                    "width_px": DISPLAY_WIDTH_PX,
-                    "min_text_px": self.min_text_px,
-                    "min_script_px": self.min_script_px,
-                },
-                "takeaway": self.takeaway,
-                "panels": [
-                    {"key": key, "kind": p.kind, "title": p.title, "facts": p.facts}
-                    for key, p in self.panels.items()
-                ],
-                "alt_text": self.alt_text,
-                "colors": dict(self.entity_colors),
-                "issues": self.issues,
-                "rendered": self.saved_path is not None,
-            }
-        )
+        out: dict[str, Any] = {
+            "schema_version": "0.2",
+            "ok": self.ok,
+            "ship": self.ship,
+            "style": self.theme.name,
+            "palette": self.palette or "default",
+            "path": str(self.saved_path) if self.saved_path else None,
+            "size_px": list(self.saved_px) if self.saved_px else None,
+            "size_mm": [round(self.width_mm, 1), round(self.height_mm, 1)],
+            "display": {
+                "width_px": DISPLAY_WIDTH_PX,
+                "min_text_px": self.min_text_px,
+                "min_script_px": self.min_script_px,
+            },
+            "takeaway": self.takeaway,
+            "panels": [
+                {"key": key, "kind": p.kind, "title": p.title, "facts": p.facts}
+                for key, p in self.panels.items()
+            ],
+            "alt_text": self.alt_text,
+            "colors": dict(self.entity_colors),
+            "issues": self.issues,
+            "rendered": self.saved_path is not None,
+        }
+        if not self.strict:
+            out["strict"] = False
+            out["adjustments"] = list(self.adjustments)
+            out["advisories"] = list(self.advisories)
+        return Summary(out)
 
     def save(
         self,
@@ -8017,6 +8211,7 @@ def explain(
     style: str | Theme = "figmint",
     palette: str | ExplainPalette | None = None,
     colors: Mapping[str, str] | None = None,
+    strict: bool = True,
     out: str | Path | None = None,
 ) -> Explanation:
     """Build a message-first figure: one takeaway sentence and the panels that prove it.
@@ -8054,30 +8249,91 @@ def explain(
     out:
         If given, the figure is saved there immediately.
     """
-    if not isinstance(takeaway, str) or not takeaway.strip():
-        raise ExplainError(
-            "explain() needs a takeaway sentence as its first argument.",
-            fix_hint="Write the one thing the reader should conclude, then choose panels that show it.",
-            rule="takeaway_missing",
-        )
-    takeaway = " ".join(takeaway.split())
+    effective_strict = bool(strict) and _is_strict()
+    local_adjustments: list[str] = list(_ADJUSTMENTS.get() or [])
+    if not effective_strict:
+        tok_s = _STRICT.set(False)
+        tok_a = _ADJUSTMENTS.set(local_adjustments)
+        try:
+            return _explain_impl(
+                takeaway,
+                *panels,
+                subtitle=subtitle,
+                source=source,
+                note=note,
+                layout=layout,
+                target=target,
+                width=width,
+                style=style,
+                palette=palette,
+                colors=colors,
+                strict=False,
+                adjustments=local_adjustments,
+                out=out,
+            )
+        finally:
+            _STRICT.reset(tok_s)
+            _ADJUSTMENTS.reset(tok_a)
+    return _explain_impl(
+        takeaway,
+        *panels,
+        subtitle=subtitle,
+        source=source,
+        note=note,
+        layout=layout,
+        target=target,
+        width=width,
+        style=style,
+        palette=palette,
+        colors=colors,
+        strict=True,
+        adjustments=local_adjustments,
+        out=out,
+    )
+
+
+def _explain_impl(
+    takeaway: str,
+    *panels: Panel | Mapping[str, Any],
+    subtitle: str | None = None,
+    source: str | None = None,
+    note: str | None = None,
+    layout: Sequence[Sequence[str]] | None = None,
+    target: str | JournalSpec = "screen",
+    width: str | float = "chat",
+    style: str | Theme = "figmint",
+    palette: str | ExplainPalette | None = None,
+    colors: Mapping[str, str] | None = None,
+    strict: bool = True,
+    adjustments: list[str] | None = None,
+    out: str | Path | None = None,
+) -> Explanation:
+    adj = adjustments if adjustments is not None else []
     try:
         theme = get_theme(style)
     except (TypeError, ValueError) as exc:
-        aliases = ", ".join(sorted(THEME_ALIASES))
-        raise ExplainError(
-            str(exc),
-            fix_hint=f"Use one of: {', '.join(THEMES)} (aliases: {aliases}).",
-            rule="unknown_style",
-        ) from exc
+        if not strict:
+            theme = FIGMINT_THEME
+            _record_adjustment(f"explain(style={style!r}): fell back to 'figmint'")
+        else:
+            aliases = ", ".join(sorted(THEME_ALIASES))
+            raise ExplainError(
+                str(exc),
+                fix_hint=f"Use one of: {', '.join(THEMES)} (aliases: {aliases}).",
+                rule="unknown_style",
+            ) from exc
     try:
         theme, palette_name = apply_palette(theme, palette)
     except (TypeError, ValueError) as exc:
-        raise ExplainError(
-            str(exc),
-            fix_hint=f"Use one of: {', '.join(EXPLAIN_PALETTES)}.",
-            rule="unknown_palette",
-        ) from exc
+        if not strict:
+            palette_name = None
+            _record_adjustment(f"explain(palette={palette!r}): fell back to 'default'")
+        else:
+            raise ExplainError(
+                str(exc),
+                fix_hint=f"Use one of: {', '.join(EXPLAIN_PALETTES)}.",
+                rule="unknown_palette",
+            ) from exc
 
     built: list[Panel] = []
     for item in panels:
@@ -8096,13 +8352,32 @@ def explain(
             fix_hint="Add evidence, e.g. fm.compare({'a': 3, 'b': 1}).",
         )
     if len(built) > MAX_PANELS:
-        raise ExplainError(
-            f"explain() got {len(built)} panels; more than {MAX_PANELS} cannot be read in one figure.",
-            fix_hint=f"explain() takes at most {MAX_PANELS} panels ({COMFORTABLE_PANELS} read "
-            "comfortably): split the argument into two figures, each with its own takeaway, or "
-            "fold related panels into one (trend(facet=True), a matrix()).",
-            rule="too_many_panels",
-        )
+        if not strict:
+            _record_adjustment(f"explain(): trimmed {len(built)} panels to first {MAX_PANELS}")
+            built = built[:MAX_PANELS]
+        else:
+            raise ExplainError(
+                f"explain() got {len(built)} panels; more than {MAX_PANELS} cannot be read in one figure.",
+                fix_hint=f"explain() takes at most {MAX_PANELS} panels ({COMFORTABLE_PANELS} read "
+                "comfortably): split the argument into two figures, each with its own takeaway, or "
+                "fold related panels into one (trend(facet=True), a matrix()).",
+                rule="too_many_panels",
+            )
+    if not isinstance(takeaway, str) or not takeaway.strip():
+        if not strict:
+            fallback = next(
+                (p.title for p in built if p.title),
+                next((p.facts[0] for p in built if p.facts), "Summary"),
+            )
+            takeaway = str(fallback)
+            _record_adjustment("explain(): used first panel title/fact as takeaway")
+        else:
+            raise ExplainError(
+                "explain() needs a takeaway sentence as its first argument.",
+                fix_hint="Write the one thing the reader should conclude, then choose panels that show it.",
+                rule="takeaway_missing",
+            )
+    takeaway = " ".join(takeaway.split())
 
     pinned = _pinned_colors(colors, theme)
     panel_colors, uniform_color, colour_issues = _colour_registry(built, theme, pinned)
@@ -8158,13 +8433,21 @@ def explain(
             family=theme.title_family,
         )
         if len(title_lines) > MAX_TITLE_LINES:
-            raise ExplainError(
-                f"The takeaway is {len(takeaway)} characters and wraps to {len(title_lines)} lines.",
-                fix_hint=f"The takeaway may wrap to at most {MAX_TITLE_LINES} lines: cut it to "
-                "one sentence (about 100 characters); move scope and caveats to subtitle= and "
-                "note=.",
-                rule="takeaway_too_long",
-            )
+            if not strict:
+                if len(title_lines) > MAX_TITLE_LINES + 2:
+                    ell = theme.ellipsis
+                    title_lines = [*title_lines[: MAX_TITLE_LINES + 1], title_lines[MAX_TITLE_LINES + 1] + ell]
+                _record_adjustment(
+                    f"explain(): wrapped long takeaway onto {len(title_lines)} lines"
+                )
+            else:
+                raise ExplainError(
+                    f"The takeaway is {len(takeaway)} characters and wraps to {len(title_lines)} lines.",
+                    fix_hint=f"The takeaway may wrap to at most {MAX_TITLE_LINES} lines: cut it to "
+                    "one sentence (about 100 characters); move scope and caveats to subtitle= and "
+                    "note=.",
+                    rule="takeaway_too_long",
+                )
         subtitle_lines = measure.wrap(subtitle, content_pt, sizes.body) if subtitle else []
         footer_text = [t for t in (note, f"Source: {source}" if source else None) if t]
         footer_lines = [ln for t in footer_text for ln in measure.wrap(t, content_pt, sizes.foot)]
@@ -8421,6 +8704,32 @@ def explain(
                         _fit_axes(fig, frame_ax, frame_rect)
                         _check_plot_width(fig, panel, frame_ax, frame_rect, s)
                 except ExplainError as exc:
+                    if (
+                        not strict
+                        and layout is None
+                        and len(built) > 1
+                        and rows != [[k] for k in keys]
+                        and exc.rule in {"panel_too_small", "matrix_cells_too_small"}
+                    ):
+                        _record_adjustment(
+                            "layout: stacked panels into full-width rows so every label fits"
+                        )
+                        return _explain_impl(
+                            takeaway,
+                            *built,
+                            subtitle=subtitle,
+                            source=source,
+                            note=note,
+                            layout=[[k] for k in keys],
+                            target=target,
+                            width=width,
+                            style=style,
+                            palette=palette,
+                            colors=colors,
+                            strict=False,
+                            adjustments=adj,
+                            out=out,
+                        )
                     raise ExplainError(
                         f"Panel {key} ({panel.kind}): {exc.message}",
                         fix_hint=exc.fix_hint,
@@ -8477,6 +8786,32 @@ def explain(
             try:
                 finish()
             except ExplainError as exc:
+                if (
+                    not strict
+                    and layout is None
+                    and len(built) > 1
+                    and rows != [[k] for k in keys]
+                    and exc.rule in {"panel_too_small", "matrix_cells_too_small"}
+                ):
+                    _record_adjustment(
+                        "layout: stacked panels into full-width rows so every label fits"
+                    )
+                    return _explain_impl(
+                        takeaway,
+                        *built,
+                        subtitle=subtitle,
+                        source=source,
+                        note=note,
+                        layout=[[k] for k in keys],
+                        target=target,
+                        width=width,
+                        style=style,
+                        palette=palette,
+                        colors=colors,
+                        strict=False,
+                        adjustments=adj,
+                        out=out,
+                    )
                 raise ExplainError(
                     f"Panel {key} ({panel.kind}): {exc.message}",
                     fix_hint=exc.fix_hint,
@@ -8502,6 +8837,8 @@ def explain(
             width=width,
             issues=issues,
             colors={k: str(v) for k, v in _pairs(colors)} if colors else None,
+            strict=strict,
+            adjustments=adj,
         )
         slot_of = {theme.series_colors[i]: slot for slot, i in COLOR_SLOTS.items()}
         for panel_map_colors in panel_colors:
@@ -8547,6 +8884,15 @@ def explain(
                     "fix_hint": _EXPLAIN_PREFLIGHT_HINTS.get(check.rule, check.fix_hint),
                 }
             )
+        if not strict:
+            actionable = [
+                i
+                for i in issues
+                if i["severity"] == "error" or i["rule"] in _VISUAL_DEFECT_RULES
+            ]
+            advisory = [i for i in issues if i not in actionable]
+            result.issues = actionable
+            result.advisories = advisory
 
     if out is not None:
         result.save(out)
@@ -8605,7 +8951,12 @@ def panel_from_spec(spec: Mapping[str, Any]) -> Panel:
         ) from exc
 
 
-def explain_from_spec(spec: Mapping[str, Any], *, out: str | Path | None = None) -> Explanation:
+def explain_from_spec(
+    spec: Mapping[str, Any],
+    *,
+    out: str | Path | None = None,
+    strict: bool = True,
+) -> Explanation:
     """Render a whole figure from its JSON spec (the inverse of :meth:`Explanation.to_spec`)."""
     options = dict(spec)
     takeaway = options.pop("takeaway", "")
@@ -8625,14 +8976,21 @@ def explain_from_spec(spec: Mapping[str, Any], *, out: str | Path | None = None)
         "style",
         "palette",
         "colors",
+        "strict",
     }
     unknown = sorted(set(options) - allowed)
     if unknown:
-        raise ExplainError(
-            f"Unknown top-level key(s) {unknown!r}.",
-            fix_hint=f"Allowed: takeaway, panels, {', '.join(sorted(allowed))}.",
-        )
-    return explain(takeaway, *[panel_from_spec(p) for p in panels], out=out, **options)
+        if not (strict and _is_strict()):
+            for k in unknown:
+                options.pop(k, None)
+        else:
+            raise ExplainError(
+                f"Unknown top-level key(s) {unknown!r}.",
+                fix_hint=f"Allowed: takeaway, panels, {', '.join(sorted(allowed))}.",
+            )
+    spec_strict = options.pop("strict", strict)
+    effective_strict = bool(spec_strict) and bool(strict) and _is_strict()
+    return explain(takeaway, *panels, out=out, strict=effective_strict, **options)
 
 
 EXAMPLE_SPEC: dict[str, Any] = {

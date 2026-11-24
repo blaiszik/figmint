@@ -1508,3 +1508,108 @@ def test_histogram_alias_facts_spec_roundtrip_and_validation(tmp_path) -> None:
         fm.histogram(single_vals, bins=1)
     with pytest.raises(fm.ExplainError):
         fm.histogram({f"g{i}": rng.normal(i, 1, 20).tolist() for i in range(5)}, bins=10)
+
+
+def test_summary_ship_distinguishes_advisories_from_visual_defects() -> None:
+    # Advisory-only warning (many_items on 14 bars) is still ship=True
+    good = fm.explain(
+        "Item 13 is highest at 14 ms across 14 services",
+        fm.compare({f"svc_{i}": float(i + 1) for i in range(14)}, label="Latency", unit="ms"),
+        source="synthetic",
+    )
+    s_good = good.summary()
+    assert s_good["ok"] is True
+    assert any(i["rule"] == "many_items" for i in s_good["issues"])
+    assert s_good["ship"] is True
+
+    # Real visual defect (latex_markup) sets ship=False
+    bad = fm.explain(
+        r"Slope fits cleanly ($R^2 = 0.99$) with $\mu\mathrm{M}$ units",
+        fm.compare({"a": 1.0, "b": 2.0}, label="Rate", unit="µM/s"),
+        source="synthetic",
+    )
+    s_bad = bad.summary()
+    assert s_bad["ok"] is True
+    assert s_bad["ship"] is False
+
+
+def test_lenient_mode_auto_recovers_soft_limits_and_separates_advisories(tmp_path) -> None:
+    # Inside fm.lenient(): >4 trend series auto-facets, >20 compare items trims to 20,
+    # >3 highlights trims to 3, baseline-in-highlight resolves, NaN drops, long takeaway wraps,
+    # and narrow side-by-side matrix auto-stacks into full-width rows.
+    with fm.lenient():
+        p_trend = fm.trend(
+            [1, 2, 3, 4],
+            {f"s{i}": [i + 1, i + 2, i + 2.5, i + 4] for i in range(6)},
+            label="Score",
+            unit="%",
+            title="Six series auto-faceted",
+        )
+        p_cmp = fm.compare(
+            {**{f"item_{i}": float(i + 1) for i in range(25)}, "bad": float("nan")},
+            highlight=["item_24", "item_23", "item_22", "item_21", "item_0"],
+            baseline="item_0",
+            label="Latency",
+            unit="ms",
+            title="Top 20 kept",
+        )
+        fig = fm.explain(
+            "This is a deliberately verbose takeaway sentence with extra detail " * 3,
+            p_trend,
+            p_cmp,
+            source="synthetic",
+        )
+    s = fig.summary()
+    assert s["ok"] is True
+    assert s["ship"] is True
+    assert s["strict"] is False
+    assert s["issues"] == []  # advisories separated out
+    assert len(s["adjustments"]) >= 4
+    assert any("facet=True" in a for a in s["adjustments"])
+    assert any("trimmed 25 items" in a for a in s["adjustments"])
+
+    # Auto-stacking narrow side-by-side matrix in strict=False
+    vals = [[10, 20, 30, 40], [50, 60, 70, 80]]
+    stacked = fm.explain(
+        "Matrix auto-stacks to full width when side-by-side headers would collide",
+        fm.matrix(
+            vals,
+            rows=["x", "y"],
+            cols=["HotpotQAextended", "TriviaQAextended", "NaturalQuestions", "SciFactBench"],
+            label="Accuracy",
+            unit="%",
+        ),
+        fm.compare({"a": 1.0, "b": 2.0}, label="Count"),
+        strict=False,
+    )
+    st_sum = stacked.summary()
+    assert st_sum["ok"] is True and st_sum["ship"] is True
+    assert stacked.layout == [["a"], ["b"]]
+    assert any("stacked panels" in a for a in st_sum["adjustments"])
+
+    # CLI --lenient renders a non-strict JSON spec with exit code 0
+    import json
+
+    from figmint.cli import main as cli_main
+
+    spec_path = tmp_path / "messy.json"
+    spec_path.write_text(
+        json.dumps(
+            {
+                "takeaway": "",
+                "panels": [
+                    {
+                        "kind": "trend",
+                        "x": [1, 2, 3],
+                        "series": {f"s{i}": [1 + i, 2 + i, 3 + i] for i in range(6)},
+                        "title": "Six curves",
+                        "label": "Score",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    out_png = tmp_path / "lenient.png"
+    assert cli_main(["explain", str(spec_path), "--lenient", "--out", str(out_png)]) == 0
+    assert out_png.exists()

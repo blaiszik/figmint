@@ -401,7 +401,21 @@ both `README.md` and `gallery/README.md` as visual first impressions on GitHub:
 
 Verified:
 
-- `pytest`: 601 passed (521 after pass 4; expanded 7-theme × 13-form matrix, 6-palette CVD/roundtrip tests, and histogram tests). `ruff check src tests gallery evals`: clean.
+- **Non-strict / fast-shipping mode (added right after pass 5):**
+  - `summary["ship"]` boolean (in both strict and lenient modes) separates real
+    visual defects (`_VISUAL_DEFECT_RULES`) from advisory polish warnings so
+    agents ship good-enough figures on the first try without extra re-render loops.
+  - `with fm.lenient():`, `fm.explain(..., strict=False)`,
+    `fm.explain_from_spec(..., strict=False)`, and CLI `figmint explain --lenient`
+    (`--no-strict`) auto-adjust soft limits instead of raising `ExplainError`
+    (auto-faceting >4 trend series, trimming >20 compare items / >14 change items
+    / >8 distribution groups / >3 highlights, dropping NaN / unmatched items,
+    resolving baseline-in-highlight, wrapping long takeaways, auto-stacking
+    cramped side-by-side panels into full-width rows, falling back on unknown
+    style/palette), logging every change in `summary["adjustments"]` and moving
+    advisory nudges into `summary["advisories"]`.
+  - Updated `SKILL.md`, `AGENTS_SNIPPET.md`, and `README.md`.
+- `pytest`: 603 passed. `ruff check src tests gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host
