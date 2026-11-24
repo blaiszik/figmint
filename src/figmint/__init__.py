@@ -29,6 +29,7 @@ from .explainer import (
     distribution,
     explain,
     explain_from_spec,
+    histogram,
     load,
     matrix,
     panel_from_spec,
@@ -52,13 +53,14 @@ from .runner import RunResult, run_script
 from .skill import VALID_TARGETS, get_agents_snippet, get_skill_markdown, install_skill
 from .specs import JOURNALS, MM_PER_INCH, JournalSpec, get_spec, in_to_mm, mm_to_in
 from .style import apply, rc_params, resolved_font_name, use
-from .themes import THEMES, Theme, get_theme
+from .themes import EXPLAIN_PALETTES, THEMES, ExplainPalette, Theme, get_explain_palette, get_theme
 
 __version__ = "0.2.0"
 
 __all__ = [
     "BANNED_COLORMAPS",
     "EDITORIAL_COLORMAPS",
+    "EXPLAIN_PALETTES",
     "JOURNALS",
     "MM_PER_INCH",
     "PALETTES",
@@ -67,6 +69,7 @@ __all__ = [
     "BundleResult",
     "CheckResult",
     "ExplainError",
+    "ExplainPalette",
     "Explanation",
     "JournalSpec",
     "Panel",
@@ -88,11 +91,13 @@ __all__ = [
     "explain_from_spec",
     "figure",
     "get_agents_snippet",
+    "get_explain_palette",
     "get_palette",
     "get_skill_markdown",
     "get_spec",
     "get_theme",
     "ghost_context",
+    "histogram",
     "in_to_mm",
     "install_skill",
     "load",

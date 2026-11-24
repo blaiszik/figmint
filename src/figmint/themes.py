@@ -1,16 +1,20 @@
-"""Visual surface themes for ``fm.explain`` (``figmint``, ``bold``, ``editorial``, ``sketch``).
+"""Visual surface themes and color palettes for ``fm.explain``.
 
-A theme changes only the visual surface — typography, colour palette, background,
-gridlines, axis framing, header/footer rules, and optional hand-drawn sketch jitter.
-It never changes the information-design rules enforced by ``fm.explain`` (takeaway
-titles, sorted zero-based bars, <= 4 coloured series, <= 3 highlights, direct labels,
-chat legibility, or CVD/grayscale separation).
+Built-in themes: ``figmint`` (default), ``bold``, ``editorial``, ``paper``,
+``dark``, ``mono``, ``sketch``. Built-in explain palettes: ``default``,
+``okabe_ito``, ``tol``, ``earth``, ``ocean``, ``berry``.
+
+A theme or palette changes only the visual surface — typography, colour palette,
+background, gridlines, axis framing, header/footer rules, and optional hand-drawn
+sketch jitter. It never changes the information-design rules enforced by
+``fm.explain`` (takeaway titles, sorted zero-based bars, <= 4 coloured series,
+<= 3 highlights, direct labels, chat legibility, or CVD/grayscale separation).
 """
 
 from __future__ import annotations
 
 from contextlib import AbstractContextManager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import matplotlib as mpl
@@ -337,18 +341,274 @@ SKETCH_THEME = Theme(
     warn_unless_illustrative=True,
 )
 
+# paper: warm parchment/ivory ground (#FAF7F0) with espresso ink, serif headline,
+# and warm editorial hues — min_gray=0.135, min_cvd=0.390.
+PAPER_THEME = Theme(
+    name="paper",
+    description="Warm ivory paper ground with espresso ink, serif headlines, and refined earth-editorial hues.",
+    background="#FAF7F0",
+    ink="#221E1A",
+    muted="#635B52",
+    axis="#8F867A",
+    grid="#E7E0D3",
+    context_line="#BEB5A7",
+    context_fill="#D7CFC2",
+    zero_line="#221E1A",
+    halo_alpha=0.90,
+    series_colors=("#1E446E", "#B83B1E", "#36997A", "#DAA424"),
+    accent_colors=("#B83B1E", "#1E446E", "#36997A"),
+    seq_stops=("#F7F3EA", "#D8E1E8", "#A3BACD", "#608AB0", "#1E446E", "#132D4A"),
+    div_low=("#153559", "#4B7CA8", "#A8C3DA"),
+    div_high=("#EBB4A2", "#D96B4D", "#A32F14"),
+    div_mid="#EFEAE0",
+    title_family=("Georgia", "Charter", "DejaVu Serif", "serif"),
+    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_scale=1.38,
+    title_weight="bold",
+    allow_serif_title=True,
+    panel_tag_color="#635B52",
+    grid_style="-",
+    grid_lw=0.5,
+    axis_lw=0.6,
+    zero_line_lw=0.8,
+    line_lw=1.75,
+    context_line_lw=0.9,
+    facet_line_lw=1.5,
+    top_rule=True,
+    top_rule_color="#221E1A",
+    top_rule_lw=1.0,
+    footer_rule=True,
+    footer_rule_color="#DDD4C4",
+    footer_rule_lw=0.6,
+)
+
+# dark: deep slate charcoal ground (#14181F) for dark-mode chat UIs and slides,
+# with crisp off-white ink and luminous CVD-safe hues — min_gray=0.094, min_cvd=0.320.
+DARK_THEME = Theme(
+    name="dark",
+    description="Dark slate ground with crisp light ink and luminous CVD-safe hues for dark UIs and slides.",
+    background="#14181F",
+    ink="#ECEFF4",
+    muted="#9AA5B4",
+    axis="#657082",
+    grid="#272E3B",
+    context_line="#586375",
+    context_fill="#3A4354",
+    zero_line="#CBD3DF",
+    halo_alpha=0.88,
+    series_colors=("#4A89DC", "#F47E62", "#4BD9BA", "#F6DF78"),
+    accent_colors=("#F47E62", "#4A89DC", "#4BD9BA"),
+    seq_stops=("#1C2330", "#223654", "#2B5182", "#3B72B3", "#589BE3", "#8CC4F8"),
+    div_low=("#78B8F5", "#4381C4", "#233C59"),
+    div_high=("#5B2B24", "#B84C3B", "#F4866C"),
+    div_mid="#222936",
+    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_scale=1.32,
+    title_weight="bold",
+    panel_tag_color="#9AA5B4",
+    grid_style="-",
+    grid_lw=0.55,
+    axis_lw=0.65,
+    zero_line_lw=0.85,
+    line_lw=1.85,
+    context_line_lw=0.95,
+    facet_line_lw=1.55,
+)
+
+# mono: crisp monochrome print/handout theme with one vermilion highlight accent
+# — min_gray=0.098, min_cvd=0.343.
+MONO_THEME = Theme(
+    name="mono",
+    description="High-contrast monochrome print theme with a single vermilion highlight accent.",
+    background="#FFFFFF",
+    ink="#111111",
+    muted="#555555",
+    axis="#787878",
+    grid="#E5E5E5",
+    context_line="#B0B0B0",
+    context_fill="#D0D0D0",
+    zero_line="#111111",
+    halo_alpha=0.90,
+    series_colors=("#3F4954", "#C8321E", "#7C858F", "#B0B8C0"),
+    accent_colors=("#C8321E", "#3F4954", "#7C858F"),
+    seq_stops=("#F5F5F5", "#DCDCDC", "#B4B4B4", "#828282", "#4E4E4E", "#222222"),
+    div_low=("#222222", "#666666", "#B8B8B8"),
+    div_high=("#F0B8AE", "#DE6A56", "#B82814"),
+    div_mid="#F0F0F0",
+    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_scale=1.32,
+    title_weight="bold",
+    panel_tag_color="#C8321E",
+    grid_style="-",
+    grid_lw=0.5,
+    axis_lw=0.65,
+    zero_line_lw=0.85,
+    line_lw=1.75,
+    context_line_lw=0.9,
+    facet_line_lw=1.5,
+)
+
 THEMES: dict[str, Theme] = {
     "figmint": FIGMINT_THEME,
     "bold": BOLD_THEME,
     "editorial": EDITORIAL_THEME,
+    "paper": PAPER_THEME,
+    "dark": DARK_THEME,
+    "mono": MONO_THEME,
     "sketch": SKETCH_THEME,
 }
 
 THEME_ALIASES: dict[str, str] = {
     "default": "figmint",
     "newspaper": "editorial",
+    "warm": "paper",
+    "print": "mono",
     "hand_drawn": "sketch",
 }
+
+
+# --------------------------------------------------------------------------- #
+# Explain color palettes (independent of surface theme)
+# --------------------------------------------------------------------------- #
+
+
+@dataclass(frozen=True)
+class ExplainPalette:
+    """CVD- and grayscale-verified 4-color + matrix palette for ``fm.explain``."""
+
+    name: str
+    description: str
+    series_colors: tuple[str, ...]
+    accent_colors: tuple[str, ...]
+    seq_stops: tuple[str, ...]
+    div_low: tuple[str, ...]
+    div_high: tuple[str, ...]
+    div_mid: str = "#F1F2F4"
+
+
+EXPLAIN_PALETTES: dict[str, ExplainPalette] = {
+    "default": ExplainPalette(
+        name="default",
+        description="The active style's built-in editorial palette (blue, vermilion, teal, amber).",
+        series_colors=FIGMINT_THEME.series_colors,
+        accent_colors=FIGMINT_THEME.accent_colors,
+        seq_stops=FIGMINT_THEME.seq_stops,
+        div_low=FIGMINT_THEME.div_low,
+        div_high=FIGMINT_THEME.div_high,
+        div_mid=FIGMINT_THEME.div_mid,
+    ),
+    "okabe_ito": ExplainPalette(
+        name="okabe_ito",
+        description="Okabe-Ito colorblind-safe palette tuned for grayscale separation and 4.5:1 text contrast.",
+        series_colors=("#005E94", "#CC5500", "#00A87E", "#E6AF00"),
+        accent_colors=("#CC5500", "#005E94", "#00A87E"),
+        seq_stops=("#F2F7FB", "#C2DFEE", "#7BB9DA", "#2E8EC2", "#005E94", "#003D63"),
+        div_low=("#00446E", "#2E8EC2", "#9CCCE6"),
+        div_high=("#F2B896", "#E07938", "#B54800"),
+        div_mid="#F2F3F5",
+    ),
+    "tol": ExplainPalette(
+        name="tol",
+        description="Paul Tol scientific palette: indigo, crimson, emerald, and warm gold.",
+        series_colors=("#332288", "#CC3344", "#229966", "#DDAA33"),
+        accent_colors=("#CC3344", "#332288", "#229966"),
+        seq_stops=("#F4F3FA", "#CFCBE8", "#9D95D1", "#685CB2", "#332288", "#21155C"),
+        div_low=("#241766", "#5D4FA6", "#ACA4D9"),
+        div_high=("#F0B0B8", "#DE6472", "#B52434"),
+        div_mid="#F2F2F5",
+    ),
+    "earth": ExplainPalette(
+        name="earth",
+        description="Warm natural tones: deep slate blue, terracotta, moss green, and ochre.",
+        series_colors=("#203F60", "#B84228", "#4D8B55", "#D49E2A"),
+        accent_colors=("#B84228", "#203F60", "#4D8B55"),
+        seq_stops=("#F5F6F8", "#CFD8E2", "#97AEC4", "#5B80A3", "#203F60", "#132940"),
+        div_low=("#17304A", "#4F7499", "#A6BCD1"),
+        div_high=("#EAB5A6", "#D46D52", "#A1341B"),
+        div_mid="#F2F1EE",
+    ),
+    "ocean": ExplainPalette(
+        name="ocean",
+        description="Marine palette: deep cobalt, reef coral, seafoam teal, and sand gold.",
+        series_colors=("#143E66", "#D95240", "#1A9E9E", "#DEB030"),
+        accent_colors=("#D95240", "#143E66", "#1A9E9E"),
+        seq_stops=("#F2F7F9", "#C5E1E6", "#7EC2CC", "#359EA8", "#1A7D8A", "#0F4D59"),
+        div_low=("#103252", "#3A729E", "#99BCD6"),
+        div_high=("#F2BAB2", "#E47868", "#BF3B2A"),
+        div_mid="#F2F4F5",
+    ),
+    "berry": ExplainPalette(
+        name="berry",
+        description="Rich plum, steel blue, forest emerald, and warm honey.",
+        series_colors=("#7B2466", "#1D619E", "#128060", "#CE9216"),
+        accent_colors=("#7B2466", "#1D619E", "#128060"),
+        seq_stops=("#F9F3F7", "#E4C5DC", "#C68DB8", "#A1568E", "#7B2466", "#521444"),
+        div_low=("#154878", "#4682B8", "#A3C4E0"),
+        div_high=("#E5B3D7", "#BA66A3", "#7B2466"),
+        div_mid="#F3F2F4",
+    ),
+}
+
+
+def get_explain_palette(palette: str | ExplainPalette = "default") -> ExplainPalette:
+    """Resolve an explain color palette by name or :class:`ExplainPalette` instance."""
+    if isinstance(palette, ExplainPalette):
+        return palette
+    if not isinstance(palette, str):
+        raise TypeError(
+            f"palette must be a palette name or ExplainPalette instance, got {type(palette).__name__}."
+        )
+    key = palette.strip().lower().replace("-", "_").replace(" ", "_")
+    if key not in EXPLAIN_PALETTES:
+        valid = ", ".join(EXPLAIN_PALETTES)
+        raise ValueError(f"Unknown palette {palette!r}. Choose one of: {valid}.")
+    return EXPLAIN_PALETTES[key]
+
+
+def _lift_for_dark_ground(color: str, bg: str) -> str:
+    """Lighten a series color when placed on a dark theme background so contrast stays >= 4.5:1."""
+    if contrast_ratio(color, bg) >= 4.5:
+        return color
+    rgb = to_rgb(color)
+    for mix in (0.18, 0.32, 0.45, 0.58, 0.72):
+        lifted = tuple(c + (1.0 - c) * mix for c in rgb)
+        cand = "#{:02X}{:02X}{:02X}".format(*(round(v * 255) for v in lifted))
+        if contrast_ratio(cand, bg) >= 4.5:
+            return cand
+    return "#DCE6F2"
+
+
+def apply_palette(theme: Theme, palette: str | ExplainPalette | None) -> tuple[Theme, str | None]:
+    """Overlay ``palette`` onto ``theme``; returns ``(resolved_theme, canonical_palette_name)``."""
+    if palette is None:
+        return theme, None
+    pal = get_explain_palette(palette)
+    if pal.name == "default":
+        return theme, None
+    is_dark = relative_luminance(theme.background) < 0.2
+    if is_dark:
+        series = tuple(_lift_for_dark_ground(c, theme.background) for c in pal.series_colors)
+        accents = tuple(_lift_for_dark_ground(c, theme.background) for c in pal.accent_colors)
+        return (
+            replace(
+                theme,
+                series_colors=series,
+                accent_colors=accents,
+            ),
+            pal.name,
+        )
+    return (
+        replace(
+            theme,
+            series_colors=pal.series_colors,
+            accent_colors=pal.accent_colors,
+            seq_stops=pal.seq_stops,
+            div_low=pal.div_low,
+            div_high=pal.div_high,
+            div_mid=pal.div_mid,
+        ),
+        pal.name,
+    )
 
 
 def get_theme(theme: str | Theme = "figmint") -> Theme:

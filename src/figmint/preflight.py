@@ -1947,9 +1947,17 @@ def _check_text_on_data(
             continue
 
         patch = buf[iy0:iy1, ix0:ix1]
-        # Count saturated foreground data ink (ignore pale CI ribbons/gridlines/pastel fills >= 185)
-        dark_mask = np.min(patch, axis=2) < 185
-        ink_frac = float(np.mean(dark_mask))
+        bg_rgba = to_rgba(ax.get_facecolor())
+        if bg_rgba[3] < 0.5:
+            bg_rgba = to_rgba(fig.get_facecolor())
+        bg_u8 = np.array([round(c * 255) for c in bg_rgba[:3]], dtype=np.int16)
+        if float(np.mean(bg_rgba[:3])) >= 0.5:
+            # Light ground: count saturated foreground data ink (ignore pale ribbons/gridlines >= 185)
+            ink_mask = np.min(patch, axis=2) < 185
+        else:
+            # Dark ground: count foreground data ink contrasting strongly with the dark canvas
+            ink_mask = np.max(np.abs(patch.astype(np.int16) - bg_u8), axis=2) > 70
+        ink_frac = float(np.mean(ink_mask))
         if ink_frac > 0.22:
             hits.append(
                 {

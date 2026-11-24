@@ -23,7 +23,7 @@ Use a figure when the reader must compare five or more numbers, or see a trend, 
 | How do items differ in size? | `fm.compare(values)` | `{name: number}` |
 | How does it change over time, dose, step or order? | `fm.trend(x, series)` | x values, `{name: [numbers]}` |
 | What moved between two states? | `fm.change(before, after)` | two `{name: number}` |
-| How are raw values spread within groups? | `fm.distribution(groups)` | `{name: [observations]}` |
+| How are raw values spread within groups? | `fm.distribution(groups)` | `{name: [observations]}` (or `bins="auto"` / `fm.histogram(values)` for binned histograms) |
 | Do two measures move together? | `fm.relate(x, y, x_label=, y_label=)` | two lists |
 | What makes up the total? | `fm.share(parts)` | `{name: number}` |
 | How do two categorical dimensions interact? | `fm.matrix(values, rows=, cols=)` | 2-D values |
@@ -72,7 +72,8 @@ fm.explain(takeaway, *panels,
     source=None, note=None, # footer: where the numbers came from; caveats (figure level, not per panel)
     layout=None,            # e.g. [["a"], ["b", "c"]]; repeat a key to widen: [["a", "a", "b"]]
     colors=None,            # pin a name to a colour across figures: {"no retrieval": "red"} (blue, red, green, amber)
-    style="figmint",        # "figmint" | "bold" | "editorial" | "sketch"
+    style="figmint",        # "figmint" | "bold" | "editorial" | "paper" | "dark" | "mono" | "sketch"
+    palette=None,           # "default" | "okabe_ito" | "tol" | "earth" | "ocean" | "berry" (CVD-verified)
     width="chat")           # keep "chat" in a conversation
 
 # Shared by every form: title=, label=, unit=, highlight= (a name or a list of up to 3), fmt=
@@ -106,9 +107,13 @@ fm.trend(x, series,         # x: numbers, dates/ISO strings, or ordered labels; 
 fm.change(before, after,    # two {name: number} with the same names
     labels=("Before", "After"))
 
-fm.distribution(groups,     # {name: [raw observations]}, at least 3 per group; groups keep the order given
+fm.distribution(groups,     # {name: [raw observations]} or one list, at least 3 per group; groups keep the order given
     stat="median",          # "median" (median and middle half) | "mean" (mean and ± 1 s.d.)
+    bins=None,              # "auto", int (2–60), or sorted bin edges -> histogram (or use alias fm.histogram(values, bins="auto"))
     log=False, reference=None)
+
+fm.histogram(values,        # alias for fm.distribution(values, bins=bins): single list or up to 4 named groups
+    bins="auto", stat="median", log=False, reference=None)
 
 fm.relate(x, y, x_label=, y_label=,   # both required; y_label is the panel's measure line
     x_unit=None,            # as on trend; unit= (shared) is the y unit, used in the slope facts
@@ -211,7 +216,7 @@ A name keeps one colour in every panel of a figure, so "no retrieval" is the sam
 - No pies, no dual axes, no legends (labels sit on the data), no rotated text.
 - The chat column is about 700 px wide: keep `width="chat"`. A wider canvas is scaled down and its text shrinks.
 - Layout defaults: two panels side by side, three as one wide row over two, four as 2×2. Matrices and long names need width: give them a full row with `layout=`.
-- Styles (`style=`, JSON `"style"`, CLI `--style`) change the surface only, never the rules: `figmint` (default, white ground), `bold` (heavy lines on matte gray, for one strong comparison), `editorial` (serif headline, dotted gridlines, for multi-panel arguments), `sketch` (hand-drawn, for conceptual or illustrative points only; it warns unless `source=`/`note=` says the data is illustrative).
+- Styles (`style=`, JSON `"style"`, CLI `--style`) change the surface only, never the rules: `figmint` (default, white ground), `bold` (heavy lines on matte gray, for one strong comparison), `editorial` (serif headline, dotted gridlines, for multi-panel arguments), `paper` (warm ivory ground, serif headline), `dark` (charcoal slate ground for dark UIs and slides), `mono` (monochrome print with one crimson highlight), and `sketch` (hand-drawn, for conceptual or illustrative points only; warns unless `source=`/`note=` says the data is illustrative). Colour schemes (`palette=`, CLI `--palette`) swap the CVD-verified palette independently of surface style: `default`, `okabe_ito`, `tol`, `earth`, `ocean`, `berry`.
 
 ### When a figure comes back
 

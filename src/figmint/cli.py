@@ -257,7 +257,12 @@ def _build_parser() -> argparse.ArgumentParser:
     explain_parser.add_argument(
         "--style",
         default=None,
-        help="Visual style override: figmint (default), bold, editorial, or sketch.",
+        help="Visual style override: figmint (default), bold, editorial, paper, dark, mono, or sketch.",
+    )
+    explain_parser.add_argument(
+        "--palette",
+        default=None,
+        help="Color palette override: default, okabe_ito, tol, earth, ocean, or berry.",
     )
     explain_parser.add_argument(
         "--write-spec",
@@ -379,6 +384,8 @@ def _run_explain(args: argparse.Namespace) -> int:
         )
     if args.style is not None:
         spec = {**spec, "style": args.style}
+    if args.palette is not None:
+        spec = {**spec, "palette": args.palette}
     try:
         explanation = explain_from_spec(spec)
     except ExplainError as exc:

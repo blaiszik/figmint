@@ -16,7 +16,7 @@ import figmint as fm
 from figmint import explainer
 from figmint.cli import main as cli_main
 from figmint.palettes import simulate_cvd
-from figmint.themes import THEMES, contrast_ratio, get_theme
+from figmint.themes import EXPLAIN_PALETTES, THEMES, contrast_ratio, get_explain_palette, get_theme
 
 SERVICES = {"checkout": 1840, "search": 460, "auth": 310, "catalog": 280, "cart": 240}
 WEEKS = list(range(1, 9))
@@ -26,7 +26,8 @@ LATENCY = {
     "auth": [300, 310, 305, 315, 300, 320, 305, 310],
 }
 TAKEAWAY = "Checkout is the slow service: its p99 is 4x the next worst"
-ALL_STYLES = ("figmint", "bold", "editorial", "sketch")
+ALL_STYLES = ("figmint", "bold", "editorial", "paper", "dark", "mono", "sketch")
+ALL_PALETTES = ("default", "okabe_ito", "tol", "earth", "ocean", "berry")
 
 
 def _all_forms() -> dict[str, fm.Panel]:
@@ -71,6 +72,22 @@ def _all_forms() -> dict[str, fm.Panel]:
         "distribution": fm.distribution(
             {"before": rng.lognormal(3, 0.2, 60), "after": rng.lognormal(3.4, 0.5, 60)},
             unit="ms",
+            highlight="after",
+            reference=(40, "SLO"),
+        ),
+        "histogram_single": fm.histogram(
+            rng.normal(50, 10, 120),
+            bins=12,
+            label="Score",
+            unit="pts",
+            reference=(65, "target"),
+        ),
+        "histogram_groups": fm.distribution(
+            {"before": rng.lognormal(3.0, 0.25, 80), "after": rng.lognormal(3.4, 0.35, 80)},
+            bins=14,
+            label="Latency",
+            unit="ms",
+            baseline="before",
             highlight="after",
             reference=(40, "SLO"),
         ),
@@ -273,3 +290,82 @@ def test_cli_explain_style_override(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert summary["issues"] == []
     saved_spec = json.loads(out_png.with_suffix(".json").read_text("utf-8"))
     assert saved_spec["style"] == "editorial"
+
+
+@pytest.mark.parametrize("palette_name", ALL_PALETTES)
+def test_every_explain_palette_separates_in_grayscale_and_cvd(palette_name: str) -> None:
+    pal = get_explain_palette(palette_name)
+    assert len(pal.series_colors) == 4
+    assert len(pal.accent_colors) == 3
+    assert set(pal.accent_colors) <= set(pal.series_colors)
+
+    rgb = np.array([to_rgb(c) for c in pal.series_colors])[np.newaxis]
+    gray = simulate_cvd(rgb, "grayscale")[0, :, 0]
+    deutan = simulate_cvd(rgb, "deuteranopia")[0]
+    protan = simulate_cvd(rgb, "protanopia")[0]
+    for i, j in itertools.combinations(range(len(pal.series_colors)), 2):
+        assert abs(gray[i] - gray[j]) >= 0.05
+        assert (
+            min(np.linalg.norm(deutan[i] - deutan[j]), np.linalg.norm(protan[i] - protan[j]))
+            >= 0.12
+        )
+    for color in pal.series_colors:
+        adjusted = explainer._text_color(color, background="#FFFFFF", ink="#1A1D21")
+        assert contrast_ratio(adjusted, "#FFFFFF") >= 4.5
+
+
+@pytest.mark.parametrize("palette_name", ALL_PALETTES)
+def test_palette_renders_clean_and_roundtrips_via_spec(
+    palette_name: str, tmp_path: Path
+) -> None:
+    fig = fm.explain(
+        TAKEAWAY,
+        fm.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
+        fm.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", x_label="Week"),
+        source="synthetic",
+        palette=palette_name,
+    )
+    summary = fig.summary()
+    assert summary["ok"] is True
+    assert summary["issues"] == []
+    assert summary["palette"] == palette_name
+    out = tmp_path / f"{palette_name}.png"
+    fig.save(out, write_spec=True)
+    spec = fm.load(out).to_spec()
+    if palette_name == "default":
+        assert "palette" not in spec
+    else:
+        assert spec["palette"] == palette_name
+    rebuilt = fm.explain_from_spec(spec)
+    assert rebuilt.summary()["palette"] == palette_name
+
+
+def test_dark_theme_and_palette_override_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli_main(["explain", "--example"]) == 0
+    spec_path = tmp_path / "spec.json"
+    spec_path.write_text(capsys.readouterr().out, encoding="utf-8")
+
+    out_png = tmp_path / "dark_okabe.png"
+    code = cli_main(
+        [
+            "explain",
+            str(spec_path),
+            "--style",
+            "dark",
+            "--palette",
+            "okabe_ito",
+            "--out",
+            str(out_png),
+            "--write-spec",
+        ]
+    )
+    assert code == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["ok"] is True
+    assert summary["style"] == "dark"
+    assert summary["palette"] == "okabe_ito"
+    assert summary["issues"] == []
+    assert set(EXPLAIN_PALETTES) >= set(ALL_PALETTES)
+    with pytest.raises(fm.ExplainError) as err:
+        fm.explain(TAKEAWAY, fm.compare(SERVICES, unit="ms"), palette="rainbow_unicorn")
+    assert err.value.rule == "unknown_palette"

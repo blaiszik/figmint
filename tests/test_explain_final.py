@@ -1457,3 +1457,54 @@ def test_matrix_nan_cells_show_em_dash_marker() -> None:
         source="synthetic",
     )
     assert "\N{EM DASH}" in [t.get_text() for t in fig["a"].texts]
+
+
+def test_histogram_alias_facts_spec_roundtrip_and_validation(tmp_path) -> None:
+    rng = np.random.default_rng(12)
+    single_vals = np.concatenate([rng.normal(20, 3, 60), rng.normal(42, 4, 40)]).tolist()
+    fig = fm.explain(
+        "Response times split into two modes around 20 ms and 42 ms",
+        fm.histogram(
+            single_vals,
+            bins=14,
+            label="Response time",
+            unit="ms",
+            reference=(35, "SLA"),
+            title="Two distinct latency peaks",
+        ),
+        source="synthetic",
+    )
+    summary = fig.summary()
+    assert summary["ok"] is True and summary["issues"] == []
+    facts = summary["panels"][0]["facts"]
+    assert any("binned into 14 bins" in f for f in facts), facts
+    assert any("peak bin" in f for f in facts), facts
+    assert any("above 35 ms (SLA)" in f for f in facts), facts
+
+    out = tmp_path / "hist.png"
+    fig.save(out, write_spec=True)
+    spec = fm.load(out).to_spec()
+    assert spec["panels"][0]["bins"] == 14
+    assert fm.explain_from_spec(spec).summary()["ok"] is True
+
+    # JSON spec with kind="histogram" also works directly
+    hist_spec = {
+        "takeaway": "Scores cluster near 75 pts",
+        "panels": [
+            {
+                "kind": "histogram",
+                "values": rng.normal(75, 8, 80).tolist(),
+                "bins": "auto",
+                "label": "Score",
+                "unit": "pts",
+                "title": "Single peak",
+            }
+        ],
+    }
+    assert fm.explain_from_spec(hist_spec).summary()["ok"] is True
+
+    # Validation checks
+    with pytest.raises(fm.ExplainError):
+        fm.histogram(single_vals, bins=1)
+    with pytest.raises(fm.ExplainError):
+        fm.histogram({f"g{i}": rng.normal(i, 1, 20).tolist() for i in range(5)}, bins=10)

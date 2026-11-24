@@ -22,7 +22,17 @@ SKILL = Path(fm.__file__).parent / "assets" / "SKILL.md"
 # and an alias kept so `trend` and `relate` agree.
 UNDOCUMENTED = {"target", "out", "log_y"}
 
-FORMS = ("compare", "trend", "change", "distribution", "relate", "share", "matrix", "custom")
+FORMS = (
+    "compare",
+    "trend",
+    "change",
+    "distribution",
+    "histogram",
+    "relate",
+    "share",
+    "matrix",
+    "custom",
+)
 
 
 def _explain_section() -> str:
