@@ -39,7 +39,7 @@ import numbers
 import re
 import unicodedata
 import zlib
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -102,6 +102,10 @@ MAX_COMPARE_ITEMS = 20
 COMFORTABLE_COMPARE_ITEMS = 12
 MAX_GROUPS = 8
 MAX_TITLE_LINES = 3
+MAX_FACETS = 12
+MAX_CHANGE_ITEMS = 14
+MAX_MATRIX_ROWS = 16
+MAX_MATRIX_COLS = 12
 
 #: Width, in CSS pixels, at which chat clients typically show an inline image.
 DISPLAY_WIDTH_PX = 700
@@ -155,13 +159,25 @@ _ILLUSTRATIVE_CUE = re.compile(
 )
 
 
+#: An ASCII hyphen used as a sign: at the start, or after a space or one of
+#: ( [ = : ^ , /, and before a digit ("-3 °C", "Δ = -0.4", "10^-3"). Dates
+#: ("2026-01-31"), ranges ("43-53 nm") and words ("1C-rate") keep their hyphen.
+_SIGN_HYPHEN = re.compile(r"(?<![^\s(\[=:^,/])-(?=\d)")
+
+
+def _minus_signs(text: str) -> str:
+    """Caller text with sign hyphens drawn as a true minus ("−3 °C")."""
+    return _SIGN_HYPHEN.sub("\N{MINUS SIGN}", text)
+
+
 def _plain(text: object, theme: Theme | None = None) -> str:
     """Escape ``$`` so user text is never parsed as mathtext ("from $5M to $8M").
 
+    An ASCII hyphen used as a sign becomes a minus (:func:`_minus_signs`).
     When ``theme`` defines ASCII glyph substitutes (e.g. ``sketch``), replaces
     Unicode minus, en-dash, and ellipsis on the rendered text artist.
     """
-    out = str(text).replace(r"\$", "$").replace("$", r"\$")
+    out = _minus_signs(str(text)).replace(r"\$", "$").replace("$", r"\$")
     if theme is not None:
         if theme.minus_sign != "\N{MINUS SIGN}":
             out = _ascii_sci(out).replace("\N{MINUS SIGN}", theme.minus_sign)
@@ -521,7 +537,9 @@ def _names(highlight: object, valid: Sequence[str], what: str = "highlight") -> 
     if len(names) > MAX_HIGHLIGHTS:
         raise ExplainError(
             f"{what} lists {len(names)} items; more than {MAX_HIGHLIGHTS} highlights nothing.",
-            fix_hint=f"Highlight only the <= {MAX_HIGHLIGHTS} items the takeaway sentence names.",
+            fix_hint=f"At most {MAX_HIGHLIGHTS} highlights: name only the items the takeaway "
+            "sentence names (the rest stay as grey context), or split the claim across two "
+            "panels with up to 3 highlights each.",
             rule="too_many_highlights",
         )
     return names
@@ -1006,8 +1024,27 @@ def _ratio_text(ratio: float) -> str:
     return f"{ratio:.1f}\N{MULTIPLICATION SIGN}"
 
 
+def _has_unit(text: str, unit: str) -> bool:
+    """True when ``text`` already carries ``unit`` (a ``fmt`` such as "{:+.0f}%").
+
+    A trailing unit counts only at a word boundary: "12 ms" does not end with "s".
+    A currency counts anywhere ("$12", "−$0.10").
+    """
+    u = unit.strip()
+    if not u:
+        return False
+    t = text.strip()
+    if u in _CURRENCY_UNITS:
+        return u in t
+    if not t.endswith(u) or len(t) == len(u):
+        return False
+    return not (u[0].isalpha() and t[: -len(u)][-1:].isalpha())
+
+
 def _with_unit(text: str, unit: str | None) -> str:
     if not unit:
+        return text
+    if _has_unit(text, unit):  # fmt already wrote it: never "−28%%"
         return text
     if unit in {"$", "\N{EURO SIGN}", "\N{POUND SIGN}"}:
         if text.startswith(("\N{MINUS SIGN}", "+")):  # the sign leads: "−$0.10", "+$0.50"
@@ -1018,13 +1055,56 @@ def _with_unit(text: str, unit: str | None) -> str:
     return f"{text} {unit}"
 
 
+def _range_with_unit(lo: str, hi: str, unit: str | None) -> str:
+    """A range with its unit once at the end ("32\N{EN DASH}52%", "12\N{EN DASH}15 ms"), or on
+    both ends for a currency, which leads its number ("$1.20\N{EN DASH}$1.50")."""
+    if unit in _CURRENCY_UNITS:
+        return f"{_with_unit(lo, unit)}\N{EN DASH}{_with_unit(hi, unit)}"
+    return f"{lo}\N{EN DASH}{_with_unit(hi, unit)}"
+
+
 def _inline_unit(unit: str | None) -> bool:
     """Short units that belong on every value label, not just the first."""
     return unit in {"%", "$", "\N{EURO SIGN}", "\N{POUND SIGN}", "\N{MULTIPLICATION SIGN}", "x"}
 
 
+_FOLD_UNITS = {"\N{MULTIPLICATION SIGN}", "x", "fold", "-fold", "fold change", "fold-change"}
+
+
+def _fold_unit(unit: str | None, label: str | None, positive_log: bool) -> bool:
+    """True when the values are raw ratios: unit "×"/"x"/"fold", or (on a log axis of
+    positive values, with no unit) a label naming a fold change that is not log-transformed."""
+    if isinstance(unit, str) and unit.strip().lower() in _FOLD_UNITS:
+        return True
+    return (
+        unit is None
+        and positive_log
+        and bool(label)
+        and re.search(r"\bfold\b", str(label), re.IGNORECASE) is not None
+        and re.search(r"\blog", str(label), re.IGNORECASE) is None
+    )
+
+
+def _long_unit_issue(unit: object) -> dict[str, Any] | None:
+    """Warn when ``unit=`` is words, not a symbol: it is printed after every value."""
+    if not isinstance(unit, str):
+        return None
+    u = unit.strip()
+    if len(u.split()) <= 2 and len(u) <= 16:
+        return None
+    return _issue(
+        "unit_is_long",
+        "warning",
+        f"unit={unit!r} is words, and the unit is printed after every value in the facts "
+        "and labels.",
+        "Put the words in label= and keep unit= a symbol (ms, %, mg/L).",
+    )
+
+
 def _measure_text(label: str | None, unit: str | None) -> str | None:
     if label and unit:
+        if re.search(rf"[(\[]\s*{re.escape(unit.strip())}\s*[)\]]\s*$", label):
+            return label  # the label already ends with its unit: "Yield (MPa)"
         return f"{label} ({unit})"
     return label or unit or None
 
@@ -1068,14 +1148,21 @@ def _percent_change(first: float, last: float, *, precise: bool = False) -> str 
 
 def _signed(text: str) -> str:
     """Prefix "+" to a formatted non-negative, non-zero difference."""
-    if text.startswith("\N{MINUS SIGN}") or _shows_zero(text):
+    if text.startswith(("\N{MINUS SIGN}", "+")) or _shows_zero(text):
         return text
     return "+" + text
+
+
+def _unsigned(text: str) -> str:
+    """A width or gap from a possibly signed ``fmt`` ("+26%"): no leading "+"."""
+    return text.strip().removeprefix("+")
 
 
 def _diff_with_unit(text: str, unit: str | None) -> str:
     """A difference: in points when the unit is "%" (a percent of a percent misleads)."""
     if unit is not None and unit.strip().startswith("%"):
+        if _has_unit(text, unit):  # fmt="{:+.0f}%": the difference is still in points
+            text = text.strip()[: -len(unit.strip())].rstrip()
         bare = text.lstrip("+\N{MINUS SIGN}")
         return f"{text} {'point' if bare == '1' else 'points'}"
     return _with_unit(text, unit)
@@ -1102,12 +1189,16 @@ def _vs_text(
     unit: str | None,
     diff_fmt: Callable[[float], str],
     log: bool = False,
+    relative: bool = True,
 ) -> str:
-    """``value`` against a baseline: "+12 ms (+46%)", "−33 points (0.58×)", or "4.7×" on a log axis."""
+    """``value`` against a baseline: "+12 ms (+46%)", "−33 points (0.58×)", or "4.7×" on a log axis.
+
+    ``relative=False`` (zero is not meaningful, e.g. wavelengths) keeps only the difference.
+    """
     if log:
         return _ratio_text(value / base)
     text = _diff_with_unit(_signed(diff_fmt(value - base)), unit)
-    rel = _relative_text(value, base, unit)
+    rel = _relative_text(value, base, unit) if relative else None
     return f"{text} ({rel})" if rel else text
 
 
@@ -1356,6 +1447,18 @@ class Panel:
     uses_default: bool = False
     #: The reference item (``baseline=``): drawn in ink, never given a palette colour.
     color_baseline: str | None = None
+    #: The smallest plot height (mm at scale 1, same arguments as ``_height_mm``) at
+    #: which the form still reads: a figure too tall for one screen is first
+    #: compressed toward it. None: the natural height is the minimum.
+    _min_height_mm: Callable[[float, _Measure, _Sizes, Theme], float] | None = None
+    #: The facts the alt text reads out: every group or series the panel is about (or
+    #: the highlighted ones plus the baseline), not just the first fact. None: facts[0].
+    alt_facts: list[str] | None = None
+
+    def __post_init__(self) -> None:
+        issue = _long_unit_issue(self.unit)
+        if issue is not None and not any(i["rule"] == "unit_is_long" for i in self.issues):
+            self.issues.append(issue)
 
     def to_spec(self) -> dict[str, Any]:
         out: dict[str, Any] = {"kind": self.kind}
@@ -1599,9 +1702,11 @@ def _bar_panel(
     log: bool = False,
     measure_note: str | None = None,
     baseline: str | None = None,
+    counts: Mapping[str, int] | None = None,
 ) -> Panel:
     n = len(names)
     hl_index = {name: i for i, name in enumerate(highlight)}
+    counts = dict(counts or {})
 
     def _wrapped(
         cell_width_mm: float,
@@ -1616,8 +1721,8 @@ def _bar_panel(
         for name in names:
             weight = "bold" if name in hl_index else "normal"
             lines = measure.wrap(name, 0.42 * cell_pt, sizes.body, weight)
-            if len(lines) > 2:
-                lines = [lines[0], " ".join(lines[1:])]
+            if len(lines) > 3:  # a long name wraps onto up to three lines before any is cut
+                lines = [*lines[:2], " ".join(lines[2:])]
             fitted: list[str] = []
             for line in lines:
                 min_len = max(4, len(ell) + 2)
@@ -1635,17 +1740,26 @@ def _bar_panel(
         return out
 
     def _truncated(shown: list[str], theme: Theme = FIGMINT_THEME) -> list[str]:
+        """Names cut on any of their lines (a long first word is cut too, not only the last)."""
         ell = theme.ellipsis
         return [
             name
             for name, text in zip(names, shown, strict=True)
-            if text.endswith(ell) and not name.endswith(ell)
+            if text.replace("\n", " ").count(ell) > name.count(ell)
         ]
 
-    def _pitch(wrapped: list[str]) -> float:
-        return 8.2 if any("\n" in name for name in wrapped) else 5.3
+    def _pitch(wrapped: list[str], tight: bool = False) -> float:
+        lines = max(name.count("\n") + 1 for name in wrapped)
+        # A count under each name ("n=84") takes about one small line more.
+        extra = (2.4 if tight else 2.8) if counts else 0.0
+        if tight:  # the closest pitch at which names and value labels still clear
+            return {1: 4.6, 2: 7.2}.get(lines, 10.0) + extra
+        return {1: 5.3, 2: 8.2}.get(lines, 11.0) + extra
 
-    def _draw(ctx: _Ctx, ax: Axes) -> None:
+    def _extras() -> float:
+        return (4.0 if reference and reference[1] else 0.0) + (5.0 if (log or errors) else 0.0)
+
+    def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
         sz = ctx.sizes
         theme = ctx.theme
         # Figure-level colours: highlighted names, or (without highlight) names that are
@@ -1787,10 +1901,32 @@ def _bar_panel(
                 tick.set_fontweight("bold")
             elif name in muted_names:
                 tick.set_color(theme.muted)
-
-        for yi, name, value, hi_v, text in zip(y, names, vals, highs, labels, strict=True):
-            anchor = hi_v if (dots or value >= 0) else 0.0
+            if counts:
+                # The name sits just above the mark's centre line, its count just below,
+                # as distribution() writes "n=8" under each group name.
+                tick.set_verticalalignment("bottom")
+        for yi, name in zip(y, names, strict=True):
+            if name not in counts:
+                continue
             ax.annotate(
+                _plain(f"n={counts[name]}", theme),
+                (0.0, yi),
+                xycoords=("axes fraction", "data"),
+                xytext=(-5.0, -1.0),
+                textcoords="offset points",
+                ha="right",
+                va="top",
+                fontsize=sz.foot,
+                color=theme.muted,
+                annotation_clip=False,
+            )
+
+        value_notes: list[tuple[Any, float, float, str]] = []
+        for yi, name, value, hi_v, lo_v, text, col in zip(
+            y, names, vals, highs, lows, labels, colors, strict=True
+        ):
+            anchor = hi_v if (dots or value >= 0) else 0.0
+            value_note = ax.annotate(
                 _plain(text, theme),
                 (anchor, yi),
                 xytext=(5.0 if (dots or value >= 0) else 4.0, 0.0),
@@ -1802,6 +1938,9 @@ def _bar_panel(
                 fontweight="bold" if name in accent else "normal",
                 annotation_clip=False,
             )
+            # Where the value can go instead: left of the mark (dots, from the low end of
+            # an interval) or inside the bar's end (bars).
+            value_notes.append((value_note, float(lo_v if dots else value), float(value), col))
 
         if reference is not None:
             ref_value, ref_text = reference
@@ -1826,6 +1965,60 @@ def _bar_panel(
                     annotation_clip=False,
                 )
 
+        if reference is None:
+            return None
+        ref_x = reference[0]
+
+        def _clear_reference() -> None:
+            """A value label the reference line runs through moves past the line, or to the
+            other side of its mark when there is no room past it."""
+            renderer = ctx.fig.canvas.get_renderer()
+            k = ctx.pt_per_px
+            cell = ax.get_tightbbox(renderer)
+            frame = ax.get_window_extent(renderer)
+            right_limit = max(frame.x1, cell.x1 if cell is not None else frame.x1)
+            line_px = float(ax.transData.transform((ref_x, 0.0))[0])
+            gap = 3.0 / k
+            for note, other_anchor, value, col in value_notes:
+                box = note.get_window_extent(renderer)
+                if not (box.x0 - 1 <= line_px <= box.x1 + 1):
+                    continue
+                dx, dy = note.xyann
+                shift = (line_px + gap - box.x0) * k
+                note.set_position((dx + shift, dy))
+                moved = note.get_window_extent(renderer)
+                if moved.x1 <= right_limit + 1:
+                    continue
+                note.xy = (other_anchor, note.xy[1])
+                note.set_horizontalalignment("right")
+                if dots:
+                    note.set_position((-5.0, dy))
+                else:  # inside the bar's end, in whichever of ink or paper reads on it
+                    note.set_position((-3.0, dy))
+                    paper = theme.background
+                    note.set_color(
+                        paper if contrast_ratio(paper, col) >= contrast_ratio(theme.ink, col)
+                        else theme.ink
+                    )
+                    # Printed on its own bar with a contrasting colour, as a matrix cell's
+                    # value is: not text lost on data.
+                    note._figmint_heatmap_text = True  # type: ignore[attr-defined]
+                flipped = note.get_window_extent(renderer)
+                if flipped.x0 - 1 <= line_px <= flipped.x1 + 1 or flipped.x0 < frame.x0 - 1:
+                    ctx.issues.append(
+                        _issue(
+                            "value_label_on_reference",
+                            "warning",
+                            f"The reference line runs through the value label "
+                            f"{note.get_text()!r} on either side of its mark.",
+                            "Move the reference to note= (\"dashed line: ...\"), or widen the "
+                            'panel with a full-width row, layout=[["a"], ["b"]].',
+                            panel=ctx.key,
+                        )
+                    )
+
+        return _clear_reference
+
     return Panel(
         kind=kind,
         title=title,
@@ -1836,9 +2029,10 @@ def _bar_panel(
         describe=describe,
         issues=list(issues or []),
         _height_mm=lambda w, measure, sizes, theme: (
-            max(14.0, _pitch(_wrapped(w, measure, sizes, theme)) * n + 1.0)
-            + (4.0 if reference and reference[1] else 0.0)
-            + (5.0 if (log or errors) else 0.0)
+            max(14.0, _pitch(_wrapped(w, measure, sizes, theme)) * n + 1.0) + _extras()
+        ),
+        _min_height_mm=lambda w, measure, sizes, theme: (
+            max(12.0, _pitch(_wrapped(w, measure, sizes, theme), tight=True) * n + 1.0) + _extras()
         ),
         _draw=_draw,
         measure_note=measure_note,
@@ -1974,6 +2168,57 @@ def _interval_issue(form: str, arg: str, label_arg: str) -> dict[str, Any]:
     )
 
 
+def _or_list(items: Sequence[str]) -> str:
+    """"a", "a or b", "a, b or c"."""
+    items = list(items)
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " or " + items[-1]
+
+
+def _ordinal(k: int) -> str:
+    """1 -> "1st", 2 -> "2nd", 11 -> "11th"."""
+    suffix = "th" if 10 <= k % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(k % 10, "th")
+    return f"{k}{suffix}"
+
+
+def _compare_counts(n: object, names: Sequence[str]) -> dict[str, int]:
+    """Read ``compare(n=...)``: {name: count} (or a list in the order of values)."""
+    hint = 'Give the number of observations behind each value, e.g. n={"Support": 84, "Legal": 61}.'
+    if _has_items(n):
+        entries = {str(k): v for k, v in _pairs(n)}
+    elif isinstance(n, (Sequence, np.ndarray)) and not isinstance(n, (str, bytes)):
+        listed = list(n)
+        if len(listed) != len(names):
+            raise ExplainError(
+                f"compare(n) lists {len(listed)} counts for {len(names)} items.",
+                fix_hint=hint + " A list must follow the order of values.",
+            )
+        entries = dict(zip(names, listed, strict=True))
+    else:
+        raise ExplainError(
+            f"compare(n) must be a mapping or a list of counts, got {type(n).__name__}.",
+            fix_hint=hint,
+        )
+    extra = [k for k in entries if k not in names]
+    if extra:
+        raise ExplainError(
+            f"compare(n) names {extra[:4]!r}, which are not in values.",
+            fix_hint=f"Use names from: {', '.join(map(repr, list(names)[:12]))}.",
+        )
+    counts: dict[str, int] = {}
+    for name in names:
+        if name not in entries or entries[name] is None:
+            continue
+        value = entries[name]
+        number = _to_float(value, f"compare(n[{name!r}])") if _is_number(value) else math.nan
+        if not (math.isfinite(number) and number >= 0 and float(number).is_integer()):
+            raise ExplainError(
+                f"compare(n[{name!r}]) = {value!r} is not a count.",
+                fix_hint=hint + " Each count is a whole number, 0 or more.",
+            )
+        counts[name] = int(number)
+    return counts
+
+
 @_guarded("compare")
 def compare(
     values: Mapping[str, float] | Sequence[tuple[str, float]],
@@ -1990,6 +2235,7 @@ def compare(
     reference: float | tuple[float, str] | None = None,
     log: bool = False,
     fmt: str | None = None,
+    n: Mapping[str, int] | Sequence[int] | None = None,
 ) -> Panel:
     """How do items differ in size? Sorted horizontal bars with the values written on them.
 
@@ -2003,6 +2249,9 @@ def compare(
     ``"asc"`` (lower is better) or ``False`` (keep an inherent order).
     ``baseline`` names the reference item (a control, the incumbent): it is drawn
     in ink and the facts state every highlighted item (or every item) against it.
+    ``n`` gives the number of observations behind each value ({name: count}):
+    written small under each name ("n=84") and carried into the facts, so the
+    names stay names.
     """
     data = _named_values(values, "compare(values)")
     names = list(data)
@@ -2010,7 +2259,9 @@ def compare(
         raise ExplainError(
             f"compare() got {len(names)} items; a ranked list longer than "
             f"{MAX_COMPARE_ITEMS} is scanned, not read.",
-            fix_hint="Show the top 10 (say so in the title) or use distribution() for the spread.",
+            fix_hint=f"compare() takes at most {MAX_COMPARE_ITEMS} items: show the top 10 (say "
+            "so in the title, the rest in note=), use distribution() for the spread of many "
+            "values, or matrix() if the items form a grid.",
             rule="too_many_items",
         )
     order = _sort_order(sort)
@@ -2021,6 +2272,7 @@ def compare(
     modes: set[str] = set()
     if error is not None:
         errors, modes = _compare_intervals(error, data)
+    counts = _compare_counts(n, names) if n is not None else {}
     if log:
         lows = [errors[nm][0] for nm in names] if errors else []
         if min([*data.values(), *lows, *([ref[0]] if ref else [])]) <= 0:
@@ -2067,28 +2319,38 @@ def compare(
         for i, v in enumerate(vals)
     ]
 
+    # Values of both signs (changes, differences): positives carry a "+", and the
+    # highlighted items are placed against zero, not against their neighbours.
+    diverging = min(data.values()) < 0 < max(data.values())
+    # zero=False says zero is not meaningful (wavelengths, temperatures, positions):
+    # ratios of the values mean nothing there; differences still do. A log axis keeps them.
+    ratios = zero or log
+
     def _u(v: float, f: Callable[[float], str] = fmt_fn) -> str:
-        return _with_unit(f(v), unit)
+        text = f(v)
+        return _with_unit(_signed(text) if diverging else text, unit)
+
+    def _nn(name: str) -> str:
+        return f" (n={counts[name]})" if name in counts else ""
 
     descending = sorted(data, key=lambda nm: data[nm], reverse=True)
     ranking = names if order != "given" else descending
     rank_word = "lowest first" if order == "asc" else "highest first"
     top, bottom = descending[0], descending[-1]
-    facts = [f"highest: {top} {_u(data[top])}"]
+    facts = [f"highest: {top} {_u(data[top])}{_nn(top)}"]
     if len(descending) > 1:
-        facts.append(f"lowest: {bottom} {_u(data[bottom])}")
-        if all(v > 0 for v in data.values()):
+        facts.append(f"lowest: {bottom} {_u(data[bottom])}{_nn(bottom)}")
+        if ratios and all(v > 0 for v in data.values()):
             facts.append(
                 f"highest/lowest ratio: {_ratio_text(data[top] / data[bottom])} "
                 "(from unrounded values)"
             )
         else:
             span_fmt = _formatter([data[top] - data[bottom]], fmt, unit=unit)
-            facts.append(
-                f"range: {_u(data[bottom])} to {_u(data[top])} "
-                f"(spread {_u(data[top] - data[bottom], span_fmt)})"
-            )
-    if len(descending) > 2:
+            # A spread is a width: no sign (even from a signed fmt), in points for "%".
+            spread = _diff_with_unit(_unsigned(span_fmt(data[top] - data[bottom])), unit)
+            facts.append(f"range: {_u(data[bottom])} to {_u(data[top])} (spread {spread})")
+    if ratios and len(descending) > 2:
         second = descending[1]
         if data[second] > 0 and data[top] > 0 and data[top] / data[second] >= 1.1:
             facts.append(
@@ -2099,23 +2361,99 @@ def compare(
     for name in hl:
         if ref is not None:
             diffs.append((name, data[name] - ref[0], ref[1] or "reference", ref[0]))
-        elif base is None:  # with a baseline, every item is stated against it below
+        elif base is None and not diverging:
+            # With a baseline every item is stated against it below; with values of both
+            # signs each highlighted item is placed against zero instead.
             others = [nm for nm in ranking if nm not in hl]
             if others:
                 diffs.append((name, data[name] - data[others[0]], others[0], data[others[0]]))
     diff_fmt = _formatter([d[1] for d in diffs], fmt, unit=unit)
-    if log and fmt is None and any("\N{MULTIPLICATION SIGN}10" in fmt_fn(v) for v in vals):
-        # The values are in scientific notation on this log axis: so are their differences.
-        diff_fmt = _sci_text
+
+    if errors is not None:
+        bound_fmt = _formatter(
+            # On a log axis the bounds share the values' notation.
+            [*(vals if log else []), *(v for pair in errors.values() for v in pair)],
+            fmt,
+            unit=unit,
+            log=log,
+        )
+
+    def _span(nm: str) -> str:
+        lo_v, hi_v = errors[nm]  # type: ignore[index]
+        return _range_with_unit(bound_fmt(lo_v), bound_fmt(hi_v), unit)
+
+    ref_shown = ref_named = ""
+    if ref is not None:
+        # The reference as the caller gave it ("1×", not "1.00×" from the values' digits).
+        ref_shown = _with_unit(_formatter([ref[0]], log=log)(ref[0]), unit)
+        ref_named = f" ({ref[1]})" if ref[1] else ""
+
+    def _vs_reference(nm: str) -> str:
+        """Where an interval lies against the reference: "above", "below" or "includes"."""
+        lo_v, hi_v = errors[nm]  # type: ignore[index]
+        return "above" if lo_v > ref[0] else "below" if hi_v < ref[0] else "includes"  # type: ignore[index]
+
+    below_zero = [nm for nm in reversed(descending) if data[nm] < 0]  # most negative first
+    above_zero = [nm for nm in descending if data[nm] > 0]
+
+    def _against_zero(nm: str) -> str:
+        """"furthest of the 3 below zero", "2nd furthest of the 9 above zero"."""
+        if data[nm] == 0:
+            return "at zero"
+        group, word = (below_zero, "below") if data[nm] < 0 else (above_zero, "above")
+        if len(group) == 1:
+            return f"the only one {word} zero"
+        k = group.index(nm) + 1
+        far = "furthest" if k == 1 else f"{_ordinal(k)} furthest"
+        return f"{far} of the {len(group)} {word} zero"
+
+    ci_name = error_label if error_label and len(error_label) <= 24 else "interval"
+    # Alt text: the extremes, then each highlighted item (or each item against the baseline).
+    alt_facts = [f for f in facts if f.startswith(("highest: ", "lowest: "))]
     for name in hl:
-        text = f"{name}: {_u(data[name])} (rank {ranking.index(name) + 1} of {len(ranking)}, {rank_word})"
+        detail = f"n={counts[name]}; " if name in counts else ""
+        text = (
+            f"{name}: {_u(data[name])} ({detail}rank {ranking.index(name) + 1} of "
+            f"{len(ranking)}, {rank_word})"
+        )
         for d_name, d_value, other, other_value in diffs:
-            if d_name == name:
+            if d_name != name:
+                continue
+            if log:
+                if errors is not None and ref is not None and ref[0] == 1:
+                    continue  # the value is already its ratio to 1: the interval says more
+                # On a log axis items differ by factors: a ratio, never a signed one
+                # ("6.0× no change", "0.39× no change"), not "+6.02× vs no change".
+                text += f"; {_ratio_text(data[name] / other_value)} {other} ({_u(other_value)})"
+            else:
                 text += (
                     f"; {_diff_with_unit(_signed(diff_fmt(d_value)), unit)} vs {other} "
                     f"({_u(other_value)})"
                 )
+        if diverging and ref is None and base is None:
+            text += f"; {_against_zero(name)}"
+        if errors is not None and ref is not None:
+            side = _vs_reference(name)
+            where = (
+                f"includes {ref_shown}{ref_named}"
+                if side == "includes"
+                else f"{side} {ref_shown}{ref_named}"
+            )
+            text += f"; {ci_name} {_span(name)}, {where}"
         facts.append(text)
+        if base is None:
+            alt_facts.append(text)
+    if diverging and hl:
+        rest = [nm for nm in ranking if nm not in hl and nm != base]
+        if rest:
+            lo_nm = min(rest, key=lambda nm: data[nm])
+            hi_nm = max(rest, key=lambda nm: data[nm])
+            if len(rest) == 1:
+                facts.append(f"the other item, {lo_nm}, is {_u(data[lo_nm])}")
+            else:
+                facts.append(
+                    f"the other {len(rest)} are within {_u(data[lo_nm])} to {_u(data[hi_nm])}"
+                )
     if base is not None:
         compared = (hl or [nm for nm in ranking if nm != base])[:6]
         vs_fmt = _formatter([data[nm] - data[base] for nm in compared], fmt, unit=unit)
@@ -2128,33 +2466,49 @@ def compare(
             else:
                 facts.append(
                     f"{name} {_u(data[name])} vs {base} {_u(data[base])}: "
-                    f"{_vs_text(data[name], data[base], unit=unit, diff_fmt=vs_fmt)}"
+                    f"{_vs_text(data[name], data[base], unit=unit, diff_fmt=vs_fmt, relative=ratios)}"
                 )
+            alt_facts.append(facts[-1])
     if errors is not None:
-        bound_fmt = _formatter(
-            # On a log axis the bounds share the values' notation.
-            [*(vals if log else []), *(v for pair in errors.values() for v in pair)],
-            fmt,
-            unit=unit,
-            log=log,
-        )
-
-        def _span(nm: str) -> str:
-            lo_v, hi_v = errors[nm]  # type: ignore[index]
-            return f"{bound_fmt(lo_v)}\N{EN DASH}{_with_unit(bound_fmt(hi_v), unit)}"
-
         pairs: list[tuple[str, str]] = []
         if base is not None:
             pairs = [(nm, base) for nm in (hl or [nm for nm in ranking if nm != base])[:6]]
-        elif hl:
-            others = [nm for nm in ranking if nm not in hl]
-            pairs = [(nm, others[0]) for nm in hl] if others else []
-        elif len(ranking) > 1:
+        elif hl and ref is None:
+            # Each highlighted interval against every other item's: which overlap it and
+            # which do not ("outlier, or the bottom of a spread?").
+            for a in hl:
+                a_lo, a_hi = errors[a]
+                others = [nm for nm in ranking if nm != a]
+                over = [nm for nm in others if errors[nm][0] <= a_hi and a_lo <= errors[nm][1]]
+                apart = [nm for nm in others if nm not in over]
+                listed = [
+                    f"overlaps {_and_list([f'{nm} {_span(nm)}' for nm in over])}" if over else "",
+                    f"does not overlap {_or_list([f'{nm} {_span(nm)}' for nm in apart])}"
+                    if apart
+                    else "",
+                ]
+                facts.append(f"{a} {_span(a)} " + "; ".join(t for t in listed if t))
+        elif len(ranking) > 1 and ref is None:
             pairs = [(ranking[1], ranking[0])]
         for a, b in pairs:
             (a_lo, a_hi), (b_lo, b_hi) = errors[a], errors[b]
             verb = "overlaps" if (a_lo <= b_hi and b_lo <= a_hi) else "does not overlap"
             facts.append(f"{a} {_span(a)} {verb} {b} {_span(b)}")
+        if ref is not None:
+            # Every interval against the reference, not against the first item.
+            sides: dict[str, list[str]] = {"above": [], "includes": [], "below": []}
+            for nm in ranking:
+                sides[_vs_reference(nm)].append(nm)
+            parts = [
+                f"{phrase} for {_and_list(sides[key])}"
+                for key, phrase in (
+                    ("above", "entirely above"),
+                    ("includes", "include it"),
+                    ("below", "entirely below"),
+                )
+                if sides[key]
+            ]
+            facts.append(f"intervals against {ref_shown}{ref_named}: " + "; ".join(parts))
         facts.append(_interval_mode_text(modes, "intervals"))
 
     what = label or "values"
@@ -2172,7 +2526,7 @@ def compare(
         )
         if n
     ]
-    return _bar_panel(
+    panel = _bar_panel(
         kind="compare",
         names=names,
         values=vals,
@@ -2195,6 +2549,7 @@ def compare(
             reference=list(ref) if ref else None,
             log=log or None,
             fmt=fmt,
+            n=dict(counts) or None,
         ),
         facts=facts,
         describe=describe,
@@ -2205,7 +2560,10 @@ def compare(
         log=log,
         measure_note="; ".join(notes) or None,
         baseline=base,
+        counts=counts,
     )
+    panel.alt_facts = alt_facts
+    return panel
 
 
 @_guarded("share")
@@ -2259,9 +2617,18 @@ def share(
 
     total_fmt = _formatter([total], unit=unit)
     total_text = _with_unit(total_fmt(total), unit)
-    measure = f"Share of {label or 'total'} ({total_text} in all)"
+    # "Share of energy", but a label that already says share is kept: never "Share of Share".
+    whole = label if (label and label.strip().lower().startswith("share")) else (
+        f"Share of {label or 'total'}"
+    )
+    measure = f"{whole} ({total_text} in all)"
     cumulative = np.cumsum(pct[: len(kept)])
     facts = [f"total: {total_text}", f"largest: {kept[0]} {labels[0]}"]
+    for name in hl:
+        part_fmt = _formatter([data[name]], unit=unit)
+        facts.append(
+            f"{name}: {labels[kept.index(name)]} ({_with_unit(part_fmt(data[name]), unit)})"
+        )
     if len(kept) >= 3:
         facts.append(f"top 3 together: {cumulative[2]:.0f}%")
     if rest:
@@ -2286,7 +2653,9 @@ def share(
             title, label, unit, parts=dict(data), highlight=hl or None, top=top, fmt=fmt
         ),
         facts=facts,
-        describe=f"Bar chart of each part's share of {label or 'the total'} ({len(data)} parts)",
+        describe=f"Bar chart of each part's share of {label or 'the total'} ({len(data)} parts)"
+        if whole.startswith("Share of")
+        else f"Bar chart of {label} by part ({len(data)} parts)",
         dots=False,
         errors=None,
         reference=None,
@@ -2344,11 +2713,33 @@ _X_UNIT = re.compile(r"[(\[]\s*([^()\[\]]{1,16}?)\s*[)\]]\s*$")
 
 
 def _x_unit(x_label: str | None) -> str | None:
-    """The unit at the end of an axis label: "Time after dose (h)" -> "h"."""
+    """The unit at the end of an axis label: "Time after dose (h)" -> "h".
+
+    Only a bracket that reads as a unit: one token that does not start with a
+    digit. "Cycle (1C/1C)" or "Dose (per 70 kg)" give no unit (pass ``x_unit=``).
+    """
     if not x_label:
         return None
     found = _X_UNIT.search(x_label)
-    return found.group(1) if found else None
+    if not found:
+        return None
+    text = found.group(1)
+    if text[:1].isdigit() or any(ch.isspace() for ch in text):
+        return None
+    return text
+
+
+def _resolve_x_unit(x_unit: object, x_label: str | None, kind: str) -> str | None:
+    """``x_unit=`` when given ("" turns the unit off), else the one parsed from ``x_label``."""
+    if x_unit is None:
+        return _x_unit(x_label)
+    if not isinstance(x_unit, str):
+        raise ExplainError(
+            f"{kind}(x_unit={x_unit!r}) must be a string.",
+            fix_hint='Pass the x unit as text, e.g. x_unit="h" or x_unit="cycles"; '
+            'x_unit="" states x values with no unit.',
+        )
+    return x_unit.strip() or None
 
 
 def _with_x_unit(text: str, x_unit: str | None) -> str:
@@ -2564,15 +2955,20 @@ def _log_trend_facts(
     label: str | None,
     x_text: Sequence[str] | None = None,
     x_unit: str | None = None,
+    spiked: Collection[str] = (),
+    power_names: Sequence[str] | None = None,
 ) -> list[str]:
-    """Facts a log-scale trend is judged by: slopes of log₁₀(y) and peak ratios.
+    """Facts a log-scale trend is judged by: slopes of log₁₀(y) and peak ratios; on
+    log-log axes (``log_x``) the power-law exponent of each of ``power_names`` with its
+    95% CI and R².
 
     The least-squares slope of log₁₀(y) against x (plotted x units, numeric linear x
     only) with its R² lets an agent check an Arrhenius or exponential claim. A series
     that rises then falls (or falls then rises) is fitted on each side of its interior
     peak (or trough), never across it: one line through a rise and a decay describes
     neither (an absorption phase would hide the elimination rate). When the peak is
-    not an endpoint, its ratio to the first and last values (unrounded).
+    not an endpoint, its ratio to the first and last values (unrounded), except for
+    ``spiked`` series, whose event-marked spike is stated against the median before it.
     """
     per = f"per {x_unit}" if x_unit else "per unit x"
     log10 = "log\N{SUBSCRIPT ONE}\N{SUBSCRIPT ZERO}"
@@ -2590,7 +2986,36 @@ def _log_trend_facts(
             + (f", R\N{SUPERSCRIPT TWO} = {_r2_text(r2)}" if math.isfinite(r2) else "")
         )
 
+    def _power_fact(shown: str, sel: np.ndarray, arr: np.ndarray, where: str) -> str | None:
+        """Log-log axes: the power-law exponent (slope of log y on log x) with its 95% CI."""
+        lx, ly = np.log10(xpos[sel].astype(float)), np.log10(arr[sel])
+        if sel.size < 3 or np.ptp(lx) <= 0:
+            return None
+        slope, icept = np.polyfit(lx, ly, 1)
+        resid = ly - (slope * lx + icept)
+        total = float(((ly - ly.mean()) ** 2).sum())
+        r2 = 1.0 - float((resid**2).sum()) / total if total > 0 else float("nan")
+        lo, hi = _slope_ci(lx, ly, float(slope), float(icept))
+        ci = ""
+        if math.isfinite(lo) and math.isfinite(hi):
+            joint = " to " if lo < 0 else "\N{EN DASH}"
+            ci = f" (95% CI {_sig_text(lo, 3)}{joint}{_sig_text(hi, 3)})"
+        return (
+            f"{shown}: y \N{PROPORTIONAL TO} x^{_sig_text(float(slope), 3)}{ci}{where}"
+            + (f", R\N{SUPERSCRIPT TWO} = {_r2_text(r2)}" if math.isfinite(r2) else "")
+        )
+
     out: list[str] = []
+    if x_kind == "number" and log_x:
+        # A straight line on log-log axes is a power law: its exponent is the claim
+        # ("loss falls as compute^−0.063"), checkable only with its interval. Every
+        # series (``power_names``, grey ones too): "faster than the others" needs theirs.
+        for name in names if power_names is None else power_names:
+            arr = data[name]
+            ok = np.isfinite(arr) & (arr > 0)
+            if ok.sum() >= 3:
+                fact = _power_fact(name or (label or "value"), np.flatnonzero(ok), arr, "")
+                out += [fact] if fact else []
     for name in names:
         arr = data[name]
         ok = np.isfinite(arr) & (arr > 0)
@@ -2615,7 +3040,7 @@ def _log_trend_facts(
                     fact = _slope_fact(shown, seg, arr, where)
                     out += [fact] if fact else []
         idx = np.flatnonzero(ok)
-        if idx.size >= 3:
+        if idx.size >= 3 and name not in spiked:
             peak = int(idx[int(np.argmax(arr[idx]))])
             if peak not in (int(idx[0]), int(idx[-1])):
                 top = float(arr[peak])
@@ -2637,19 +3062,24 @@ def _reference_crossings(
     log_x: bool,
     label: str | None,
     x_unit: str | None = None,
+    noise: float = 0.0,
+    unit: str | None = None,
 ) -> list[str]:
     """Where each named series first crosses the reference value.
 
     Interpolated linearly between the two bracketing measured x positions (in log
     space on a log axis, matching the straight segments drawn there). Series that
-    never cross are skipped.
+    never cross are skipped, and so is a crossing within ``noise`` of the line on
+    both sides (a flat series jittering about it).
     """
     value, ref_text = ref
     # The reference as the caller gave it ("50", not "50.0" from the series' digits).
     ref_fmt = _formatter([value], log=log)
     out: list[str] = []
     target = math.log10(value) if log and value > 0 else value
-    stays: dict[str, list[str]] = {"above": [], "below": []}
+    stays: dict[tuple[str, bool], list[str]] = {
+        (side, strict): [] for strict in (True, False) for side in ("above", "below")
+    }
     for name in names:
         arr = data[name]
         idx = np.flatnonzero(np.isfinite(arr))
@@ -2663,9 +3093,14 @@ def _reference_crossings(
             if diff[k] == 0:
                 if k == 0:
                     continue  # starting on the line is not a crossing
+                near = [abs(diff[j]) for j in (k - 1, k + 1) if 0 <= j < idx.size]
+                if all(v < noise for v in near):
+                    continue
                 at = xs[k]
                 exact = True
             elif k + 1 < idx.size and diff[k] * diff[k + 1] < 0:
+                if abs(diff[k]) < noise and abs(diff[k + 1]) < noise:
+                    continue
                 t = diff[k] / (diff[k] - diff[k + 1])
                 at = xs[k] + t * (xs[k + 1] - xs[k])
                 exact = False
@@ -2691,44 +3126,58 @@ def _reference_crossings(
         if where is None:
             # Never crosses: say on which side it stays, so "only X stays above the
             # line" can be checked against every series, not only those that cross.
-            side = "above" if (diff >= 0).all() else "below" if (diff <= 0).all() else None
-            if side:
-                stays[side].append(shown)
+            for side, strict, holds in (
+                ("above", True, (diff >= 0).all()),
+                ("below", True, (diff <= 0).all()),
+                ("above", False, (diff >= -noise).all()),
+                ("below", False, (diff <= noise).all()),
+            ):
+                if holds:
+                    stays[(side, strict)].append(shown)
+                    break
             continue
         named = f" ({ref_text})" if ref_text else ""
-        out.append(f"{shown} crosses {ref_fmt(value)}{named} {where}")
+        out.append(f"{shown} crosses {_with_unit(ref_fmt(value), unit)}{named} {where}")
     named = f" ({ref_text})" if ref_text else ""
-    for side, who in stays.items():
+    for (side, strict), who in stays.items():
         if who:
             verb = "stays" if len(who) == 1 else "stay"
             out.append(
-                f"{_and_list(who)} {verb} {side} {ref_fmt(value)}{named} throughout"
+                f"{_and_list(who)} {verb} {side} {_with_unit(ref_fmt(value), unit)}{named} throughout"
+                + ("" if strict else " (to within noise)")
             )
     return out
 
 
-def _crossing_fact(a: str, b: str, diff: np.ndarray, x_text: Sequence[str]) -> str | None:
+def _crossing_fact(
+    a: str, b: str, diff: np.ndarray, x_text: Sequence[str], noise: float = 0.0
+) -> str | None:
     """How often ``a`` and ``b`` swap order, ignoring exact ties.
 
     One swap: "a first crosses above b at x". Several: "a and b cross 4 times; a is
     above b from x on", or "...; they end level/tangled" when the last stretch is
-    shorter than two points.
+    shorter than two points. A swap where the gap is under ``noise`` on both sides
+    (two curves level at ~0%, apart only by assay noise) is not a crossing.
     """
     finite = np.flatnonzero(np.isfinite(diff))
     idxs = np.flatnonzero(np.isfinite(diff) & (diff != 0))
     if idxs.size < 2:
         return None
     signs = np.sign(diff[idxs])
-    swaps = np.flatnonzero(signs[1:] != signs[:-1])
+    size = np.abs(diff[idxs])
+    swaps = np.flatnonzero(
+        (signs[1:] != signs[:-1]) & ~((size[1:] < noise) & (size[:-1] < noise))
+    )
     if swaps.size == 0:
         return None
     if swaps.size == 1:
         k = int(idxs[int(swaps[0]) + 1])
-        return f"{a} first crosses {'above' if signs[0] < 0 else 'below'} {b} at {x_text[k]}"
+        before = signs[int(swaps[0])]
+        return f"{a} first crosses {'above' if before < 0 else 'below'} {b} at {x_text[k]}"
     last_start = int(swaps[-1]) + 1
     head = f"{a} and {b} cross {swaps.size} times"
     if idxs.size - last_start >= 2:
-        side = "above" if signs[-1] > 0 else "below"
+        side = "above" if signs[last_start] > 0 else "below"
         return f"{head}; {a} is {side} {b} from {x_text[int(idxs[last_start])]} on"
     level = finite.size and int(finite[-1]) != int(idxs[-1])
     return f"{head}; they end {'level' if level else 'tangled'}"
@@ -2792,14 +3241,15 @@ def _event_facts(
     fmt: str | None,
     log: bool,
     label: str | None,
-) -> list[str]:
+) -> tuple[list[str], set[str]]:
     """Each series' median before an event and from it on (up to the neighbouring events).
 
     "us-west: median 1,500 ms before config change → 2,190 ms from it on (+46%)": the
-    fact the event marker exists for. Needs >= 2 finite points on each side.
+    fact the event marker exists for. Needs >= 2 finite points on each side. Also
+    returns the series whose spike an event marks (stated against the median before it).
     """
     cuts = sorted(pos for pos, _ in events)
-    rows: list[tuple[str, str, float, float]] = []
+    rows: list[tuple[str, str, float, float, float | None]] = []
     for pos, text in events:
         k = cuts.index(pos)
         lo = cuts[k - 1] if k > 0 else -np.inf
@@ -2811,25 +3261,101 @@ def _event_facts(
             after = arr[ok & (xpos >= pos) & (xpos < hi)]
             if before.size < 2 or after.size < 2:
                 continue
-            rows.append((name, text, float(np.median(before)), float(np.median(after))))
+            # The event day holds the series' peak (a spike): its value is the fact.
+            peak = int(np.nanargmax(arr))
+            spike = float(arr[peak]) if xpos[peak] == pos else None
+            rows.append((name, text, float(np.median(before)), float(np.median(after)), spike))
     if not rows:
-        return []
-    level_fmt = _formatter([v for r in rows for v in r[2:]], fmt, unit=unit, log=log)
+        return [], set()
+    level_fmt = _formatter(
+        [v for r in rows for v in (r[2], r[3], *([r[4]] if r[4] is not None else []))],
+        fmt,
+        unit=unit,
+        log=log,
+    )
     diff_fmt = _formatter([r[3] - r[2] for r in rows], fmt, unit=unit)
     out: list[str] = []
-    for name, text, mb, ma in rows:
+    spiked: set[str] = set()
+    for name, text, mb, ma, spike in rows:
         if log:
             rel: str | None = _ratio_text(ma / mb) if mb > 0 and ma > 0 else None
         elif unit is not None and unit.strip().startswith("%"):
             rel = _diff_with_unit(_signed(diff_fmt(ma - mb)), unit)
         else:
             rel = _relative_text(ma, mb, None)
+        day = ""
+        if spike is not None and mb > 0 and spike > 0:
+            day = (
+                f"; on the {text} day {_with_unit(level_fmt(spike), unit)}, "
+                f"{_ratio_text(spike / mb)} the median before"
+            )
+            spiked.add(name)
         out.append(
             f"{name or (label or 'value')}: median {_with_unit(level_fmt(mb), unit)} before {text} "
             f"\N{RIGHTWARDS ARROW} {_with_unit(level_fmt(ma), unit)} from it on"
             + (f" ({rel})" if rel else "")
+            + day
         )
-    return out
+    return out, spiked
+
+
+def _context_fact(
+    rest: Sequence[str],
+    data: Mapping[str, np.ndarray],
+    *,
+    spikes: bool,
+    unit: str | None,
+    fmt: str | None,
+    log: bool,
+) -> str | None:
+    """One fact for the grey context series of a highlighted trend, each against itself.
+
+    When a highlighted series spikes: how far the others' peaks rise above their own
+    medians ("the other 4 peak within 1.6× of their medians"). Otherwise how they moved
+    from first to last value: a fold range on a log axis, points for "%" units, a percent
+    change where it is meaningful, else the absolute change.
+    """
+    rest = list(rest)
+    if not rest:
+        return None
+    one = len(rest) == 1
+    who = f"the other series, {rest[0]}," if one else f"the other {len(rest)}"
+    if spikes:
+        ratios = []
+        for nm in rest:
+            finite = data[nm][np.isfinite(data[nm])]
+            med, top = float(np.median(finite)), float(finite.max())
+            if med <= 0 or top <= 0:
+                return None
+            ratios.append(top / med)
+        return (
+            f"{who} {'peaks' if one else 'peak'} within {_ratio_text(max(ratios))} of "
+            f"{'its own median' if one else 'their own medians'}"
+        )
+    ends = {nm: (_first_finite(data[nm])[1], _last_finite(data[nm])[1]) for nm in rest}
+    if log:
+        if any(a <= 0 or b <= 0 for a, b in ends.values()):
+            return None
+        folds = sorted(b / a for a, b in ends.values())
+        shown = [_ratio_text(f) for f in (folds[0], folds[-1])]
+        span = shown[0] if one or shown[0] == shown[1] else f"{shown[0]} to {shown[1]}"
+        noun = "its first value" if one else "their first values"
+        return f"{who} {'ends' if one else 'end'} at {span} {noun}"
+    points = unit is not None and unit.strip().startswith("%")
+    rels = [None if points else _relative_text(b, a, None) for a, b in ends.values()]
+    if not points and all(rels):
+        by = sorted(ends, key=lambda nm: (ends[nm][1] - ends[nm][0]) / abs(ends[nm][0]))
+        lo_t = _relative_text(ends[by[0]][1], ends[by[0]][0], None)
+        hi_t = _relative_text(ends[by[-1]][1], ends[by[-1]][0], None)
+    else:
+        by = sorted(ends, key=lambda nm: ends[nm][1] - ends[nm][0])
+        delta_fmt = _formatter([b - a for a, b in ends.values()], fmt, unit=unit)
+        lo_t, hi_t = (
+            _diff_with_unit(_signed(delta_fmt(ends[nm][1] - ends[nm][0])), unit)
+            for nm in (by[0], by[-1])
+        )
+    span = lo_t if one or lo_t == hi_t else f"{lo_t} to {hi_t}"
+    return f"{who} {'changes' if one else 'change'} by {span} from first to last value"
 
 
 def _and_list(items: Sequence[str]) -> str:
@@ -2865,6 +3391,7 @@ def trend(
     label: str | None = None,
     unit: str | None = None,
     x_label: str | None = None,
+    x_unit: str | None = None,
     highlight: str | Sequence[str] | None = None,
     baseline: str | None = None,
     facet: bool = False,
@@ -2970,14 +3497,18 @@ def trend(
         raise ExplainError(
             f"trend() got {len(names)} series and no highlight; more than "
             f"{MAX_COLORED_SERIES} coloured lines cannot be told apart or held in mind.",
-            fix_hint="Pass highlight=[...] with the 1-3 series the takeaway names (others turn "
-            "grey), or facet=True for small multiples.",
+            fix_hint=f"At most {MAX_COLORED_SERIES} series get a colour: pass highlight=[...] "
+            f"with the 1-{MAX_HIGHLIGHTS} series the takeaway names (others turn grey), or "
+            f"facet=True for small multiples (up to {MAX_FACETS}).",
             rule="too_many_series",
         )
-    if facet and len(names) > 12:
+    if facet and len(names) > MAX_FACETS:
         raise ExplainError(
-            f"trend(facet=True) got {len(names)} series; more than 12 small multiples is a wall.",
-            fix_hint="Keep the 6-12 most relevant series, or highlight a few in one panel.",
+            f"trend(facet=True) got {len(names)} series; more than {MAX_FACETS} small "
+            "multiples is a wall.",
+            fix_hint=f"facet=True takes at most {MAX_FACETS} series: keep the most relevant "
+            f"ones, or drop facet= and highlight 1-{MAX_HIGHLIGHTS} in one panel (any number "
+            "of the rest stay grey).",
             rule="too_many_series",
         )
     ref = _reference_line(reference, "trend(reference)")
@@ -3022,6 +3553,20 @@ def trend(
             fix_hint="Drop the reference or log=True.",
         )
     fmt_fn = _formatter(list(all_values), fmt, unit=unit, log=log)
+    # Crossings closer than this on both sides are noise, not a change of order: 3% of
+    # the panel's value range (in decades on a log axis), or with raw replicates the 95%
+    # half-width of a difference of two means when that is larger (assay noise at ~0%).
+    noise = 0.03 * float(np.ptp(np.log10(all_values) if log else all_values))
+    spreads = [
+        (float(np.std(np.log10(r) if log else r, ddof=1)), r.size)
+        for per_x in reps.values()
+        for r in per_x
+        if r.size >= 2
+    ]
+    if spreads:
+        sd = float(np.median([sp for sp, _ in spreads]))
+        n_rep = float(np.median([k for _, k in spreads]))
+        noise = max(noise, 1.96 * sd * math.sqrt(2.0 / n_rep))
 
     _last = _last_finite
     _first = _first_finite
@@ -3034,8 +3579,9 @@ def trend(
     if bands and not band_label:
         issues.append(_interval_issue("trend", "band", "band_label"))
 
-    # x values in facts carry the unit from the end of x_label ("4 h", not "4").
-    x_unit = _x_unit(x_label) if x_kind == "number" else None
+    # x values in facts carry the unit: x_unit=, else the end of x_label ("4 h", not "4").
+    x_unit_given = x_unit
+    x_unit = _resolve_x_unit(x_unit, x_label, "trend") if x_kind == "number" else None
     xt = [_with_x_unit(t, x_unit) for t in x_text]
     facts: list[str] = []
     described = list((hl or names)[:6])
@@ -3058,14 +3604,71 @@ def trend(
         shown = name or (label or "value")
         missing = int((~np.isfinite(arr)).sum())
         facts.append(
-            f"{shown}: {fmt_fn(v0)} \N{RIGHTWARDS ARROW} {_with_unit(fmt_fn(v1), unit)} "
+            # The unit on both values, as change() writes them: "0.0059% → 0.0062%".
+            f"{shown}: {_with_unit(fmt_fn(v0), unit)} \N{RIGHTWARDS ARROW} {_with_unit(fmt_fn(v1), unit)} "
             f"from {xt[i0]} to {xt[i1]}"
             + (f" ({moved})" if moved else "")
-            + f"; peak {fmt_fn(float(arr[peak]))} at {xt[peak]}"
+            + f"; peak {_with_unit(fmt_fn(float(arr[peak])), unit)} at {xt[peak]}"
             + (f"; {missing} of {n} points missing" if missing else "")
         )
+    # Alt text: every described series (highlighted ones and the baseline, or all).
+    alt_facts = list(facts)
+    event_facts: list[str] = []
+    spiked: set[str] = set()
+    if event_items and x_kind in {"number", "date"}:
+        event_series = list(hl) if hl else (list(names) if len(names) <= MAX_COLORED_SERIES else [])
+        if base is not None and base not in event_series:
+            event_series.append(base)
+        event_facts, spiked = _event_facts(
+            event_items, event_series, data, xpos, unit=unit, fmt=fmt, log=log, label=label
+        )
+    spikes = bool(spiked)
+    for name in described:
+        if name in spiked:
+            # An event marks this spike: it is stated against the median before the
+            # event (one "usual" level), not also against the whole period's median.
+            continue
+        # A spike: the peak far above the series' typical level, stated against its median.
+        arr = data[name]
+        finite = arr[np.isfinite(arr)]
+        med = float(np.median(finite))
+        peak = int(np.nanargmax(arr))
+        top = float(arr[peak])
+        if med > 0 and top > 0 and (
+            math.log10(top / med) >= 0.7 if log else top >= 5.0 * med
+        ):
+            spikes = True
+            facts.append(
+                f"{name or (label or 'value')}: peak {_with_unit(fmt_fn(top), unit)} "
+                f"{'on' if x_kind == 'date' else 'at'} {xt[peak]}, "
+                f"{_ratio_text(top / med)} its median"
+            )
+    if hl:
+        context = _context_fact(
+            [nm for nm in names if nm not in hl and nm != base],
+            data,
+            spikes=spikes,
+            unit=unit,
+            fmt=fmt,
+            log=log,
+        )
+        if context:
+            facts.append(context)
     if log:
-        facts.extend(_log_trend_facts(data, described, xpos, x_kind, log_x, label, xt, x_unit))
+        facts.extend(
+            _log_trend_facts(
+                data,
+                described,
+                xpos,
+                x_kind,
+                log_x,
+                label,
+                xt,
+                x_unit,
+                spiked,
+                power_names=[*described, *(nm for nm in names if nm not in described)][:6],
+            )
+        )
     for name in names:
         if name not in described and (~np.isfinite(data[name])).any():
             facts.append(
@@ -3105,7 +3708,7 @@ def trend(
                     facts.append(f"at {xt[idx]}: {a} equals {b}")
                 else:
                     facts.append(
-                        f"at {xt[idx]}: {a} is {_diff_with_unit(gap_fmt(abs(va - vb)), unit)} "
+                        f"at {xt[idx]}: {a} is {_diff_with_unit(_unsigned(gap_fmt(abs(va - vb))), unit)} "
                         f"{'above' if va > vb else 'below'} {b}"
                     )
     crossing_pairs: list[tuple[str, str]] = []
@@ -3114,18 +3717,11 @@ def trend(
     elif 2 <= len(colored) <= MAX_COLORED_SERIES:
         crossing_pairs = [(colored[0], other) for other in colored[1:]]
     for a, b in crossing_pairs:
-        crossed = _crossing_fact(a, b, data[a] - data[b], xt)
+        gap = np.log10(data[a]) - np.log10(data[b]) if log else data[a] - data[b]
+        crossed = _crossing_fact(a, b, gap, xt, noise)
         if crossed:
             facts.append(crossed)
-    if event_items and x_kind in {"number", "date"}:
-        event_series = list(hl) if hl else (list(names) if len(names) <= MAX_COLORED_SERIES else [])
-        if base is not None and base not in event_series:
-            event_series.append(base)
-        facts.extend(
-            _event_facts(
-                event_items, event_series, data, xpos, unit=unit, fmt=fmt, log=log, label=label
-            )
-        )
+    facts.extend(event_facts)
     if ref is not None:
         facts.extend(
             _reference_crossings(
@@ -3141,6 +3737,8 @@ def trend(
                 log_x,
                 label,
                 x_unit,
+                noise,
+                unit,
             )
         )
     if reps:
@@ -3286,7 +3884,9 @@ def trend(
                 ry,
                 s=(2.4 * sizes.scale) ** 2,
                 color=col,
-                alpha=0.3 if not context else 0.2,
+                # Context replicates are pale grey already: at the coloured series' alpha
+                # they vanish, so they stay grey but nearly opaque.
+                alpha=0.3 if not context else 0.7,
                 linewidth=0,
                 zorder=3,
                 clip_on=False,
@@ -3635,6 +4235,7 @@ def trend(
         ],
         series=_jsonable(series_spec),
         x_label=x_label,
+        x_unit=x_unit_given,
         highlight=hl or None,
         baseline=base,
         facet=facet or None,
@@ -3676,9 +4277,13 @@ def trend(
             describe=describe,
             issues=issues,
             _height_mm=_facet_height,
+            _min_height_mm=lambda w, _m, _s, _t: (
+                _facet_grid(w)[0] * 22.0 + (_facet_grid(w)[0] - 1) * 4.5 + (4.0 if x_label else 0.0)
+            ),
             _draw=lambda _ctx, _ax: None,
             _frames=_facet_frames,
             measure_note="; ".join(notes) or None,
+            alt_facts=alt_facts,
         )
 
     return Panel(
@@ -3691,9 +4296,11 @@ def trend(
         describe=describe,
         issues=issues,
         _height_mm=lambda w, _m, _s, _t: min(54.0, max(36.0, 0.40 * w)) + (4.0 if x_label else 0.0),
+        _min_height_mm=lambda _w, _m, _s, _t: 30.0 + (4.0 if x_label else 0.0),
         stretch=True,
         _draw=_draw,
         measure_note="; ".join(notes) or None,
+        alt_facts=alt_facts,
         color_items=tuple(nm for nm in names if nm),
         color_focus=tuple(nm for nm in focus if nm),
         color_mode="highlight" if hl else "series",
@@ -3791,13 +4398,70 @@ def _place_event_labels(ctx: _Ctx, ax: Axes, events: Sequence[Any], avoid: Seque
         taken.append(chosen)
 
 
+def _reference_in_margin(
+    ctx: _Ctx,
+    ax: Axes,
+    note: Any,
+    text: str,
+    y_value: float,
+    avoid: Sequence[Any],
+    taken: Sequence[Bbox],
+    paths: Sequence[Any],
+) -> bool:
+    """Put a reference label in the end-label column right of the plot, beside the line.
+
+    The column is as wide as the end labels already make it (the panel's cell is
+    sized to them), so the label never reaches into a neighbouring panel. Returns
+    False, leaving ``note`` to the caller, when no spot there is free.
+    """
+    renderer = ctx.fig.canvas.get_renderer()
+    frame = ax.get_window_extent(renderer)
+    ends = [
+        t.get_window_extent(renderer).x1
+        for t in avoid
+        if t is not None and t.get_visible() and t.get_text()
+    ]
+    col_right = max([frame.x1, *ends])
+    k = ctx.pt_per_px
+    dx = 6.0
+    room_pt = (col_right - frame.x1) * k - dx
+    if room_pt <= 0:
+        return False
+    size = float(note.get_fontsize())
+    shown = [text]
+    wrapped = ctx.measure.wrap(text, room_pt, size)
+    if len(wrapped) == 2:
+        shown.append("\n".join(wrapped))
+    for candidate in shown:
+        note.set_text(_plain(candidate, ctx.theme))
+        note.xy = (1.0, y_value)
+        note.set_horizontalalignment("left")
+        for va, dy in (("center", 0.0), ("bottom", 1.5), ("top", -1.5)):
+            note.set_verticalalignment(va)
+            note.set_position((dx, dy))
+            box = note.get_window_extent(renderer)
+            inside = (
+                box.x1 <= col_right + 1
+                and box.y0 >= frame.y0 - 1
+                and box.y1 <= frame.y1 + 0.5 * ctx.sizes.small / k
+            )
+            clear = not any(box.overlaps(other) for other in taken)
+            free = not any(path.intersects_bbox(box, filled=False) for path in paths)
+            if inside and clear and free:
+                return True
+    return False
+
+
 def _place_reference_label(ctx: _Ctx, ax: Axes, ref: Any, avoid: Sequence[Any]) -> None:
     """Move a reference-line label to a spot where it covers no line, marker or label.
 
     ``ref`` is ``(note, line, text, prefer_right)``. Tries the preferred end above the
     line, the other end above it, both ends below it, then the middle, one third and
-    two thirds along it (above, then below). When every spot is taken the first is
-    kept and a ``reference_label_collides`` warning says what to change.
+    two thirds along it (above, then below). Dense lines (daily data) leave none of
+    those free: the label then goes in the right margin beside the line's end, in the
+    column the end labels use (on one line or wrapped onto two), if that is free of
+    them. Only when that fails too is the first spot kept and a
+    ``reference_label_collides`` warning says what to change.
     """
     if ref is None:
         return
@@ -3838,6 +4502,9 @@ def _place_reference_label(ctx: _Ctx, ax: Axes, ref: Any, avoid: Sequence[Any]) 
         free = not any(path.intersects_bbox(box, filled=False) for path in paths)
         if inside and clear and free:
             return
+    if _reference_in_margin(ctx, ax, note, text, y_value, avoid, taken, paths):
+        return
+    note.set_text(_plain(text, ctx.theme))
     _put(spots[0][0], True)
     ctx.issues.append(
         _issue(
@@ -3886,6 +4553,12 @@ def _reorder_band(band: Any, order: np.ndarray, n: int) -> Any:
 # --------------------------------------------------------------------------- #
 
 
+#: Narrowest slopegraph plot (mm at scale 1) before change() wraps or drops labels.
+_CHANGE_PLOT_MM = 14.0
+#: Width (pt at scale 1) a wrapped item name may take under its value in change().
+_CHANGE_NAME_PT = 70.0
+
+
 @_guarded("change")
 def change(
     before: Mapping[str, float],
@@ -3916,10 +4589,12 @@ def change(
         )
     labels = (str(labels[0]), str(labels[1]))
     names = sorted(right, key=lambda nm: right[nm], reverse=True)
-    if len(names) > 14:
+    if len(names) > MAX_CHANGE_ITEMS:
         raise ExplainError(
-            f"change() got {len(names)} items; a slopegraph tangles beyond about 14.",
-            fix_hint="Keep the items the takeaway is about, or use compare() on the differences.",
+            f"change() got {len(names)} items; a slopegraph tangles beyond {MAX_CHANGE_ITEMS}.",
+            fix_hint=f"change() takes at most {MAX_CHANGE_ITEMS} items: keep the items the "
+            f"takeaway is about, or use compare() on the differences (up to {MAX_COMPARE_ITEMS} "
+            "items, baseline= for a reference).",
             rule="too_many_items",
         )
     hl = _names(highlight, names)
@@ -3955,6 +4630,8 @@ def change(
     for name in hl:
         if name != biggest:
             facts.append(f"{name}: {_from_to(name)} ({_moved(name)})")
+    # Alt text: the largest change and every highlighted item's.
+    alt_facts = [facts[0], *facts[2:]]
     rest = [nm for nm in names if nm not in hl and nm != biggest]
     if rest:
         # One line for the items the takeaway does not name: "the other 4 changed by
@@ -3972,9 +4649,80 @@ def change(
         span = lo_t if len(rest) == 1 or lo_t == hi_t else f"{lo_t} to {hi_t}"
         facts.append(f"{who} changed by {span}")
 
+    def _right_text(name: str, level: int, measure: _Measure, sizes: _Sizes) -> str:
+        """The label at the line's end. Level 0: "45.4  math (+16.8)" on one line; from
+        level 1 the name goes under "45.4  (+16.8)", wrapped onto two lines if long."""
+        head = fmt_fn(right[name])
+        if level == 0:
+            return f"{head}  {name} ({_delta_text(name)})"
+        head = f"{head}  ({_delta_text(name)})"
+        budget = max(measure.width_pt(head, sizes.small), 0.6 * _CHANGE_NAME_PT * sizes.scale)
+        lines = measure.wrap(name, budget, sizes.small)
+        if len(lines) > 2:
+            lines = [lines[0], " ".join(lines[1:])]
+        return "\n".join([head, *lines])
+
+    def _layout(cell_width_mm: float, measure: _Measure, sizes: _Sizes) -> tuple[int, float]:
+        """How the labels fit a cell this wide: the first level whose plot keeps its
+        minimum width (level 2 also drops the left-hand values), and the points needed."""
+        weight = "bold"  # measure as the widest weight drawn
+        cell_pt = min(cell_width_mm, 92.0) * sizes.scale / PT_TO_MM
+        heads = [measure.width_pt(t, sizes.small, "bold") for t in labels]
+        plot_pt = max(_CHANGE_PLOT_MM * sizes.scale / PT_TO_MM, 0.5 * sum(heads) + 6.0)
+        left_pt = max(measure.width_pt(fmt_fn(left[nm]), sizes.small, weight) for nm in names)
+        need = 0.0
+        for level in (0, 1, 2):
+            right_pt = max(
+                measure.width_pt(line, sizes.small, weight)
+                for nm in names
+                for line in _right_text(nm, level, measure, sizes).split("\n")
+            )
+            need = (0.0 if level == 2 else left_pt + 6.0) + plot_pt + 6.0 + right_pt + 4.0
+            if need <= cell_pt:
+                return level, need
+        return 3, need
+
+    def _label_lines(cell_width_mm: float, measure: _Measure, sizes: _Sizes) -> int:
+        level, _need = _layout(cell_width_mm, measure, sizes)
+        if level == 0:
+            return 1
+        return max(
+            len(_right_text(nm, min(level, 2), measure, sizes).split("\n")) for nm in names
+        )
+
+    def _height(w: float, measure: _Measure, sizes: _Sizes, tight: bool) -> float:
+        lines = _label_lines(w, measure, sizes)
+        if lines == 1:
+            return max(30.0, 4.6 * len(names) + 10.0) if tight else max(38.0, 4.6 * len(names) + 12.0)
+        # Multi-line labels stack: each needs its lines of small text.
+        per = lines * 1.22 * sizes.small / sizes.scale * PT_TO_MM + 0.6
+        return max(30.0 if tight else 38.0, per * len(names) + (10.0 if tight else 12.0))
+
     def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None]:
         sz = ctx.sizes
         theme = ctx.theme
+        level, need_pt = _layout(ctx.cell_width_mm, ctx.measure, sz)
+        if level == 3:
+            content_pt = (ctx.fig.bbox.width * ctx.pt_per_px) - 2 * _MARGIN_MM * sz.scale / PT_TO_MM
+            share = need_pt / content_pt
+            if share <= 1 / 3:
+                needs, example = "a third of the width", '[["a", "a", "b"]]'
+            elif share <= 1 / 2:
+                needs, example = "half the width", '[["a", "b"]]'
+            elif share <= 2 / 3:
+                needs, example = "two thirds of the width", '[["a", "b", "b"]]'
+            else:
+                needs, example = "the full width", '[["a"], ["b"]]'
+            raise ExplainError(
+                f"change() labels need at least {needs} ({need_pt * PT_TO_MM:.0f} mm, "
+                f"{100 * share:.0f}% of the figure) even with names wrapped and the left-hand "
+                "values dropped.",
+                fix_hint=f"Give the slopegraph at least {needs}, e.g. layout={example} with it "
+                "as panel b, or shorten the item names."
+                + (" No width fits: shorten the item names." if share > 1 else ""),
+                rule="panel_too_small",
+            )
+        lines = _label_lines(ctx.cell_width_mm, ctx.measure, sz)
         accent = {name: col for name, col in ctx.colors.items() if name in names}
         focus_mode = bool(hl or accent)
         effects = ctx.line_effects()
@@ -4026,45 +4774,55 @@ def change(
             ax.plot([0.0, 1.0], [left[name], right[name]], **line_kw)
             text_color = ctx.text_color(col) if focus else theme.ink
             weight = "bold" if focus else "normal"
-            left_notes.append(
-                ax.annotate(
-                    _plain(fmt_fn(left[name]), theme),
-                    (0.0, left[name]),
-                    xytext=(-6.0, 0.0),
-                    textcoords="offset points",
-                    ha="right",
-                    va="center",
-                    fontsize=sz.small,
-                    color=text_color if focus else theme.muted,
-                    fontweight=weight,
-                    annotation_clip=False,
+            if level < 2:
+                left_notes.append(
+                    ax.annotate(
+                        _plain(fmt_fn(left[name]), theme),
+                        (0.0, left[name]),
+                        xytext=(-6.0, 0.0),
+                        textcoords="offset points",
+                        ha="right",
+                        va="center",
+                        fontsize=sz.small,
+                        color=text_color if focus else theme.muted,
+                        fontweight=weight,
+                        annotation_clip=False,
+                    )
                 )
+            right_note = ax.annotate(
+                _plain(_right_text(name, level, ctx.measure, sz), theme),
+                (1.0, right[name]),
+                xytext=(6.0, 0.0),
+                textcoords="offset points",
+                ha="left",
+                va="center",
+                fontsize=sz.small,
+                color=text_color,
+                fontweight=weight,
+                annotation_clip=False,
             )
-            right_notes.append(
-                ax.annotate(
-                    _plain(f"{fmt_fn(right[name])}  {name} ({_delta_text(name)})", theme),
-                    (1.0, right[name]),
-                    xytext=(6.0, 0.0),
-                    textcoords="offset points",
-                    ha="left",
-                    va="center",
-                    fontsize=sz.small,
-                    color=text_color,
-                    fontweight=weight,
-                    annotation_clip=False,
-                )
-            )
+            right_note.set_linespacing(1.05)
+            right_notes.append(right_note)
 
         def _finish() -> None:
             renderer = ctx.fig.canvas.get_renderer()
             box = ax.get_window_extent(renderer)
             k = ctx.pt_per_px
-            for notes, x_at, source, dx in (
-                (left_notes, 0.0, left, -6.0),
-                (right_notes, 1.0, right, 6.0),
+            for notes, x_at, source, dx, rows in (
+                (left_notes, 0.0, left, -6.0, 1),
+                (right_notes, 1.0, right, 6.0, lines),
             ):
+                if not notes:
+                    continue
                 ys = np.array([ax.transData.transform((x_at, source[nm]))[1] * k for nm in names])
-                placed = _relax_positions_pt(ys, sz.small * 1.22, box.y0 * k, box.y1 * k)
+                # A wrapped label's first line (its value) sits level with the line's end.
+                half = 0.5 * (rows - 1) * sz.small * 1.1
+                placed = _relax_positions_pt(
+                    ys - half,
+                    sz.small * (1.22 + 1.1 * (rows - 1)),
+                    box.y0 * k + half,
+                    box.y1 * k - half,
+                )
                 for note, y0, y1 in zip(notes, ys, placed, strict=True):
                     note.set_position((dx, float(y1 - y0)))
 
@@ -4077,6 +4835,7 @@ def change(
 
     return Panel(
         kind="change",
+        alt_facts=alt_facts,
         title=title,
         label=label,
         unit=unit,
@@ -4092,7 +4851,8 @@ def change(
         ),
         facts=facts,
         describe=f"Slopegraph of {label or 'values'} for {len(names)} items, {labels[0]} to {labels[1]}",
-        _height_mm=lambda _w, _m, _s, _t: max(38.0, 4.6 * len(names) + 12.0),
+        _height_mm=lambda w, m, sizes, _t: _height(w, m, sizes, tight=False),
+        _min_height_mm=lambda w, m, sizes, _t: _height(w, m, sizes, tight=True),
         _frames=_narrow,
         _draw=_draw,
         color_items=tuple(names),
@@ -4240,13 +5000,19 @@ def distribution(
     if len(names) > MAX_GROUPS:
         raise ExplainError(
             f"distribution() got {len(names)} groups; more than {MAX_GROUPS} rows of dots blur together.",
-            fix_hint="Keep the groups the takeaway compares, or compare() their medians.",
+            fix_hint=f"distribution() takes at most {MAX_GROUPS} groups: keep the groups the "
+            f"takeaway compares, or compare() their medians (up to {MAX_COMPARE_ITEMS} items, "
+            "with error= for an interval).",
             rule="too_many_items",
         )
     hl = _names(highlight, names)
     base = _baseline_name(baseline, names, hl, "distribution")
     ref = _reference_line(reference, "distribution(reference)")
     everything = np.concatenate(list(data.values()))
+    given_unit = unit
+    # Raw ratios (fold changes) read as ratios: "median 2.46×", not "2.46 fold".
+    if _fold_unit(unit, label, log and float(everything.min()) > 0):
+        unit = "\N{MULTIPLICATION SIGN}"
     if log and (everything.min() <= 0 or (ref is not None and ref[0] <= 0)):
         raise ExplainError(
             "distribution(log=True) needs strictly positive values.",
@@ -4271,14 +5037,14 @@ def distribution(
     for nm in names:
         lo_q, mid, hi_q = stats[nm]
         spread = (
-            f"\N{PLUS-MINUS SIGN} 1 s.d. {fmt_fn(lo_q)}\N{EN DASH}{fmt_fn(hi_q)}"
+            f"\N{PLUS-MINUS SIGN} 1 s.d. {_range_with_unit(fmt_fn(lo_q), fmt_fn(hi_q), unit)}"
             if stat == "mean"
-            else f"middle half {fmt_fn(lo_q)}\N{EN DASH}{fmt_fn(hi_q)}"
+            else f"middle half {_range_with_unit(fmt_fn(lo_q), fmt_fn(hi_q), unit)}"
         )
         arr = data[nm]
         text = (
             f"{nm or (label or 'values')}: {stat} {_with_unit(fmt_fn(mid), unit)}, {spread}, "
-            f"range {range_fmt(float(arr.min()))}\N{EN DASH}{range_fmt(float(arr.max()))}, "
+            f"range {_range_with_unit(range_fmt(float(arr.min())), range_fmt(float(arr.max())), unit)}, "
             f"n={arr.size}"
         )
         if dropped[nm]:
@@ -4294,12 +5060,12 @@ def distribution(
     for nm in names:
         far = outliers[nm]
         if far.size:
-            shown_far = ", ".join(range_fmt(float(v)) for v in far[:5])
+            shown_far = ", ".join(_with_unit(range_fmt(float(v)), unit) for v in far[:5])
             more = f" and {far.size - 5} more" if far.size > 5 else ""
             word = "value" if far.size == 1 else "values"
             facts.append(
                 f"{nm or (label or 'values')}: {far.size} {word} far from the rest: "
-                f"{shown_far}{more} (median {fmt_fn(float(np.median(data[nm])))})"
+                f"{shown_far}{more} (median {_with_unit(fmt_fn(float(np.median(data[nm]))), unit)})"
             )
     # Which pairs are stated: each group against the baseline; else among the
     # highlighted groups (each pair once); a lone highlight against every other group.
@@ -4310,6 +5076,7 @@ def distribution(
         pairs = [(a, b) for i, a in enumerate(hl) for b in hl[i + 1 :]]
     elif hl:
         pairs = [(hl[0], other) for other in names if other != hl[0]]
+    first_pair_fact = len(facts)
     if log:
         # On a log axis groups differ by factors: state ratios, not differences.
         for h, other in pairs:
@@ -4327,15 +5094,31 @@ def distribution(
             if stats[h][1] > 0 and stats[other][1] > 0:
                 shown += f" ({_ratio_text(stats[h][1] / stats[other][1])})"
             facts.append(f"{h} \N{MINUS SIGN} {other}: {stat} {shown}")
+    pair_facts = facts[first_pair_fact:]
     # Whether every observation of one group lies beyond every one of the other:
     # the check behind "every treated cell beats every control cell".
     for h, other in pairs:
         facts.append(
             _separation_fact(
-                h, data[h], other, data[other], outliers[other], range_fmt, stat=stat
+                h,
+                data[h],
+                other,
+                data[other],
+                outliers[other],
+                lambda v: _with_unit(range_fmt(v), unit),
+                stat=stat,
             )
         )
     any_spread = any(a.size >= 5 for a in data.values())
+    # Alt text: every group's centre (or the highlighted groups and the baseline), then
+    # how they compare; never only the first group.
+    paired = {nm for pair in pairs for nm in pair} | set(hl)
+    told = [nm for nm in names if nm in paired] or names
+    alt_facts = [
+        f"{nm or (label or 'values')}: {stat} {_with_unit(fmt_fn(stats[nm][1]), unit)}"
+        for nm in told
+    ]
+    alt_facts += pair_facts
 
     def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
         sz = ctx.sizes
@@ -4503,7 +5286,7 @@ def distribution(
         spec=_base_spec(
             title,
             label,
-            unit,
+            given_unit,
             groups=_jsonable(given.get("", given)),
             highlight=hl or None,
             baseline=base,
@@ -4513,6 +5296,7 @@ def distribution(
             fmt=fmt,
         ),
         facts=facts,
+        alt_facts=alt_facts,
         describe=(
             f"Dot strips of {label or 'values'}"
             + (f" ({unit})" if unit else "")
@@ -4526,6 +5310,7 @@ def distribution(
             )
         ),
         _height_mm=lambda _w, _m, _s, _t: 8.5 * len(names) + 11.0,
+        _min_height_mm=lambda _w, _m, _s, _t: 6.5 * len(names) + 11.0,
         _draw=_draw,
         # The spread line is drawn only for groups with n >= 5: caption it only then.
         measure_note=(
@@ -4553,6 +5338,25 @@ def distribution(
 # --------------------------------------------------------------------------- #
 # relate
 # --------------------------------------------------------------------------- #
+
+
+_SUPER_DIGITS = "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"  # ⁰¹²³⁴⁵⁶⁷⁸⁹
+
+
+def _reciprocal_unit(unit: str) -> str | None:
+    """The unit a reciprocal one inverts, with the positive power: "µm⁻½" -> "µm½",
+    "K⁻¹" -> "K", "s^-1" -> "s", "1/s" -> "s". None unless ``unit`` is one such unit."""
+    u = unit.strip()
+    m = re.fullmatch(rf"([^\s/·*^]+)\s*\N{{SUPERSCRIPT MINUS}}([{_SUPER_DIGITS}½⅓¼]+)", u)
+    if m:
+        base, power = m.groups()
+        return base if power == "\N{SUPERSCRIPT ONE}" else base + power
+    m = re.fullmatch(r"([^\s/·*^]+)\s*\^\s*\(?\s*-\s*([\d./]+)\s*\)?", u)
+    if m:
+        base, power = m.groups()
+        return base if power == "1" else f"{base}^{power}"
+    m = re.fullmatch(r"1\s*/\s*([^\s/·*^]+)", u)
+    return m.group(1) if m else None
 
 
 def _small_n_caution(sizes: Mapping[str, int], what: str) -> str | None:
@@ -4591,6 +5395,40 @@ def _r_text(r: float) -> str:
     return _clean_sign(f"{r:.2f}") if math.isfinite(r) else "n/a"
 
 
+#: Two-sided 95% Student t quantiles (0.975) for 1-30 degrees of freedom.
+_T975 = (
+    12.706, 4.303, 3.182, 2.776, 2.571, 2.447, 2.365, 2.306, 2.262, 2.228,
+    2.201, 2.179, 2.160, 2.145, 2.131, 2.120, 2.110, 2.101, 2.093, 2.086,
+    2.080, 2.074, 2.069, 2.064, 2.060, 2.056, 2.052, 2.048, 2.045, 2.042,
+)  # fmt: skip
+
+
+def _t975(df: int) -> float:
+    """The 0.975 quantile of Student's t: a table to 30 df, then the Cornish-Fisher
+    series in 1/df (within 0.01% of the exact value beyond 30 df)."""
+    if df < 1:
+        return float("nan")
+    if df <= len(_T975):
+        return _T975[df - 1]
+    z = 1.959964
+    g1 = (z**3 + z) / 4.0
+    g2 = (5 * z**5 + 16 * z**3 + 3 * z) / 96.0
+    g3 = (3 * z**7 + 19 * z**5 + 17 * z**3 - 15 * z) / 384.0
+    return z + g1 / df + g2 / df**2 + g3 / df**3
+
+
+def _slope_ci(gx: np.ndarray, gy: np.ndarray, slope: float, intercept: float) -> tuple[float, float]:
+    """95% confidence interval of a least-squares slope (t with n - 2 df)."""
+    n = gx.size
+    sxx = float(((gx - gx.mean()) ** 2).sum())
+    if n < 3 or sxx <= 0:
+        return float("nan"), float("nan")
+    resid = gy - (slope * gx + intercept)
+    se = math.sqrt(float((resid**2).sum()) / (n - 2) / sxx)
+    half = _t975(n - 2) * se
+    return slope - half, slope + half
+
+
 @_guarded("relate")
 def relate(
     x: Sequence[float],
@@ -4606,6 +5444,8 @@ def relate(
     log_x: bool = False,
     log_y: bool = False,
     reference: float | tuple[float, str] | None = None,
+    unit: str | None = None,
+    x_unit: str | None = None,
 ) -> Panel:
     """Do two measures move together? A scatter with both axes named.
 
@@ -4615,6 +5455,8 @@ def relate(
     adds a least-squares line (one per group) and reports r, n, slope and
     intercept computed from the data (in log space on log axes).
     ``reference=(value, "label")`` draws a horizontal line at that y.
+    ``unit`` is the y unit (on the measure line and in the slope facts); ``x_unit``
+    the x unit (default: the bracket at the end of ``x_label``; "" for none).
     """
     if not x_label or not y_label:
         raise ExplainError(
@@ -4648,8 +5490,9 @@ def relate(
         raise ExplainError(
             f"relate(groups) has {len(group_names)} groups; more than {MAX_COLORED_SERIES} "
             "colours cannot be told apart or held in mind.",
-            fix_hint="Merge groups so at most 4 remain, or split the figure into panels with "
-            "one relate() per group.",
+            fix_hint=f"relate(groups=) takes at most {MAX_COLORED_SERIES} groups: merge groups, "
+            "drop groups= and highlight= the 1-3 points the takeaway names, or use one relate() "
+            "panel per set of groups.",
             rule="too_many_series",
         )
     hl_groups: list[str] = []
@@ -4707,15 +5550,19 @@ def relate(
             return r_val, float(m), float(b)
         return r_val, float("nan"), float("nan")
 
+    if unit is not None and not isinstance(unit, str):
+        raise ExplainError(
+            f"relate(unit={unit!r}) must be a string.",
+            fix_hint='Pass the y unit as text, e.g. unit="MPa".',
+        )
+    y_unit = (unit or "").strip() or None
+    x_unit_given = x_unit
+    x_unit = _resolve_x_unit(x_unit, x_label, "relate")
     everyone = np.ones(xs.size, bool)
     r, slope, intercept = _fit(everyone)
     strength = _strength(r)
     direction = "" if strength == "no" else (" positive" if r > 0 else " negative")
     space = " in log space" if (log_x or log_y) else ""
-    facts = [
-        f"Pearson r = {_r_text(r)} (n = {xs.size}): {strength}{direction} linear relationship"
-        + space
-    ]
     x_sym = "log\N{SUBSCRIPT ONE}\N{SUBSCRIPT ZERO}(x)" if log_x else "x"
     y_sym = "log\N{SUBSCRIPT ONE}\N{SUBSCRIPT ZERO}(y)" if log_y else "y"
     group_masks = {
@@ -4723,18 +5570,63 @@ def relate(
         for g in group_names
     }
     group_fits = {g: _fit(mask) for g, mask in group_masks.items()}
+
+    def _slope_fact(shown: str, mask: np.ndarray, m: float, b: float) -> str | None:
+        """A fitted slope with its 95% CI, e.g. "Cu-Zn: slope 327 (95% CI 270–385) MPa per µm".
+
+        A log-space slope is stated per log₁₀ unit, without the axis units.
+        """
+        lo, hi = _slope_ci(fx[mask], fy[mask], m, b)
+        if not (math.isfinite(lo) and math.isfinite(hi)):
+            return None
+        inverse = _reciprocal_unit(x_unit) if x_unit else None
+        if space:
+            per = f"{y_sym} per {x_sym}"
+        elif inverse:
+            # Per a reciprocal unit is times the unit: "MPa·µm½", not "MPa per µm⁻½".
+            per = f"{y_unit}\N{MIDDLE DOT}{inverse}" if y_unit else inverse
+        else:
+            y_part = f"{y_unit} " if y_unit else ""
+            per = f"{y_part}per {x_unit}" if x_unit else f"{y_part}per unit x"
+        return (
+            f"{shown}: slope{space} {_sig_text(m)} (95% CI {_sig_text(lo)}\N{EN DASH}"
+            f"{_sig_text(hi)}) {per}"
+        )
+
+    pooled = (
+        f"Pearson r = {_r_text(r)} (n = {xs.size}): {strength}{direction} linear relationship"
+        + space
+    )
+    facts: list[str] = [] if group_names else [pooled]
     if fit and not group_names and math.isfinite(slope):
         facts.append(
             f"fitted line{space}: {_line_text(slope, intercept, x_sym, y_sym)}"
             + (f" (x = {x_label}, y = {y_label})" if not space else "")
         )
+        ci = _slope_fact("fitted line", everyone, slope, intercept)
+        if ci:
+            facts.append(ci)
     for g in group_names:
         g_r, g_m, g_b = group_fits[g]
         text = f"{g}: r = {_r_text(g_r)}, n = {int(group_masks[g].sum())}"
         if fit and math.isfinite(g_m):
             text += f"; fitted line{space}: {_line_text(g_m, g_b, x_sym, y_sym)}"
         facts.append(text)
+    if fit:
+        for g in group_names:
+            _g_r, g_m, g_b = group_fits[g]
+            ci = _slope_fact(g, group_masks[g], g_m, g_b) if math.isfinite(g_m) else None
+            if ci:
+                facts.append(ci)
+    # Alt text: every group's r (and line), then the pooled r; else the pooled r.
+    alt_facts = facts[: len(group_names)] if group_names else facts[:1]
     if group_names:
+        # Pooled r mixes the groups (Simpson's paradox): stated after the per-group r.
+        facts.append(
+            f"pooled across groups: r = {_r_text(r)}, n = {xs.size}{space} "
+            "(mixes groups; see per-group r)"
+        )
+        alt_facts.append(facts[-1])
         caution = _small_n_caution(
             {g: int(group_masks[g].sum()) for g in group_names},
             "r is a rough estimate" + (" and so is the fitted line" if fit else ""),
@@ -5003,11 +5895,14 @@ def relate(
 
     return Panel(
         kind="relate",
+        alt_facts=alt_facts,
         title=title,
         label=y_label,
-        unit=None,
+        unit=y_unit,
         spec={
             "title": title,
+            "unit": unit,
+            "x_unit": x_unit_given,
             "x": spec_points["x"],
             "y": spec_points["y"],
             "x_label": x_label,
@@ -5025,6 +5920,7 @@ def relate(
         + (f" in {len(group_names)} groups" if group_names else ""),
         issues=issues,
         _height_mm=lambda w, _m, _s, _t: min(62.0, max(40.0, 0.6 * w)),
+        _min_height_mm=lambda _w, _m, _s, _t: 34.0,
         stretch=True,
         _draw=_draw,
         color_items=tuple(dict.fromkeys([*group_names, *(point_names or [])])),
@@ -5124,10 +6020,54 @@ def _matrix_highlight(
         raise ExplainError(
             f"matrix(highlight) marks {total} cells/rows/columns; more than {MAX_HIGHLIGHTS} "
             "highlights nothing.",
-            fix_hint=f"Outline only the <= {MAX_HIGHLIGHTS} cells the takeaway names.",
+            fix_hint=f"At most {MAX_HIGHLIGHTS} highlights: outline only the cells, rows or "
+            "columns the takeaway names; the numbers in every cell carry the rest.",
             rule="too_many_highlights",
         )
     return cells, sorted(set(hl_rows)), sorted(set(hl_cols))
+
+
+def _matrix_outlier(
+    body: np.ndarray, lo: float, hi: float
+) -> tuple[tuple[int, int], tuple[float, float], str] | None:
+    """The single cell furthest below (or above) the rest of both its row and its column.
+
+    A cell stands out when it departs from the additive pattern of the grid (its row
+    mean + column mean - grand mean) by at least a tenth of the value range and three
+    times the typical departure, and is the lowest (highest) of its row and of its
+    column; the gaps are to the next-lowest (next-highest) there. Needs 3+ rows and
+    columns. A smooth gradient has no outlier, only a corner.
+    """
+    n_rows, n_cols = body.shape
+    ok = np.isfinite(body)
+    if n_rows < 3 or n_cols < 3 or ok.sum() < 6:
+        return None
+    with np.errstate(all="ignore"):
+        grand = float(np.nanmean(body))
+        fitted = (
+            np.nanmean(body, axis=1)[:, None] + np.nanmean(body, axis=0)[None, :] - grand
+        )
+    resid = np.where(ok, body - fitted, np.nan)
+    flat = np.abs(resid[ok])
+    order = np.argsort(-np.nan_to_num(np.abs(resid), nan=-1.0), axis=None)
+    i, j = np.unravel_index(int(order[0]), body.shape)
+    size = abs(float(resid[i, j]))
+    typical = float(np.median(np.sort(flat)[:-1])) if flat.size > 1 else 0.0
+    if size < 0.1 * ((hi - lo) or 1.0) or size < 3.0 * typical:
+        return None
+    v = float(body[i, j])
+    row = np.delete(body[i], j)
+    col = np.delete(body[:, j], i)
+    row, col = row[np.isfinite(row)], col[np.isfinite(col)]
+    if row.size < 2 or col.size < 2:
+        return None
+    if resid[i, j] < 0:
+        word, gaps = "below", (float(row.min()) - v, float(col.min()) - v)
+    else:
+        word, gaps = "above", (v - float(row.max()), v - float(col.max()))
+    if min(gaps) <= 0:  # not the extreme of both its row and its column
+        return None
+    return (int(i), int(j)), gaps, word
 
 
 @_guarded("matrix")
@@ -5188,11 +6128,13 @@ def matrix(
             f"{len(col_names)} cols.",
             fix_hint="values must have one inner list per row, each with one number per column.",
         )
-    if len(row_names) > 16 or len(col_names) > 12:
+    if len(row_names) > MAX_MATRIX_ROWS or len(col_names) > MAX_MATRIX_COLS:
         raise ExplainError(
-            f"matrix() got {len(row_names)}x{len(col_names)} cells; beyond 16x12 the numbers "
-            "stop being readable at chat size.",
-            fix_hint="Aggregate or keep the rows/columns the takeaway is about.",
+            f"matrix() got {len(row_names)}x{len(col_names)} cells; beyond "
+            f"{MAX_MATRIX_ROWS}x{MAX_MATRIX_COLS} the numbers stop being readable at chat size.",
+            fix_hint=f"matrix() takes at most {MAX_MATRIX_ROWS} rows and {MAX_MATRIX_COLS} "
+            "columns (swap rows and cols if only the columns are over): aggregate, keep the "
+            "rows/columns the takeaway is about, or split into two matrix() panels.",
             rule="too_many_items",
         )
     finite = grid[np.isfinite(grid)]
@@ -5230,12 +6172,45 @@ def matrix(
         row_means = np.array(
             [float(np.mean(r[np.isfinite(r)])) if np.isfinite(r).any() else np.nan for r in body]
         )
-    mean_fmt = _formatter(list(row_means[np.isfinite(row_means)]), fmt, unit=unit)
-    facts.append(
-        f"highest row mean: {row_names[int(np.nanargmax(row_means))]} "
-        f"({_with_unit(mean_fmt(float(np.nanmax(row_means))), unit)})"
-    )
+        col_means = np.array(
+            [
+                float(np.mean(c[np.isfinite(c)])) if np.isfinite(c).any() else np.nan
+                for c in body.T
+            ]
+        )
     symmetric = square and bool(np.allclose(grid, grid.T, equal_nan=True))
+    shown_means = [*row_means, *([] if symmetric else col_means)]
+    mean_fmt = _formatter([v for v in shown_means if math.isfinite(v)], fmt, unit=unit)
+
+    def _mean_fact(which: str, means: np.ndarray, labels_: Sequence[str]) -> None:
+        if np.isfinite(means).sum() < 2:
+            return
+        for word, pick in (("highest", np.nanargmax), ("lowest", np.nanargmin)):
+            at = int(pick(means))
+            facts.append(
+                f"{word} {which} mean: {labels_[at]} "
+                f"({_with_unit(mean_fmt(float(means[at])), unit)})"
+            )
+
+    if np.isfinite(row_means).sum() >= 2:
+        _mean_fact("row", row_means, row_names)
+    else:
+        facts.append(
+            f"highest row mean: {row_names[int(np.nanargmax(row_means))]} "
+            f"({_with_unit(mean_fmt(float(np.nanmax(row_means))), unit)})"
+        )
+    if not symmetric:  # a symmetric matrix's column means are its row means
+        _mean_fact("column", col_means, col_names)
+    outlier = _matrix_outlier(body, lo, hi)
+    if outlier is not None:
+        at, gaps, word = outlier
+        gap_fmt = _formatter(list(gaps), fmt, unit=unit)
+        row_gap, col_gap = (_diff_with_unit(gap_fmt(g), unit) for g in gaps)
+        nxt = "next-lowest" if word == "below" else "next-highest"
+        facts.append(
+            f"outlier: {_cell_text(at)}, {row_gap} {word} the {nxt} in its row and "
+            f"{col_gap} {word} the {nxt} in its column"
+        )
 
     def _same(a: tuple[int, int], b: tuple[int, int]) -> bool:
         cells_match = a == b or (symmetric and a == (b[1], b[0]))
@@ -5464,6 +6439,7 @@ def matrix(
             + f", {len(row_names)} rows by {len(col_names)} columns, a number in every cell"
         ),
         _height_mm=lambda _w, _m, _s, _t: 6.2 * len(row_names) + 6.0,
+        _min_height_mm=lambda _w, _m, _s, _t: 5.0 * len(row_names) + 6.0,
         _draw=_draw_and_check,
         _frames=_headers,
     )
@@ -5597,7 +6573,9 @@ def _pinned_colors(colors: object, theme: Theme) -> dict[str, str]:
             raise ExplainError(
                 f"explain(colors=...) gives {used[word]!r} and {key!r} the same slot {word!r}; "
                 "one colour must mean one thing.",
-                fix_hint=f"Give each pinned name its own slot ({slots}; at most four names).",
+                fix_hint=f"Give each pinned name its own slot ({slots}): at most "
+                f"{len(COLOR_SLOTS)} pinned names; leave the rest unpinned (they take the "
+                "figure's own colours).",
                 rule="bad_colors",
             )
         used[word] = key
@@ -6074,8 +7052,9 @@ class Explanation:
             body = panel.describe
             if panel.title:
                 body = f"{panel.title.rstrip('.')}. {body}"
-            if panel.facts:
-                body += f". {panel.facts[0]}"
+            said = panel.alt_facts if panel.alt_facts is not None else panel.facts[:1]
+            if said:
+                body += "".join(f". {fact}" for fact in said)
             parts.append(f"{lead}{body}.")
         if self.source:
             parts.append(f"Source: {self.source.rstrip('.')}.")
@@ -6340,6 +7319,60 @@ def _takeaway_issues(takeaway: str) -> list[dict[str, Any]]:
     return []
 
 
+def _too_tall_issue(
+    row_plans: Sequence[Mapping[str, Any]],
+    panel_map: Mapping[str, Panel],
+    height_mm: float,
+    min_mm: float,
+    width_mm: float,
+    spec: JournalSpec,
+) -> dict[str, Any]:
+    """The ``too_tall`` warning: the tallest panel, and one concrete way to fit."""
+    px = DISPLAY_WIDTH_PX / width_mm
+    heights = {
+        c["key"]: (plan["head_mm"] + c["plot_mm"], plan["head_mm"] + c["min_mm"])
+        for plan in row_plans
+        for c in plan["cells"]
+    }
+    tallest = max(heights, key=lambda k: heights[k][0])
+    kind = panel_map[tallest].kind
+    over = min_mm - spec.max_height_mm
+    message = (
+        f"The figure is {height_mm:.0f} mm tall (about {height_mm * px:.0f} px at chat width); "
+        f"even with every panel at its minimum readable height it needs {min_mm:.0f} mm, "
+        f"more than fits on one screen ({spec.max_height_mm:.0f} mm). The tallest is panel "
+        f"{tallest} ({kind}), {heights[tallest][0]:.0f} mm."
+    )
+    keys = [[c["key"] for c in plan["cells"]] for plan in row_plans]
+    layout_now = [list(row) for row in keys]
+    options: list[str] = []
+    # Two stacked single-panel rows side by side save the shorter one's height.
+    pairs = [
+        (min(heights[keys[i][0]][1], heights[keys[i + 1][0]][1]), i)
+        for i in range(len(keys) - 1)
+        if len(keys[i]) == 1 and len(keys[i + 1]) == 1
+    ]
+    if pairs:
+        saved, i = max(pairs)
+        if saved >= over:
+            merged = [*layout_now[:i], [keys[i][0], keys[i + 1][0]], *layout_now[i + 2 :]]
+            options.append(f"put panels {keys[i][0]} and {keys[i + 1][0]} side by side: layout={merged!r}")
+    if len(panel_map) > 1:
+        options.append(
+            f"drop panel {tallest} and state its key numbers in note=, or split the figure "
+            "into two, each with its own takeaway (e.g. "
+            + ", ".join(k for k in panel_map if k != tallest)
+            + f" in one, {tallest} in the other)"
+        )
+    else:
+        options.append(
+            "shorten it: fewer items or rows, a shorter takeaway, subtitle and note, or show the "
+            "top 10 and say so in the title"
+        )
+    hint = "; or ".join(options)
+    return _issue("too_tall", "warning", message, hint[0].upper() + hint[1:] + ".")
+
+
 @_guarded("explain")
 def explain(
     takeaway: str,
@@ -6425,7 +7458,9 @@ def explain(
     if len(built) > MAX_PANELS:
         raise ExplainError(
             f"explain() got {len(built)} panels; more than {MAX_PANELS} cannot be read in one figure.",
-            fix_hint="Split the argument into two figures, each with its own takeaway.",
+            fix_hint=f"explain() takes at most {MAX_PANELS} panels ({COMFORTABLE_PANELS} read "
+            "comfortably): split the argument into two figures, each with its own takeaway, or "
+            "fold related panels into one (trend(facet=True), a matrix()).",
             rule="too_many_panels",
         )
 
@@ -6484,8 +7519,9 @@ def explain(
         if len(title_lines) > MAX_TITLE_LINES:
             raise ExplainError(
                 f"The takeaway is {len(takeaway)} characters and wraps to {len(title_lines)} lines.",
-                fix_hint="Cut it to one sentence (about 100 characters); move scope and caveats "
-                "to subtitle= and note=.",
+                fix_hint=f"The takeaway may wrap to at most {MAX_TITLE_LINES} lines: cut it to "
+                "one sentence (about 100 characters); move scope and caveats to subtitle= and "
+                "note=.",
                 rule="takeaway_too_long",
             )
         subtitle_lines = measure.wrap(subtitle, content_pt, sizes.body) if subtitle else []
@@ -6559,11 +7595,17 @@ def explain(
                         "plot_mm": panel._height_mm(cell_w / s, measure, sizes, theme) * s,
                     }
                 )
+                floor = panel._min_height_mm
+                cells[-1]["min_mm"] = min(
+                    cells[-1]["plot_mm"],
+                    floor(cell_w / s, measure, sizes, theme) * s if floor else cells[-1]["plot_mm"],
+                )
                 x_mm += cell_w + _COL_GAP_MM * s
             if len(rows) > 1 and len(cells) == 1 and panel_map[cells[0]["key"]].stretch:
                 # A full-width line or scatter panel in a multi-row figure would set the
                 # tallest row of the figure; cap it so three panels stay on one screen.
                 cells[0]["plot_mm"] = min(cells[0]["plot_mm"], _FULL_ROW_STRETCH_MM * s)
+                cells[0]["min_mm"] = min(cells[0]["min_mm"], cells[0]["plot_mm"])
             row_plans.append(
                 {
                     "cells": cells,
@@ -6572,10 +7614,32 @@ def explain(
                 }
             )
 
-        body_mm = sum(r["head_mm"] + r["plot_mm"] for r in row_plans) + _ROW_GAP_MM * s * (
-            len(row_plans) - 1
-        )
-        height_mm = margin + header_mm + header_gap + body_mm + footer_gap + footer_mm + margin
+        def _height_at(squeeze: float) -> float:
+            """Figure height with every panel ``squeeze`` (0..1) of the way to its minimum."""
+            body = sum(
+                r["head_mm"]
+                + max(c["plot_mm"] - squeeze * (c["plot_mm"] - c["min_mm"]) for c in r["cells"])
+                for r in row_plans
+            ) + _ROW_GAP_MM * s * (len(row_plans) - 1)
+            return margin + header_mm + header_gap + body + footer_gap + footer_mm + margin
+
+        natural_mm = _height_at(0.0)
+        height_mm = natural_mm
+        squeeze = 0.0
+        limit_mm = spec.max_height_mm
+        if natural_mm > limit_mm + 0.5 and _height_at(1.0) <= limit_mm + 0.5:
+            # Too tall for one screen at natural size, but it fits with the panels nearer
+            # their minimum readable height: compress just enough, not a warning.
+            lo, hi = 0.0, 1.0
+            for _ in range(24):
+                mid = 0.5 * (lo + hi)
+                lo, hi = (lo, mid) if _height_at(mid) <= limit_mm else (mid, hi)
+            squeeze = hi
+            for plan in row_plans:
+                for cell in plan["cells"]:
+                    cell["plot_mm"] -= squeeze * (cell["plot_mm"] - cell["min_mm"])
+                plan["plot_mm"] = max(c["plot_mm"] for c in plan["cells"])
+            height_mm = _height_at(0.0)
 
         fig = Figure(
             figsize=(mm_to_in(width_mm), mm_to_in(height_mm)),
@@ -6807,14 +7871,7 @@ def explain(
 
         if height_mm > spec.max_height_mm + 0.5:
             issues.append(
-                _issue(
-                    "too_tall",
-                    "warning",
-                    f"The figure is {height_mm:.0f} mm tall (about "
-                    f"{height_mm / width_mm * DISPLAY_WIDTH_PX:.0f} px at chat width), more than "
-                    "fits on one screen.",
-                    "Split it into two figures, each with its own takeaway, or drop a panel.",
-                )
+                _too_tall_issue(row_plans, panel_map, height_mm, _height_at(1.0), width_mm, spec)
             )
         if spec.name == "screen" and result.min_text_px < MIN_TEXT_PX:
             issues.append(

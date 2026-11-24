@@ -319,7 +319,8 @@ def test_facts_report_the_numbers_a_takeaway_would_claim() -> None:
     assert any("4.0\N{MULTIPLICATION SIGN} the next highest (search 460 ms)" in f for f in facts)
     trend_facts = fm.trend(WEEKS, LATENCY, unit="ms", highlight="checkout").facts
     assert trend_facts == [
-        "checkout: 540 \N{RIGHTWARDS ARROW} 1,840 ms from 1 to 8 (+241%); peak 1,840 at 8"
+        "checkout: 540 ms \N{RIGHTWARDS ARROW} 1,840 ms from 1 to 8 (+241%); peak 1,840 ms at 8",
+        "the other 2 change by +2.2% to +3.3% from first to last value",
     ]
     share_facts = fm.share({"a": 50, "b": 30, "c": 20}).facts
     assert "top 3 together: 100%" in share_facts

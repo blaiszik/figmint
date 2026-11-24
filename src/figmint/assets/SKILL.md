@@ -5,10 +5,10 @@ description: Explain data to a user with a message-first chat figure (one takeaw
 
 # figmint — Figures That Say One Thing
 
-Two jobs, two paths:
+**Chat figures: read down to the "Publication Figures" heading and stop.** Everything after it is for manuscripts.
 
-- **Explaining a result to a person in a conversation** → `fm.explain` (next section). Use this by default.
-- **A manuscript or report figure** (`nature`, `science`, `science_advances`, `cell`, `pnas`, `neurips`, `screen`) → the script contract and `figmint run`, further down.
+- **Explaining a result to a person in a conversation** (the default) → `fm.explain`, next section.
+- **A manuscript or report figure** (`nature`, `science`, `science_advances`, `cell`, `pnas`, `neurips`, `screen`) → the script contract and `figmint run`, from the "Publication Figures" heading on.
 
 ## Explain in a Conversation (`fm.explain`)
 
@@ -58,10 +58,9 @@ No Python handy? The same figure as JSON: `figmint explain spec.json --out fig.p
 **4. Check the summary, then look at the image.**
 
 - `summary` is a plain dict, already parsed (do not `json.loads` it): `summary["panels"][i]["facts"]`, `summary["issues"]`, `summary["ok"]`.
-- `facts` are computed from the data (highest and lowest, ratios, differences from the highlighted item, whether intervals overlap, first-to-last change, medians, r, missing values). **Your takeaway must agree with them**; if it does not, fix the sentence, not the chart.
-- A trend's `a → b from x0 to x1` fact is the two endpoint values: for noisy daily data it misleads. Check claims against the event, baseline and median facts instead.
+- `facts` are computed from the data; read them before computing anything. `compare`: highest, lowest, their ratio or range; each highlighted item's rank and gap to the `reference=`, `baseline=` or next item (signed values: its place above or below zero, and the others' range); with `error=`, which intervals overlap it, or each interval against the reference; `n=` counts. `trend`: each series' first → last and peak, spikes against its median, gaps and crossings between coloured series, crossings of a `reference=`, medians before and from each event, gaps to a baseline, one line on the grey series; `log=True` adds slopes of log₁₀(y) with R², and with `log_x=True` power-law exponents with 95% CI. `distribution`: centre, spread, range and n per group, far values, each highlighted group's gap to and separation from the others (or the baseline). `relate`: r and n per group, then pooled; `fit=True` adds each slope with 95% CI. `change`: the largest change, how many rose and fell, the rest's range. `share`: total, largest, top 3, each highlighted part (and their sum). `matrix`: extremes, highest and lowest row and column means, an outlier cell. Do not import scipy or refit what a fact states; compute only what no fact covers. **Your takeaway must agree with them**; if it does not, fix the sentence, not the chart. A trend's `a → b from x0 to x1` fact is just the two endpoints, misleading for noisy daily data: check claims against the event, baseline and median facts.
 - `issues` lists warnings with a `fix_hint` each. `ok: false` means an error-level issue; the PNG is still written so you can see it.
-- **Open the PNG.** The checks do not catch every collision or awkward label; your eyes are the last check. Fix what the issues and your look turn up, in at most two rounds of re-rendering (a call rejected with an error before anything is drawn does not count), then show it with any remaining caveat stated.
+- **Open the PNG**: your eyes are the last check for collisions and awkward labels. Fix what the issues and your look turn up in at most two rounds of re-rendering (a call rejected before drawing does not count), then show it with any remaining caveat stated.
 
 **5. Hand it over.** Show the image, then one or two sentences that add what the figure cannot (cause, caveat, next step). Do not re-describe the chart. Use `alt_text` when the channel needs a text equivalent.
 
@@ -86,11 +85,13 @@ fm.compare(values,          # {name: number}
     log=False,              # True -> dots on a log axis, for values spanning decades
     error=None,             # {name: (low, high)} absolute bounds, or {name: half_width}, or one number for all
     error_label=None,       # what the interval is: "95% CI", "± 1 s.d., n = 5"  (always give it with error=)
+    n=None,                 # {name: count} -> "n=84" under each name and in the facts; keep names plain
     reference=None)         # (value, "label") line
 
 fm.trend(x, series,         # x: numbers, dates/ISO strings, or ordered labels; series: {name: [numbers]}, None for gaps
                             # (omit series when points= supplies the data: fm.trend(x, points={...}))
     x_label=None,           # end it with the x unit in brackets, "Time after dose (h)": facts then say "19 h", not "19"
+    x_unit=None,            # the x unit when x_label's bracket is not one ("Step (batch 2)"): x_unit="steps"; "" for none
     log=False, log_x=False, # log value (y) axis / log x axis; an Arrhenius plot is log=True against 1000/T
     zero=False,             # True forces the y axis to include zero
     band=None,              # {name: (low_list, high_list)} or {name: half_width}; band_label= says what it is
@@ -109,9 +110,10 @@ fm.distribution(groups,     # {name: [raw observations]}, at least 3 per group; 
     log=False, reference=None)
 
 fm.relate(x, y, x_label=, y_label=,   # both required; y_label is the panel's measure line
+    x_unit=None,            # as on trend; unit= (shared) is the y unit, used in the slope facts
     names=None,             # one name per point; highlight= then labels those points
     groups=None,            # one group label per point (at most 4) -> coloured, directly labelled;
-                            # facts give the pooled r and each group's r;
+                            # facts give each group's r (with fit=, its slope and 95% CI), then the pooled r;
                             # highlight= may name a group (the others turn grey but stay labelled)
     fit=False,              # least-squares line (per group if groups=), r and n reported
     log_x=False, log_y=False,
@@ -127,9 +129,27 @@ fm.matrix(values, rows=[...], cols=[...],   # 2-D list/array (or a DataFrame: ro
 fm.custom(draw_fn, height_mm=48.0, describe="...")   # draw_fn(ax): last resort when no form fits
 ```
 
-`fig.save("x.png", write_spec=True)` also writes `x.json`. Inputs may be dicts, lists, numpy arrays, pandas Series or DataFrames: `trend(df.index, df)` takes a wide frame (index = x, one column per series; `df.pivot(index="date", columns="region", values="p99")`); `compare`, `change` and `share` take a Series (index = names); `distribution` takes a dict of lists or a wide frame (one column per group, NaN dropped), not a long frame; `matrix` takes a frame (index = rows, columns = cols).
+`fig.save("x.png", write_spec=True)` also writes `x.json`. Inputs may be dicts, lists, numpy arrays, pandas Series or DataFrames: `trend(df.index, df)` takes a wide frame (index = x, one column per series; `df.pivot(index="date", columns="region", values="p99")`); `compare`, `change` and `share` take a Series (index = names); `distribution` takes a dict of lists or a wide frame (one column per group, NaN dropped), not a long frame; `matrix` takes a frame (index = rows, columns = cols). `events=` keys use the x's own type: a number on a numeric x, an ISO string (`"2026-03-01"`) or date on a date x, the label text on a labelled x.
 
-**Before/after an event:** `fm.trend(x, series, events={"2026-10-15": "config change"}, highlight=["us-west"])` — facts give each coloured series' median before the event and from it on, with the change. For the day-to-day spread, add `fm.distribution({"before": [...], "after": [...]}, baseline="before")`.
+### Limits and sizes (plan the layout before rendering)
+
+Past a hard limit the call is rejected before anything is drawn, with a `fix_hint`:
+
+- **Forms:** `compare` 20 items (warns above 12), `change` 14 items, `distribution` 8 groups of at least 3 values, `matrix` 16 rows × 12 cols, `relate(groups=)` 4 groups. `trend`: more than 4 series need `highlight=` (1 to 3) or `facet=True` (at most 12 series; a `baseline=` is not counted). `share` keeps the `top=7` largest (all of them if only one more is left) and folds the rest into "Other (n)", which `highlight=` cannot name.
+- **Figure:** `highlight=` takes 3 names per panel (`matrix`: 3 cells, rows or columns in all). 4 colours per figure, shared by all panels: every highlighted name, coloured trend series and `relate` group takes one, and a fifth reuses one (`colour_reused_across_panels` warning); `colors=` pins at most 4. 6 panels (warns above 4). The takeaway wraps to at most 3 lines (aim for about 100 characters).
+- **Room:** labels that leave too little room for the data (`panel_too_small`, `matrix_cells_too_small`) are rejected too: give the panel a full row with `layout=`, or shorten names.
+
+**Height.** `too_tall` warns above 135 mm, one screen (the `screen` spec's `max_height_mm`; at the 700 px chat width 1 mm ≈ 5 px, so 675 px). A one-line takeaway plus one full-width panel is about:
+
+| Panel | Figure height |
+| :--- | :--- |
+| `compare` or `share`, N bars | 23 + 5.3·N mm (5 → 50, 10 → 76, 20 → 129) |
+| `distribution`, G groups | 33 + 8.5·G mm (4 → 67, 8 → 101) |
+| `matrix`, R rows | 28 + 6.3·R mm (6 → 66, 10 → 90, 16 → 128) |
+| `change`, N items | 60 mm at 4, 71 at 8, 99 at 14 |
+| `trend` / `relate` | 79 / 84 mm full width, 66 at half width |
+
+Each further full-width row adds its own height less about 15 mm; panels side by side are as tall as the tallest; `subtitle=` adds 4 mm, `source=` 6, `note=` 4, a second takeaway line 5. So above or below a full-width trend fit at most a 9-item compare, a 4-group distribution or a 6-row matrix; a 2×2 of trends and 5-item compares is about 110 mm. A 20-item compare or an 8-group distribution needs its own figure or a place beside, not above, the other panel.
 
 ### Scientific data
 
@@ -138,29 +158,55 @@ fm.custom(draw_fn, height_mm=48.0, describe="...")   # draw_fn(ax): last resort 
   | You have | Use |
   | :--- | :--- |
   | Raw replicates per condition (seeds, wells, samples) | `fm.distribution` — every observation is drawn; `stat="mean"` if your claim is about means |
-  | Raw replicates along x (dose, time, step) | `fm.trend(x, points={name: [[reps], ...]})` — mean line with every replicate as a dot |
+  | Raw replicates or units along x (dose, time, step) | `fm.trend(x, points={name: [[reps], ...]})` — the way to show every replicate or unit: mean line plus each as a dot |
   | Only an estimate and its interval | `fm.compare(error=..., error_label="95% CI")` or `fm.trend(band=..., band_label="± 1 s.d.")` |
 
   An interval without `error_label=`/`band_label=` raises a warning: a whisker nobody can interpret is worse than none. `facts` say in plain words whether two intervals overlap; do not write "significant" unless you ran the test, and then name it in `note=`.
-- **Values spanning decades:** `log=True` puts the measured value on a log axis in `compare`, `trend` and `distribution` (conductivity, counts, an Arrhenius plot against 1000/T). `log_x=True` on `trend` and `relate` is for an x that spans decades (dose, frequency). Bars are never drawn on a log axis.
+- **Values spanning decades:** `log=True` for the measured value (`compare`, `trend`, `distribution`; conductivity, counts, an Arrhenius plot against 1000/T), `log_x=True` for an x that spans decades (`trend`, `relate`; dose, frequency). Bars are never drawn on a log axis.
 - **Lower is better** (loss, error, IC50): `sort="asc"` puts the best item on top.
-- **Units and symbols:** write Unicode directly — `unit="µm"`, `"cm⁻³"`, `"°C"`, `"Å"`, `label="χ²"`. `$...$` is not math here. A character the font cannot draw is reported as `glyph_missing`.
+- **Units:** `unit=` is a short symbol (`ms`, `%`, `mg/L`, `×`); words go in `label=` (`label="Share of own baseline", unit="%"`). Write Unicode directly — `unit="µm"`, `"cm⁻³"`, `"°C"`, `"Å"`, `label="χ²"`. `$...$` is not math here. A character the font cannot draw is reported as `glyph_missing`: write a fractional exponent as `"d⁻½"` or `"1/√d"`, never `"d⁻¹ᐟ²"`.
+- **x unit:** in `trend` (numeric x) and `relate`, a one-word `(...)` or `[...]` at the end of `x_label` is read as the x unit and printed after every x in `facts` ("Time (h)" gives "4 h"); a bracket with a space or a leading digit ("Step (batch 2)", "Load (2x)") is not. `x_unit="steps"` sets it, `x_unit=""` turns it off.
 - **Numbers** are shown to about three significant figures, with `×10ⁿ` for very large or small values, and are never rounded to zero. Override with `fmt=".2f"` or `fmt="{:.1f} ms"`. The unit is printed once, on the first value.
 - **Missing values:** pass `None` or NaN. Gaps are drawn as gaps, counted in `facts`, and belong in `note=`.
 - **Small n:** groups with fewer than five observations show the points and a centre mark only; say n in the title or note.
-- **More than four ordered levels** (five doping levels, six doses): colour the one to three the claim is about with `highlight=` and let the rest be labelled grey context, or use `facet=True`. There is no colour ramp for lines.
+- **More than four ordered levels** (five doping levels, six doses): `highlight=` the one to three the claim is about (the rest are labelled grey context) or `facet=True`. There is no colour ramp for lines.
 - **Derived numbers** (fits, IC50, activation energies) are yours to compute; say how in `source=` or `note=`, and check them against `facts` where a fact covers them (crossings of a `reference=` value, fold changes, slopes on log axes).
 - **Log-axis slopes:** with `trend(log=True)` and numeric x, `facts` give the least-squares slope of log₁₀(y) per x unit with R². A series that rises then falls (absorption then elimination, a doping optimum) is fitted separately up to and from its peak, never across it; quote the side your claim is about.
 
+### Recipes
+
+Patterns by data shape and question; rename to your data. `df` is long (columns `group`, `item`, `unit_id`, `time`, `x`, `value`); `wide = df.pivot(index="time", columns="unit_id", values="value")`.
+```python
+# A ratio per item, against a reference: dots on a log axis around 1; facts read as ratios
+fm.compare(ratio, log=True, zero=False, reference=(1, "no change"), label="Ratio to reference", unit="×")
+# Replicates along an ordered x (one row per measurement): mean line plus every replicate
+xs = sorted(df.x.unique())
+pts = {g: [s.loc[s.x == v, "value"].tolist() for v in xs] for g, s in df.groupby("group")}
+fm.trend(xs, points=pts, label="Value", x_label="Setting (V)")
+# Two groups, compare the tails: one row per percentile (beside fm.distribution(groups) for the spread)
+pct = {g: {f"p{q}": float(np.percentile(v, q)) for q in (50, 90, 99)} for g, v in groups.items()}
+fm.change(pct["A"], pct["B"], labels=("A", "B"), label="Value", unit="s")
+# Several series, before/after an event: facts give each coloured series' median before and from it on
+fm.trend(wide.index, wide, events={t_event: "event"}, highlight=["u3"], label="Value", unit="s")
+fm.distribution({"before": [...], "after": [...]}, baseline="before", label="Value", unit="s")  # one series
+# Before/after an event, with an untreated comparison: each unit as % of its own median before
+rel = wide / df[df.time < t_event].groupby("unit_id").value.median() * 100
+fm.trend(rel.index, rel, baseline="untreated", events={t_event: "event"}, label="Value vs own median before", unit="%")
+# A value per item, many items in a few categories: raw ratios (not log₂) on a log axis; top item in the title
+by = df.groupby("group").value.apply(list).to_dict()
+top = df.loc[df.value.idxmax()]
+fm.distribution(by, log=True, reference=(1, "no change"), label="Ratio to reference", unit="×",
+                title=f"Highest: {top['item']} ({top.value:.2g}×)")
+```
+
 ### Colour
 
-A name keeps one colour in every panel of a figure, so "no retrieval" is the same red in the dot plot and in the curve beside it. `highlight=` decides who is emphasised: colours go red, blue, green, amber in highlight order unless pinned, and a lone unhighlighted series is blue. A `baseline=` (control, "before") is drawn in ink, so it never takes the red. To keep a name's colour the same across several figures in one conversation, pass `colors={"no retrieval": "red", "full model": "blue"}` to each `fm.explain` call; the summary's `colors` key reports what the last figure used, ready to pass on.
+A name keeps one colour in every panel of a figure, so "no retrieval" is the same red in the dot plot and in the curve beside it. `highlight=` decides who is emphasised: colours go red, blue, green, amber in highlight order unless pinned; everything else turns grey (in a `distribution`, the highlighted groups' dots take colours and the rest are grey; in a `trend(points=)`, the other series' replicate dots too: when every series' replicates matter, leave `highlight=` off so all of them, up to four, keep a colour), and a lone unhighlighted series is blue. A `baseline=` (control, "before") is drawn in ink, never in red. To keep colours across several figures in one conversation, pass `colors={"no retrieval": "red", "full model": "blue"}` to each `fm.explain` call; the summary's `colors` key reports what the last figure used, ready to pass on.
 
 ### Rules the forms enforce (do not work around them)
 
-- One takeaway per figure; one claim per panel. Up to four panels is comfortable, six is the limit. Use several only when the argument has steps (what, since when, why). A `too_tall` warning (taller than one screen, roughly two rows of charts) means split it into two figures.
-- Bars start at zero and are sorted. When zero is meaningless pass `zero=False` for a dot plot. Intervals are drawn as dots with whiskers, never inside bars.
-- At most four series get a colour. With more, `highlight=` the ones that matter or `facet=True` for small multiples on a shared scale.
+- One takeaway per figure; one claim per panel. Use several panels only when the argument has steps (what, since when, why). A `too_tall` warning means split it into two figures.
+- Bars start at zero and are sorted; negative values in `compare` run left from zero (diverging bars), so pass signed differences as they are. When zero is meaningless pass `zero=False` for a dot plot. Intervals are drawn as dots with whiskers, never inside bars. A `reference=` outside the data extends the axis to include it.
 - No pies, no dual axes, no legends (labels sit on the data), no rotated text.
 - The chat column is about 700 px wide: keep `width="chat"`. A wider canvas is scaled down and its text shrinks.
 - Layout defaults: two panels side by side, three as one wide row over two, four as 2×2. Matrices and long names need width: give them a full row with `layout=`.
@@ -168,14 +214,15 @@ A name keeps one colour in every panel of a figure, so "no retrieval" is the sam
 
 ### When a figure comes back
 
-Every PNG carries its own spec. If the person returns a figure (or another agent hands you one) and asks for a change, rebuild it instead of redrawing from memory:
+Every PNG carries its own spec (`figmint explain --show-spec ablation.png` prints it; chat apps that re-encode images drop it, so keep the `.json` from `write_spec=True` when the figure matters). If the person returns a figure (or another agent hands you one) and asks for a change, edit the spec instead of redrawing from memory. An edit may change the top-level keys `takeaway`, `subtitle`, `note`, `source`, `layout`, `colors` and `style` (set a missing one to add it) and any form argument in `panels[i]`:
 
 ```python
-fig = fm.load("ablation.png")        # or a .json spec
-spec = fig.to_spec()                 # the takeaway, panels and data as plain JSON: edit and pass to fm.explain_from_spec(spec)
+spec = fm.load("ablation.png").to_spec()   # or a .json spec: {"takeaway", "layout", "panels": [{"kind", ...}], ...}
+spec["takeaway"] = "Removing fine-tuning costs 13 points of accuracy, retrieval 8"
+spec["panels"][0]["highlight"] = ["no fine-tuning"]   # panel keys are the form's own arguments
+del spec["panels"][1]; spec.pop("layout")            # dropping a panel: drop the layout too
+print(fm.explain_from_spec(spec).save("ablation_v2.png", write_spec=True))
 ```
-
-`figmint explain --show-spec ablation.png` prints the same spec. Chat apps that re-encode images drop it, so keep the `.json` (`write_spec=True`) when the figure matters.
 
 ## Publication Figures: Standard Agent Workflow
 

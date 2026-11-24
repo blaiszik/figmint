@@ -300,7 +300,8 @@ def test_compare_facts_are_neutral_and_checkable() -> None:
         {"a": 2e-6, "b": 3.1e-4, "c": 2.4e-3}, unit="S/cm", log=True, highlight="b"
     ).facts
     assert f"highest/lowest ratio: 1,200{TIMES} (from unrounded values)" in facts
-    assert any(f.startswith("b: ") and "rank 2 of 3" in f and "vs c" in f for f in facts)
+    # On a log axis the highlight is stated as a ratio to the next item, never a signed one.
+    assert any(f.startswith("b: ") and "rank 2 of 3" in f and f"0.13{TIMES} c (" in f for f in facts)
     close = fm.compare({"a": 1.0, "b": 1.05, "c": 0.5}).facts
     assert not any("the next highest" in f for f in close)
     signed = fm.compare({"a": -3.0, "b": 5.0, "c": 1.0}, unit="kJ/mol").facts
@@ -322,7 +323,10 @@ def test_interval_overlap_is_stated_in_plain_words() -> None:
         error_label="95% CI",
         highlight="no retrieval",
     ).facts
-    assert "no retrieval 0.71\N{EN DASH}0.77 does not overlap full model 0.80\N{EN DASH}0.84" in facts
+    assert (
+        "no retrieval 0.71\N{EN DASH}0.77 does not overlap full model 0.80\N{EN DASH}0.84 or "
+        "no augmentation 0.78\N{EN DASH}0.82" in facts
+    )
     assert not any("significant" in f for f in facts)
     no_hl = fm.compare(
         {"a": 0.82, "b": 0.80}, error={"a": (0.8, 0.84), "b": (0.78, 0.82)}, error_label="CI"
