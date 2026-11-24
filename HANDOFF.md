@@ -1,6 +1,7 @@
 # figmint — handoff
 
-Written 2026-11-24 at the end of the review-and-fix pass. Self-contained: you do
+Written 2026-11-24 at the end of the review-and-fix pass, and updated the same
+day after a second pass on agent usability (section 4b). Self-contained: you do
 not need the previous conversations.
 
 ## 1. What this project is for
@@ -21,8 +22,8 @@ not need the previous conversations.
 ## 2. Current state
 
 - Repository: `https://github.com/blaiszik/figmint`, branch `main`, MIT. The
-  owner asked for this pass to be committed and pushed; ask before committing or
-  pushing in a later pass unless told.
+  owner asked for both passes to be committed and pushed; ask before committing
+  or pushing in a later pass unless told.
 - Package `figmint` 0.2.0, Python >= 3.10, `uv`-managed `.venv`.
 - **The name `figmint` is taken on PyPI.** The owner will choose a distribution
   name; nothing is renamed yet. Free on 2026-11-24 (checked against the PyPI
@@ -42,8 +43,10 @@ MPLCONFIGDIR=/tmp/mpl-figmint .venv/bin/figmint explain --example
 ```
 
 Shell is zsh: unquoted `$var` is not word-split. A formatter runs on save (ruff
-format), so files are longer than they read. Font-tool noise on stderr
-(`findfont`, `post.stringData`) is harmless.
+format), so files are longer than they read. Default-style `fm.explain` runs
+print nothing to stderr (the `findfont` noise came from the mathtext `cal` slot
+and is fixed in `themes.py`); `post.stringData` font-tool noise elsewhere is
+harmless.
 
 ### How the owner works (observed, respect these)
 
@@ -76,8 +79,12 @@ fig = fm.explain(
              label="Validation accuracy", x_label="Training step"),
     source="runs/ablation_2026-11 (5 seeds per variant)",
 )
-print(fig.save("ablation.png"))   # JSON summary: facts, issues, alt_text, colors
+summary = fig.save("ablation.png")   # a dict (prints as JSON): panels[i]["facts"], issues, alt_text, colors
 ```
+
+`baseline="name"` on `compare`, `trend` and `distribution` marks a control or
+"before" state: it is drawn in ink (never a highlight colour) and every item's
+facts are stated against it, absolute and relative.
 
 Seven forms, each chosen by the question the panel answers: `compare` (size),
 `trend` (change over order), `change` (two states), `distribution` (spread),
@@ -105,9 +112,12 @@ Rules applied by construction (sources are tabulated in `README.md`):
 - Layout is computed from content: 140 mm wide, exported 1400 px for a ~700 px
   chat column; smallest text 12.3 px at display size.
 - `summary["panels"][i]["facts"]` are computed from the data (highest, lowest,
-  ratios from unrounded values, differences from the highlighted item, whether
-  intervals overlap, crossings, fold change on log axes, missing values) so the
-  agent can check its takeaway.
+  ratios from unrounded values, differences from the highlighted item or the
+  baseline, whether intervals overlap, crossings and which series stay above a
+  reference, before/after medians at `events=`, log slopes split at an
+  interior peak, whether distribution ranges separate, far values, missing
+  values) so the agent can check its takeaway. x values carry the unit given
+  at the end of `x_label` ("Time (h)" -> "19 h").
 - Every plausible wrong call raises `ExplainError` with the fix, including
   unknown arguments (the hint lists the valid ones and the nearest name).
 - Every PNG embeds its spec (`figmint:spec` text chunk); `fm.load(path)` and
@@ -177,11 +187,51 @@ visible on axes with tiny data and raised a false `canvas_clipping` error. It
 is now a relative tolerance. The publication tests pass; the 2-loop repair
 eval was not re-run.
 
+## 4b. Second pass: agent usability (commit `4d301e6`)
+
+Method: build figures from `SKILL.md` alone and time them, then two more blind
+tests on random data (a cell-biology knockdown study; an LLM-serving ops review
+with a config change). Neither blind agent hit an exception. Their friction was
+that `facts` could not check the claims they made, so they computed numbers in
+pandas; distribution facts also ran to 30 lines. Fixed (the main session found
+and verified; the large batch was done by an Opus subagent from a written
+brief):
+
+1. `baseline=` on `compare`, `trend`, `distribution` (new public argument,
+   documented, carried through the spec, misuse raises with a hint).
+2. `trend`: before/after medians per series at each `events=` marker; repeated
+   crossings summarised ("cross 12 times; a is above b from 15 Oct on");
+   series that never cross a reference say which side they stay on; the first
+   coloured series is compared with every other coloured one.
+3. Log-axis slopes are fitted on each side of an interior peak or trough, not
+   across it (an absorption phase hid the elimination rate); fold changes use
+   one wording per panel ("falls 186-fold, 2.3 decades").
+4. x unit parsed from the end of `x_label` (`_x_unit`) and used in every fact
+   that names an x value, and in slopes ("per h").
+5. `distribution`: pairs limited to the baseline or the highlighted groups;
+   range separation robust to one outlier ("all but 1 of 8 ..."); far values
+   flagged (4 × 1.4826·MAD); range and a ratio in each line.
+6. `change` facts give percentages and one line for the items that barely
+   moved; `share` gives the highlighted parts' combined share; `matrix` skips a
+   constant diagonal and reports highlighted cells.
+7. Date ticks carry their month ("15 Sep, 1 Oct"); two `_fit_ticks` loops on
+   narrow facet panels fixed; the `reference_label_collides` hint no longer
+   suggests a full-width row (that triggered `too_tall`), and the label tries
+   spots along the line before giving up.
+8. `SKILL.md`: what `save()` returns (a dict), DataFrame orientation per form,
+   highlight colour order, `baseline=`, a before/after-event recipe, x units in
+   `x_label`, and that first→last facts are endpoint values.
+
+Timed one-shot figures after the fixes: about 10 s from a blank script to a
+clean render (`ok: true`, no issues) for a two-panel figure on fresh random
+data, with no re-render.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
 
-- `pytest`: 440 passed. `ruff check src tests gallery evals`: clean.
+- `pytest`: 467 passed (440 after the first pass). `ruff check src tests
+  gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host
@@ -205,6 +255,9 @@ Not verified:
   preflight change is described in section 4. The repair eval was not re-run.
 - No reader study: whether people read these figures faster or more correctly
   than hand-made plots is untested (section 6, item 2).
+- The committed `gallery/output/explain*` renders predate the second pass: the
+  code that draws them changed (date ticks, facts). Regenerate them only with
+  the owner's OK (they overwrite tracked files).
 
 Known limits:
 
@@ -220,6 +273,13 @@ Known limits:
 6. A character in a mathtext run that the body font lacks comes from the
    fallback font at normal weight, so it looks light in a bold title.
 7. `fm.custom` bypasses the form rules (preflight still runs).
+8. Left over from the second blind tests (not fixed): `colors=` pins by exact
+   name, so "us-west after" does not inherit "us-west"; grey context names at a
+   crowded line end are stacked, not attached to their lines; the thick
+   centre tick in `distribution` can hide tight dots; a correlation matrix
+   draws its diagonal in the darkest colour and shows both triangles; `relate`
+   calls r = 0.48 "weak"; a `change` slopegraph with near-identical values
+   overlaps; a long panel title wraps with no warning.
 
 ## 6. Next steps, in order
 
@@ -233,7 +293,9 @@ Known limits:
    from the PNG it came from.
 4. `trend(fit=...)` for linear and log-linear fits with the slope on the plot.
 5. Split `explainer.py` (forms, formatting and facts, layout) before it grows
-   further.
+   further; it is about 7,000 lines after the second pass.
+6. The visual leftovers in section 5, known limit 8, then regenerate the
+   `explain*` gallery (with the owner's OK) and re-run a blind test.
 
 ## 7. Decisions
 
