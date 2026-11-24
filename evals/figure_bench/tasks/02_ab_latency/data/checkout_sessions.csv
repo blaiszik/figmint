@@ -1,0 +1,801 @@
+arm,session,latency_ms
+control,sc000,949.113955
+control,sc001,302.530049
+control,sc002,257.681105
+control,sc003,350.511928
+control,sc004,250.031803
+control,sc005,827.952496
+control,sc006,624.037136
+control,sc007,559.58174
+control,sc008,792.107211
+control,sc009,320.426524
+control,sc010,232.501441
+control,sc011,490.996347
+control,sc012,482.718225
+control,sc013,285.793548
+control,sc014,534.529135
+control,sc015,814.592899
+control,sc016,330.386668
+control,sc017,458.454523
+control,sc018,490.371965
+control,sc019,522.629663
+control,sc020,665.51541
+control,sc021,547.34061
+control,sc022,788.475687
+control,sc023,291.674193
+control,sc024,339.611535
+control,sc025,607.36331
+control,sc026,344.1787
+control,sc027,326.463142
+control,sc028,411.489634
+control,sc029,492.141932
+control,sc030,335.727569
+control,sc031,548.493188
+control,sc032,784.199265
+control,sc033,188.148581
+control,sc034,150.087443
+control,sc035,589.387217
+control,sc036,293.508717
+control,sc037,808.844861
+control,sc038,1527.661693
+control,sc039,394.044823
+control,sc040,353.410876
+control,sc041,418.687433
+control,sc042,476.73378
+control,sc043,411.510545
+control,sc044,279.652429
+control,sc045,506.070532
+control,sc046,169.29603
+control,sc047,501.326397
+control,sc048,439.429128
+control,sc049,756.697357
+control,sc050,452.036074
+control,sc051,522.52326
+control,sc052,274.348078
+control,sc053,454.305173
+control,sc054,595.797934
+control,sc055,664.951018
+control,sc056,443.048354
+control,sc057,857.209337
+control,sc058,745.623194
+control,sc059,313.201018
+control,sc060,138.351195
+control,sc061,256.300937
+control,sc062,433.118295
+control,sc063,451.21728
+control,sc064,368.033808
+control,sc065,347.656805
+control,sc066,562.506387
+control,sc067,322.324412
+control,sc068,161.247939
+control,sc069,365.256294
+control,sc070,664.064222
+control,sc071,286.394357
+control,sc072,560.093316
+control,sc073,544.090926
+control,sc074,416.933085
+control,sc075,504.829143
+control,sc076,277.929699
+control,sc077,431.551069
+control,sc078,824.985478
+control,sc079,405.860454
+control,sc080,255.750796
+control,sc081,811.554003
+control,sc082,227.605663
+control,sc083,883.339357
+control,sc084,438.380877
+control,sc085,554.676315
+control,sc086,492.498919
+control,sc087,423.867127
+control,sc088,682.353677
+control,sc089,405.679893
+control,sc090,290.738435
+control,sc091,428.560622
+control,sc092,191.53705
+control,sc093,393.798381
+control,sc094,189.238361
+control,sc095,424.608475
+control,sc096,583.189918
+control,sc097,561.788063
+control,sc098,394.906992
+control,sc099,124.971527
+control,sc100,340.064806
+control,sc101,748.653612
+control,sc102,319.004131
+control,sc103,539.019647
+control,sc104,313.703858
+control,sc105,861.744772
+control,sc106,164.223057
+control,sc107,335.301109
+control,sc108,356.602943
+control,sc109,532.270849
+control,sc110,428.877702
+control,sc111,454.111919
+control,sc112,150.868707
+control,sc113,1031.556531
+control,sc114,461.12088
+control,sc115,316.908447
+control,sc116,786.275555
+control,sc117,254.970146
+control,sc118,493.11725
+control,sc119,661.88979
+control,sc120,597.876048
+control,sc121,471.76636
+control,sc122,406.228717
+control,sc123,268.750458
+control,sc124,492.145731
+control,sc125,237.55796
+control,sc126,682.521874
+control,sc127,624.612562
+control,sc128,427.172514
+control,sc129,179.133572
+control,sc130,568.223682
+control,sc131,566.574592
+control,sc132,261.179199
+control,sc133,353.017049
+control,sc134,454.913414
+control,sc135,584.175012
+control,sc136,360.285441
+control,sc137,293.280476
+control,sc138,337.238838
+control,sc139,274.2654
+control,sc140,940.860466
+control,sc141,967.489069
+control,sc142,169.197888
+control,sc143,354.958675
+control,sc144,853.815771
+control,sc145,793.939779
+control,sc146,1022.792762
+control,sc147,743.927976
+control,sc148,520.794327
+control,sc149,485.321178
+control,sc150,791.186739
+control,sc151,517.669983
+control,sc152,202.126673
+control,sc153,452.782417
+control,sc154,190.327254
+control,sc155,612.466206
+control,sc156,491.704799
+control,sc157,397.741676
+control,sc158,478.119684
+control,sc159,194.863706
+control,sc160,335.864414
+control,sc161,323.079689
+control,sc162,440.905328
+control,sc163,383.837758
+control,sc164,456.940814
+control,sc165,466.680318
+control,sc166,225.884875
+control,sc167,242.481479
+control,sc168,699.107758
+control,sc169,287.826097
+control,sc170,390.412066
+control,sc171,603.37691
+control,sc172,362.478162
+control,sc173,1116.292418
+control,sc174,278.508366
+control,sc175,319.64055
+control,sc176,169.547405
+control,sc177,613.755716
+control,sc178,353.056956
+control,sc179,554.386519
+control,sc180,529.639314
+control,sc181,1259.946362
+control,sc182,539.315564
+control,sc183,349.451051
+control,sc184,342.665396
+control,sc185,601.711863
+control,sc186,178.632993
+control,sc187,335.557134
+control,sc188,210.665827
+control,sc189,272.233597
+control,sc190,720.700238
+control,sc191,279.029755
+control,sc192,343.021611
+control,sc193,612.656741
+control,sc194,210.185785
+control,sc195,442.742579
+control,sc196,244.931199
+control,sc197,459.49395
+control,sc198,343.005841
+control,sc199,661.825844
+control,sc200,404.725802
+control,sc201,519.124571
+control,sc202,804.294087
+control,sc203,406.288403
+control,sc204,768.253942
+control,sc205,580.852239
+control,sc206,639.083006
+control,sc207,304.899836
+control,sc208,464.455729
+control,sc209,451.513573
+control,sc210,590.145271
+control,sc211,701.598404
+control,sc212,666.449072
+control,sc213,561.595518
+control,sc214,333.43122
+control,sc215,342.944928
+control,sc216,530.82036
+control,sc217,253.019883
+control,sc218,364.350377
+control,sc219,404.537677
+control,sc220,521.408366
+control,sc221,548.320655
+control,sc222,251.582478
+control,sc223,569.611502
+control,sc224,180.226878
+control,sc225,317.194246
+control,sc226,639.759293
+control,sc227,369.96432
+control,sc228,511.903854
+control,sc229,1300.664804
+control,sc230,384.24523
+control,sc231,388.709372
+control,sc232,164.999721
+control,sc233,490.951369
+control,sc234,801.143348
+control,sc235,462.476414
+control,sc236,438.574086
+control,sc237,1602.00654
+control,sc238,455.183079
+control,sc239,454.721272
+control,sc240,444.341932
+control,sc241,268.094893
+control,sc242,594.737854
+control,sc243,756.300026
+control,sc244,691.72516
+control,sc245,618.712515
+control,sc246,303.533653
+control,sc247,342.614871
+control,sc248,1504.879653
+control,sc249,242.794938
+control,sc250,226.66623
+control,sc251,415.431146
+control,sc252,214.894843
+control,sc253,242.294837
+control,sc254,217.79863
+control,sc255,248.457419
+control,sc256,381.834624
+control,sc257,583.567016
+control,sc258,446.131954
+control,sc259,593.176667
+control,sc260,350.417697
+control,sc261,125.907106
+control,sc262,294.656376
+control,sc263,191.973303
+control,sc264,463.467578
+control,sc265,527.04307
+control,sc266,317.181649
+control,sc267,389.482906
+control,sc268,547.778181
+control,sc269,707.721936
+control,sc270,297.343103
+control,sc271,630.068185
+control,sc272,332.471798
+control,sc273,615.366926
+control,sc274,125.411566
+control,sc275,342.829396
+control,sc276,488.823359
+control,sc277,235.127814
+control,sc278,132.616369
+control,sc279,239.679529
+control,sc280,365.201011
+control,sc281,502.184804
+control,sc282,543.655166
+control,sc283,408.922184
+control,sc284,208.0455
+control,sc285,251.09465
+control,sc286,518.754455
+control,sc287,625.739815
+control,sc288,434.7763
+control,sc289,990.34405
+control,sc290,314.123854
+control,sc291,411.596772
+control,sc292,454.385559
+control,sc293,376.075977
+control,sc294,227.602634
+control,sc295,224.981632
+control,sc296,423.845931
+control,sc297,505.151677
+control,sc298,941.826206
+control,sc299,429.194973
+control,sc300,120.250278
+control,sc301,220.591676
+control,sc302,197.572837
+control,sc303,272.443026
+control,sc304,519.227253
+control,sc305,479.125555
+control,sc306,478.500792
+control,sc307,219.289964
+control,sc308,353.523616
+control,sc309,411.286106
+control,sc310,1072.160833
+control,sc311,763.852273
+control,sc312,385.44388
+control,sc313,622.981821
+control,sc314,444.473176
+control,sc315,367.181447
+control,sc316,358.714071
+control,sc317,189.03332
+control,sc318,849.455697
+control,sc319,445.075986
+control,sc320,245.822906
+control,sc321,341.535365
+control,sc322,322.282492
+control,sc323,387.32057
+control,sc324,335.674863
+control,sc325,873.484457
+control,sc326,194.697469
+control,sc327,672.201216
+control,sc328,394.663869
+control,sc329,648.102216
+control,sc330,330.576201
+control,sc331,269.156576
+control,sc332,458.220036
+control,sc333,1094.53324
+control,sc334,241.93543
+control,sc335,585.528776
+control,sc336,803.230413
+control,sc337,527.536572
+control,sc338,401.24604
+control,sc339,1062.51781
+control,sc340,434.089876
+control,sc341,612.027013
+control,sc342,472.417757
+control,sc343,544.140825
+control,sc344,338.924561
+control,sc345,303.296652
+control,sc346,745.005837
+control,sc347,435.647174
+control,sc348,551.660323
+control,sc349,254.771381
+control,sc350,652.070419
+control,sc351,777.577061
+control,sc352,459.131908
+control,sc353,206.620599
+control,sc354,602.708935
+control,sc355,201.936574
+control,sc356,549.879856
+control,sc357,619.296546
+control,sc358,237.135704
+control,sc359,307.732996
+control,sc360,224.265622
+control,sc361,282.611637
+control,sc362,219.424991
+control,sc363,194.6685
+control,sc364,189.760636
+control,sc365,564.556997
+control,sc366,455.476817
+control,sc367,687.331128
+control,sc368,358.95644
+control,sc369,778.056482
+control,sc370,234.735848
+control,sc371,400.41144
+control,sc372,368.342198
+control,sc373,245.855387
+control,sc374,275.771014
+control,sc375,229.61196
+control,sc376,419.311634
+control,sc377,294.31041
+control,sc378,492.583318
+control,sc379,475.555177
+control,sc380,376.340145
+control,sc381,296.576926
+control,sc382,353.410528
+control,sc383,588.492003
+control,sc384,451.560258
+control,sc385,349.118689
+control,sc386,364.297733
+control,sc387,930.244071
+control,sc388,349.364819
+control,sc389,372.426671
+control,sc390,561.443189
+control,sc391,341.374616
+control,sc392,221.712066
+control,sc393,291.453421
+control,sc394,348.256454
+control,sc395,405.516284
+control,sc396,374.395768
+control,sc397,269.424595
+control,sc398,432.362545
+control,sc399,567.082678
+new flow,sn000,196.986391
+new flow,sn001,914.445087
+new flow,sn002,216.542785
+new flow,sn003,715.616296
+new flow,sn004,659.931055
+new flow,sn005,616.681363
+new flow,sn006,545.826593
+new flow,sn007,212.053442
+new flow,sn008,263.46379
+new flow,sn009,469.979221
+new flow,sn010,233.662505
+new flow,sn011,499.258934
+new flow,sn012,218.395374
+new flow,sn013,203.67708
+new flow,sn014,369.650106
+new flow,sn015,282.465474
+new flow,sn016,417.259173
+new flow,sn017,272.217936
+new flow,sn018,173.515796
+new flow,sn019,434.679628
+new flow,sn020,201.791612
+new flow,sn021,297.876889
+new flow,sn022,610.751972
+new flow,sn023,692.311852
+new flow,sn024,279.434845
+new flow,sn025,304.847608
+new flow,sn026,358.888337
+new flow,sn027,530.102247
+new flow,sn028,651.829508
+new flow,sn029,312.009869
+new flow,sn030,276.208611
+new flow,sn031,248.774865
+new flow,sn032,284.948556
+new flow,sn033,535.977301
+new flow,sn034,160.839677
+new flow,sn035,179.299548
+new flow,sn036,130.414437
+new flow,sn037,331.403224
+new flow,sn038,496.721891
+new flow,sn039,300.289942
+new flow,sn040,207.642238
+new flow,sn041,330.316102
+new flow,sn042,353.670885
+new flow,sn043,472.269138
+new flow,sn044,355.434844
+new flow,sn045,221.100004
+new flow,sn046,379.376457
+new flow,sn047,682.093144
+new flow,sn048,238.451167
+new flow,sn049,381.500785
+new flow,sn050,360.205107
+new flow,sn051,342.801721
+new flow,sn052,110.930449
+new flow,sn053,532.638023
+new flow,sn054,231.729994
+new flow,sn055,311.914469
+new flow,sn056,137.020871
+new flow,sn057,207.812713
+new flow,sn058,162.512491
+new flow,sn059,308.230642
+new flow,sn060,442.822131
+new flow,sn061,356.568122
+new flow,sn062,372.274423
+new flow,sn063,391.739392
+new flow,sn064,499.262999
+new flow,sn065,380.305836
+new flow,sn066,448.25151
+new flow,sn067,229.121017
+new flow,sn068,445.287814
+new flow,sn069,251.693262
+new flow,sn070,343.072669
+new flow,sn071,116.934588
+new flow,sn072,277.654375
+new flow,sn073,450.649983
+new flow,sn074,316.412399
+new flow,sn075,206.479589
+new flow,sn076,496.259147
+new flow,sn077,186.403236
+new flow,sn078,309.373065
+new flow,sn079,322.91732
+new flow,sn080,287.632282
+new flow,sn081,551.4338
+new flow,sn082,219.878399
+new flow,sn083,631.128168
+new flow,sn084,606.624224
+new flow,sn085,402.982332
+new flow,sn086,428.693684
+new flow,sn087,252.951092
+new flow,sn088,246.471615
+new flow,sn089,445.78015
+new flow,sn090,405.01951
+new flow,sn091,596.0618
+new flow,sn092,308.864602
+new flow,sn093,472.141335
+new flow,sn094,201.305932
+new flow,sn095,480.414948
+new flow,sn096,478.145906
+new flow,sn097,514.382459
+new flow,sn098,243.746127
+new flow,sn099,209.324564
+new flow,sn100,303.720563
+new flow,sn101,361.907678
+new flow,sn102,572.007839
+new flow,sn103,530.204914
+new flow,sn104,375.758885
+new flow,sn105,109.73671
+new flow,sn106,884.225157
+new flow,sn107,711.111447
+new flow,sn108,456.346011
+new flow,sn109,508.22663
+new flow,sn110,384.88302
+new flow,sn111,385.477501
+new flow,sn112,360.916214
+new flow,sn113,280.707404
+new flow,sn114,841.814479
+new flow,sn115,202.217872
+new flow,sn116,411.960309
+new flow,sn117,146.269743
+new flow,sn118,452.7375
+new flow,sn119,449.927013
+new flow,sn120,202.494089
+new flow,sn121,770.652635
+new flow,sn122,394.095233
+new flow,sn123,718.933071
+new flow,sn124,506.903486
+new flow,sn125,222.07588
+new flow,sn126,256.771166
+new flow,sn127,645.974703
+new flow,sn128,161.044061
+new flow,sn129,894.965461
+new flow,sn130,556.138921
+new flow,sn131,348.763885
+new flow,sn132,293.904146
+new flow,sn133,627.279225
+new flow,sn134,152.587662
+new flow,sn135,505.107864
+new flow,sn136,140.724245
+new flow,sn137,507.766272
+new flow,sn138,470.578137
+new flow,sn139,318.300864
+new flow,sn140,258.42156
+new flow,sn141,276.93974
+new flow,sn142,428.025919
+new flow,sn143,400.31855
+new flow,sn144,281.312331
+new flow,sn145,386.380808
+new flow,sn146,400.099498
+new flow,sn147,651.196786
+new flow,sn148,251.38158
+new flow,sn149,377.279976
+new flow,sn150,175.950937
+new flow,sn151,514.90081
+new flow,sn152,197.419207
+new flow,sn153,320.129183
+new flow,sn154,446.561634
+new flow,sn155,340.361608
+new flow,sn156,233.188574
+new flow,sn157,227.262496
+new flow,sn158,511.665008
+new flow,sn159,514.653258
+new flow,sn160,236.679237
+new flow,sn161,865.004593
+new flow,sn162,263.24943
+new flow,sn163,331.879738
+new flow,sn164,437.780263
+new flow,sn165,416.048354
+new flow,sn166,381.960625
+new flow,sn167,227.863655
+new flow,sn168,445.456684
+new flow,sn169,218.560391
+new flow,sn170,237.555858
+new flow,sn171,194.335681
+new flow,sn172,263.941606
+new flow,sn173,330.051798
+new flow,sn174,347.784071
+new flow,sn175,276.123078
+new flow,sn176,466.058327
+new flow,sn177,434.68477
+new flow,sn178,393.098391
+new flow,sn179,334.086279
+new flow,sn180,119.215734
+new flow,sn181,481.331315
+new flow,sn182,229.3452
+new flow,sn183,285.054373
+new flow,sn184,347.97445
+new flow,sn185,393.437834
+new flow,sn186,307.218549
+new flow,sn187,390.062337
+new flow,sn188,303.219421
+new flow,sn189,187.894968
+new flow,sn190,255.908412
+new flow,sn191,211.928786
+new flow,sn192,150.539699
+new flow,sn193,330.318884
+new flow,sn194,429.019033
+new flow,sn195,325.145593
+new flow,sn196,195.886699
+new flow,sn197,278.503467
+new flow,sn198,416.729561
+new flow,sn199,169.917768
+new flow,sn200,224.481367
+new flow,sn201,276.079574
+new flow,sn202,179.310614
+new flow,sn203,271.343944
+new flow,sn204,145.43011
+new flow,sn205,210.971632
+new flow,sn206,483.170632
+new flow,sn207,1366.631643
+new flow,sn208,289.502501
+new flow,sn209,526.647861
+new flow,sn210,208.785635
+new flow,sn211,306.846428
+new flow,sn212,333.860611
+new flow,sn213,281.512361
+new flow,sn214,453.772825
+new flow,sn215,474.999586
+new flow,sn216,341.132818
+new flow,sn217,229.255613
+new flow,sn218,280.94216
+new flow,sn219,328.691725
+new flow,sn220,264.807043
+new flow,sn221,356.962133
+new flow,sn222,342.098556
+new flow,sn223,383.889093
+new flow,sn224,303.448575
+new flow,sn225,448.335195
+new flow,sn226,691.386116
+new flow,sn227,260.781368
+new flow,sn228,497.036432
+new flow,sn229,243.838318
+new flow,sn230,344.636956
+new flow,sn231,146.371196
+new flow,sn232,366.717243
+new flow,sn233,185.835529
+new flow,sn234,165.2014
+new flow,sn235,313.847994
+new flow,sn236,821.926391
+new flow,sn237,250.469031
+new flow,sn238,219.315969
+new flow,sn239,434.568087
+new flow,sn240,470.758782
+new flow,sn241,145.811334
+new flow,sn242,607.093592
+new flow,sn243,226.017274
+new flow,sn244,132.55082
+new flow,sn245,341.331332
+new flow,sn246,419.205437
+new flow,sn247,283.079541
+new flow,sn248,338.61753
+new flow,sn249,759.165045
+new flow,sn250,269.251594
+new flow,sn251,390.507728
+new flow,sn252,513.308548
+new flow,sn253,278.131166
+new flow,sn254,256.530584
+new flow,sn255,250.990881
+new flow,sn256,262.401651
+new flow,sn257,242.168544
+new flow,sn258,339.794017
+new flow,sn259,170.547665
+new flow,sn260,554.824242
+new flow,sn261,460.692365
+new flow,sn262,209.275946
+new flow,sn263,353.101695
+new flow,sn264,296.007943
+new flow,sn265,494.188772
+new flow,sn266,333.76151
+new flow,sn267,297.16753
+new flow,sn268,533.45416
+new flow,sn269,253.856098
+new flow,sn270,333.20247
+new flow,sn271,601.294676
+new flow,sn272,197.236448
+new flow,sn273,256.471299
+new flow,sn274,300.705398
+new flow,sn275,1075.524662
+new flow,sn276,481.650277
+new flow,sn277,640.725265
+new flow,sn278,369.588104
+new flow,sn279,277.696379
+new flow,sn280,492.403197
+new flow,sn281,592.11337
+new flow,sn282,287.51528
+new flow,sn283,428.878047
+new flow,sn284,620.030518
+new flow,sn285,403.623168
+new flow,sn286,321.988794
+new flow,sn287,165.527408
+new flow,sn288,467.936073
+new flow,sn289,438.833065
+new flow,sn290,287.426848
+new flow,sn291,320.615329
+new flow,sn292,173.61752
+new flow,sn293,484.473289
+new flow,sn294,392.662763
+new flow,sn295,235.954563
+new flow,sn296,625.965951
+new flow,sn297,423.871209
+new flow,sn298,319.908622
+new flow,sn299,981.030568
+new flow,sn300,719.201257
+new flow,sn301,528.739554
+new flow,sn302,182.510536
+new flow,sn303,275.635799
+new flow,sn304,299.196887
+new flow,sn305,239.949502
+new flow,sn306,358.549722
+new flow,sn307,401.526424
+new flow,sn308,427.370229
+new flow,sn309,455.687749
+new flow,sn310,191.050738
+new flow,sn311,398.601319
+new flow,sn312,245.528375
+new flow,sn313,380.681737
+new flow,sn314,751.378762
+new flow,sn315,615.322344
+new flow,sn316,305.085354
+new flow,sn317,353.765135
+new flow,sn318,649.631554
+new flow,sn319,795.799804
+new flow,sn320,445.10432
+new flow,sn321,564.546502
+new flow,sn322,405.94406
+new flow,sn323,475.687636
+new flow,sn324,307.240714
+new flow,sn325,474.667855
+new flow,sn326,347.144862
+new flow,sn327,283.998892
+new flow,sn328,193.026007
+new flow,sn329,288.993639
+new flow,sn330,353.520945
+new flow,sn331,370.301923
+new flow,sn332,649.647697
+new flow,sn333,300.183035
+new flow,sn334,365.561739
+new flow,sn335,253.052872
+new flow,sn336,616.840292
+new flow,sn337,899.778441
+new flow,sn338,583.671175
+new flow,sn339,339.129986
+new flow,sn340,301.206442
+new flow,sn341,276.294358
+new flow,sn342,258.426985
+new flow,sn343,429.93579
+new flow,sn344,220.759439
+new flow,sn345,364.888207
+new flow,sn346,301.771499
+new flow,sn347,601.107813
+new flow,sn348,312.315983
+new flow,sn349,419.240154
+new flow,sn350,479.614889
+new flow,sn351,185.961044
+new flow,sn352,155.940526
+new flow,sn353,251.608356
+new flow,sn354,373.851263
+new flow,sn355,243.802649
+new flow,sn356,625.405067
+new flow,sn357,221.8734
+new flow,sn358,341.628908
+new flow,sn359,418.924152
+new flow,sn360,197.35706
+new flow,sn361,229.98075
+new flow,sn362,236.688137
+new flow,sn363,873.905164
+new flow,sn364,447.683111
+new flow,sn365,198.003889
+new flow,sn366,358.815603
+new flow,sn367,561.889592
+new flow,sn368,142.438722
+new flow,sn369,715.185837
+new flow,sn370,220.807508
+new flow,sn371,391.896641
+new flow,sn372,223.741766
+new flow,sn373,302.036391
+new flow,sn374,202.63891
+new flow,sn375,146.759887
+new flow,sn376,288.396348
+new flow,sn377,443.427601
+new flow,sn378,315.200426
+new flow,sn379,782.657774
+new flow,sn380,391.448338
+new flow,sn381,440.918731
+new flow,sn382,583.853247
+new flow,sn383,504.031212
+new flow,sn384,263.329731
+new flow,sn385,351.961653
+new flow,sn386,228.607515
+new flow,sn387,443.251951
+new flow,sn388,271.44621
+new flow,sn389,245.385062
+new flow,sn390,493.591357
+new flow,sn391,251.440411
+new flow,sn392,533.198925
+new flow,sn393,288.35769
+new flow,sn394,514.608043
+new flow,sn395,370.079201
+new flow,sn396,173.97433
+new flow,sn397,223.287078
+new flow,sn398,429.978658
+new flow,sn399,323.574929

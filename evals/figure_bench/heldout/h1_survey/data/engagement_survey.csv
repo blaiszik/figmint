@@ -1,0 +1,36 @@
+department,response,count
+Engineering,very dissatisfied,5
+Engineering,dissatisfied,9
+Engineering,neutral,6
+Engineering,satisfied,27
+Engineering,very satisfied,18
+Sales,very dissatisfied,28
+Sales,dissatisfied,24
+Sales,neutral,15
+Sales,satisfied,39
+Sales,very satisfied,40
+Support,very dissatisfied,25
+Support,dissatisfied,19
+Support,neutral,5
+Support,satisfied,25
+Support,very satisfied,10
+Finance,very dissatisfied,14
+Finance,dissatisfied,15
+Finance,neutral,5
+Finance,satisfied,42
+Finance,very satisfied,44
+Marketing,very dissatisfied,24
+Marketing,dissatisfied,16
+Marketing,neutral,7
+Marketing,satisfied,48
+Marketing,very satisfied,32
+Operations,very dissatisfied,11
+Operations,dissatisfied,11
+Operations,neutral,2
+Operations,satisfied,17
+Operations,very satisfied,12
+Legal,very dissatisfied,6
+Legal,dissatisfied,7
+Legal,neutral,4
+Legal,satisfied,31
+Legal,very satisfied,13

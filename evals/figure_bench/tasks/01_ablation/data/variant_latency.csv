@@ -1,0 +1,6 @@
+variant,p50_latency_ms,gpu_cost_per_1k_usd
+full model,412.0,0.865
+no retrieval,188.0,0.395
+no reranker,291.0,0.611
+no fine-tuning,405.0,0.85
+smaller encoder,352.0,0.739

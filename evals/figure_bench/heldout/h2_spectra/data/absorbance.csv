@@ -1,0 +1,184 @@
+sample,wavelength_nm,absorbance
+reference,400,0.043602
+reference,405,0.046831
+reference,410,0.031331
+reference,415,0.035599
+reference,420,0.033589
+reference,425,0.040076
+reference,430,0.04398
+reference,435,0.053694
+reference,440,0.046838
+reference,445,0.039013
+reference,450,0.037301
+reference,455,0.043564
+reference,460,0.049389
+reference,465,0.061212
+reference,470,0.076999
+reference,475,0.113563
+reference,480,0.163894
+reference,485,0.238516
+reference,490,0.321165
+reference,495,0.445289
+reference,500,0.585063
+reference,505,0.713314
+reference,510,0.827662
+reference,515,0.913159
+reference,520,0.954141
+reference,525,0.910564
+reference,530,0.832698
+reference,535,0.726393
+reference,540,0.576335
+reference,545,0.45419
+reference,550,0.328976
+reference,555,0.227698
+reference,560,0.158
+reference,565,0.109227
+reference,570,0.08718
+reference,575,0.066568
+reference,580,0.059043
+reference,585,0.040872
+reference,590,0.039217
+reference,595,0.042994
+reference,600,0.037467
+reference,605,0.037401
+reference,610,0.042318
+reference,615,0.035781
+reference,620,0.04283
+reference,625,0.03519
+reference,630,0.050534
+reference,635,0.041071
+reference,640,0.039742
+reference,645,0.03765
+reference,650,0.045823
+reference,655,0.033982
+reference,660,0.037789
+reference,665,0.038675
+reference,670,0.041407
+reference,675,0.038511
+reference,680,0.042489
+reference,685,0.046547
+reference,690,0.045252
+reference,695,0.041972
+reference,700,0.043771
+annealed 200 °C,400,0.034433
+annealed 200 °C,405,0.032067
+annealed 200 °C,410,0.033158
+annealed 200 °C,415,0.038279
+annealed 200 °C,420,0.04182
+annealed 200 °C,425,0.045331
+annealed 200 °C,430,0.022774
+annealed 200 °C,435,0.041076
+annealed 200 °C,440,0.038837
+annealed 200 °C,445,0.040062
+annealed 200 °C,450,0.04502
+annealed 200 °C,455,0.043413
+annealed 200 °C,460,0.042655
+annealed 200 °C,465,0.039277
+annealed 200 °C,470,0.067004
+annealed 200 °C,475,0.080159
+annealed 200 °C,480,0.111397
+annealed 200 °C,485,0.165411
+annealed 200 °C,490,0.24251
+annealed 200 °C,495,0.333831
+annealed 200 °C,500,0.456608
+annealed 200 °C,505,0.568527
+annealed 200 °C,510,0.691399
+annealed 200 °C,515,0.775361
+annealed 200 °C,520,0.831316
+annealed 200 °C,525,0.833856
+annealed 200 °C,530,0.798111
+annealed 200 °C,535,0.700631
+annealed 200 °C,540,0.600509
+annealed 200 °C,545,0.471347
+annealed 200 °C,550,0.346795
+annealed 200 °C,555,0.258538
+annealed 200 °C,560,0.177423
+annealed 200 °C,565,0.138482
+annealed 200 °C,570,0.088034
+annealed 200 °C,575,0.067588
+annealed 200 °C,580,0.041484
+annealed 200 °C,585,0.042295
+annealed 200 °C,590,0.043805
+annealed 200 °C,595,0.041815
+annealed 200 °C,600,0.035124
+annealed 200 °C,605,0.045031
+annealed 200 °C,610,0.032958
+annealed 200 °C,615,0.032105
+annealed 200 °C,620,0.035799
+annealed 200 °C,625,0.037323
+annealed 200 °C,630,0.029316
+annealed 200 °C,635,0.039835
+annealed 200 °C,640,0.038287
+annealed 200 °C,645,0.047752
+annealed 200 °C,650,0.048699
+annealed 200 °C,655,0.049043
+annealed 200 °C,660,0.039772
+annealed 200 °C,665,0.043794
+annealed 200 °C,670,0.044591
+annealed 200 °C,675,0.037726
+annealed 200 °C,680,0.043206
+annealed 200 °C,685,0.051608
+annealed 200 °C,690,0.048343
+annealed 200 °C,695,0.054611
+annealed 200 °C,700,0.037281
+annealed 400 °C,400,0.035532
+annealed 400 °C,405,0.039401
+annealed 400 °C,410,0.034101
+annealed 400 °C,415,0.044262
+annealed 400 °C,420,0.03658
+annealed 400 °C,425,0.048653
+annealed 400 °C,430,0.038781
+annealed 400 °C,435,0.033466
+annealed 400 °C,440,0.040745
+annealed 400 °C,445,0.04044
+annealed 400 °C,450,0.035054
+annealed 400 °C,455,0.04053
+annealed 400 °C,460,0.039425
+annealed 400 °C,465,0.039643
+annealed 400 °C,470,0.037406
+annealed 400 °C,475,0.054587
+annealed 400 °C,480,0.05681
+annealed 400 °C,485,0.040424
+annealed 400 °C,490,0.067779
+annealed 400 °C,495,0.082498
+annealed 400 °C,500,0.143972
+annealed 400 °C,505,0.202245
+annealed 400 °C,510,0.261909
+annealed 400 °C,515,0.369327
+annealed 400 °C,520,0.498891
+annealed 400 °C,525,0.635674
+annealed 400 °C,530,0.719775
+annealed 400 °C,535,0.797803
+annealed 400 °C,540,0.829329
+annealed 400 °C,545,0.830277
+annealed 400 °C,550,0.760195
+annealed 400 °C,555,0.652998
+annealed 400 °C,560,0.537284
+annealed 400 °C,565,0.417359
+annealed 400 °C,570,0.317457
+annealed 400 °C,575,0.232404
+annealed 400 °C,580,0.151273
+annealed 400 °C,585,0.103419
+annealed 400 °C,590,0.082116
+annealed 400 °C,595,0.075458
+annealed 400 °C,600,0.039081
+annealed 400 °C,605,0.048097
+annealed 400 °C,610,0.045446
+annealed 400 °C,615,0.038716
+annealed 400 °C,620,0.033552
+annealed 400 °C,625,0.028703
+annealed 400 °C,630,0.038985
+annealed 400 °C,635,0.036809
+annealed 400 °C,640,0.03795
+annealed 400 °C,645,0.049873
+annealed 400 °C,650,0.043119
+annealed 400 °C,655,0.038049
+annealed 400 °C,660,0.043577
+annealed 400 °C,665,0.038506
+annealed 400 °C,670,0.045365
+annealed 400 °C,675,0.042465
+annealed 400 °C,680,0.036707
+annealed 400 °C,685,0.040768
+annealed 400 °C,690,0.035017
+annealed 400 °C,695,0.037352
+annealed 400 °C,700,0.044809

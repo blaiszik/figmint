@@ -1,7 +1,8 @@
 # figmint — handoff
 
 Written 2026-11-24 at the end of the review-and-fix pass, and updated the same
-day after a second pass on agent usability (section 4b). Self-contained: you do
+day after a second pass on agent usability (section 4b) and a third pass that
+built a timed benchmark and ran three fix cycles against it (section 4c). Self-contained: you do
 not need the previous conversations.
 
 ## 1. What this project is for
@@ -22,7 +23,7 @@ not need the previous conversations.
 ## 2. Current state
 
 - Repository: `https://github.com/blaiszik/figmint`, branch `main`, MIT. The
-  owner asked for both passes to be committed and pushed; ask before committing
+  owner asked for all three passes to be committed and pushed; ask before committing
   or pushing in a later pass unless told.
 - Package `figmint` 0.2.0, Python >= 3.10, `uv`-managed `.venv`.
 - **The name `figmint` is taken on PyPI.** The owner will choose a distribution
@@ -226,12 +227,85 @@ Timed one-shot figures after the fixes: about 10 s from a blank script to a
 clean render (`ok: true`, no issues) for a two-panel figure on fresh random
 data, with no re-render.
 
+## 4c. Third pass: figure-bench and three fix cycles
+
+`evals/figure_bench/` (see its README) is a benchmark of how fast an agent turns a
+conversation plus data into a clean chat figure. Each task is a mock agent
+thread (`context.md`) and seeded data; a fresh agent sees only its task folder
+and `SKILL.md`. `bench.py start|submit|grade|recheck` times it from `start` to
+the first passing `submit` (max 3). Checks: figmint's own (`ok`, **no
+warnings**, text >= 11 px at 700 px, chat width, a number in the takeaway,
+titled panels, no `fm.custom`, embedded spec, source, alt text) plus an
+**independent layout audit** that rebuilds the figure from its spec and inspects
+every drawn text (no overlaps, no text crossed by a line, no "%%", repeated
+words, ASCII minus or "nan"). `grade` also scores the takeaway's number against
+a hidden key (`answers.json`; agents are told not to read it). Ten core tasks
+(`tasks/`) and five **held-out** tasks (`heldout/`, added after cycle 1 and never
+used to tune anything). `make_data.py` regenerates everything deterministically.
+
+Results (fresh agents each run; `runs/*/results.md`; `progress.png` is drawn by
+`make_progress.py` with figmint):
+
+| Run | What changed before it | Passed | First try | Resubmissions | Mean / median time |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| r1 | first, easy task set (not comparable) | 10/10 | 10 | 0 | — / 32.5 s |
+| r2 | tasks and checks hardened | 9/10 | 6 | 7 | 30.4 / 22.4 s |
+| r3 | cycle 1 | 10/10 | 10 | 0 | 19.7 / 18.2 s |
+| r4 | cycle 2 (+5 held-out) | 15/15 | 14 | 1 | core 20.4 / 19.8, held-out 21.3 / 24.2 s |
+| r5 | cycle 3 | 15/15 | 15 | 0 | core 20.9 / 18.8, held-out 20.7 / 17.7 s |
+
+Every graded takeaway matched its answer key from r3 on. Most of the gain came in
+cycle 1; the core tasks then plateaued at about 20 s, which is mostly the agent
+reading SKILL.md and the data.
+
+What the cycles changed (Opus subagents from written briefs, verified here;
+tests 467 → 515):
+
+- Cycle 1: `fmt`+`unit` no longer doubles a unit ("%%"); sign hyphens in caller
+  text are drawn as "−"; `relate(unit=)`; `x_unit=` and stricter bracket parsing;
+  a crowded reference label moves to the end-label column; compare value labels
+  are nudged off reference lines (`value_label_on_reference`); `too_tall`
+  compresses panels first and then names the tallest panel and a concrete
+  layout; `change` wraps and drops left labels in narrow columns; `share` stops
+  "Share of Share of", states each highlighted part, wraps long names; grouped
+  `relate` leads with per-group r and gives slope 95% CIs (`_t975`); crossings
+  within noise are ignored; spikes stated against the median; matrix column
+  means and an outlier cell; visible grey replicates; every size-limit error
+  names its limit. SKILL.md: "stop at Publication Figures", a Limits and sizes
+  block with measured heights, recipes.
+- Cycle 2: alt text covers every group/series; `unit_is_long` warning; one
+  "usual level" for an event-marked spike; unsigned ratios on log compare;
+  unsigned spreads; reciprocal slope units ("MPa·µm½"); fold-change units.
+  Recipes rewritten as domain-neutral patterns (r3 agents said recipes "matched
+  the task exactly", i.e. the docs were leaking the benchmark).
+- Cycle 3: compare intervals stated against `reference=` and against each
+  other (which neighbours overlap); `compare(n=)`; signed compare facts against
+  zero; no ratio facts on `zero=False` dot plots; log–log power-law exponents
+  with CI; one fact summarising grey context series; units on every value in
+  facts. SKILL.md step 4 lists what each form's facts compute and says not to
+  refit or import scipy for them.
+
+Left over from the runs (not fixed):
+- Agents still recompute what facts already state (3 of 15 in r5): the step-4
+  list is not read closely. Ideas: print the facts list in `ExplainError`-free
+  form at the top of SKILL.md, or have agents read `fig.summary()` before saving.
+- No check compares numbers in the takeaway and titles with the facts; r5/09
+  shipped "22 points" where the facts said 18.5. A `number_not_in_facts` warning
+  is the strongest next idea.
+- Agents stop at the first pass and often never open the PNG; titles overclaim
+  slightly ("clearly hurts" with overlapping seeds).
+- Minor: no sub-grid peak position fact; fraction vs percent guidance; whether
+  `x_unit` applies to date x; a recipe for compare + a two-series trend within
+  the 4-colour limit; scipy is not available in agent environments.
+- The benchmark runs with a pandas-equipped venv outside the repo; give it its
+  own environment before relying on it. `runs/` keep only `results.md` in git.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
 
-- `pytest`: 467 passed (440 after the first pass). `ruff check src tests
-  gallery evals`: clean.
+- `pytest`: 515 passed (440 after the first pass, 467 after the second).
+  `ruff check src tests gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host
@@ -255,9 +329,9 @@ Not verified:
   preflight change is described in section 4. The repair eval was not re-run.
 - No reader study: whether people read these figures faster or more correctly
   than hand-made plots is untested (section 6, item 2).
-- The committed `gallery/output/explain*` renders predate the second pass: the
-  code that draws them changed (date ticks, facts). Regenerate them only with
-  the owner's OK (they overwrite tracked files).
+- The committed `gallery/output/explain*` renders predate the second and third
+  passes: the code that draws them changed (date ticks, labels, facts).
+  Regenerate them only with the owner's OK (they overwrite tracked files).
 
 Known limits:
 
@@ -295,7 +369,9 @@ Known limits:
 5. Split `explainer.py` (forms, formatting and facts, layout) before it grows
    further; it is about 7,000 lines after the second pass.
 6. The visual leftovers in section 5, known limit 8, then regenerate the
-   `explain*` gallery (with the owner's OK) and re-run a blind test.
+   `explain*` gallery (with the owner's OK).
+7. figure-bench: a `number_not_in_facts` warning (section 4c), more held-out
+   tasks (the core set has plateaued at ~20 s), and its own environment.
 
 ## 7. Decisions
 

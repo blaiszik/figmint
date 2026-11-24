@@ -1,0 +1,122 @@
+{
+  "takeaway": "Three fix cycles cut the average time to a clean chat figure by a third, from 30 s to 21 s, and ended resubmissions; held-out tasks take the same 21 s",
+  "subtitle": "figure-bench: 10 benchmark tasks per run, plus 5 held-out tasks from run 4; fresh agents see only SKILL.md",
+  "source": "evals/figure_bench/runs/r2–r5/results.json",
+  "note": "Each dot is one task: time from start to its passing submission (or to its last one, for the one task that failed before the fixes); lines are means. Run 1 (median 32.5 s) used an easier task set and is not comparable.",
+  "colors": {
+    "benchmark tasks": "blue",
+    "held-out tasks": "amber"
+  },
+  "layout": [
+    [
+      "a",
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "trend",
+      "x": [
+        "before fixes",
+        "cycle 1",
+        "cycle 2",
+        "cycle 3"
+      ],
+      "highlight": [
+        "benchmark tasks",
+        "held-out tasks"
+      ],
+      "points": {
+        "benchmark tasks": [
+          [
+            17.5,
+            19.8,
+            19.7,
+            22.0,
+            36.4,
+            22.4,
+            48.0,
+            53.8,
+            40.1,
+            24.2
+          ],
+          [
+            17.9,
+            14.8,
+            17.1,
+            17.7,
+            22.3,
+            20.9,
+            18.5,
+            22.7,
+            27.0,
+            17.9
+          ],
+          [
+            18.6,
+            16.7,
+            14.6,
+            29.3,
+            19.6,
+            21.8,
+            19.3,
+            23.3,
+            21.1,
+            20.0
+          ],
+          [
+            18.5,
+            17.8,
+            15.8,
+            18.6,
+            28.5,
+            20.3,
+            14.7,
+            30.2,
+            26.0,
+            18.9
+          ]
+        ],
+        "held-out tasks": [
+          [],
+          [],
+          [
+            25.7,
+            19.6,
+            25.3,
+            24.2,
+            11.9
+          ],
+          [
+            17.7,
+            20.9,
+            31.9,
+            15.3,
+            17.6
+          ]
+        ]
+      },
+      "title": "Most of the gain came in cycle 1; held-out tasks, added later, match it",
+      "label": "Time to a passing figure",
+      "unit": "s"
+    },
+    {
+      "kind": "compare",
+      "values": {
+        "before fixes": 7.0,
+        "cycle 1": 0.0,
+        "cycle 2": 1.0,
+        "cycle 3": 0.0
+      },
+      "highlight": [
+        "before fixes"
+      ],
+      "sort": false,
+      "zero": true,
+      "title": "Seven resubmissions before the fixes, none after cycle 3",
+      "label": "Submissions beyond the first",
+      "unit": ""
+    }
+  ]
+}

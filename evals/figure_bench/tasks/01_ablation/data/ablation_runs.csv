@@ -1,0 +1,26 @@
+variant,seed,accuracy_pct
+full model,0,81.688863
+full model,1,80.568837
+full model,2,82.942972
+full model,3,83.069865
+full model,4,82.121282
+no retrieval,0,74.430589
+no retrieval,1,75.639355
+no retrieval,2,75.054718
+no retrieval,3,74.736875
+no retrieval,4,74.718974
+no reranker,0,80.122789
+no reranker,1,81.767615
+no reranker,2,79.416383
+no reranker,3,80.601117
+no reranker,4,80.506436
+no fine-tuning,0,76.044333
+no fine-tuning,1,77.500695
+no fine-tuning,2,79.07911
+no fine-tuning,3,77.293885
+no fine-tuning,4,76.513157
+smaller encoder,0,81.618052
+smaller encoder,1,82.468532
+smaller encoder,2,81.873896
+smaller encoder,3,81.697601
+smaller encoder,4,80.4317

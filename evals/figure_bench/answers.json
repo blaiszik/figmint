@@ -1,0 +1,141 @@
+{
+  "01_ablation": {
+    "what": "accuracy cost (points) of dropping the reranker or the bigger encoder",
+    "accept": [
+      1.5954955235879993,
+      0.46040753614649077,
+      80.48286814553784
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 0.3
+  },
+  "02_ab_latency": {
+    "what": "median latency saving (ms or %), or the two medians",
+    "accept": [
+      83.49058755227344,
+      19.680138682262186,
+      340.74721330999364,
+      424.2378008622671
+    ],
+    "rel_tol": 0.06,
+    "abs_tol": 0.0
+  },
+  "03_dose_response": {
+    "what": "IC50 of the most potent compound (nM)",
+    "accept": [
+      11.596531630278427,
+      12.0
+    ],
+    "rel_tol": 0.3,
+    "abs_tol": 0.0
+  },
+  "04_battery_fade": {
+    "what": "cycle at which the baseline reaches 80% retention",
+    "accept": [
+      457.79489488613245
+    ],
+    "rel_tol": 0.08,
+    "abs_tol": 0.0
+  },
+  "05_retrofit": {
+    "what": "Lab annex median daily drop after retrofit (%), or kWh saved per day",
+    "accept": [
+      28.995051479433563,
+      1491.422672323176
+    ],
+    "rel_tol": 0.12,
+    "abs_tol": 0.0
+  },
+  "06_energy_mix": {
+    "what": "renewable share of generation without biomass (%)",
+    "accept": [
+      33.700607902735555
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 1.0
+  },
+  "07_gene_change": {
+    "what": "CDKN1A fold change, or the p53-target / proliferation group medians (\u00d7)",
+    "accept": [
+      7.016664125537962,
+      2.457456446487037,
+      0.5499029214965452
+    ],
+    "rel_tol": 0.12,
+    "abs_tol": 0.0
+  },
+  "08_hall_petch": {
+    "what": "Cu-Zn Hall-Petch slope (MPa\u00b7\u00b5m^\u00bd) or its r",
+    "accept": [
+      327.40679467415623,
+      0.9706079874171769,
+      0.9416575688275721
+    ],
+    "rel_tol": 0.06,
+    "abs_tol": 0.0
+  },
+  "09_eval_matrix": {
+    "what": "Swahili \u00d7 math now (%), its gain over the previous checkpoint, or before",
+    "accept": [
+      45.4,
+      16.799999999999997,
+      28.6
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 1.0
+  },
+  "10_incident": {
+    "what": "payments peak error rate, or its ratio to the usual rate",
+    "accept": [
+      0.02086924599021325,
+      271.2737890561069,
+      2.0869245990213248
+    ],
+    "rel_tol": 0.2,
+    "abs_tol": 0.0
+  },
+  "h1_survey": {
+    "what": "Support's share satisfied or very satisfied (%)",
+    "accept": [
+      41.666666666666664
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 2.0
+  },
+  "h2_spectra": {
+    "what": "red shift of the 400 \u00b0C sample's peak (nm), or its peak position",
+    "accept": [
+      25.0,
+      545.0
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 5.0
+  },
+  "h3_wait_times": {
+    "what": "South\u2212North median wait gap at triage level 3 (min), or the two medians",
+    "accept": [
+      10.289472297982826,
+      49.28637541488713,
+      38.996903116904306
+    ],
+    "rel_tol": 0.15,
+    "abs_tol": 0.0
+  },
+  "h4_scaling": {
+    "what": "mixture-of-experts scaling exponent (log-log slope)",
+    "accept": [
+      -0.0625001998407136,
+      0.0625001998407136
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 0.008
+  },
+  "h5_budget": {
+    "what": "Libraries' cut (%)",
+    "accept": [
+      -18.048780487804883
+    ],
+    "rel_tol": 0.0,
+    "abs_tol": 1.0
+  }
+}

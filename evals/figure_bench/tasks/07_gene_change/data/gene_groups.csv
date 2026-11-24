@@ -1,0 +1,25 @@
+gene,group
+CDKN1A,p53 target
+MDM2,p53 target
+GADD45A,p53 target
+BAX,p53 target
+TP53I3,p53 target
+SESN1,p53 target
+MYC,proliferation
+CCND1,proliferation
+E2F1,proliferation
+MKI67,proliferation
+CDK1,proliferation
+CCNB1,proliferation
+GAPDH,housekeeping
+ACTB,housekeeping
+TBP,housekeeping
+HPRT1,housekeeping
+TP53,other
+VEGFA,other
+HIF1A,other
+STAT3,other
+NFKB1,other
+EGFR,other
+SOX2,other
+KRAS,other

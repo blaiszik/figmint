@@ -1,0 +1,205 @@
+electrolyte,cell,cycle,retention_pct
+baseline,BL-1,0,99.815182
+baseline,BL-1,50,97.659318
+baseline,BL-1,100,95.373787
+baseline,BL-1,150,92.839248
+baseline,BL-1,200,90.44372
+baseline,BL-1,250,88.299242
+baseline,BL-1,300,86.433885
+baseline,BL-1,350,83.454886
+baseline,BL-1,400,82.310161
+baseline,BL-1,450,79.636615
+baseline,BL-1,500,77.730095
+baseline,BL-1,550,75.732694
+baseline,BL-1,600,73.786173
+baseline,BL-1,650,72.097137
+baseline,BL-1,700,70.514794
+baseline,BL-1,750,68.751868
+baseline,BL-1,800,67.047703
+baseline,BL-2,0,100.248881
+baseline,BL-2,50,97.284875
+baseline,BL-2,100,95.392496
+baseline,BL-2,150,93.059852
+baseline,BL-2,200,90.981269
+baseline,BL-2,250,88.921901
+baseline,BL-2,300,85.79282
+baseline,BL-2,350,84.343806
+baseline,BL-2,400,82.290626
+baseline,BL-2,450,80.125169
+baseline,BL-2,500,77.878197
+baseline,BL-2,550,76.854112
+baseline,BL-2,600,75.062841
+baseline,BL-2,650,73.134233
+baseline,BL-2,700,71.253423
+baseline,BL-2,750,69.377257
+baseline,BL-2,800,67.866571
+baseline,BL-3,0,99.06708
+baseline,BL-3,50,97.806258
+baseline,BL-3,100,95.544758
+baseline,BL-3,150,92.823574
+baseline,BL-3,200,90.637429
+baseline,BL-3,250,89.182914
+baseline,BL-3,300,85.995462
+baseline,BL-3,350,83.977338
+baseline,BL-3,400,82.153124
+baseline,BL-3,450,80.18127
+baseline,BL-3,500,78.352526
+baseline,BL-3,550,76.403063
+baseline,BL-3,600,74.827071
+baseline,BL-3,650,72.643271
+baseline,BL-3,700,70.732222
+baseline,BL-3,750,69.598971
+baseline,BL-3,800,67.659188
+baseline,BL-4,0,100.255822
+baseline,BL-4,50,97.848527
+baseline,BL-4,100,95.547876
+baseline,BL-4,150,92.965213
+baseline,BL-4,200,90.886975
+baseline,BL-4,250,88.875898
+baseline,BL-4,300,87.308331
+baseline,BL-4,350,84.244228
+baseline,BL-4,400,83.15842
+baseline,BL-4,450,81.234785
+baseline,BL-4,500,79.661826
+baseline,BL-4,550,77.227537
+baseline,BL-4,600,75.290048
+baseline,BL-4,650,73.427557
+baseline,BL-4,700,71.969018
+baseline,BL-4,750,70.668922
+baseline,BL-4,800,68.396727
+additive FEC,FEC-1,0,100.044824
+additive FEC,FEC-1,50,98.745011
+additive FEC,FEC-1,100,96.906654
+additive FEC,FEC-1,150,95.344527
+additive FEC,FEC-1,200,93.578444
+additive FEC,FEC-1,250,92.062322
+additive FEC,FEC-1,300,90.743877
+additive FEC,FEC-1,350,89.046312
+additive FEC,FEC-1,400,88.203872
+additive FEC,FEC-1,450,86.351279
+additive FEC,FEC-1,500,85.009843
+additive FEC,FEC-1,550,83.678525
+additive FEC,FEC-1,600,82.87009
+additive FEC,FEC-1,650,81.369595
+additive FEC,FEC-1,700,80.319948
+additive FEC,FEC-1,750,78.465462
+additive FEC,FEC-1,800,77.214524
+additive FEC,FEC-2,0,100.010433
+additive FEC,FEC-2,50,98.840398
+additive FEC,FEC-2,100,96.882816
+additive FEC,FEC-2,150,94.988298
+additive FEC,FEC-2,200,93.462877
+additive FEC,FEC-2,250,91.64325
+additive FEC,FEC-2,300,90.378032
+additive FEC,FEC-2,350,89.242177
+additive FEC,FEC-2,400,87.507153
+additive FEC,FEC-2,450,86.007077
+additive FEC,FEC-2,500,84.731431
+additive FEC,FEC-2,550,83.585607
+additive FEC,FEC-2,600,82.048936
+additive FEC,FEC-2,650,80.809654
+additive FEC,FEC-2,700,79.790657
+additive FEC,FEC-2,750,78.154993
+additive FEC,FEC-2,800,76.684075
+additive FEC,FEC-3,0,100.222931
+additive FEC,FEC-3,50,98.862293
+additive FEC,FEC-3,100,96.67259
+additive FEC,FEC-3,150,95.175538
+additive FEC,FEC-3,200,93.639789
+additive FEC,FEC-3,250,92.154478
+additive FEC,FEC-3,300,90.661279
+additive FEC,FEC-3,350,89.012995
+additive FEC,FEC-3,400,88.277005
+additive FEC,FEC-3,450,86.405856
+additive FEC,FEC-3,500,84.590869
+additive FEC,FEC-3,550,82.934771
+additive FEC,FEC-3,600,81.952518
+additive FEC,FEC-3,650,80.561995
+additive FEC,FEC-3,700,78.858567
+additive FEC,FEC-3,750,78.424762
+additive FEC,FEC-3,800,77.083505
+additive FEC,FEC-4,0,100.01211
+additive FEC,FEC-4,50,99.025118
+additive FEC,FEC-4,100,96.394802
+additive FEC,FEC-4,150,94.849666
+additive FEC,FEC-4,200,93.455251
+additive FEC,FEC-4,250,91.946607
+additive FEC,FEC-4,300,90.556702
+additive FEC,FEC-4,350,89.044634
+additive FEC,FEC-4,400,87.771689
+additive FEC,FEC-4,450,86.380289
+additive FEC,FEC-4,500,84.690279
+additive FEC,FEC-4,550,83.915039
+additive FEC,FEC-4,600,82.713018
+additive FEC,FEC-4,650,81.195855
+additive FEC,FEC-4,700,80.022903
+additive FEC,FEC-4,750,78.80415
+additive FEC,FEC-4,800,77.688348
+additive VC,VC-1,0,99.898157
+additive VC,VC-1,50,97.865456
+additive VC,VC-1,100,96.299314
+additive VC,VC-1,150,95.532957
+additive VC,VC-1,200,93.376754
+additive VC,VC-1,250,91.463187
+additive VC,VC-1,300,90.248343
+additive VC,VC-1,350,88.141213
+additive VC,VC-1,400,86.745071
+additive VC,VC-1,450,86.072639
+additive VC,VC-1,500,83.551355
+additive VC,VC-1,550,82.332394
+additive VC,VC-1,600,80.896492
+additive VC,VC-1,650,79.464992
+additive VC,VC-1,700,77.808172
+additive VC,VC-1,750,77.106665
+additive VC,VC-1,800,75.128032
+additive VC,VC-2,0,100.095105
+additive VC,VC-2,50,97.957187
+additive VC,VC-2,100,96.402251
+additive VC,VC-2,150,94.004325
+additive VC,VC-2,200,92.938561
+additive VC,VC-2,250,90.73381
+additive VC,VC-2,300,89.481539
+additive VC,VC-2,350,87.816796
+additive VC,VC-2,400,86.829901
+additive VC,VC-2,450,84.788812
+additive VC,VC-2,500,83.516986
+additive VC,VC-2,550,82.059573
+additive VC,VC-2,600,80.340679
+additive VC,VC-2,650,78.741364
+additive VC,VC-2,700,77.435203
+additive VC,VC-2,750,75.746322
+additive VC,VC-2,800,75.067587
+additive VC,VC-3,0,100.304705
+additive VC,VC-3,50,97.896912
+additive VC,VC-3,100,96.669664
+additive VC,VC-3,150,94.962073
+additive VC,VC-3,200,93.47294
+additive VC,VC-3,250,75.274295
+additive VC,VC-3,300,60.221879
+additive VC,VC-3,350,49.019824
+additive VC,VC-3,400,39.43939
+additive VC,VC-3,450,31.452551
+additive VC,VC-3,500,25.457885
+additive VC,VC-3,550,20.513949
+additive VC,VC-3,600,16.556503
+additive VC,VC-3,650,13.262985
+additive VC,VC-3,700,10.645325
+additive VC,VC-3,750,8.639868
+additive VC,VC-3,800,6.942621
+additive VC,VC-4,0,100.093201
+additive VC,VC-4,50,98.167477
+additive VC,VC-4,100,96.356028
+additive VC,VC-4,150,94.049745
+additive VC,VC-4,200,92.993881
+additive VC,VC-4,250,91.017304
+additive VC,VC-4,300,89.291805
+additive VC,VC-4,350,87.682094
+additive VC,VC-4,400,85.572409
+additive VC,VC-4,450,84.028997
+additive VC,VC-4,500,82.948572
+additive VC,VC-4,550,81.185721
+additive VC,VC-4,600,79.25878
+additive VC,VC-4,650,78.108957
+additive VC,VC-4,700,76.026633
+additive VC,VC-4,750,74.63205
+additive VC,VC-4,800,74.373806
