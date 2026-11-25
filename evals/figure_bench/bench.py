@@ -2,8 +2,8 @@
 
 Each task is a mock agent thread (tasks/NN_name/context.md) plus data
 (tasks/NN_name/data/). The agent under test sees only its work folder and
-figmint's SKILL.md, writes a script that calls ``fm.explain(...).save(...)``,
-and submits it. Grading is on time and on figmint's own automated checks.
+mintfig's SKILL.md, writes a script that calls ``mint.explain(...).save(...)``,
+and submits it. Grading is on time and on mintfig's own automated checks.
 
     python bench.py list
     python bench.py start  01_ablation --run runs/r1     # copies the task, starts the clock
@@ -16,7 +16,7 @@ submission passes every check. ``grade`` also scores the takeaway's number
 against a hidden answer key; ``submit`` never reveals that score.
 
 Submissions run with the Python that runs this file (``--python`` to change
-it); it needs figmint, and pandas if the agent uses it.
+it); it needs mintfig, and pandas if the agent uses it.
 """
 
 from __future__ import annotations
@@ -34,16 +34,16 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 TASKS = HERE / "tasks"
-HELDOUT = HERE / "heldout"  # held-out tasks: never used to tune figmint or SKILL.md
+HELDOUT = HERE / "heldout"  # held-out tasks: never used to tune mintfig or SKILL.md
 ANSWERS = HERE / "answers.json"
 MAX_ATTEMPTS = 3
 TIMEOUT_S = 120
-MIN_TEXT_PX = 11.0  # figmint's floor at the 700 px chat width
+MIN_TEXT_PX = 11.0  # mintfig's floor at the 700 px chat width
 CHAT_WIDTH_PX = 700
 
 _CAPTURE = r"""
 import json, runpy, sys
-import figmint.explainer as ex
+import mintfig.explainer as ex
 calls = []
 _save = ex.Explanation.save
 def _capturing_save(self, *a, **k):
@@ -60,17 +60,17 @@ finally:
 
 AGENT_RULES = """\
 Rules for this task:
-- Read context.md and the files in data/ in this folder, and figmint's SKILL.md:
+- Read context.md and the files in data/ in this folder, and mintfig's SKILL.md:
   {skill}
-  Do not read figmint's source code or anything else in the repository.
-- Answer the last request in the thread with ONE chat figure made with fm.explain.
+  Do not read mintfig's source code or anything else in the repository.
+- Answer the last request in the thread with ONE chat figure made with mint.explain.
   Your script must save it as figure.png in this folder: fig.save("figure.png").
-- Do not render figures yourself (no fig.save / fm.explain runs of your own):
+- Do not render figures yourself (no fig.save / mint.explain runs of your own):
   submit is your renderer. Images found in this folder that submit did not make
   are counted as local renders. Plain data analysis (numpy/pandas) is fine.
 - Submit with:  {python} {bench} submit {task} --run {run} <your_script.py>
-  Each submit renders your script and reports figmint's summary, its facts and
-  the checks (figmint's own checks plus an independent layout audit).
+  Each submit renders your script and reports mintfig's summary, its facts and
+  the checks (mintfig's own checks plus an independent layout audit).
   You have {max_attempts} submissions; stop at the first one that passes.
 - The clock started now and stops when a submission passes.
 """
@@ -130,7 +130,7 @@ def _save_state(run: Path, task: str, state: dict) -> None:
 
 
 def _skill_path() -> Path:
-    return HERE.parents[1] / "src" / "figmint" / "assets" / "SKILL.md"
+    return HERE.parents[1] / "src" / "mintfig" / "assets" / "SKILL.md"
 
 
 # --------------------------------------------------------------------------- #
@@ -140,9 +140,9 @@ def _skill_path() -> Path:
 
 def _spec_of(png: Path) -> dict | None:
     try:
-        import figmint as fm
+        import mintfig as mint
 
-        return fm.load(str(png)).to_spec()
+        return mint.load(str(png)).to_spec()
     except Exception:  # noqa: BLE001 - any failure means the spec is not usable
         return None
 
@@ -155,15 +155,15 @@ _JUNK = re.compile(r"\b(nan|NaN|None|inf|-inf)\b")
 def audit_layout(png: Path) -> dict:
     """Independent audit of the drawn figure, rebuilt from the PNG's embedded spec.
 
-    Does not trust figmint's own issue list: it draws the figure and inspects every
+    Does not trust mintfig's own issue list: it draws the figure and inspects every
     visible text artist and line. Returns {"overlaps": [...], "struck": [...],
     "text_faults": [...], "texts": n}.
     """
     from matplotlib.text import Text
 
-    import figmint as fm
+    import mintfig as mint
 
-    exp = fm.load(str(png))
+    exp = mint.load(str(png))
     out: dict = {"overlaps": [], "struck": [], "text_faults": [], "texts": 0}
     with exp.theme.rc_context(exp.spec):
         fig = exp.fig
@@ -235,7 +235,7 @@ def run_checks(work: Path, calls: list[dict], returncode: int, stderr: str) -> l
     tail = stderr.strip().splitlines()[-1] if stderr.strip() else ""
     add("script_runs", returncode == 0, "" if returncode == 0 else f"exit {returncode}: {tail}")
     add("one_figure_saved", len(calls) == 1 and png.exists(),
-        f"{len(calls)} fm.explain save call(s); figure.png {'found' if png.exists() else 'missing'}")
+        f"{len(calls)} mint.explain save call(s); figure.png {'found' if png.exists() else 'missing'}")
     if not calls or not png.exists():
         return checks
     s = calls[-1]
@@ -259,7 +259,7 @@ def run_checks(work: Path, calls: list[dict], returncode: int, stderr: str) -> l
     kinds = [p.get("kind") for p in panels]
     add("forms_only", "custom" not in kinds, f"forms: {kinds}")
     spec = _spec_of(png)
-    add("spec_roundtrip", spec is not None, "fm.load(figure.png) rebuilds the spec")
+    add("spec_roundtrip", spec is not None, "mint.load(figure.png) rebuilds the spec")
     source = (spec or {}).get("source") or ""
     add("source_given", bool(str(source).strip()), str(source))
     add("alt_text", bool(str(s.get("alt_text") or "").strip()), "")
@@ -392,7 +392,7 @@ def cmd_submit(a: argparse.Namespace) -> None:
         print("\n".join(out.strip().splitlines()[-20:]))
     if calls:
         s = calls[-1]
-        print("--- figmint summary ---")
+        print("--- mintfig summary ---")
         print(json.dumps({k: s.get(k) for k in ("ok", "issues", "display")}, indent=1,
                          ensure_ascii=False))
         for p in s.get("panels", []):

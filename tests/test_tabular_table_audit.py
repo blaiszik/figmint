@@ -1,4 +1,4 @@
-"""Tests for layout audit in ship, tidy/row-shaped tabular inputs, fm.table, and progressive SKILL.md."""
+"""Tests for layout audit in ship, tidy/row-shaped tabular inputs, mint.table, and progressive SKILL.md."""
 
 from __future__ import annotations
 
@@ -7,10 +7,10 @@ from typing import Any
 
 import pytest
 
-import figmint as fm
-from figmint.explainer import _VISUAL_DEFECT_RULES
-from figmint.skill import _build_cursor_mdc, get_skill_markdown, get_skill_references, install_skill
-from figmint.themes import THEMES
+import mintfig as mint
+from mintfig.explainer import _VISUAL_DEFECT_RULES
+from mintfig.skill import _build_cursor_mdc, get_skill_markdown, get_skill_references, install_skill
+from mintfig.themes import THEMES
 
 # --------------------------------------------------------------------------- #
 # Lightweight duck-typed DataFrame (no pandas required in test env)
@@ -52,9 +52,9 @@ class TestAuditAndShipGate:
             ax.plot([0, 1], [0, 1])
             ax.text(0.5, 0.5, "Change: -5.0%% (nan)", ha="center", va="center", fontsize=9)
 
-        fig = fm.explain(
+        fig = mint.explain(
             "Custom panel has malformed text of 5 points",
-            fm.custom(_bad_draw, title="Bad text"),
+            mint.custom(_bad_draw, title="Bad text"),
             source="synthetic test",
         )
         summary = fig.summary()
@@ -67,9 +67,9 @@ class TestAuditAndShipGate:
             ax.plot([0, 1], [0.5, 0.5], linewidth=2.0)
             ax.text(0.5, 0.5, "StruckLabel", ha="center", va="center", fontsize=10)
 
-        fig = fm.explain(
+        fig = mint.explain(
             "Line runs through label at 0.5",
-            fm.custom(_struck_draw, title="Struck panel"),
+            mint.custom(_struck_draw, title="Struck panel"),
             source="synthetic test",
         )
         summary = fig.summary()
@@ -78,9 +78,9 @@ class TestAuditAndShipGate:
         assert summary["ship"] is False
 
     def test_audit_layout_on_saved_png(self, tmp_path: Path) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Checkout p99 is 4x the next slowest service",
-            fm.compare(
+            mint.compare(
                 {"checkout": 1840, "search": 460, "auth": 310},
                 title="Checkout leads",
                 label="p99 latency",
@@ -95,7 +95,7 @@ class TestAuditAndShipGate:
         assert summary["ship"] is True
         assert summary["issues"] == []
 
-        audit = fm.audit_layout(png)
+        audit = mint.audit_layout(png)
         assert audit["overlaps"] == []
         assert audit["struck"] == []
         assert audit["text_faults"] == []
@@ -114,9 +114,9 @@ class TestTidyTabularInputs:
             {"service": "search", "p99": 460},
             {"service": "auth", "p99": 310},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Checkout is 4x slower than search at 1,840 ms",
-            fm.compare(rows, title="p99 latency", label="Latency", unit="ms", highlight="checkout"),
+            mint.compare(rows, title="p99 latency", label="Latency", unit="ms", highlight="checkout"),
             source="synthetic",
         )
         s = fig.summary()
@@ -129,8 +129,8 @@ class TestTidyTabularInputs:
             {"model": "A", "score": 0.82, "cost": 3.0},
             {"model": "B", "score": 0.74, "cost": 1.2},
         ]
-        with pytest.raises(fm.ExplainError) as exc_info:
-            fm.compare(rows)
+        with pytest.raises(mint.ExplainError) as exc_info:
+            mint.compare(rows)
         msg = str(exc_info.value)
         assert "name=" in msg and "value=" in msg
         assert "'model'" in msg and "'score'" in msg
@@ -141,9 +141,9 @@ class TestTidyTabularInputs:
             {"model": "No RAG", "acc": 0.74, "lo": 0.71, "hi": 0.77, "n": 5},
             {"model": "Base", "acc": 0.69, "lo": 0.66, "hi": 0.72, "n": 5},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Full model leads Base by 0.13 across 5 seeds",
-            fm.compare(
+            mint.compare(
                 rows,
                 name="model",
                 value="acc",
@@ -168,9 +168,9 @@ class TestTidyTabularInputs:
             {"stage": "link", "sec": 18, "owner": "core"},
             {"stage": "test", "sec": 25, "owner": "qa"},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Compile takes 49% of the 85 s build",
-            fm.share(rows, name="stage", value="sec", title="Build breakdown", label="Build time", unit="s"),
+            mint.share(rows, name="stage", value="sec", title="Build breakdown", label="Build time", unit="s"),
             source="synthetic",
         )
         assert fig.summary()["ship"] is True
@@ -180,8 +180,8 @@ class TestTidyTabularInputs:
             {"step": 0, "model": "A", "acc": 0.1},
             {"step": 100, "model": "A", "acc": 0.8},
         ]
-        with pytest.raises(fm.ExplainError) as exc_info:
-            fm.trend([0, 100], rows)
+        with pytest.raises(mint.ExplainError) as exc_info:
+            mint.trend([0, 100], rows)
         msg = str(exc_info.value)
         assert "pivot" in msg.lower()
         assert "data=" in msg
@@ -195,9 +195,9 @@ class TestTidyTabularInputs:
             {"step": 500, "model": "B", "acc": 0.62, "lo": 0.59, "hi": 0.65},
             {"step": 1000, "model": "B", "acc": 0.71, "lo": 0.68, "hi": 0.74},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Model A reaches 0.84 vs 0.71 for B by step 1000",
-            fm.trend(
+            mint.trend(
                 "step",
                 "model",
                 y="acc",
@@ -221,9 +221,9 @@ class TestTidyTabularInputs:
             {"dose": 100, "drug": "X", "resp": 88.0},
             {"dose": 100, "drug": "X", "resp": 92.0},
         ]
-        fig_rep = fm.explain(
+        fig_rep = mint.explain(
             "Drug X rises from 11% to 90% across doses",
-            fm.trend(
+            mint.trend(
                 "dose",
                 "drug",
                 y="resp",
@@ -246,7 +246,7 @@ class TestTidyTabularInputs:
             {"metric": "SWE", "v1": 49, "v2": 71},
             {"metric": "AIME", "v1": 60, "v2": 88},
         ]
-        p_chg = fm.change("v1", "v2", data=chg_rows, name="metric", title="Release gains", label="Score", unit="%")
+        p_chg = mint.change("v1", "v2", data=chg_rows, name="metric", title="Release gains", label="Score", unit="%")
         assert p_chg.spec["labels"] == ["v1", "v2"]
 
         # distribution & histogram
@@ -255,8 +255,8 @@ class TestTidyTabularInputs:
         ] + [
             {"cond": "drug", "val": v} for v in (7.8, 8.2, 7.5, 8.0, 8.4)
         ]
-        p_dist = fm.distribution(dist_rows, group="cond", value="val", title="Spread", label="Signal", unit="mV")
-        p_hist = fm.histogram(dist_rows, group="cond", value="val", title="Histogram", label="Signal", unit="mV")
+        p_dist = mint.distribution(dist_rows, group="cond", value="val", title="Spread", label="Signal", unit="mV")
+        p_hist = mint.histogram(dist_rows, group="cond", value="val", title="Histogram", label="Signal", unit="mV")
 
         # relate
         rel_rows = [
@@ -266,7 +266,7 @@ class TestTidyTabularInputs:
             {"cost": 1.0, "score": 71, "model": "Flash", "family": "B"},
             {"cost": 5.0, "score": 83, "model": "Ultra", "family": "B"},
         ]
-        p_rel = fm.relate(
+        p_rel = mint.relate(
             "cost",
             "score",
             data=rel_rows,
@@ -285,23 +285,23 @@ class TestTidyTabularInputs:
             {"model": "M2", "bench": "GPQA", "score": 76},
             {"model": "M2", "bench": "SWE", "score": None},
         ]
-        p_mat = fm.matrix(mat_rows, rows="model", cols="bench", value="score", title="Scores", label="Accuracy", unit="%")
+        p_mat = mint.matrix(mat_rows, rows="model", cols="bench", value="score", title="Scores", label="Accuracy", unit="%")
 
         for panel in (p_chg, p_dist, p_hist, p_rel, p_mat):
-            fig = fm.explain("Synthetic check with value 84", panel, source="synthetic")
+            fig = mint.explain("Synthetic check with value 84", panel, source="synthetic")
             s = fig.summary()
             assert s["ok"] is True
             assert s["ship"] is True
 
         # Round-trip a tidy figure through PNG embedded spec
         png = tmp_path / "tidy_rt.png"
-        fig_rt = fm.explain("M1 scores 84% on GPQA", p_mat, source="synthetic")
+        fig_rt = mint.explain("M1 scores 84% on GPQA", p_mat, source="synthetic")
         fig_rt.save(png)
-        assert fm.load(png).to_spec() == fig_rt.to_spec()
+        assert mint.load(png).to_spec() == fig_rt.to_spec()
 
 
 # --------------------------------------------------------------------------- #
-# 3. fm.table form
+# 3. mint.table form
 # --------------------------------------------------------------------------- #
 
 
@@ -316,9 +316,9 @@ class TestTableForm:
 
     @pytest.mark.parametrize("style_name", list(THEMES))
     def test_table_renders_clean_across_all_themes(self, style_name: str) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 leads GPQA (86.4%) and SWE-bench (74.2%) at $2.50/M",
-            fm.table(
+            mint.table(
                 self._scorecard_rows(),
                 units={"GPQA": "%", "SWE-bench": "%", "Cost": "$/M"},
                 bold_best={"GPQA": "max", "SWE-bench": "max", "Cost": "min"},
@@ -342,12 +342,12 @@ class TestTableForm:
 
     def test_table_accepts_all_input_shapes_and_exports_markdown(self) -> None:
         # Column-oriented dict
-        p_dict = fm.table({"Model": ["A", "B"], "Score": [91.2, 84.5]}, bold_best=True)
+        p_dict = mint.table({"Model": ["A", "B"], "Score": [91.2, 84.5]}, bold_best=True)
         md = p_dict.to_markdown()
         assert "| Model" in md and "91.2 |" in md
 
         # 2-D list + columns
-        p_2d = fm.table([["A", 91.2], ["B", 84.5]], columns=["Model", "Score"])
+        p_2d = mint.table([["A", 91.2], ["B", 84.5]], columns=["Model", "Score"])
         assert "2 rows" in p_2d.facts[0]
 
         # Duck-typed DataFrame with named index
@@ -355,15 +355,15 @@ class TestTableForm:
             [{"GPQA": 86.4, "Cost": 2.5}, {"GPQA": 77.1, "Cost": 3.0}],
             index=_FakeIndex(["Alpha-3", "Alpha-2"], name="Model"),
         )
-        p_df = fm.table(df, highlight="Alpha-3", baseline="Alpha-2")
+        p_df = mint.table(df, highlight="Alpha-3", baseline="Alpha-2")
         assert p_df.spec["columns"] == ["Model", "GPQA", "Cost"]
 
     def test_table_shares_entity_color_with_compare_and_roundtrips(self, tmp_path: Path) -> None:
         rows = self._scorecard_rows()
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 leads GPQA at 86.4% while cutting cost to $2.50/M",
-            fm.compare(rows, name="Model", value="GPQA", title="GPQA score", label="Accuracy", unit="%", highlight="Alpha-3", baseline="Alpha-2"),
-            fm.table(
+            mint.compare(rows, name="Model", value="GPQA", title="GPQA score", label="Accuracy", unit="%", highlight="Alpha-3", baseline="Alpha-2"),
+            mint.table(
                 rows,
                 units={"GPQA": "%", "SWE-bench": "%", "Cost": "$/M"},
                 bold_best={"GPQA": "max", "SWE-bench": "max", "Cost": "min"},
@@ -380,9 +380,9 @@ class TestTableForm:
         assert s["ship"] is True
         assert "Alpha-3" in s["colors"]
 
-        loaded = fm.load(png)
+        loaded = mint.load(png)
         assert loaded.to_spec() == fig.to_spec()
-        rebuilt = fm.explain_from_spec(loaded.to_spec())
+        rebuilt = mint.explain_from_spec(loaded.to_spec())
         assert rebuilt.summary()["ship"] is True
 
     def test_table_lenient_auto_stacks_when_cramped(self) -> None:
@@ -390,11 +390,11 @@ class TestTableForm:
             {"Model": "LongModelName-v3", "GPQA": 86.4, "SWE-bench": 74.2, "AIME": 88.0, "Cost": 2.50},
             {"Model": "LongModelName-v2", "GPQA": 77.1, "SWE-bench": 58.6, "AIME": 64.0, "Cost": 3.00},
         ]
-        with fm.lenient():
-            fig = fm.explain(
+        with mint.lenient():
+            fig = mint.explain(
                 "v3 beats v2 on all three benchmarks by up to 24 points",
-                fm.compare(rows, name="Model", value="GPQA", title="GPQA", label="Score", unit="%"),
-                fm.table(rows, title="All metrics"),
+                mint.compare(rows, name="Model", value="GPQA", title="GPQA", label="Score", unit="%"),
+                mint.table(rows, title="All metrics"),
                 source="synthetic",
             )
         s = fig.summary()
@@ -411,7 +411,7 @@ class TestSkillProgressiveAndCursor:
     def test_skill_is_compact_and_has_install_line(self) -> None:
         md = get_skill_markdown()
         assert "pip install" in md
-        assert "fm.table" in md
+        assert "mint.table" in md
         chat_part = md[: md.index("## Publication Figures")]
         # Was 23,890 bytes (~6k tokens); should stay lean (<11k bytes)
         assert len(chat_part.encode("utf-8")) < 11_000
@@ -424,17 +424,17 @@ class TestSkillProgressiveAndCursor:
         mdc = _build_cursor_mdc(get_skill_markdown())
         frontmatter = mdc.split("\n---\n", 1)[0]
         assert "chat figures" in frontmatter.lower()
-        assert "fm.explain" in frontmatter
-        assert "fm.table" in frontmatter
+        assert "mint.explain" in frontmatter
+        assert "mint.table" in frontmatter
         assert "**/*.csv" in frontmatter
 
     def test_install_skill_copies_references_for_skill_targets(self, tmp_path: Path) -> None:
         written = install_skill(tmp_path, targets=("claude", "antigravity", "codex", "cursor"))
         assert len(written) == 4
         for base in (
-            tmp_path / ".claude/skills/figmint",
-            tmp_path / ".agents/skills/figmint",
-            tmp_path / ".codex/skills/figmint",
+            tmp_path / ".claude/skills/mintfig",
+            tmp_path / ".agents/skills/mintfig",
+            tmp_path / ".codex/skills/mintfig",
         ):
             assert (base / "SKILL.md").exists()
             assert (base / "references/scientific_and_recipes.md").exists()

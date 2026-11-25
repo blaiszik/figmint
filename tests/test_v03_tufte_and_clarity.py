@@ -9,10 +9,10 @@ import pytest
 
 matplotlib.use("Agg")
 
-import figmint as fm
-from figmint.plate import Plate
-from figmint.preflight import CheckResult, preflight_figure
-from figmint.skill import get_agents_snippet, get_skill_markdown
+import mintfig as mint
+from mintfig.plate import Plate
+from mintfig.preflight import CheckResult, preflight_figure
+from mintfig.skill import get_agents_snippet, get_skill_markdown
 
 
 def _check_by_rule(checks: list[CheckResult], rule: str) -> CheckResult:
@@ -32,7 +32,7 @@ class TestTuftePrimitives:
         ax.set_xlabel("Time (h)")
         ax.set_ylabel("Signal")
         try:
-            fm.direct_labels(ax, expand_xlim=0.35, trim_spine=True)
+            mint.direct_labels(ax, expand_xlim=0.35, trim_spine=True)
             bounds = ax.spines["bottom"].get_bounds()
             assert bounds is not None
             # Bottom spine must stop at data max (10.0), not stretch into the label gutter
@@ -51,7 +51,7 @@ class TestTuftePrimitives:
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         try:
-            fm.range_frame(ax, rug=True)
+            mint.range_frame(ax, rug=True)
             bx = ax.spines["bottom"].get_bounds()
             by = ax.spines["left"].get_bounds()
             assert bx is not None and by is not None
@@ -73,7 +73,7 @@ class TestTuftePrimitives:
             (plate["c"], x, x**2.0),
         ]
         try:
-            ghosts = fm.ghost_context(panels)
+            ghosts = mint.ghost_context(panels)
             # Each of 3 panels gets 2 peer ghost lines = 6 total
             assert len(ghosts) == 6
             for ax, px, py in panels:
@@ -98,7 +98,7 @@ class TestTuftePrimitives:
         )
         rng = np.random.default_rng(9)
         try:
-            fm.tufte_boxplot(
+            mint.tufte_boxplot(
                 plate["a"],
                 [rng.normal(0.4, 0.1, 25), rng.normal(0.75, 0.12, 25)],
                 labels=["Base", "RLVR"],
@@ -106,7 +106,7 @@ class TestTuftePrimitives:
             plate["a"].set_xlabel("Stage")
             plate["a"].set_ylabel("Score")
 
-            fm.slopegraph(
+            mint.slopegraph(
                 plate["b"],
                 [40, 62, 74],
                 [88, 81, 85],
@@ -118,7 +118,7 @@ class TestTuftePrimitives:
             )
 
             t = np.linspace(0, 100, 60)
-            fm.sparkline(
+            mint.sparkline(
                 plate["c"],
                 t,
                 2.2 - 0.5 * (1 - np.exp(-t / 30.0)),

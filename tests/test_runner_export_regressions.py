@@ -19,28 +19,28 @@ from pypdf import PdfReader
 
 matplotlib.use("Agg")
 
-import figmint as fm
-from figmint import proof as proof_mod
-from figmint.cli import _format_all_specs, _format_single_spec
-from figmint.export import rasterize_heavy, save_figure
-from figmint.plate import Plate
-from figmint.preflight import CheckResult, preflight_figure
-from figmint.runner import run_script
-from figmint.specs import JournalSpec, get_spec, mm_to_in
+import mintfig as mint
+from mintfig import proof as proof_mod
+from mintfig.cli import _format_all_specs, _format_single_spec
+from mintfig.export import rasterize_heavy, save_figure
+from mintfig.plate import Plate
+from mintfig.preflight import CheckResult, preflight_figure
+from mintfig.runner import run_script
+from mintfig.specs import JournalSpec, get_spec, mm_to_in
 
 PT_TO_MM = 25.4 / 72.0
 
 DOUBLE_90_SCRIPT = (
-    "import figmint as fm\n"
+    "import mintfig as mint\n"
     "def build():\n"
-    "    return fm.Plate(journal='nature', width='double', height_mm=90.0, layout=(1, 3))\n"
+    "    return mint.Plate(journal='nature', width='double', height_mm=90.0, layout=(1, 3))\n"
 )
 
 DETERMINISM_SCRIPT = (
     "import numpy as np\n"
-    "import figmint as fm\n"
+    "import mintfig as mint\n"
     "def build():\n"
-    "    p = fm.Plate(journal='nature', width='double', height_mm=70.0, layout=(1, 2))\n"
+    "    p = mint.Plate(journal='nature', width='double', height_mm=70.0, layout=(1, 2))\n"
     "    x = np.linspace(0, 5, 60)\n"
     "    p['a'].plot(x, np.exp(-x), label='decay')\n"
     "    p['a'].set_xlabel('Time (s)')\n"
@@ -53,11 +53,11 @@ DETERMINISM_SCRIPT = (
 )
 
 
-def _figmint_cmd() -> list[str]:
-    figmint_bin = Path(sys.executable).parent / "figmint"
-    if figmint_bin.exists():
-        return [str(figmint_bin)]
-    return [sys.executable, "-m", "figmint.cli"]
+def _mintfig_cmd() -> list[str]:
+    mintfig_bin = Path(sys.executable).parent / "mintfig"
+    if mintfig_bin.exists():
+        return [str(mintfig_bin)]
+    return [sys.executable, "-m", "mintfig.cli"]
 
 
 def _env_without_backend(tmp_path: Path) -> dict[str, str]:
@@ -86,7 +86,7 @@ class TestRunnerHeadlessBackend:
         out_dir = tmp_path / "bundle"
         proc = subprocess.run(
             [
-                *_figmint_cmd(),
+                *_mintfig_cmd(),
                 "run",
                 str(script),
                 "--journal",
@@ -140,7 +140,7 @@ class TestBuildErrorLineInfo:
     def test_build_exception_reports_script_line(self, tmp_path: Path) -> None:
         script = tmp_path / "bad_build.py"
         script.write_text(
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "\n"
             "def build():\n"
             "    x = 1\n"
@@ -157,10 +157,10 @@ class TestBuildErrorLineInfo:
     ) -> None:
         script = tmp_path / "bad_helper.py"
         script.write_text(
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "\n"
             "def helper():\n"
-            "    return fm.Plate(journal='nature', width='nope', height_mm=50.0)\n"
+            "    return mint.Plate(journal='nature', width='nope', height_mm=50.0)\n"
             "\n"
             "def build():\n"
             "    return helper()\n",
@@ -208,10 +208,10 @@ class TestReproducibleExport:
             plt.close(plate.fig)
         info = PdfReader(str(pdf)).metadata
         assert info is not None
-        assert info.get("/Creator") == "figmint"
+        assert info.get("/Creator") == "mintfig"
         assert "/CreationDate" not in info
         svg_text = svg.read_text(encoding="utf-8")
-        assert "figmint" in svg_text
+        assert "mintfig" in svg_text
         assert "<dc:date>" not in svg_text
 
     def test_bundle_twice_produces_identical_vector_and_preview_files(
@@ -222,7 +222,7 @@ class TestReproducibleExport:
         outs = [tmp_path / "out1", tmp_path / "out2"]
         for out in outs:
             proc = subprocess.run(
-                [*_figmint_cmd(), "run", str(script), "--bundle", str(out), "--no-proof", "--json"],
+                [*_mintfig_cmd(), "run", str(script), "--bundle", str(out), "--no-proof", "--json"],
                 capture_output=True,
                 text=True,
                 check=False,
@@ -265,7 +265,7 @@ class TestSaveFigureJournalArgument:
             return img.size[0]
 
     def test_journal_name_spec_and_figure_tag(self, tmp_path: Path) -> None:
-        fig, ax = fm.figure("science", width="single", height_mm=40.0)
+        fig, ax = mint.figure("science", width="single", height_mm=40.0)
         ax.plot([0, 1], [0, 1])
         science = get_spec("science")
         nature = get_spec("nature")
@@ -378,16 +378,16 @@ class TestProofScorecardRows:
 
 USE_CONTEXT_SCRIPT = (
     "import matplotlib.pyplot as plt\n"
-    "import figmint as fm\n"
-    "from figmint.specs import mm_to_in\n"
-    "with fm.use('nature'):\n"
+    "import mintfig as mint\n"
+    "from mintfig.specs import mm_to_in\n"
+    "with mint.use('nature'):\n"
     "    fig, ax = plt.subplots(figsize=(mm_to_in(89.0), mm_to_in(60.0)), layout='constrained')\n"
     "    ax.plot([0, 1], [0, 1])\n"
     "    ax.set_xlabel('x (a.u.)')\n"
     "    ax.set_ylabel('y (a.u.)')\n"
 )
 
-# Stock Matplotlib font embedding, pinned so earlier tests that applied a figmint
+# Stock Matplotlib font embedding, pinned so earlier tests that applied a mintfig
 # style globally cannot hide the live-rcParams prediction under test.
 STOCK_FONT_RC = {"pdf.fonttype": 3, "svg.fonttype": "path"}
 
@@ -418,9 +418,9 @@ class TestPdfResultOverridesLivePrediction:
 
 
 BOLD_LABEL_SCRIPT = (
-    "import figmint as fm\n"
+    "import mintfig as mint\n"
     "def build():\n"
-    "    p = fm.Plate(journal='nature', width='single', height_mm=60.0, layout=(1, 2))\n"
+    "    p = mint.Plate(journal='nature', width='single', height_mm=60.0, layout=(1, 2))\n"
     "    p['a'].plot([0, 1], [0, 1])\n"
     "    p['b'].plot([0, 1], [1, 0])\n"
     "    p.label_panels()\n"
@@ -429,10 +429,10 @@ BOLD_LABEL_SCRIPT = (
 
 
 class TestCliPinsHashSeed:
-    """``figmint run`` pins PYTHONHASHSEED so embedded bold-font subsets are reproducible."""
+    """``mintfig run`` pins PYTHONHASHSEED so embedded bold-font subsets are reproducible."""
 
     def test_no_rerun_when_seed_already_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from figmint import cli
+        from mintfig import cli
 
         monkeypatch.setenv("PYTHONHASHSEED", "7")
         monkeypatch.setattr(
@@ -443,7 +443,7 @@ class TestCliPinsHashSeed:
     def test_rerun_sets_seed_zero_and_returns_child_code(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        from figmint import cli
+        from mintfig import cli
 
         seen: dict[str, object] = {}
 
@@ -455,7 +455,7 @@ class TestCliPinsHashSeed:
         monkeypatch.setattr(cli.subprocess, "call", fake_call)
         assert cli._rerun_with_fixed_hash_seed() == 1
         assert seen["seed"] == "0"
-        assert seen["cmd"][:3] == [sys.executable, "-m", "figmint.cli"]
+        assert seen["cmd"][:3] == [sys.executable, "-m", "mintfig.cli"]
 
     def test_unset_seed_matches_seed_zero_pdf(self, tmp_path: Path) -> None:
         script = tmp_path / "plot.py"
@@ -467,7 +467,7 @@ class TestCliPinsHashSeed:
                 env["PYTHONHASHSEED"] = seed
             out = tmp_path / name
             proc = subprocess.run(
-                [sys.executable, "-m", "figmint.cli", "run", str(script), "--bundle", str(out), "--json"],
+                [sys.executable, "-m", "mintfig.cli", "run", str(script), "--bundle", str(out), "--json"],
                 capture_output=True,
                 text=True,
                 env=env,

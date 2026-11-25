@@ -1,8 +1,8 @@
-# `figmint` v0.2 Empirical Validation Report (35-Script Gate)
+# `mintfig` v0.2 Empirical Validation Report (35-Script Gate)
 
-This report documents the empirical validation gate for `figmint` v0.2 (`figmint run --json`, high-precision `preflight.py`, panel-attributed `fix_hint`s, strict script contract, and `<= 2`-loop repair cap).
+This report documents the empirical validation gate for `mintfig` v0.2 (`mintfig run --json`, high-precision `preflight.py`, panel-attributed `fix_hint`s, strict script contract, and `<= 2`-loop repair cap).
 
-All runs executed the real CLI subprocess (`.venv/bin/figmint run <script> --journal <j> --json`) via [`evals/run_eval.py`](run_eval.py). Raw telemetry is recorded in [`evals/output/eval_results.json`](output/eval_results.json).
+All runs executed the real CLI subprocess (`.venv/bin/mintfig run <script> --journal <j> --json`) via [`evals/run_eval.py`](run_eval.py). Raw telemetry is recorded in [`evals/output/eval_results.json`](output/eval_results.json).
 
 ---
 
@@ -10,8 +10,8 @@ All runs executed the real CLI subprocess (`.venv/bin/figmint run <script> --jou
 
 | Evaluation Slice | Scripts | Metric | Result | Target |
 | :--- | :---: | :--- | :---: | :---: |
-| **Control Set** (10 already-clean `figmint` scripts) | 10 | False-positive **errors** | **`0 / 10` (0.0%)** | `0 / 10` |
-| **Control Set** (10 already-clean `figmint` scripts) | 10 | False-positive **warnings** | **`0 / 10` (0.0%)** | `0 / 10` |
+| **Control Set** (10 already-clean `mintfig` scripts) | 10 | False-positive **errors** | **`0 / 10` (0.0%)** | `0 / 10` |
+| **Control Set** (10 already-clean `mintfig` scripts) | 10 | False-positive **warnings** | **`0 / 10` (0.0%)** | `0 / 10` |
 | **Messy Set** (25 shot-#0 realistic scripts) | 25 | **Loop 0** error-free / zero-warn clean | `4 / 25` (16%) / `0 / 25` (0%) | — |
 | **Messy Set** (<= 2-loop generic JSON repair) | 25 | **Loop 1** error-free / zero-warn clean | **`24 / 25` (96.0%)** / **`23 / 25` (92.0%)** | — |
 | **Messy Set** (<= 2-loop generic JSON repair) | 25 | **Loop 2** error-free / zero-warn clean | **`25 / 25` (100.0%)** / **`24 / 25` (96.0%)** | **>= 90%** |
@@ -71,8 +71,8 @@ All runs executed the real CLI subprocess (`.venv/bin/figmint run <script> --jou
 
 ## 4. Edge Cases Discovered & Honest Findings
 
-1. **`with fm.use(...)` scoping warning (`messy_11_bar_clipped_xlabel.py`, marked `1W*` above):**
-   - `messy_11` creates its figure inside `with fm.use("nature"):` and returns `fig` after exiting the context manager. Because `preflight_figure` checks live `plt.rcParams["pdf.fonttype"]`, it emits a benign `vector_fonts` warning once `fm.use()` exits — even though `bundle_figure` / `save_figure` still exports `figure.pdf` with `pdf.fonttype = 42` and **0 Type 3 fonts**. Using `fm.Plate(...)` or `fm.apply(journal)` avoids this completely.
+1. **`with mint.use(...)` scoping warning (`messy_11_bar_clipped_xlabel.py`, marked `1W*` above):**
+   - `messy_11` creates its figure inside `with mint.use("nature"):` and returns `fig` after exiting the context manager. Because `preflight_figure` checks live `plt.rcParams["pdf.fonttype"]`, it emits a benign `vector_fonts` warning once `mint.use()` exits — even though `bundle_figure` / `save_figure` still exports `figure.pdf` with `pdf.fonttype = 42` and **0 Type 3 fonts**. Using `mint.Plate(...)` or `mint.apply(journal)` avoids this completely.
 2. **Axis-aligned bounding boxes for tilted ticks on narrow 55 mm Science 1-col figures (`messy_15`):**
    - Rotating 6 long category labels (`Condition_01`..`Condition_06`) by 40° on a 55 mm wide plot still triggered `text_overlaps` at Loop 1 because Matplotlib's `get_window_extent()` returns axis-aligned rectangles. Escalating to vertical `rotation=90, ha="center"` on Loop 2 eliminated all overlaps cleanly and produced a crisp, legible narrow-column bar chart.
 3. **High-precision severity split validated:**

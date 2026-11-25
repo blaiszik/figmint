@@ -6,9 +6,9 @@ plus Gaussian absorption bands). No telescope, instrument or planet is
 represented; the plate exists to show the house style on a familiar kind of
 figure.
 
-Run through the figmint contract::
+Run through the mintfig contract::
 
-    figmint run gallery/science_exoplanet_atmosphere.py --journal science \
+    mintfig run gallery/science_exoplanet_atmosphere.py --journal science \
         --bundle gallery/output/science_exoplanet_atmosphere --json
 """
 
@@ -20,7 +20,7 @@ from matplotlib.colors import LinearSegmentedColormap, LogNorm
 from matplotlib.lines import Line2D
 from matplotlib.ticker import FixedLocator, NullFormatter
 
-import figmint as fm
+import mintfig as mint
 
 INK = "#1A1D21"
 MUTED = "#5B6470"
@@ -334,8 +334,8 @@ CAPTION = (
 )
 
 
-def build(journal: str = "science") -> fm.Plate:
-    plate = fm.Plate(
+def build(journal: str = "science") -> mint.Plate:
+    plate = mint.Plate(
         journal=journal,
         width="full",
         height_mm=122.0,

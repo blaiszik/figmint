@@ -1,4 +1,4 @@
-"""Render all six ``fm.explain`` reference chat figures in ``bold``, ``editorial``, and ``sketch``.
+"""Render all six ``mint.explain`` reference chat figures in ``bold``, ``editorial``, and ``sketch``.
 
 All data are synthetic (reusing the six reference specs from ``gallery/output/explain/``).
 Writes to ``gallery/output/explain_styles/<style>/<name>.png`` (plus reproducible ``.json``
@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import figmint as fm
+import mintfig as mint
 
 STYLES: tuple[str, ...] = ("bold", "editorial", "sketch")
 EXAMPLE_NAMES: tuple[str, ...] = (
@@ -40,7 +40,7 @@ def render_all(
         for name in EXAMPLE_NAMES:
             spec = json.loads((spec_dir / f"{name}.json").read_text("utf-8"))
             spec["style"] = style_name
-            explanation = fm.explain_from_spec(spec)
+            explanation = mint.explain_from_spec(spec)
             summary = explanation.save(style_dir / f"{name}.png", write_spec=True)
             rows.append(
                 {

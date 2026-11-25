@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(103)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal="nature",
         width="mid",
         height_mm=82.0,
@@ -18,7 +18,7 @@ def build() -> fm.Plate:
         gap_mm=(9.0, 8.5),
         width_ratios=[1.2, 1.0],
     )
-    colors = fm.get_palette("nature")
+    colors = mint.get_palette("nature")
 
     # a: heatmap
     mat = rng.normal(0.0, 1.0, (14, 14))
@@ -28,7 +28,7 @@ def build() -> fm.Plate:
     plate["a"].set_xlabel("Gene module")
     plate["a"].set_ylabel("Gene module")
     cbar = plate.fig.colorbar(im, ax=plate["a"], fraction=0.055, pad=0.03)
-    fm.style_colorbar(cbar, label="Correlation")
+    mint.style_colorbar(cbar, label="Correlation")
 
     # b: line trace
     x = np.linspace(0, 10, 80)

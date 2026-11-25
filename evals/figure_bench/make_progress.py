@@ -1,4 +1,4 @@
-"""The fix cycles' progress on figure-bench, drawn with figmint itself.
+"""The fix cycles' progress on figure-bench, drawn with mintfig itself.
 
 Reads runs/r2..r5/results.json (run 1 used the easier, pre-hardening task set and
 is left out of the series) and writes progress.png next to this file.
@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import figmint as fm
+import mintfig as mint
 
 HERE = Path(__file__).resolve().parent
 RUNS = [("r2", "before fixes"), ("r3", "cycle 1"), ("r4", "cycle 2"), ("r5", "cycle 3")]
@@ -39,18 +39,18 @@ def main() -> None:
 
     c0, c3 = mean(core[0]), mean(core[-1])
     h1 = mean(held[3])
-    fig = fm.explain(
+    fig = mint.explain(
         f"Three fix cycles cut the average time to a clean chat figure by a third, from "
         f"{c0:.0f} s to {c3:.0f} s, and ended resubmissions; held-out tasks take the same "
         f"{h1:.0f} s",
-        fm.trend(
+        mint.trend(
             labels,
             points={"benchmark tasks": core, "held-out tasks": held},
             label="Time to a passing figure", unit="s",
             highlight=["benchmark tasks", "held-out tasks"],
             title="Most of the gain came in cycle 1; held-out tasks, added later, match it",
         ),
-        fm.compare(
+        mint.compare(
             {label: extra_core[label] + extra_held.get(label, 0) for label in labels},
             sort=False, label="Submissions beyond the first", unit="",
             highlight=labels[0],

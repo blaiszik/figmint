@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
-    plate = fm.Plate(journal="nature", width="single", height_mm=66.0, layout=(1, 1))
+def build() -> mint.Plate:
+    plate = mint.Plate(journal="nature", width="single", height_mm=66.0, layout=(1, 1))
     ax = plate["a"]
-    colors = fm.get_palette("nature")
+    colors = mint.get_palette("nature")
     fpr = np.linspace(0, 1, 120)
     ax.plot([0, 1], [0, 1], ls="--", color="#9CA3AF", lw=0.5)
     ax.plot(fpr, fpr**0.25, color=colors[0], label="Classifier")

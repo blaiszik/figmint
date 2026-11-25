@@ -9,9 +9,9 @@ from typing import Any
 import numpy as np
 import pytest
 
-import figmint as fm
-from figmint.epistemic import audit_epistemic, build_narrative
-from figmint.explainer import _VISUAL_DEFECT_RULES
+import mintfig as mint
+from mintfig.epistemic import audit_epistemic, build_narrative
+from mintfig.explainer import _VISUAL_DEFECT_RULES
 
 GALLERY_DIR = Path(__file__).resolve().parent.parent / "gallery"
 GALLERY_MODULES = (
@@ -49,9 +49,9 @@ class TestBuildNarrative:
             {"Model": "Alpha-2", "GPQA": 77.1, "Cost": 3.00},
             {"Model": "Beta-Pro", "GPQA": 83.2, "Cost": 6.00},
         ]
-        exp = fm.explain(
+        exp = mint.explain(
             "Alpha-3 leads GPQA while costing 17% less than Alpha-2",
-            fm.compare(
+            mint.compare(
                 rows,
                 name="Model",
                 value="GPQA",
@@ -60,7 +60,7 @@ class TestBuildNarrative:
                 highlight="Alpha-3",
                 baseline="Alpha-2",
             ),
-            fm.table(
+            mint.table(
                 rows,
                 units={"GPQA": "%", "Cost": "$/M"},
                 highlight="Alpha-3",
@@ -85,9 +85,9 @@ class TestBuildNarrative:
         assert "Source: synthetic benchmark." in nar["summary"]
 
     def test_trend_events_and_crossings_classify_into_l3(self) -> None:
-        exp = fm.explain(
+        exp = mint.explain(
             "Checkout regressed after the v2.3 deploy",
-            fm.trend(
+            mint.trend(
                 list(range(1, 9)),
                 {
                     "checkout": [540, 560, 550, 570, 980, 1400, 1700, 1840],
@@ -113,9 +113,9 @@ class TestBuildNarrative:
             {"model": "N1", "family": "B", "cost": 1.0, "score": 72.0},
             {"model": "N2", "family": "B", "cost": 5.0, "score": 82.0},
         ]
-        exp = fm.explain(
+        exp = mint.explain(
             "Family A defines the Pareto frontier across price tiers",
-            fm.relate(
+            mint.relate(
                 "cost",
                 "score",
                 data=rows,
@@ -139,9 +139,9 @@ class TestBuildNarrative:
     def test_histogram_bimodal_and_matrix_and_change_forms(self) -> None:
         rng = np.random.default_rng(51)
         latencies = np.concatenate([rng.normal(18, 3, 120), rng.normal(44, 4, 80)]).round(1)
-        exp_hist = fm.explain(
+        exp_hist = mint.explain(
             "Latency splits into two modes near 18 ms and 44 ms",
-            fm.histogram(
+            mint.histogram(
                 latencies.tolist(),
                 bins=16,
                 reference=(35.0, "SLA"),
@@ -154,9 +154,9 @@ class TestBuildNarrative:
         assert any("peak bin" in f for f in nar_hist["L3"])
         assert any("median" in f for f in nar_hist["L2"])
 
-        exp_change = fm.explain(
+        exp_change = mint.explain(
             "Every benchmark improved after fine-tuning",
-            fm.change(
+            mint.change(
                 {"A": 40, "B": 60, "C": 70},
                 {"A": 80, "B": 72, "C": 85},
                 labels=("Base", "Tuned"),
@@ -168,9 +168,9 @@ class TestBuildNarrative:
         assert "Base → Tuned" in nar_change["L1"]
         assert any("3 up, 0 down" in f for f in nar_change["L3"])
 
-        exp_mat = fm.explain(
+        exp_mat = mint.explain(
             "Rust perf is the lowest cell at 22%",
-            fm.matrix(
+            mint.matrix(
                 [[80, 90], [22, 75]],
                 rows=["Python", "Rust"],
                 cols=["perf", "docs"],
@@ -224,7 +224,7 @@ class TestAuditEpistemicDetections:
         ],
     )
     def test_catches_overclaiming_on_overlapping_cis(self, takeaway: str) -> None:
-        panel = fm.compare(
+        panel = mint.compare(
             {"Treatment A": 0.78, "Control": 0.75},
             error={"Treatment A": (0.73, 0.83), "Control": (0.70, 0.80)},
             error_label="95% CI, 5 seeds",
@@ -239,7 +239,7 @@ class TestAuditEpistemicDetections:
         assert "note=" in issues[0]["fix_hint"] or "Hedge" in issues[0]["fix_hint"]
 
     def test_catches_overclaiming_on_small_n_rough_estimate(self) -> None:
-        panel = fm.relate(
+        panel = mint.relate(
             [1.0, 2.0, 3.0, 1.5, 2.5, 3.5],
             [2.0, 4.1, 5.9, 1.0, 2.1, 3.2],
             groups=["A", "A", "A", "B", "B", "B"],
@@ -253,7 +253,7 @@ class TestAuditEpistemicDetections:
         assert [i["rule"] for i in issues] == ["claim_overstates_uncertainty"]
         assert issues[0]["severity"] == "warning"
 
-        dist_small = fm.distribution(
+        dist_small = mint.distribution(
             {"A": [10.0, 12.0, 14.0], "B": [8.0, 9.0, 10.0]},
             stat="mean",
             label="Score",
@@ -263,14 +263,14 @@ class TestAuditEpistemicDetections:
         assert [i["rule"] for i in dist_issues] == ["claim_overstates_uncertainty"]
 
     def test_catches_blatant_percentage_mismatch(self) -> None:
-        panel = fm.compare({"before": 100.0, "after": 92.0}, label="Latency", unit="ms")
+        panel = mint.compare({"before": 100.0, "after": 92.0}, label="Latency", unit="ms")
         issues = audit_epistemic("Latency fell with a 50% drop after rollout", {"a": panel})
         assert [i["rule"] for i in issues] == ["claim_number_mismatch"]
         assert issues[0]["severity"] == "warning"
         assert "50%" in issues[0]["message"]
 
     def test_catches_blatant_percentage_mismatch_on_trend(self) -> None:
-        panel = fm.trend(
+        panel = mint.trend(
             [1, 2, 3, 4],
             {"latency": [100.0, 98.0, 95.0, 92.0]},
             label="Latency",
@@ -282,7 +282,7 @@ class TestAuditEpistemicDetections:
         assert issues[0]["severity"] == "warning"
 
     def test_catches_blatant_fold_mismatch(self) -> None:
-        panel = fm.compare({"checkout": 120.0, "search": 100.0}, label="Latency", unit="ms")
+        panel = mint.compare({"checkout": 120.0, "search": 100.0}, label="Latency", unit="ms")
         issues = audit_epistemic("Checkout is 8x slower than search", {"a": panel})
         assert [i["rule"] for i in issues] == ["claim_number_mismatch"]
         assert issues[0]["severity"] == "warning"
@@ -296,7 +296,7 @@ class TestAuditEpistemicDetections:
 
 class TestAuditEpistemicZeroFalsePositives:
     def test_no_warning_when_cis_do_not_overlap(self) -> None:
-        panel = fm.compare(
+        panel = mint.compare(
             {"full model": 0.82, "no retrieval": 0.74},
             error={"full model": (0.80, 0.84), "no retrieval": (0.71, 0.77)},
             error_label="95% CI, 5 seeds",
@@ -310,7 +310,7 @@ class TestAuditEpistemicZeroFalsePositives:
         assert issues == []
 
     def test_no_warning_when_overlapping_cis_have_hedged_takeaway(self) -> None:
-        panel = fm.compare(
+        panel = mint.compare(
             {"Treatment A": 0.78, "Control": 0.75},
             error={"Treatment A": (0.73, 0.83), "Control": (0.70, 0.80)},
             error_label="95% CI, 5 seeds",
@@ -328,12 +328,12 @@ class TestAuditEpistemicZeroFalsePositives:
             # Years, versions, item counts
             (
                 "In 2026, v2.3 leads all 4 benchmarks after the Q3 release",
-                fm.compare({"A": 86, "B": 82, "C": 79, "D": 75}, label="Score", unit="%"),
+                mint.compare({"A": 86, "B": 82, "C": 79, "D": 75}, label="Score", unit="%"),
             ),
             # Point deltas (0.08 -> 8 points, 0.13 -> 13 points)
             (
                 "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",
-                fm.compare(
+                mint.compare(
                     {"full": 0.82, "no retrieval": 0.74, "no fine-tuning": 0.69},
                     label="Accuracy",
                 ),
@@ -341,67 +341,67 @@ class TestAuditEpistemicZeroFalsePositives:
             # Unit conversions (0.01 uM -> 10 nM)
             (
                 "BX-204 inhibits the kinase at 10 nM across replicates",
-                fm.compare({"BX-204": 0.01, "BX-101": 0.08}, label="IC50", unit="µM"),
+                mint.compare({"BX-204": 0.01, "BX-101": 0.08}, label="IC50", unit="µM"),
             ),
             # Hedged percentages and folds
             (
                 "Checkout drops latency by ~20% across services",
-                fm.compare({"before": 100.0, "after": 92.0}, label="Latency", unit="ms"),
+                mint.compare({"before": 100.0, "after": 92.0}, label="Latency", unit="ms"),
             ),
             (
                 "Migration falls by about 40% after knockout",
-                fm.compare({"wt": 12.0, "ko": 10.0}, label="Distance", unit="µm"),
+                mint.compare({"wt": 12.0, "ko": 10.0}, label="Distance", unit="µm"),
             ),
             (
                 "Compound is roughly 5x more potent than control",
-                fm.compare({"drug": 2.0, "ctrl": 1.0}, label="Potency"),
+                mint.compare({"drug": 2.0, "ctrl": 1.0}, label="Potency"),
             ),
             (
                 "Nearly 90% of requests stay under budget",
-                fm.compare({"ok": 60.0, "slow": 40.0}, label="Count"),
+                mint.compare({"ok": 60.0, "slow": 40.0}, label="Count"),
             ),
             (
                 "Over 50% of runs pass on the first try",
-                fm.compare({"pass": 30.0, "fail": 70.0}, label="Count"),
+                mint.compare({"pass": 30.0, "fail": 70.0}, label="Count"),
             ),
             # Confidence interval label ("95% CI") should not be checked as a data value
             (
                 "Effect size is 0.4 with narrow 95% CI",
-                fm.compare({"A": 0.4, "B": 0.1}, label="Effect"),
+                mint.compare({"A": 0.4, "B": 0.1}, label="Effect"),
             ),
             # Atomic percent ("2 at.%")
             (
                 "Conductivity peaks at 2 at.% Li across all samples",
-                fm.compare({"0 at.%": 1e-5, "2 at.%": 1e-2}, label="Conductivity", unit="S/cm"),
+                mint.compare({"0 at.%": 1e-5, "2 at.%": 1e-2}, label="Conductivity", unit="S/cm"),
             ),
             # Small fold <= 1.2x ignored
             (
                 "Model B is 1.1x faster than baseline",
-                fm.compare({"A": 10.0, "B": 10.0}, label="Speed"),
+                mint.compare({"A": 10.0, "B": 10.0}, label="Speed"),
             ),
             # Valid percentage change (8% drop on 100 -> 92)
             (
                 "Latency fell by 8% after caching",
-                fm.compare({"before": 100.0, "after": 92.0}, label="Latency", unit="ms"),
+                mint.compare({"before": 100.0, "after": 92.0}, label="Latency", unit="ms"),
             ),
             # Valid fraction-to-percent match (0.82 -> 82%)
             (
                 "Full model reaches 82% accuracy",
-                fm.compare({"full": 0.82, "base": 0.74}, label="Accuracy"),
+                mint.compare({"full": 0.82, "base": 0.74}, label="Accuracy"),
             ),
             # Valid fold ratio (1840 / 460 = 4x)
             (
                 "Checkout p99 is 4x the next worst service",
-                fm.compare({"checkout": 1840, "search": 460}, label="p99", unit="ms"),
+                mint.compare({"checkout": 1840, "search": 460}, label="p99", unit="ms"),
             ),
             # Custom panel skipped completely
             (
                 "Custom diagram illustrates a 50% drop and 9x speedup",
-                fm.custom(lambda ax: ax.plot([0, 1], [100, 99]), title="Custom"),
+                mint.custom(lambda ax: ax.plot([0, 1], [100, 99]), title="Custom"),
             ),
         ],
     )
-    def test_benign_cases_emit_zero_warnings(self, takeaway: str, panel: fm.Panel) -> None:
+    def test_benign_cases_emit_zero_warnings(self, takeaway: str, panel: mint.Panel) -> None:
         assert audit_epistemic(takeaway, {"a": panel}) == []
 
     @pytest.mark.parametrize(("name", "builder"), _load_gallery_examples())

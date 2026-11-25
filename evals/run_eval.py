@@ -1,7 +1,7 @@
-"""Empirical validation harness for figmint v0.2 (10 clean + 25 messy scripts).
+"""Empirical validation harness for mintfig v0.2 (10 clean + 25 messy scripts).
 
 Runs every control and messy script through the real CLI:
-    .venv/bin/figmint run <script> --journal <j> --json
+    .venv/bin/mintfig run <script> --journal <j> --json
 
 Repairs messy scripts using a strictly capped <= 2-loop generic rule-based
 repair engine driven purely by the structured JSON response (`stage`,
@@ -27,14 +27,14 @@ from typing import Any
 
 from PIL import Image, ImageDraw, ImageFont
 
-from figmint.specs import get_spec
+from mintfig.specs import get_spec
 
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS_DIR = ROOT / "evals" / "corpus"
 OUT_DIR = ROOT / "evals" / "output"
 REPAIRED_DIR = OUT_DIR / "repaired_scripts"
 BUNDLES_DIR = OUT_DIR / "bundles"
-FIGMINT_BIN = ROOT / ".venv" / "bin" / "figmint"
+MINTFIG_BIN = ROOT / ".venv" / "bin" / "mintfig"
 
 BANNED_CMAP_REPLACEMENTS: dict[str, str] = {
     "jet": "viridis",
@@ -53,19 +53,19 @@ def _target_journal(script_path: Path) -> str:
     return m.group(1) if m else "nature"
 
 
-def _run_figmint_cli(
+def _run_mintfig_cli(
     script_path: Path,
     journal: str,
     *,
     bundle_dir: Path | None = None,
     no_proof: bool = True,
 ) -> tuple[int, dict[str, Any]]:
-    cmd = [str(FIGMINT_BIN), "run", str(script_path), "--journal", journal, "--json"]
+    cmd = [str(MINTFIG_BIN), "run", str(script_path), "--journal", journal, "--json"]
     if bundle_dir is not None:
         cmd.extend(["--bundle", str(bundle_dir)])
         if no_proof:
             cmd.append("--no-proof")
-    env = {**os.environ, "MPLCONFIGDIR": "/tmp/mpl-figmint"}
+    env = {**os.environ, "MPLCONFIGDIR": "/tmp/mpl-mintfig"}
     proc = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
     stdout = proc.stdout.strip()
     try:
@@ -85,27 +85,27 @@ def _run_figmint_cli(
 # ---------------------------------------------------------------------------
 
 
-def _ensure_figmint_import_and_apply(source: str, journal: str) -> str:
-    """Ensure figmint is imported and journal styling is applied."""
-    if "import figmint" not in source:
+def _ensure_mintfig_import_and_apply(source: str, journal: str) -> str:
+    """Ensure mintfig is imported and journal styling is applied."""
+    if "import mintfig" not in source:
         lines = source.splitlines()
         insert_idx = 0
         for i, line in enumerate(lines):
             if line.startswith(("import ", "from ")):
                 insert_idx = i + 1
         lines.insert(insert_idx, "")
-        lines.insert(insert_idx + 1, "import figmint as fm")
+        lines.insert(insert_idx + 1, "import mintfig as mint")
         source = "\n".join(lines) + "\n"
 
-    # Determine imported alias for figmint
+    # Determine imported alias for mintfig
     alias = "fm"
-    m_alias = re.search(r"import\s+figmint\s+as\s+(\w+)", source)
+    m_alias = re.search(r"import\s+mintfig\s+as\s+(\w+)", source)
     if m_alias:
         alias = m_alias.group(1)
-    elif re.search(r"\bimport\s+figmint\b", source):
-        alias = "figmint"
+    elif re.search(r"\bimport\s+mintfig\b", source):
+        alias = "mintfig"
 
-    # Inject apply(journal) at top of build() if script creates raw plt.subplots/figure without fm.use/Plate
+    # Inject apply(journal) at top of build() if script creates raw plt.subplots/figure without mint.use/Plate
     apply_call = f'{alias}.apply("{journal}")'
     if apply_call not in source and f"{alias}.use(" not in source and f"{alias}.Plate(" not in source:
         source = re.sub(
@@ -205,7 +205,7 @@ def _repair_dimensions(source: str, payload: dict[str, Any], journal: str) -> st
         return source
 
     # Case 2: Raw plt.subplots(...) or plt.figure(...)
-    source = _ensure_figmint_import_and_apply(source, journal)
+    source = _ensure_mintfig_import_and_apply(source, journal)
     w_in = round(target_w / 25.4, 6)
     h_in = round(target_h / 25.4, 6)
 
@@ -269,7 +269,7 @@ def _repair_font_family(source: str, journal: str) -> str:
     source = re.sub(r",\s*family\s*=\s*['\"][^'\"]+['\"]", "", source)
     source = re.sub(r"plt\.rcParams\[['\"]font\.family['\"]\]\s*=\s*['\"][^'\"]+['\"]\s*\n?", "", source)
     source = re.sub(r"plt\.rcParams\[['\"]pdf\.fonttype['\"]\]\s*=\s*\d+\s*\n?", "", source)
-    source = _ensure_figmint_import_and_apply(source, journal)
+    source = _ensure_mintfig_import_and_apply(source, journal)
     return source
 
 
@@ -380,7 +380,7 @@ def _repair_text_overlaps(source: str, issues: list[dict[str, Any]], loop_idx: i
 
 
 def apply_repairs(source: str, payload: dict[str, Any], journal: str, loop_idx: int) -> str:
-    """Apply all generic repairs triggered by the current figmint run --json payload."""
+    """Apply all generic repairs triggered by the current mintfig run --json payload."""
     stage = payload.get("stage", "preflight")
     if stage == "contract":
         return _repair_contract(source)
@@ -474,13 +474,13 @@ def build_contact_sheet(records: list[dict[str, Any]], out_path: Path) -> list[s
     draw.rectangle([0, 0, canvas_w, header_h], fill=(18, 24, 38))
     draw.text(
         (pad, 24),
-        "FIGMINT v0.2 EMPIRICAL VALIDATION  ·  Repaired Messy Figures (3×3 Contact Sheet)",
+        "MINTFIG v0.2 EMPIRICAL VALIDATION  ·  Repaired Messy Figures (3×3 Contact Sheet)",
         fill=(255, 255, 255),
         font=f_title,
     )
     draw.text(
         (pad, 78),
-        "9 diverse messy shot-#0 scripts auto-repaired in <= 2 loops purely from `figmint run --json` structured fix_hints",
+        "9 diverse messy shot-#0 scripts auto-repaired in <= 2 loops purely from `mintfig run --json` structured fix_hints",
         fill=(186, 196, 214),
         font=f_sub,
     )
@@ -552,7 +552,7 @@ def main() -> None:
     clean_records: list[dict[str, Any]] = []
     for sp in clean_scripts:
         journal = _target_journal(sp)
-        code, payload = _run_figmint_cli(sp, journal)
+        code, payload = _run_mintfig_cli(sp, journal)
         summary = payload.get("summary", {})
         clean_records.append(
             {
@@ -581,7 +581,7 @@ def main() -> None:
         final_payload: dict[str, Any] = {}
 
         for loop_idx in range(3):  # Loop 0, Loop 1, Loop 2 (strictly <= 2 repair loops)
-            code, payload = _run_figmint_cli(work_script, journal)
+            code, payload = _run_mintfig_cli(work_script, journal)
             summary = payload.get("summary", {})
             issues = payload.get("issues", [])
             err_rules = [i["rule"] for i in issues if i.get("severity") == "error"]
@@ -618,7 +618,7 @@ def main() -> None:
         bundle_dir = BUNDLES_DIR / sp.stem
         preview_png = None
         if final_code == 0:
-            b_code, b_payload = _run_figmint_cli(work_script, journal, bundle_dir=bundle_dir, no_proof=True)
+            b_code, b_payload = _run_mintfig_cli(work_script, journal, bundle_dir=bundle_dir, no_proof=True)
             if b_code == 0:
                 final_payload = b_payload
                 preview_png = b_payload.get("artifacts", {}).get("preview_png")

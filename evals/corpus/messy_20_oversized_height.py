@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
-    plate = fm.Plate(
+def build() -> mint.Plate:
+    plate = mint.Plate(
         journal="nature",
         width="double",
         height_mm=260.0,
@@ -17,7 +17,7 @@ def build() -> fm.Plate:
         gap_mm=9.0,
     )
     x = np.linspace(0, 10, 80)
-    colors = fm.get_palette("nature")
+    colors = mint.get_palette("nature")
     for idx, key in enumerate(["a", "b", "c", "d"]):
         plate[key].plot(x, np.sin(x + idx * 0.7), color=colors[idx])
         plate[key].set_xlabel("Time (s)")

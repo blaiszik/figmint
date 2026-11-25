@@ -11,9 +11,9 @@ import pytest
 
 matplotlib.use("Agg")
 
-from figmint.palettes import BANNED_COLORMAPS, PALETTES, get_palette, simulate_cvd
-from figmint.specs import JOURNALS, MM_PER_INCH, JournalSpec, get_spec, in_to_mm, mm_to_in
-from figmint.style import apply, rc_params, use
+from mintfig.palettes import BANNED_COLORMAPS, PALETTES, get_palette, simulate_cvd
+from mintfig.specs import JOURNALS, MM_PER_INCH, JournalSpec, get_spec, in_to_mm, mm_to_in
+from mintfig.style import apply, rc_params, use
 
 HEX_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 

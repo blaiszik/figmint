@@ -4,11 +4,11 @@ ALL DATA ARE SYNTHETIC. Every velocity field, single-cell manifold, transcriptio
 pseudotime profile, and CRISPRi log-odds effect is generated deterministically from a
 minimal hematopoiesis bifurcation toy model in this file. Nothing here is an experimental
 measurement; the plate showcases the new ``cell`` Press specification (174.0 mm, bold
-uppercase A–D) in the figmint house style.
+uppercase A–D) in the mintfig house style.
 
-Run through the figmint contract::
+Run through the mintfig contract::
 
-    figmint run gallery/cell_lineage_bifurcation.py --journal cell \
+    mintfig run gallery/cell_lineage_bifurcation.py --journal cell \
         --bundle gallery/output/cell_lineage_bifurcation --json
 """
 
@@ -17,7 +17,7 @@ from __future__ import annotations
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 
-import figmint as fm
+import mintfig as mint
 
 CAPTION = (
     "Synthetic single-cell CRISPRi perturbation and hematopoietic lineage bifurcation atlas "
@@ -84,7 +84,7 @@ def _panel_landscape(ax, rng: np.random.Generator) -> None:
     )
     im.set_visible(True)
     # Mark density underlay as decorative so clarity_metadata does not demand a density colorbar
-    ax._figmint_decorative = True  # type: ignore[attr-defined]
+    ax._mintfig_decorative = True  # type: ignore[attr-defined]
 
     # Subtle elevation contour lines
     ax.contour(X, Y, dens, levels=[0.22, 0.48, 0.74], colors="#B4C3D4", linewidths=0.4, zorder=1)
@@ -184,7 +184,7 @@ def _panel_cascade(ax, fig) -> None:
 
     im = ax.imshow(
         mat,
-        cmap="figmint_navy",
+        cmap="mintfig_navy",
         aspect="auto",
         extent=[0.0, 1.0, len(genes) - 0.5, -0.5],
         norm=Normalize(vmin=0.0, vmax=3.0),
@@ -214,12 +214,12 @@ def _panel_cascade(ax, fig) -> None:
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.048, pad=0.035, aspect=22)
     cbar.set_ticks([0, 1, 2, 3])
-    fm.style_colorbar(cbar, label=r"Expression ($z$)", tick_pt=6.0)
+    mint.style_colorbar(cbar, label=r"Expression ($z$)", tick_pt=6.0)
 
 
 def _panel_crispri(ax) -> None:
     """Panel C: CRISPRi knockdown fate-bias log-odds forest plot."""
-    fm.subtle_grid(ax, axis="x", color="#ECEFF4", lw=0.45)
+    mint.subtle_grid(ax, axis="x", color="#ECEFF4", lw=0.45)
 
     # (label, mean log-odds shift, half-95% CI, n_cells, group)
     entries = [
@@ -273,7 +273,7 @@ def _panel_crispri(ax) -> None:
 
 def _panel_dynamics(ax, rng: np.random.Generator) -> None:
     """Panel D: Opposing GATA1 and SPI1 bifurcation dynamics across pseudotime."""
-    fm.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     t = np.linspace(0.0, 1.0, 200)
     # Clean sigmoidal activation curves crossing at t* = 0.44
@@ -325,7 +325,7 @@ def _panel_dynamics(ax, rng: np.random.Generator) -> None:
         zorder=5,
     )
 
-    fm.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.22, fontsize=6.4)
+    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.22, fontsize=6.4)
 
     ax.set_xticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.set_yticks([0, 1, 2, 3])
@@ -334,10 +334,10 @@ def _panel_dynamics(ax, rng: np.random.Generator) -> None:
     ax.set_ylabel(r"Normalized expression ($\mathrm{log1p}$)")
 
 
-def build(journal: str = "cell") -> fm.Plate:
+def build(journal: str = "cell") -> mint.Plate:
     """Construct the four-panel Cell Press single-cell bifurcation plate."""
     rng = np.random.default_rng(77)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal=journal,
         width="double",
         height_mm=118.0,

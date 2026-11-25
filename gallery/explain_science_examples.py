@@ -1,9 +1,9 @@
-"""Scientific chat figures made with ``fm.explain`` (all data synthetic).
+"""Scientific chat figures made with ``mint.explain`` (all data synthetic).
 
 Each example answers a question a researcher would ask an agent about their own
 results: is the effect outside the noise, which candidate do I take forward,
 where is the optimum, does the perturbation matter. They exercise the parts of
-``fm.explain`` that scientific data needs: stated intervals, raw replicates,
+``mint.explain`` that scientific data needs: stated intervals, raw replicates,
 log scales, very small numbers, Unicode units and one colour per entity across
 panels. Run directly to write PNGs and their reproducible JSON specs to
 ``gallery/output/explain_science/``.
@@ -15,12 +15,12 @@ from pathlib import Path
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 SOURCE = "synthetic example data"
 
 
-def ablation() -> fm.Explanation:
+def ablation() -> mint.Explanation:
     """Is the effect outside seed noise? Intervals that are named, then the curves."""
     rng = np.random.default_rng(7)
     steps = np.arange(0, 2001, 250)
@@ -31,9 +31,9 @@ def ablation() -> fm.Explanation:
         mean = final * (1 - np.exp(-steps / tau))
         curves[name] = (mean + rng.normal(0, 0.003, steps.size)).round(3).tolist()
         bands[name] = 0.02
-    return fm.explain(
+    return mint.explain(
         "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",
-        fm.compare(
+        mint.compare(
             {**finals, "no augmentation": 0.80, "smaller encoder": 0.78},
             error={
                 "full model": (0.80, 0.84),
@@ -47,7 +47,7 @@ def ablation() -> fm.Explanation:
             label="Test accuracy",
             highlight=["no retrieval", "no fine-tuning"],
         ),
-        fm.trend(
+        mint.trend(
             steps.tolist(),
             curves,
             band=bands,
@@ -60,7 +60,7 @@ def ablation() -> fm.Explanation:
     )
 
 
-def dose_response() -> fm.Explanation:
+def dose_response() -> mint.Explanation:
     """Which compound goes forward? Replicates on a log dose axis, same colours in both panels."""
     rng = np.random.default_rng(11)
     doses = [0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30]
@@ -73,9 +73,9 @@ def dose_response() -> fm.Explanation:
         viability[name] = [
             (100 / (1 + (d / tox50) ** 1.5) + rng.normal(0, 3, 3)).round(1).tolist() for d in doses
         ]
-    return fm.explain(
+    return mint.explain(
         "BX-204 inhibits the kinase near 10 nM, about 100x below the dose that kills cells",
-        fm.trend(
+        mint.trend(
             doses,
             points=inhibition,
             log_x=True,
@@ -87,7 +87,7 @@ def dose_response() -> fm.Explanation:
             highlight="BX-204",
             reference=(50, "half-maximal"),
         ),
-        fm.trend(
+        mint.trend(
             doses,
             points=viability,
             log_x=True,
@@ -104,7 +104,7 @@ def dose_response() -> fm.Explanation:
     )
 
 
-def doping_optimum() -> fm.Explanation:
+def doping_optimum() -> mint.Explanation:
     """Where is the optimum? Values spanning decades, small numbers, an inherent order."""
     k_b = 8.617e-5
     temps = np.array([80, 100, 120, 150, 180, 210, 240, 270, 300, 330], dtype=float)
@@ -114,9 +114,9 @@ def doping_optimum() -> fm.Explanation:
     arrhenius = {
         name: (s0 * np.exp(-ea / (k_b * temps))).tolist() for name, (s0, ea) in levels.items()
     }
-    return fm.explain(
+    return mint.explain(
         "Conductivity peaks at 2 at.% Li, three decades above the undoped film",
-        fm.compare(
+        mint.compare(
             sigma_300,
             log=True,
             sort=False,
@@ -125,7 +125,7 @@ def doping_optimum() -> fm.Explanation:
             unit="S/cm",
             highlight="2 at.%",
         ),
-        fm.trend(
+        mint.trend(
             (1000.0 / temps).round(2).tolist(),
             arrhenius,
             log=True,
@@ -136,7 +136,7 @@ def doping_optimum() -> fm.Explanation:
             x_label="1000/T (K⁻¹)",
             highlight="2 at.%",
         ),
-        fm.compare(
+        mint.compare(
             {name: ea * 1000 for name, (_, ea) in levels.items()},
             sort=False,
             title="The barrier is lowest there too",
@@ -149,7 +149,7 @@ def doping_optimum() -> fm.Explanation:
     )
 
 
-def knockout() -> fm.Explanation:
+def knockout() -> mint.Explanation:
     """Does the perturbation matter? Every observation at small n, then the mechanism."""
     rng = np.random.default_rng(3)
     groups = {
@@ -163,16 +163,16 @@ def knockout() -> fm.Explanation:
         area += a.round(0).tolist()
         speed += (2.0 + slope * a + rng.normal(0, 0.9, 14)).round(2).tolist()
         label += [name] * 14
-    return fm.explain(
+    return mint.explain(
         "Knocking out the gene cuts migration distance by about 40%, and the rescue restores it",
-        fm.distribution(
+        mint.distribution(
             groups,
             title="Each dot is one cell",
             label="Migration distance in 6 h",
             unit="µm",
             highlight="knockout",
         ),
-        fm.relate(
+        mint.relate(
             area,
             speed,
             groups=label,
@@ -186,7 +186,7 @@ def knockout() -> fm.Explanation:
     )
 
 
-def descriptor_correlations() -> fm.Explanation:
+def descriptor_correlations() -> mint.Explanation:
     """Which variables go together? A signed matrix with a number in every cell."""
     names = ["band gap", "formation energy", "density", "bulk modulus", "volume per atom"]
     corr = np.array(
@@ -198,9 +198,9 @@ def descriptor_correlations() -> fm.Explanation:
             [0.28, 0.11, -0.81, -0.66, 1.00],
         ]
     )
-    return fm.explain(
+    return mint.explain(
         "Density and volume per atom carry the same information (r = −0.81)",
-        fm.matrix(
+        mint.matrix(
             corr.tolist(),
             rows=names,
             cols=names,
@@ -222,8 +222,8 @@ EXAMPLES = {
 }
 
 
-def build() -> fm.Explanation:
-    """Entry point for ``figmint run gallery/explain_science_examples.py --journal screen``."""
+def build() -> mint.Explanation:
+    """Entry point for ``mintfig run gallery/explain_science_examples.py --journal screen``."""
     return ablation()
 
 

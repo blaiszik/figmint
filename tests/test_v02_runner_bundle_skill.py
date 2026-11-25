@@ -1,4 +1,4 @@
-"""Tests for figmint v0.2: versioned specs, high-precision preflight, runner, bundle, and skill installer."""
+"""Tests for mintfig v0.2: versioned specs, high-precision preflight, runner, bundle, and skill installer."""
 
 from __future__ import annotations
 
@@ -14,13 +14,13 @@ from pypdf import PdfReader
 
 matplotlib.use("Agg")
 
-from figmint.cli import main as cli_main
-from figmint.plate import Plate
-from figmint.preflight import CheckResult, preflight_figure, preflight_pdf
-from figmint.runner import run_script
-from figmint.skill import VALID_TARGETS, get_agents_snippet, get_skill_markdown, install_skill
-from figmint.specs import get_spec, mm_to_in
-from figmint.style import use
+from mintfig.cli import main as cli_main
+from mintfig.plate import Plate
+from mintfig.preflight import CheckResult, preflight_figure, preflight_pdf
+from mintfig.runner import run_script
+from mintfig.skill import VALID_TARGETS, get_agents_snippet, get_skill_markdown, install_skill
+from mintfig.specs import get_spec, mm_to_in
+from mintfig.style import use
 
 PT_TO_MM = 25.4 / 72.0
 
@@ -274,9 +274,9 @@ class TestRunnerAndCLI:
         # 1. def build() -> Plate
         s_build = tmp_path / "s_build.py"
         s_build.write_text(
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "def build():\n"
-            "    p = fm.Plate(journal='nature', width='single', height_mm=64.0)\n"
+            "    p = mint.Plate(journal='nature', width='single', height_mm=64.0)\n"
             "    p['a'].plot([0, 1, 2], [0, 1, 0.5])\n"
             "    p['a'].set_xlabel('Time (s)')\n"
             "    p['a'].set_ylabel('Signal')\n"
@@ -294,9 +294,9 @@ class TestRunnerAndCLI:
         # 2. def build(journal) -> Plate
         s_build_j = tmp_path / "s_build_j.py"
         s_build_j.write_text(
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "def build(journal='nature'):\n"
-            "    p = fm.Plate(journal=journal, width='full', height_mm=90.0)\n"
+            "    p = mint.Plate(journal=journal, width='full', height_mm=90.0)\n"
             "    p['a'].plot([0, 1], [0, 1])\n"
             "    p['a'].set_xlabel('X')\n"
             "    p['a'].set_ylabel('Y')\n"
@@ -313,8 +313,8 @@ class TestRunnerAndCLI:
         # 3. Top-level `plate`
         s_plate = tmp_path / "s_plate.py"
         s_plate.write_text(
-            "import figmint as fm\n"
-            "plate = fm.Plate(journal='nature', width='single', height_mm=64.0)\n"
+            "import mintfig as mint\n"
+            "plate = mint.Plate(journal='nature', width='single', height_mm=64.0)\n"
             "plate['a'].plot([0, 1], [1, 2])\n"
             "plate['a'].set_xlabel('X')\n"
             "plate['a'].set_ylabel('Y')\n",
@@ -327,8 +327,8 @@ class TestRunnerAndCLI:
         # 4. Top-level `fig`
         s_fig = tmp_path / "s_fig.py"
         s_fig.write_text(
-            "import figmint as fm\n"
-            "fig, ax = fm.figure(journal='nature', width='single', height_mm=64.0)\n"
+            "import mintfig as mint\n"
+            "fig, ax = mint.figure(journal='nature', width='single', height_mm=64.0)\n"
             "ax.plot([0, 1], [0, 2])\n"
             "ax.set_xlabel('X')\n"
             "ax.set_ylabel('Y')\n",
@@ -345,9 +345,9 @@ class TestRunnerAndCLI:
         s_fail = tmp_path / "s_fail.py"
         s_fail.write_text(
             "import numpy as np\n"
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "def build():\n"
-            "    p = fm.Plate(journal='nature', width='single', height_mm=64.0)\n"
+            "    p = mint.Plate(journal='nature', width='single', height_mm=64.0)\n"
             "    p['a'].imshow(np.arange(16).reshape(4, 4), cmap='jet')\n"
             "    return p\n",
             encoding="utf-8",
@@ -391,9 +391,9 @@ class TestRunnerAndCLI:
         script = tmp_path / "clean_plot.py"
         script_src = (
             "import numpy as np\n"
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "def build():\n"
-            "    p = fm.Plate(journal='nature', width='single', height_mm=64.0)\n"
+            "    p = mint.Plate(journal='nature', width='single', height_mm=64.0)\n"
             "    x = np.linspace(0, 5, 40)\n"
             "    p['a'].plot(x, np.exp(-x))\n"
             "    p['a'].set_xlabel('Time (s)')\n"
@@ -519,12 +519,12 @@ class TestPlateBundleAPI:
 class TestSkillInstallerAndCLI:
     def test_skill_assets_readable(self) -> None:
         md = get_skill_markdown()
-        assert "figmint run" in md
+        assert "mintfig run" in md
         assert "--bundle" in md
         assert "--json" in md
         snippet = get_agents_snippet()
-        assert "<!-- figmint:start -->" in snippet
-        assert "<!-- figmint:end -->" in snippet
+        assert "<!-- mintfig:start -->" in snippet
+        assert "<!-- mintfig:end -->" in snippet
         for t in ("claude", "antigravity", "cursor", "codex", "agents-md", "claude-md"):
             assert t in VALID_TARGETS
 
@@ -550,10 +550,10 @@ class TestSkillInstallerAndCLI:
         capsys.readouterr()
         assert rc1 == 0
 
-        claude_skill = tmp_path / ".claude/skills/figmint/SKILL.md"
-        agy_skill = tmp_path / ".agents/skills/figmint/SKILL.md"
-        cursor_rule = tmp_path / ".cursor/rules/figmint.mdc"
-        codex_skill = tmp_path / ".codex/skills/figmint/SKILL.md"
+        claude_skill = tmp_path / ".claude/skills/mintfig/SKILL.md"
+        agy_skill = tmp_path / ".agents/skills/mintfig/SKILL.md"
+        cursor_rule = tmp_path / ".cursor/rules/mintfig.mdc"
+        codex_skill = tmp_path / ".codex/skills/mintfig/SKILL.md"
 
         assert claude_skill.exists()
         assert agy_skill.exists()
@@ -565,9 +565,9 @@ class TestSkillInstallerAndCLI:
         claude_after_1 = claude_md.read_text(encoding="utf-8")
         assert "Existing top notes." in agents_after_1
         assert "Keep this untouched." in claude_after_1
-        assert agents_after_1.count("<!-- figmint:start -->") == 1
-        assert agents_after_1.count("<!-- figmint:end -->") == 1
-        assert claude_after_1.count("<!-- figmint:start -->") == 1
+        assert agents_after_1.count("<!-- mintfig:start -->") == 1
+        assert agents_after_1.count("<!-- mintfig:end -->") == 1
+        assert claude_after_1.count("<!-- mintfig:start -->") == 1
 
         # Second run must be byte-identical and preserve user text
         written_2 = install_skill(
@@ -584,12 +584,12 @@ class TestSkillInstallerAndCLI:
         rc_print = cli_main(["skill", "--print", "--root", str(tmp_path)])
         out_print = capsys.readouterr().out
         assert rc_print == 0
-        assert "figmint run" in out_print
+        assert "mintfig run" in out_print
 
         rc_snip = cli_main(["skill", "--snippet", "--root", str(tmp_path)])
         out_snip = capsys.readouterr().out
         assert rc_snip == 0
-        assert "<!-- figmint:start -->" in out_snip
+        assert "<!-- mintfig:start -->" in out_snip
 
         # Must not have written any files into tmp_path
         assert list(tmp_path.iterdir()) == []

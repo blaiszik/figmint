@@ -4,11 +4,11 @@ ALL DATA ARE SYNTHETIC. Every scaling curve, RLVR training trajectory, thinking-
 sweep, and long-context retrieval matrix is generated deterministically from smooth
 analytical models in this script. Nothing here represents measurements of any real
 Google or Anthropic model; the plate demonstrates a model-release technical paper
-layout in the figmint house style.
+layout in the mintfig house style.
 
-Run through the figmint contract::
+Run through the mintfig contract::
 
-    figmint run gallery/neurips_frontier_scaling.py --journal neurips \
+    mintfig run gallery/neurips_frontier_scaling.py --journal neurips \
         --bundle gallery/output/neurips_frontier_scaling --json
 """
 
@@ -18,7 +18,7 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.ticker import FixedLocator, NullFormatter
 
-import figmint as fm
+import mintfig as mint
 
 CAPTION = (
     "Synthetic frontier-model release telemetry (NeurIPS full width, 139.7 mm). "
@@ -59,7 +59,7 @@ SCALE_CMAP = LinearSegmentedColormap.from_list(
 
 def _panel_pretraining(ax) -> None:
     """Panel a: Log-log pre-training scaling curves and compute-optimal frontier."""
-    fm.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     l_inf = 1.24
     alpha = 0.054
@@ -129,7 +129,7 @@ def _panel_pretraining(ax) -> None:
 
 def _panel_rlvr(ax, rng: np.random.Generator) -> None:
     """Panel b: RLVR post-training trajectories across three benchmarks (5-seed CI)."""
-    fm.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     steps = np.linspace(0, 40, 81)  # thousands of steps
     # Smooth saturating learning curves + mild KL-decay bump at 15k
@@ -173,7 +173,7 @@ def _panel_rlvr(ax, rng: np.random.Generator) -> None:
             zorder=4,
         )
 
-    fm.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.38, fontsize=6.0)
+    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.38, fontsize=6.0)
 
     ax.set_xticks([0, 10, 20, 30, 40])
     ax.set_xticklabels(["0", "10k", "20k", "30k", "40k"])
@@ -185,7 +185,7 @@ def _panel_rlvr(ax, rng: np.random.Generator) -> None:
 
 def _panel_test_time(ax) -> None:
     """Panel c: Log-linear inference-time compute scaling with thinking tokens."""
-    fm.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     budgets = np.array([256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536], dtype=float)
     log_b = np.log2(budgets / 256.0)
@@ -226,7 +226,7 @@ def _panel_test_time(ax) -> None:
             zorder=4,
         )
 
-    fm.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.45, fontsize=6.0)
+    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.45, fontsize=6.0)
 
     ax.xaxis.set_major_locator(FixedLocator([256, 1024, 4096, 16384, 65536]))
     ax.set_xticklabels(["256", "1k", "4k", "16k", "64k"])
@@ -256,11 +256,11 @@ def _panel_long_context(ax, fig) -> None:
 
     im = ax.imshow(
         recall,
-        cmap="figmint_teal",
+        cmap="mintfig_teal",
         aspect="auto",
         norm=Normalize(vmin=90, vmax=100),
     )
-    fm.style_heatmap(
+    mint.style_heatmap(
         ax,
         im,
         cell_border_color="#FFFFFF",
@@ -279,13 +279,13 @@ def _panel_long_context(ax, fig) -> None:
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.055, pad=0.04, aspect=18)
     cbar.set_ticks([90, 95, 100])
-    fm.style_colorbar(cbar, label="Recall (%)", tick_pt=6.0)
+    mint.style_colorbar(cbar, label="Recall (%)", tick_pt=6.0)
 
 
-def build(journal: str = "neurips") -> fm.Plate:
+def build(journal: str = "neurips") -> mint.Plate:
     """Construct the four-panel Frontier model technical report plate."""
     rng = np.random.default_rng(2026)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal=journal,
         width="full",
         height_mm=106.0,

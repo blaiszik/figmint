@@ -5,18 +5,18 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
-    plate = fm.Plate(
+def build() -> mint.Plate:
+    plate = mint.Plate(
         journal="science_advances",
         width="double",
         height_mm=74.0,
         layout=[["A", "B"]],
         gap_mm=10.0,
     )
-    colors = fm.get_palette("science")
+    colors = mint.get_palette("science")
     x = np.linspace(0, 1, 150)
 
     # A: ROC

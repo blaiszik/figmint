@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-import figmint as fm
-from figmint.cli import main as cli_main
+import mintfig as mint
+from mintfig.cli import main as cli_main
 
 
 class TestGroupedAndBoostCompare:
@@ -19,9 +19,9 @@ class TestGroupedAndBoostCompare:
             "AIME 2026": {"Alpha-3": 88.0, "Alpha-2": 64.0, "Beta-Pro": 82.0},
             "MMMU": {"Alpha-3": 79.5, "Alpha-2": 71.0, "Beta-Pro": 77.8},
         }
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 leads all 4 frontier benchmarks over Alpha-2 and Beta-Pro",
-            fm.compare(
+            mint.compare(
                 scores,
                 highlight="Alpha-3",
                 baseline="Alpha-2",
@@ -40,9 +40,9 @@ class TestGroupedAndBoostCompare:
         assert "Alpha-3 leads 4 of 4 categories" in facts
         assert "Alpha-3 vs Alpha-2" in facts
 
-        loaded = fm.load(png)
+        loaded = mint.load(png)
         assert loaded.to_spec() == fig.to_spec()
-        assert fm.explain_from_spec(loaded.to_spec()).summary()["ship"] is True
+        assert mint.explain_from_spec(loaded.to_spec()).summary()["ship"] is True
 
     def test_grouped_compare_tidy_rows_with_group_col(self) -> None:
         rows = [
@@ -53,9 +53,9 @@ class TestGroupedAndBoostCompare:
             {"bench": "AIME", "model": "Alpha-3", "score": 88.0},
             {"bench": "AIME", "model": "Alpha-2", "score": None},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 leads Alpha-2 across all 3 benchmarks by up to 15.6 points",
-            fm.compare(
+            mint.compare(
                 rows,
                 name="bench",
                 group="model",
@@ -77,9 +77,9 @@ class TestGroupedAndBoostCompare:
     ) -> None:
         base_scores = {"Alpha-3": 76.0, "Beta-Pro": 74.0, "Alpha-2": 64.0}
         thinking_gain = {"Alpha-3": 10.4, "Beta-Pro": 8.0, "Alpha-2": 6.2}
-        fig = fm.explain(
+        fig = mint.explain(
             "Extended thinking lifts Alpha-3 from 76.0% to 86.4% (+10.4 points)",
-            fm.compare(
+            mint.compare(
                 base_scores,
                 boost=thinking_gain,
                 boost_label="Extended thinking",
@@ -99,12 +99,12 @@ class TestGroupedAndBoostCompare:
         facts = " ".join(s["panels"][0]["facts"])
         assert "Extended thinking" in facts
         assert "86.4%" in facts
-        assert fm.load(png).to_spec() == fig.to_spec()
+        assert mint.load(png).to_spec() == fig.to_spec()
 
         # Unlabelled boost triggers advisory warning
-        fig_unlabelled = fm.explain(
+        fig_unlabelled = mint.explain(
             "Alpha-3 reaches 86.4% with boost",
-            fm.compare(base_scores, boost=thinking_gain, label="Accuracy", unit="%"),
+            mint.compare(base_scores, boost=thinking_gain, label="Accuracy", unit="%"),
             source="synthetic",
         )
         assert any(i["rule"] == "boost_unlabelled" for i in fig_unlabelled.summary()["issues"])
@@ -115,9 +115,9 @@ class TestGroupedAndBoostCompare:
             {"model": "Alpha-2", "std": 64.0, "think": 6.2},
             {"model": "Beta-Pro", "std": 74.0, "think": 8.0},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 reaches 86.4% with extended thinking",
-            fm.compare(
+            mint.compare(
                 rows,
                 name="model",
                 value="std",
@@ -146,9 +146,9 @@ class TestRelateParetoAndLabels:
         ]
 
     def test_relate_pareto_frontier_label_all_and_trajectories(self, tmp_path: Path) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 defines the upper-left capability-cost frontier at 86.4% for $2.50/M",
-            fm.relate(
+            mint.relate(
                 "cost",
                 "score",
                 data=self._frontier_rows(),
@@ -176,16 +176,16 @@ class TestRelateParetoAndLabels:
         assert "Gamma-Fast" in facts
         assert "Beta-Pro" not in facts.split("Pareto frontier")[1]
 
-        loaded = fm.load(png)
+        loaded = mint.load(png)
         assert loaded.to_spec() == fig.to_spec()
 
     def test_relate_validation_errors(self) -> None:
-        with pytest.raises(fm.ExplainError):
-            fm.relate([1, 2, 3], [4, 5, 6], x_label="X", y_label="Y", label_all=True)
-        with pytest.raises(fm.ExplainError):
-            fm.relate([1, 2, 3], [4, 5, 6], x_label="X", y_label="Y", connect_groups=True)
-        with pytest.raises(fm.ExplainError):
-            fm.relate([1, 2, 3], [4, 5, 6], x_label="X", y_label="Y", frontier="sideways")
+        with pytest.raises(mint.ExplainError):
+            mint.relate([1, 2, 3], [4, 5, 6], x_label="X", y_label="Y", label_all=True)
+        with pytest.raises(mint.ExplainError):
+            mint.relate([1, 2, 3], [4, 5, 6], x_label="X", y_label="Y", connect_groups=True)
+        with pytest.raises(mint.ExplainError):
+            mint.relate([1, 2, 3], [4, 5, 6], x_label="X", y_label="Y", frontier="sideways")
 
 
 class TestReleaseCardAccentAndSlideWidth:
@@ -197,9 +197,9 @@ class TestReleaseCardAccentAndSlideWidth:
             {"Model": "Alpha-2", "GPQA": 77.1, "SWE-bench": 58.6, "Cost": 3.00},
             {"Model": "Beta-Pro", "GPQA": 83.2, "SWE-bench": 71.0, "Cost": 6.00},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Alpha-3 sets a new frontier at 86.4% GPQA and 74.2% SWE-bench",
-            fm.compare(
+            mint.compare(
                 {
                     "GPQA": {"Alpha-3": 86.4, "Alpha-2": 77.1, "Beta-Pro": 83.2},
                     "SWE-bench": {"Alpha-3": 74.2, "Alpha-2": 58.6, "Beta-Pro": 71.0},
@@ -210,7 +210,7 @@ class TestReleaseCardAccentAndSlideWidth:
                 label="Accuracy",
                 unit="%",
             ),
-            fm.table(
+            mint.table(
                 rows,
                 units={"GPQA": "%", "SWE-bench": "%", "Cost": "$/M"},
                 bold_best={"GPQA": "max", "SWE-bench": "max", "Cost": "min"},
@@ -230,7 +230,7 @@ class TestReleaseCardAccentAndSlideWidth:
         assert s["display"]["width_px"] == 1280
         assert not any(i["rule"] == "small_at_chat_size" for i in s["issues"])
         assert fig.to_spec()["accent"] == "#D97757"
-        assert fm.load(png).to_spec() == fig.to_spec()
+        assert mint.load(png).to_spec() == fig.to_spec()
 
     def test_cli_accent_override(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         spec_path = tmp_path / "spec.json"
@@ -258,4 +258,4 @@ class TestReleaseCardAccentAndSlideWidth:
         out = json.loads(capsys.readouterr().out)
         assert rc == 0
         assert out["ship"] is True
-        assert fm.load(out_png).to_spec()["accent"] == "#10A37F"
+        assert mint.load(out_png).to_spec()["accent"] == "#10A37F"

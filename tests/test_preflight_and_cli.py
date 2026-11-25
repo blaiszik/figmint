@@ -15,13 +15,13 @@ from PIL import Image
 
 matplotlib.use("Agg")
 
-from figmint.cli import main as cli_main
-from figmint.export import save_figure
-from figmint.plate import Plate
-from figmint.preflight import CheckResult, PreflightReport, preflight_figure, preflight_pdf
-from figmint.proof import render_proof_sheet
-from figmint.specs import get_spec, mm_to_in
-from figmint.style import use
+from mintfig.cli import main as cli_main
+from mintfig.export import save_figure
+from mintfig.plate import Plate
+from mintfig.preflight import CheckResult, PreflightReport, preflight_figure, preflight_pdf
+from mintfig.proof import render_proof_sheet
+from mintfig.specs import get_spec, mm_to_in
+from mintfig.style import use
 
 
 def _check_by_rule(report: PreflightReport, rule: str) -> CheckResult:
@@ -236,8 +236,8 @@ class TestCLI:
         assert "184" in out_one
 
     def test_cli_entry_point_subprocess(self, tmp_path: Path) -> None:
-        figmint_bin = Path(sys.executable).parent / "figmint"
-        cmd = [str(figmint_bin), "specs"] if figmint_bin.exists() else [sys.executable, "-m", "figmint.cli", "specs"]
+        mintfig_bin = Path(sys.executable).parent / "mintfig"
+        cmd = [str(mintfig_bin), "specs"] if mintfig_bin.exists() else [sys.executable, "-m", "mintfig.cli", "specs"]
         proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         assert proc.returncode == 0
         assert "89" in proc.stdout

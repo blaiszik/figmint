@@ -12,7 +12,7 @@ from pypdf import PdfReader
 
 matplotlib.use("Agg")
 
-from figmint.annotations import (
+from mintfig.annotations import (
     despine,
     direct_labels,
     scalebar,
@@ -20,9 +20,9 @@ from figmint.annotations import (
     style_colorbar,
     zoom_inset,
 )
-from figmint.export import rasterize_heavy, save_figure
-from figmint.plate import Plate, figure
-from figmint.specs import get_spec
+from mintfig.export import rasterize_heavy, save_figure
+from mintfig.plate import Plate, figure
+from mintfig.specs import get_spec
 
 PT_TO_MM = 25.4 / 72.0
 
@@ -144,7 +144,7 @@ class TestPlateLayoutAndPanelLabels:
             labels = plate.label_panels()
             assert [labels[k].get_text() for k in plate.panel_keys] == ["a", "b", "c", "d"]
             for txt in labels.values():
-                assert getattr(txt, "_figmint_panel_label", False) is True
+                assert getattr(txt, "_mintfig_panel_label", False) is True
                 assert txt.get_fontweight() in {"bold", 700}
                 assert txt.get_fontsize() == pytest.approx(8.0)
 
@@ -184,7 +184,7 @@ class TestPlateLayoutAndPanelLabels:
             texts = [labels[k].get_text() for k in plate.panel_keys]
             assert texts == ["A", "B", "C"]
             for txt in labels.values():
-                assert getattr(txt, "_figmint_panel_label", False) is True
+                assert getattr(txt, "_mintfig_panel_label", False) is True
                 assert txt.get_fontsize() == pytest.approx(8.5)
         finally:
             plt.close(plate.fig)

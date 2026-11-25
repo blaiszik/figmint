@@ -2,8 +2,8 @@
 
 Generates:
 - ``gallery/output/explain_themes/style_<name>.png`` for all 7 built-in styles
-  (``figmint``, ``editorial``, ``paper``, ``bold``, ``dark``, ``mono``, ``sketch``).
-- ``gallery/output/explain_themes/palette_<name>.png`` for all 6 ``fm.explain`` palettes
+  (``mintfig``, ``editorial``, ``paper``, ``bold``, ``dark``, ``mono``, ``sketch``).
+- ``gallery/output/explain_themes/palette_<name>.png`` for all 6 ``mint.explain`` palettes
   (``default``, ``okabe_ito``, ``tol``, ``earth``, ``ocean``, ``berry``), using a 4-series
   figure so every colour slot is visible side by side.
 - ``gallery/output/explain_themes/palettes_overview.png`` — a clean visual swatch sheet of
@@ -20,19 +20,19 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import FancyBboxPatch
 
-import figmint as fm
-from figmint.palettes import EDITORIAL_COLORMAPS, PALETTES
-from figmint.themes import EXPLAIN_PALETTES, THEMES
+import mintfig as mint
+from mintfig.palettes import EDITORIAL_COLORMAPS, PALETTES
+from mintfig.themes import EXPLAIN_PALETTES, THEMES
 
 OUT_DIR = Path(__file__).resolve().parent / "output" / "explain_themes"
 SOURCE = "synthetic example data"
 
 
-def _theme_demo(style_name: str) -> fm.Explanation:
+def _theme_demo(style_name: str) -> mint.Explanation:
     """Two-panel comparison + trend showcasing a visual surface theme."""
-    return fm.explain(
+    return mint.explain(
         "Retriever B lifts accuracy by 9 points while keeping latency steady across loads",
-        fm.compare(
+        mint.compare(
             {"Retriever B": 86, "Retriever A": 77, "Hybrid": 81, "BM25": 68},
             error={
                 "Retriever B": (84, 88),
@@ -47,7 +47,7 @@ def _theme_demo(style_name: str) -> fm.Explanation:
             unit="%",
             title="Retriever B leads outside noise",
         ),
-        fm.trend(
+        mint.trend(
             [10, 25, 50, 100, 200],
             {
                 "Retriever B": [42, 46, 51, 58, 66],
@@ -66,7 +66,7 @@ def _theme_demo(style_name: str) -> fm.Explanation:
     )
 
 
-def _palette_demo(palette_name: str) -> fm.Explanation:
+def _palette_demo(palette_name: str) -> mint.Explanation:
     """Four-series figure displaying all four CVD-verified slots of an explain palette."""
     steps = [0, 500, 1000, 1500, 2000]
     curves = {
@@ -76,16 +76,16 @@ def _palette_demo(palette_name: str) -> fm.Explanation:
         "Delta": [9, 32, 44, 51, 55],
     }
     finals = {k: v[-1] for k, v in curves.items()}
-    return fm.explain(
+    return mint.explain(
         f"Palette '{palette_name}': four distinct hues stay separated in colour, CVD and print",
-        fm.compare(
+        mint.compare(
             finals,
             highlight=["Alpha", "Beta", "Gamma"],
             label="Final score",
             unit="%",
             title="Three accents plus muted context",
         ),
-        fm.trend(
+        mint.trend(
             steps,
             curves,
             label="Validation score",
@@ -121,7 +121,7 @@ def _render_palette_overview(out_path: Path) -> None:
         ax.text(
             0.03,
             0.955,
-            "figmint Color Palettes & Editorial Colormaps",
+            "mintfig Color Palettes & Editorial Colormaps",
             fontsize=13.5,
             fontweight="bold",
             color=ink,
@@ -130,14 +130,14 @@ def _render_palette_overview(out_path: Path) -> None:
         ax.text(
             0.03,
             0.912,
-            "Every fm.explain palette is verified for deuteranopia, protanopia, grayscale separation, and WCAG 4.5:1 text contrast.",
+            "Every mint.explain palette is verified for deuteranopia, protanopia, grayscale separation, and WCAG 4.5:1 text contrast.",
             fontsize=8.5,
             color=muted,
             va="top",
         )
 
-        # Left column: fm.explain palettes (palette=...)
-        ax.text(0.03, 0.855, "fm.explain palettes (palette=...)", fontsize=9.5, fontweight="bold", color=ink)
+        # Left column: mint.explain palettes (palette=...)
+        ax.text(0.03, 0.855, "mint.explain palettes (palette=...)", fontsize=9.5, fontweight="bold", color=ink)
         y = 0.805
         for name, pal in EXPLAIN_PALETTES.items():
             ax.text(0.03, y, name, fontsize=8.5, fontweight="bold", color=ink, va="center")
@@ -169,7 +169,7 @@ def _render_palette_overview(out_path: Path) -> None:
             y -= 0.072
 
         # Right column: publication PALETTES
-        ax.text(0.55, 0.855, "Publication palettes (fm.get_palette)", fontsize=9.5, fontweight="bold", color=ink)
+        ax.text(0.55, 0.855, "Publication palettes (mint.get_palette)", fontsize=9.5, fontweight="bold", color=ink)
         y = 0.805
         for name, cols in PALETTES.items():
             ax.text(0.55, y, name, fontsize=8.5, fontweight="bold", color=ink, va="center")

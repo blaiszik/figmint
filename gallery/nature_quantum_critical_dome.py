@@ -6,9 +6,9 @@ superconducting dome centred on it, and a resistivity exponent that falls from
 2 to 1 in a fan above it). Nothing here is a measurement of a real material;
 the plate exists to show the house style on a familiar kind of figure.
 
-Run through the figmint contract::
+Run through the mintfig contract::
 
-    figmint run gallery/nature_quantum_critical_dome.py --journal nature \
+    mintfig run gallery/nature_quantum_critical_dome.py --journal nature \
         --bundle gallery/output/nature_quantum_critical_dome --json
 """
 
@@ -20,7 +20,7 @@ from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.lines import Line2D
 from matplotlib.ticker import NullFormatter
 
-import figmint as fm
+import mintfig as mint
 
 INK = "#1A1D21"
 MUTED = "#5B6470"
@@ -291,7 +291,7 @@ def panel_phase_diagram(ax: mpl.axes.Axes) -> None:
     ax.set_ylabel("Temperature (K)")
 
     cbar = ax.figure.colorbar(mesh, ax=ax, fraction=0.045, pad=0.025, aspect=22)
-    fm.style_colorbar(cbar, label=r"Resistivity exponent, $\mathit{n}$")
+    mint.style_colorbar(cbar, label=r"Resistivity exponent, $\mathit{n}$")
     cbar.set_ticks([1.0, 1.5, 2.0])
     cbar.ax.invert_yaxis()
 
@@ -442,8 +442,8 @@ CAPTION = (
 )
 
 
-def build(journal: str = "nature") -> fm.Plate:
-    plate = fm.Plate(
+def build(journal: str = "nature") -> mint.Plate:
+    plate = mint.Plate(
         journal=journal,
         width="double",
         height_mm=126.0,

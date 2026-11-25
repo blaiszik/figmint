@@ -5,14 +5,14 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(105)
-    plate = fm.Plate(journal="science", width="double", height_mm=76.0, layout=(1, 1))
+    plate = mint.Plate(journal="science", width="double", height_mm=76.0, layout=(1, 1))
     ax = plate["A"]
-    colors = fm.get_palette("science")
+    colors = mint.get_palette("science")
 
     fc = rng.normal(0.0, 1.3, 600)
     neglogp = np.abs(fc) * rng.uniform(0.6, 2.2, 600) + rng.exponential(0.5, 600)

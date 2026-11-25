@@ -1,4 +1,4 @@
-"""Tests for figmint v0.3: cell/pnas/neurips/screen specs, layout_collapse, clarity warnings, and figure.json."""
+"""Tests for mintfig v0.3: cell/pnas/neurips/screen specs, layout_collapse, clarity warnings, and figure.json."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ from pypdf import PdfReader
 
 matplotlib.use("Agg")
 
-import figmint as fm
-from figmint.cli import main as cli_main
-from figmint.plate import Plate
-from figmint.preflight import CheckResult, preflight_figure
-from figmint.runner import run_script
-from figmint.specs import JournalSpec, get_spec
-from figmint.style import rc_params
+import mintfig as mint
+from mintfig.cli import main as cli_main
+from mintfig.plate import Plate
+from mintfig.preflight import CheckResult, preflight_figure
+from mintfig.runner import run_script
+from mintfig.specs import JournalSpec, get_spec
+from mintfig.style import rc_params
 
 PT_TO_MM = 25.4 / 72.0
 
@@ -163,8 +163,8 @@ class TestHandoffDeterministicFixes:
         ax = plate["a"]
         try:
             ax.imshow(np.zeros((32, 32)), cmap="magma")
-            _, txt_default = fm.scalebar(ax, 50)
-            _, txt_unicode = fm.scalebar(ax, 25, unit="µm", location="upper left")
+            _, txt_default = mint.scalebar(ax, 50)
+            _, txt_unicode = mint.scalebar(ax, 25, unit="µm", location="upper left")
             assert r"$\mathrm{\mu}$" in txt_default.get_text()
             assert r"$\mathrm{\mu}$" in txt_unicode.get_text()
             assert "µ" not in txt_unicode.get_text()
@@ -177,13 +177,13 @@ class TestHandoffDeterministicFixes:
         script = tmp_path / "captioned.py"
         script.write_text(
             "import numpy as np\n"
-            "import figmint as fm\n"
+            "import mintfig as mint\n"
             "CAPTION = 'Synthetic scaling loss across four compute orders.'\n"
             "LABEL = 'fig:scaling'\n"
             "TAKEAWAY = 'Validation loss follows a power law with compute.'\n"
             "PANEL_NOTES = {'a': 'Loss decays smoothly with FLOPs.'}\n"
             "def build():\n"
-            "    p = fm.Plate(journal='neurips', width='full', height_mm=70.0)\n"
+            "    p = mint.Plate(journal='neurips', width='full', height_mm=70.0)\n"
             "    x = np.linspace(1, 10, 40)\n"
             "    p['a'].plot(x, x**-0.5, label='Frontier')\n"
             "    p['a'].set_xlabel('Compute (FLOPs)')\n"
@@ -271,7 +271,7 @@ class TestClarityWarningTierAndMessageHelpers:
         l_fg = plate["a"].plot(x, np.cos(x), label="Frontier")[0]
         plate["a"].set_xlabel("Step")
         plate["a"].set_ylabel("Score")
-        focused = fm.emphasize(plate["a"], keep="Frontier", focus_lw=1.6)
+        focused = mint.emphasize(plate["a"], keep="Frontier", focus_lw=1.6)
         plate.set_takeaway("Frontier surpasses baseline across all steps.", show=True)
         plate.note_panel("a", "Cosine curve dominates baseline.")
         try:

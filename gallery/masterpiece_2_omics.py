@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from matplotlib.lines import Line2D
 
-import figmint as fm
+import mintfig as mint
 
 # Cohesive Nature Medicine editorial palette
 VERMILION = "#C84B31"  # Activated / up / high-risk
@@ -114,7 +114,7 @@ def _build_panel_a_volcano(ax, rng: np.random.Generator) -> None:
     for i, (_, gx, gy, _, _) in enumerate(featured_down):
         fc_down[i], y_down[i] = gx, gy
 
-    fm.subtle_grid(ax, axis="y", color="#EEF1F6", lw=0.4)
+    mint.subtle_grid(ax, axis="y", color="#EEF1F6", lw=0.4)
 
     # Threshold dashed lines
     ax.axvline(-1.0, color="#8A94A3", lw=0.55, ls="--", zorder=1)
@@ -212,7 +212,7 @@ def _build_panel_a_volcano(ax, rng: np.random.Generator) -> None:
     ax.set_xlabel(r"$\log_2$ fold change (Tumor / Normal)")
     ax.set_ylabel(r"$-\log_{10}(\mathrm{FDR})$")
     ax.set_title("Differential expression (4,500 genes)", pad=5.0)
-    fm.despine(ax)
+    mint.despine(ax)
 
 
 def _build_panel_b_spatial(ax, fig, rng: np.random.Generator) -> None:
@@ -279,12 +279,12 @@ def _build_panel_b_spatial(ax, fig, rng: np.random.Generator) -> None:
         zorder=1,
     )
 
-    # Spots rendered in figmint_coral (monotonic luminance -> crisp in grayscale!)
+    # Spots rendered in mintfig_coral (monotonic luminance -> crisp in grayscale!)
     sc = ax.scatter(
         sx,
         sy,
         c=expr,
-        cmap="figmint_coral",
+        cmap="mintfig_coral",
         vmin=0.0,
         vmax=4.2,
         s=5.8,
@@ -363,7 +363,7 @@ def _build_panel_b_spatial(ax, fig, rng: np.random.Generator) -> None:
     for spine in ax.spines.values():
         spine.set_visible(False)
 
-    fm.scalebar(
+    mint.scalebar(
         ax,
         length=500,
         unit="µm",
@@ -378,7 +378,7 @@ def _build_panel_b_spatial(ax, fig, rng: np.random.Generator) -> None:
 
     cbar = fig.colorbar(sc, ax=ax, fraction=0.042, pad=0.03, aspect=18)
     cbar.set_ticks([0, 1, 2, 3, 4])
-    fm.style_colorbar(cbar, label="STAT3 expr. (log1p)", tick_pt=5.8)
+    mint.style_colorbar(cbar, label="STAT3 expr. (log1p)", tick_pt=5.8)
     ax.set_title(f"Spatial transcriptomics ({len(sx):,} spots)", pad=5.0)
 
 
@@ -426,7 +426,7 @@ def _build_panel_c_dotplot(ax, fig) -> None:
     xs, ys = np.meshgrid(np.arange(n_cols), np.arange(n_rows))
     sizes = 8.0 + 9.2 * np.clip(neg_log_fdr, 0.5, 6.5)
 
-    fm.subtle_grid(ax, axis="both", color="#ECEFF4", lw=0.45)
+    mint.subtle_grid(ax, axis="both", color="#ECEFF4", lw=0.45)
     ax.axhline(3.5, color="#CBD3DC", lw=0.6, ls=":", zorder=1)
 
     sc = ax.scatter(
@@ -434,7 +434,7 @@ def _build_panel_c_dotplot(ax, fig) -> None:
         ys.ravel(),
         s=sizes.ravel(),
         c=nes.ravel(),
-        cmap="figmint_div",
+        cmap="mintfig_div",
         vmin=-2.4,
         vmax=2.4,
         edgecolors="#3A434E",
@@ -457,7 +457,7 @@ def _build_panel_c_dotplot(ax, fig) -> None:
 
     cbar = fig.colorbar(sc, ax=ax, fraction=0.048, pad=0.04, aspect=18)
     cbar.set_ticks([-2, -1, 0, 1, 2])
-    fm.style_colorbar(cbar, label="NES", tick_pt=5.8)
+    mint.style_colorbar(cbar, label="NES", tick_pt=5.8)
 
     # Single-line inline FDR size key aligned neatly with Panel d's x-axis label
     handles = [
@@ -502,7 +502,7 @@ def _build_panel_d_survival(ax, rng: np.random.Generator) -> None:
         ("High-risk (n=68)", 68, 0.0265, VERMILION, "-", 1.35),
     ]
 
-    fm.subtle_grid(ax, axis="y", color="#EEF1F6", lw=0.45)
+    mint.subtle_grid(ax, axis="y", color="#EEF1F6", lw=0.45)
 
     for label, n_pat, hazard, color, ls, lw in cohorts:
         event_t = rng.exponential(1.0 / hazard, n_pat)
@@ -552,9 +552,9 @@ def _build_panel_d_survival(ax, rng: np.random.Generator) -> None:
     ax.set_xlabel("Time from diagnosis (months)")
     ax.set_ylabel("Overall survival (%)")
     ax.set_title("Patient survival by STAT3 subtype", pad=5.0)
-    fm.despine(ax)
+    mint.despine(ax)
 
-    fm.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.5, fontsize=5.8, expand_xlim=0.38)
+    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.5, fontsize=5.8, expand_xlim=0.38)
 
     # Clean editorial stats callout in open lower-left region
     ax.text(
@@ -569,11 +569,11 @@ def _build_panel_d_survival(ax, rng: np.random.Generator) -> None:
     )
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     """Build Masterpiece 2: Nature double-column multi-omics & spatial oncology atlas."""
     rng = np.random.default_rng(42)
 
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal="nature",
         width="double",
         height_mm=122.0,

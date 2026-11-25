@@ -5,14 +5,14 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(108)
-    plate = fm.Plate(journal="nature", width="single", height_mm=72.0, layout=(1, 1))
+    plate = mint.Plate(journal="nature", width="single", height_mm=72.0, layout=(1, 1))
     ax = plate["a"]
-    colors = fm.get_palette("nature")
+    colors = mint.get_palette("nature")
 
     centers = [(-3.0, 2.5), (3.0, 2.2), (0.0, -2.5), (-3.2, -2.6)]
     names = ["Cluster 1", "Cluster 2", "Cluster 3", "Cluster 4"]

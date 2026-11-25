@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(109)
-    plate = fm.Plate(journal="nature", width="single", height_mm=72.0, layout=(1, 1))
+    plate = mint.Plate(journal="nature", width="single", height_mm=72.0, layout=(1, 1))
     ax = plate["a"]
 
     yy, xx = np.mgrid[0:180, 0:220].astype(float)
@@ -27,7 +27,7 @@ def build() -> fm.Plate:
     for sp in ax.spines.values():
         sp.set_visible(True)
         sp.set_linewidth(0.5)
-    fm.scalebar(ax, length=40.0, unit="µm", pixel_size=1.0, location="lower right", color="white", fontsize=6.0)
+    mint.scalebar(ax, length=40.0, unit="µm", pixel_size=1.0, location="lower right", color="white", fontsize=6.0)
     cbar = plate.fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
-    fm.style_colorbar(cbar, label="Intensity (a.u.)", tick_pt=5.5)
+    mint.style_colorbar(cbar, label="Intensity (a.u.)", tick_pt=5.5)
     return plate

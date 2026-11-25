@@ -1,7 +1,7 @@
 """Generate the data for the 10 figure-bench tasks and the hidden answer key.
 
 Deterministic (fixed seeds): re-running rewrites identical CSVs and answers.json.
-Needs numpy and figmint (task 06 ships a figure the assistant "sent" earlier).
+Needs numpy and mintfig (task 06 ships a figure the assistant "sent" earlier).
 
     python evals/figure_bench/make_data.py
 """
@@ -17,7 +17,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 TASKS = HERE / "tasks"
-HELDOUT = HERE / "heldout"  # never shown to anyone tuning figmint or SKILL.md
+HELDOUT = HERE / "heldout"  # never shown to anyone tuning mintfig or SKILL.md
 ANSWERS: dict[str, dict] = {}
 
 
@@ -155,14 +155,14 @@ def energy_mix() -> None:
 
 def _sent_figure(twh: dict[str, float], ren_bio: float) -> None:
     """The figure the assistant sent earlier in the thread (biomass wrongly counted)."""
-    import figmint as fm
+    import mintfig as mint
 
     ren_names = ["wind", "solar", "hydro", "biomass"]
-    fig = fm.explain(
+    fig = mint.explain(
         f"Renewables supplied {ren_bio:.0f}% of the region's electricity in 2025",
-        fm.compare(twh, highlight=["wind", "solar", "hydro"], label="Annual generation", unit="TWh",
+        mint.compare(twh, highlight=["wind", "solar", "hydro"], label="Annual generation", unit="TWh",
                    title="Wind is now the third-largest source"),
-        fm.share({"renewable (wind, solar, hydro, biomass)": sum(twh[k] for k in ren_names),
+        mint.share({"renewable (wind, solar, hydro, biomass)": sum(twh[k] for k in ren_names),
                   "fossil (gas, coal, oil)": twh["natural gas"] + twh["coal"] + twh["oil"],
                   "nuclear": twh["nuclear"]},
                  highlight="renewable (wind, solar, hydro, biomass)", label="Generation",

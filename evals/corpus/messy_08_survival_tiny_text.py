@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
-    plate = fm.Plate(journal="nature", width="single", height_mm=66.0, layout=(1, 1))
+def build() -> mint.Plate:
+    plate = mint.Plate(journal="nature", width="single", height_mm=66.0, layout=(1, 1))
     ax = plate["a"]
-    colors = fm.get_palette("nature")
+    colors = mint.get_palette("nature")
     t = np.linspace(0, 60, 60)
     s_hi = np.exp(-t / 52.0)
     s_lo = np.exp(-t / 24.0)

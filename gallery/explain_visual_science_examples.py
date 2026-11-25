@@ -1,4 +1,4 @@
-"""Visual-science & harness-adaptive gallery examples for ``fm.explain`` (all data synthetic).
+"""Visual-science & harness-adaptive gallery examples for ``mint.explain`` (all data synthetic).
 
 Generates reference figures showcasing:
 - Countable quantile dotplots (``mode="quantile"``) paired with nested 50%/95% CIs
@@ -16,21 +16,21 @@ from pathlib import Path
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 SOURCE = "synthetic benchmark data"
 
 
-def uncertainty_quantile_nested_ci() -> fm.Explanation:
+def uncertainty_quantile_nested_ci() -> mint.Explanation:
     """Quantile dotplots (5% per dot) + nested 50%/95% CIs with inline baseline deltas."""
     rng = np.random.default_rng(7)
     dense = rng.normal(142.0, 14.0, size=80).tolist()
     sparse = rng.normal(104.0, 11.0, size=80).tolist()
     quant = rng.normal(115.0, 15.0, size=80).tolist()
 
-    return fm.explain(
+    return mint.explain(
         "Sparse routing cuts mean latency by 38 ms and keeps 95% of queries under 120 ms",
-        fm.distribution(
+        mint.distribution(
             {
                 "Dense baseline": dense,
                 "Sparse v2": sparse,
@@ -45,7 +45,7 @@ def uncertainty_quantile_nested_ci() -> fm.Explanation:
             unit="ms",
             title="Each dot is 5% of query latency",
         ),
-        fm.compare(
+        mint.compare(
             {
                 "Dense baseline": 142.0,
                 "Quantized 4-bit": 115.0,
@@ -74,7 +74,7 @@ def uncertainty_quantile_nested_ci() -> fm.Explanation:
     )
 
 
-def narrative_callouts_regions() -> fm.Explanation:
+def narrative_callouts_regions() -> mint.Explanation:
     """Shaded regions and leader-arrow callouts bridging mechanism across trend & relate."""
     weeks = [1, 2, 3, 4, 5, 6, 7, 8]
     v2 = [47, 52, 55, 79, 96, 104, 109, 112]
@@ -93,9 +93,9 @@ def narrative_callouts_regions() -> fm.Explanation:
         "v2-pro",
     ]
 
-    return fm.explain(
+    return mint.explain(
         "Throughput doubled after the Q2 kernel rewrite while staying on the Pareto frontier",
-        fm.trend(
+        mint.trend(
             weeks,
             {"v2 kernel": v2, "v1 legacy": v1},
             baseline="v1 legacy",
@@ -110,7 +110,7 @@ def narrative_callouts_regions() -> fm.Explanation:
             unit="req/s",
             title="Sustained gain after rollout window",
         ),
-        fm.relate(
+        mint.relate(
             throughput,
             accuracy,
             names=names,
@@ -129,12 +129,12 @@ def narrative_callouts_regions() -> fm.Explanation:
     )
 
 
-def harness_narrow_sidebar() -> fm.Explanation:
+def harness_narrow_sidebar() -> mint.Explanation:
     """Narrow 450 px IDE sidebar preset with automatic vertical panel stacking."""
     hours = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"]
-    return fm.explain(
+    return mint.explain(
         "Cache warmup trims cold-start p99 from 410 ms to 125 ms across all regions",
-        fm.compare(
+        mint.compare(
             {
                 "Cold baseline": 410,
                 "ap-south": 134,
@@ -148,7 +148,7 @@ def harness_narrow_sidebar() -> fm.Explanation:
             unit="ms",
             title="Regional p99 latency after warmup",
         ),
-        fm.trend(
+        mint.trend(
             hours,
             {
                 "Cold": [405, 398, 412, 418, 409, 410],

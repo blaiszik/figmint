@@ -1,4 +1,4 @@
-# figmint — handoff
+# mintfig — handoff
 
 Written 2026-11-24 at the end of the review-and-fix pass, updated after a
 second pass on agent usability (section 4b), a third pass with figure-bench
@@ -8,7 +8,7 @@ Self-contained: you do not need the previous conversations.
 
 ## 1. What this project is for
 
-`figmint` is a Matplotlib toolkit, a CLI and an agent skill.
+`mintfig` is a Matplotlib toolkit, a CLI and an agent skill.
 
 - **Primary goal (the owner's words):** make this an indispensable tool to
   improve communication between agent and human for complex scientific work:
@@ -18,34 +18,34 @@ Self-contained: you do not need the previous conversations.
 
 | Path | Entry point | For |
 | :--- | :--- | :--- |
-| Conversation | `fm.explain(...)` / `figmint explain spec.json` | An agent answering a person. |
-| Publication | script contract + `figmint run --bundle` | Journal plates (`nature`, `science`, `cell`, `pnas`, `neurips`, ...). |
+| Conversation | `mint.explain(...)` / `mintfig explain spec.json` | An agent answering a person. |
+| Publication | script contract + `mintfig run --bundle` | Journal plates (`nature`, `science`, `cell`, `pnas`, `neurips`, ...). |
 
 ## 2. Current state
 
 - Repository: `https://github.com/blaiszik/figmint`, branch `main`, MIT. The
   owner asked for all three passes to be committed and pushed; ask before committing
   or pushing in a later pass unless told.
-- Package `figmint` 0.2.0, Python >= 3.10, `uv`-managed `.venv`.
-- **The name `figmint` is taken on PyPI.** The owner will choose a distribution
+- Package `mintfig` 0.2.0, Python >= 3.10, `uv`-managed `.venv`.
+- **The name `mintfig` is taken on PyPI.** The owner will choose a distribution
   name; nothing is renamed yet. Free on 2026-11-24 (checked against the PyPI
   JSON API): `mintfig`, `plotmint`, `figsay`, `figtell`, `figwise`, `figproof`,
   `figbrief`, `clearfig`, `plainfig`, `tellfig`, `sayplot`, `figclaim`,
-  `figstory`, `pyfigmint`, `figmint-py`. The import name can stay `figmint`
+  `figstory`, `pymintfig`, `mintfig-py`. The import name can stay `mintfig`
   whatever the distribution is called.
 - Tests and lint: see section 5 for the numbers at the end of this pass.
 
 ```bash
-MPLCONFIGDIR=/tmp/mpl-figmint .venv/bin/pytest -q
+MPLCONFIGDIR=/tmp/mpl-mintfig .venv/bin/pytest -q
 .venv/bin/ruff check src tests gallery evals
-MPLCONFIGDIR=/tmp/mpl-figmint .venv/bin/python gallery/explain_science_examples.py
-MPLCONFIGDIR=/tmp/mpl-figmint .venv/bin/python gallery/explain_chat_examples.py
-MPLCONFIGDIR=/tmp/mpl-figmint .venv/bin/python gallery/explain_style_showcase.py
-MPLCONFIGDIR=/tmp/mpl-figmint .venv/bin/figmint explain --example
+MPLCONFIGDIR=/tmp/mpl-mintfig .venv/bin/python gallery/explain_science_examples.py
+MPLCONFIGDIR=/tmp/mpl-mintfig .venv/bin/python gallery/explain_chat_examples.py
+MPLCONFIGDIR=/tmp/mpl-mintfig .venv/bin/python gallery/explain_style_showcase.py
+MPLCONFIGDIR=/tmp/mpl-mintfig .venv/bin/mintfig explain --example
 ```
 
 Shell is zsh: unquoted `$var` is not word-split. A formatter runs on save (ruff
-format), so files are longer than they read. Default-style `fm.explain` runs
+format), so files are longer than they read. Default-style `mint.explain` runs
 print nothing to stderr (the `findfont` noise came from the mathtext `cal` slot
 and is fixed in `themes.py`); `post.stringData` font-tool noise elsewhere is
 harmless.
@@ -67,17 +67,17 @@ harmless.
 - The owner works across agents (Claude, Gemini) and passes handoffs between
   them. Keep this file current when you finish.
 
-## 3. `fm.explain` in one page
+## 3. `mint.explain` in one page
 
 ```python
-import figmint as fm
+import mintfig as mint
 
-fig = fm.explain(
+fig = mint.explain(
     "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",  # the takeaway is the title
-    fm.compare({...}, error={...}, error_label="95% CI, 5 seeds",
+    mint.compare({...}, error={...}, error_label="95% CI, 5 seeds",
                title="Both losses are outside seed noise", label="Test accuracy",
                highlight=["no retrieval", "no fine-tuning"]),
-    fm.trend(steps, {...}, title="The gap opens in the first 500 steps",
+    mint.trend(steps, {...}, title="The gap opens in the first 500 steps",
              label="Validation accuracy", x_label="Training step"),
     source="runs/ablation_2026-11 (5 seeds per variant)",
 )
@@ -92,7 +92,7 @@ Seven forms, each chosen by the question the panel answers: `compare` (size),
 `trend` (change over order), `change` (two states), `distribution` (spread),
 `relate` (two measures), `share` (part of whole), `matrix` (two categorical
 dimensions), plus `custom(draw_fn)` as an escape hatch. The complete argument
-reference lives in `src/figmint/assets/SKILL.md`, and
+reference lives in `src/mintfig/assets/SKILL.md`, and
 `tests/test_skill_doc.py` fails if a public argument is missing from it or its
 example stops running clean.
 
@@ -122,17 +122,17 @@ Rules applied by construction (sources are tabulated in `README.md`):
   at the end of `x_label` ("Time (h)" -> "19 h").
 - Every plausible wrong call raises `ExplainError` with the fix, including
   unknown arguments (the hint lists the valid ones and the nearest name).
-- Every PNG embeds its spec (`figmint:spec` text chunk); `fm.load(path)` and
-  `figmint explain fig.png --out new.png` rebuild the figure from it.
+- Every PNG embeds its spec (`mintfig:spec` text chunk); `mint.load(path)` and
+  `mintfig explain fig.png --out new.png` rebuild the figure from it.
 
 ### Files
 
 | File | What |
 | :--- | :--- |
-| `src/figmint/explainer.py` | Forms, number formatting, facts, colour registry, layout engine, `Explanation`, `Summary`, spec entry points, PNG embedding, `load`. One large module (see section 6). |
-| `src/figmint/themes.py` | Frozen `Theme` dataclass and the four styles: `figmint`, `bold`, `editorial`, `sketch`. |
-| `src/figmint/cli.py` | `figmint explain <spec.json, fig.png or -> --out fig.png [--style] [--write-spec] [--show-spec] [--example]`. Exit 0 rendered, 1 rendered with an error-level issue, 2 spec rejected. |
-| `src/figmint/assets/SKILL.md`, `AGENTS_SNIPPET.md` | What an agent reads. The conversation path leads; the publication workflow follows. |
+| `src/mintfig/explainer.py` | Forms, number formatting, facts, colour registry, layout engine, `Explanation`, `Summary`, spec entry points, PNG embedding, `load`. One large module (see section 6). |
+| `src/mintfig/themes.py` | Frozen `Theme` dataclass and the four styles: `mintfig`, `bold`, `editorial`, `sketch`. |
+| `src/mintfig/cli.py` | `mintfig explain <spec.json, fig.png or -> --out fig.png [--style] [--write-spec] [--show-spec] [--example]`. Exit 0 rendered, 1 rendered with an error-level issue, 2 spec rejected. |
+| `src/mintfig/assets/SKILL.md`, `AGENTS_SNIPPET.md` | What an agent reads. The conversation path leads; the publication workflow follows. |
 | `tests/test_explain*.py`, `tests/test_skill_doc.py` | Forms and rules, data handling and facts, visual behaviour (colours, symbols, collisions), styles, and the doc-drift guard. |
 | `gallery/explain_science_examples.py` | Five scientific reference figures (synthetic data) -> `gallery/output/explain_science/`. |
 | `gallery/explain_chat_examples.py`, `gallery/explain_style_showcase.py` | Six general figures -> `gallery/output/explain/`, and the same six in the three extra styles -> `gallery/output/explain_styles/`. |
@@ -172,7 +172,7 @@ draw are reported as `glyph_missing`.
    (`sort="asc"`, `log` on compare, `log_x`, `points`, `band_label`,
    `error_label`, `end_values`, `stat="mean"`, `groups`, flexible matrix
    `highlight`, `colors`), the figure-level colour registry, symbol rendering,
-   collision handling, PNG spec embedding and `fm.load`.
+   collision handling, PNG spec embedding and `mint.load`.
 4. **Renamed the styles** to `bold`, `editorial`, `sketch` (no aliases to the
    old names; two font names that carried a brand were dropped from the sketch
    font stack).
@@ -234,9 +234,9 @@ data, with no re-render.
 conversation plus data into a clean chat figure. Each task is a mock agent
 thread (`context.md`) and seeded data; a fresh agent sees only its task folder
 and `SKILL.md`. `bench.py start|submit|grade|recheck` times it from `start` to
-the first passing `submit` (max 3). Checks: figmint's own (`ok`, **no
+the first passing `submit` (max 3). Checks: mintfig's own (`ok`, **no
 warnings**, text >= 11 px at 700 px, chat width, a number in the takeaway,
-titled panels, no `fm.custom`, embedded spec, source, alt text) plus an
+titled panels, no `mint.custom`, embedded spec, source, alt text) plus an
 **independent layout audit** that rebuilds the figure from its spec and inspects
 every drawn text (no overlaps, no text crossed by a line, no "%%", repeated
 words, ASCII minus or "nan"). `grade` also scores the takeaway's number against
@@ -245,7 +245,7 @@ a hidden key (`answers.json`; agents are told not to read it). Ten core tasks
 used to tune anything). `make_data.py` regenerates everything deterministically.
 
 Results (fresh agents each run; `runs/*/results.md`; `progress.png` is drawn by
-`make_progress.py` with figmint):
+`make_progress.py` with mintfig):
 
 | Run | What changed before it | Passed | First try | Resubmissions | Mean / median time |
 | :--- | :--- | :---: | :---: | :---: | :---: |
@@ -303,14 +303,14 @@ Left over from the runs (not fixed):
 
 ## 4d. Fourth pass: review, GitHub gallery, and rough-edge fixes
 
-Reviewed commits `5aa665e` and `fa9ebcf`, probed all seven `fm.explain` forms
+Reviewed commits `5aa665e` and `fa9ebcf`, probed all seven `mint.explain` forms
 across 14+ edge-case figures (inspected visually and with `bench.audit_layout`),
 fixed eight newly surfaced rough edges, and built a full GitHub gallery.
 
-Fixes applied in `src/figmint/explainer.py` (with `SKILL.md` updated and 6 new
+Fixes applied in `src/mintfig/explainer.py` (with `SKILL.md` updated and 6 new
 regression tests in `tests/test_explain_final.py`, 521 tests total):
 
-1. **`fm.relate` log-axis clipping & point-label clearance:** highlighted points
+1. **`mint.relate` log-axis clipping & point-label clearance:** highlighted points
    (`names=` + `highlight=`) were scattered *after* `autoscale_view()` and
    `set_xlim`/`set_ylim`, clipping extreme highlighted points completely off the
    canvas on `log_x=True` or `log_y=True` with `ok=True` and `issues=[]`. They
@@ -346,9 +346,9 @@ GitHub gallery additions (without overwriting any tracked `gallery/output/*` fil
   and log-log `relate`, and missing-cell `matrix`; all 8 pass `ok=True`,
   `issues=[]`, and `bench.audit_layout`).
 - `gallery/README.md`: full visual showcase for GitHub covering every primary
-  function (`fm.explain`, `fm.compare`, `fm.trend`, `fm.change`,
-  `fm.distribution`, `fm.relate`, `fm.share`, `fm.matrix`), all four styles,
-  `fm.load` / CLI, and publication plates (`fm.figure`, `fm.Plate`).
+  function (`mint.explain`, `mint.compare`, `mint.trend`, `mint.change`,
+  `mint.distribution`, `mint.relate`, `mint.share`, `mint.matrix`), all four styles,
+  `mint.load` / CLI, and publication plates (`mint.figure`, `mint.Plate`).
 - Root `README.md`: added a visual 2-column primary-function gallery grid plus a
   before/after publication preview linking to `gallery/README.md`.
 
@@ -360,33 +360,33 @@ Additional review notes (not changed):
   (`0.01 µM` → `10 nM`), point deltas (`0.08` → `8 points`), version numbers
   (`v2.3`), and rounded estimates (`~460`), breaking `figure-bench`'s zero-warning
   gate; design it carefully or expose `fig.summary()` earlier in the agent loop.
-- `src/figmint/explainer.py` is now ~8,100 lines and remains the top refactoring
+- `src/mintfig/explainer.py` is now ~8,100 lines and remains the top refactoring
   candidate.
 
-## 4e. Fifth pass: `fm.histogram` / `distribution(bins=)`, themes & palettes, and README redesign
+## 4e. Fifth pass: `mint.histogram` / `distribution(bins=)`, themes & palettes, and README redesign
 
 Added binned histogram support, expanded themes and color palettes, and redesigned
 both `README.md` and `gallery/README.md` as visual first impressions on GitHub:
 
-1. **`fm.histogram` & `fm.distribution(..., bins=...)`:** `distribution()` now
+1. **`mint.histogram` & `mint.distribution(..., bins=...)`:** `distribution()` now
    accepts `bins="auto"`, an integer `2–60`, any numpy bin estimator, or explicit
    sorted bin edges (with log-spaced bins when `log=True`). Single-variable inputs
    draw a crisp vertical histogram with dashed median/mean marker and optional
    `reference=`; 2–4 groups draw shared-axis stacked small multiples (never muddy
    overlapping bars). Facts report bin count/width, each group's peak bin, and
-   `% above reference`. `fm.histogram(values, bins="auto", ...)` is exported as a
+   `% above reference`. `mint.histogram(values, bins="auto", ...)` is exported as a
    first-class alias (and `"kind": "histogram"` works in JSON specs).
 2. **Three new built-in themes (`style=`):** `dark` (slate charcoal `#14181F`
    ground for dark UIs/slides), `paper` (warm ivory `#FAF7F0` with serif headlines),
    and `mono` (monochrome print with a single vermilion highlight accent), bringing
-   `THEMES` to 7 (`figmint`, `bold`, `editorial`, `paper`, `dark`, `mono`, `sketch`).
+   `THEMES` to 7 (`mintfig`, `bold`, `editorial`, `paper`, `dark`, `mono`, `sketch`).
    Fixed `preflight._check_text_on_data` to measure ink relative to the axes/figure
    background (supporting transparent axes and dark grounds) and matrix cell text
    contrast on dark grounds.
 3. **Independent color schemes (`palette=`):** added `EXPLAIN_PALETTES` (`default`,
    `okabe_ito`, `tol`, `earth`, `ocean`, `berry`) in `themes.py`, wired into
-   `fm.explain(..., palette=...)`, `to_spec()`, `summary()`, `explain_from_spec()`,
-   and CLI `figmint explain --palette`, with automatic contrast lifting on dark
+   `mint.explain(..., palette=...)`, `to_spec()`, `summary()`, `explain_from_spec()`,
+   and CLI `mintfig explain --palette`, with automatic contrast lifting on dark
    grounds. Every theme and palette is verified in `tests/test_explain_styles.py`
    for deuteranopia, protanopia, grayscale separation (`>= 0.05`), and WCAG 4.5:1
    text contrast.
@@ -409,7 +409,7 @@ check looked at line geometry (`canvas_clipping` covers text only).
 - New preflight check `line_past_axis` (`_check_lines_past_axes`, a **fail**):
   every `Line2D`, `LineCollection` and `PolyCollection` must stay within its
   axis lines (spine extents, including `set_bounds` trims) and the canvas.
-  Marks drawn in the margin on purpose carry gid `figmint-margin`
+  Marks drawn in the margin on purpose carry gid `mintfig-margin`
   (`annotations.MARGIN_GID`; `range_frame` rugs do) and are skipped. No false
   positives across the 35 `evals/corpus` scripts or showcase examples 2 and 3.
 - `direct_labels` now bounds full-width `axhline`s to the original x range
@@ -420,22 +420,22 @@ check looked at line geometry (`canvas_clipping` covers text only).
   hard-coded "8/8".
 - Tests: four in `tests/test_preflight_regressions.py`.
 
-## 4g. Sixth pass: audit-gated `ship`, tidy tabular inputs, `fm.table`, and progressive `SKILL.md`
+## 4g. Sixth pass: audit-gated `ship`, tidy tabular inputs, `mint.table`, and progressive `SKILL.md`
 
 Modular seams added outside `explainer.py` (preparing for the upcoming `explainer.py`
 split and model-release chart extensions):
 
-1. **Promoted drawn-layout audit into `figmint` (`src/figmint/audit.py`) and `ship`:**
-   - Exported `fm.audit_figure(fig)` and `fm.audit_layout(png)` implementing the
+1. **Promoted drawn-layout audit into `mintfig` (`src/mintfig/audit.py`) and `ship`:**
+   - Exported `mint.audit_figure(fig)` and `mint.audit_layout(png)` implementing the
      drawn-text overlap, line-striking-text, and text well-formedness (`%%`,
      repeated words, ASCII hyphen minus, `nan`/`None`/`inf`) checks.
    - Wired `audit_figure` into `explain()` (respecting `theme.minus_sign == "-"`
      for `sketch`) and fixed the dead `"text_collision"` rule name in
      `_VISUAL_DEFECT_RULES` → `"text_overlaps"`, plus `"text_struck_by_line"`,
      `"text_malformed"`, and `"line_past_axis"`.
-2. **Tidy / row-shaped tabular inputs (`src/figmint/_tabular.py`):**
-   - Fixed raw `KeyError: 0` on `fm.compare([{...}, {...}])` and unhelpful
-     `fm.trend(x, rows)` hints; both now raise clear `ExplainError` messages
+2. **Tidy / row-shaped tabular inputs (`src/mintfig/_tabular.py`):**
+   - Fixed raw `KeyError: 0` on `mint.compare([{...}, {...}])` and unhelpful
+     `mint.trend(x, rows)` hints; both now raise clear `ExplainError` messages
      listing columns / pivoting / `data=`.
    - Added zero-pandas tidy support across all forms (`list[dict]` and duck-typed
      `pandas.DataFrame`): `compare`/`share` (`name=`, `value=`, 2-col auto-infer,
@@ -444,7 +444,7 @@ split and model-release chart extensions):
      `change` (`"col1", "col2", data=rows, name="item"`), `distribution`/
      `histogram` (`group=`, `value=`), `relate` (`data=rows` with column names),
      and `matrix` (`rows="r", cols="c", value="v"` auto-pivot).
-3. **Structured table form (`src/figmint/_table.py` → `fm.table`):**
+3. **Structured table form (`src/mintfig/_table.py` → `mint.table`):**
    - Booktabs-styled exact lookup & scorecard panel supporting `list[dict]`,
      DataFrames (preserving meaningful index), `{col: [...]}`, and 2-D lists +
      `columns=`, with `units=`, `highlight=` (shared entity colour across panels),
@@ -452,11 +452,11 @@ split and model-release chart extensions):
      `align=`, `fmt=`, muted `—` for missing cells, computed `facts`, PNG spec
      round-tripping, lenient `table_too_wide` auto-stacking, and
      `panel.to_markdown()`.
-4. **Progressive `SKILL.md` + Cursor `.mdc` fix (`src/figmint/skill.py`, `pyproject.toml`):**
+4. **Progressive `SKILL.md` + Cursor `.mdc` fix (`src/mintfig/skill.py`, `pyproject.toml`):**
    - Slimmed `SKILL.md` from 29.7 kB (~7.5k tokens; 23.9 kB chat section) to
      9.8 kB (~2.2k tokens), added the `pip install` bootstrap line, and moved
      deep scientific recipes & publication details into
-     `src/figmint/assets/references/{scientific_and_recipes,publication}.md`
+     `src/mintfig/assets/references/{scientific_and_recipes,publication}.md`
      (installed alongside `SKILL.md` for `claude`/`antigravity`/`codex` and
      bundled in wheel/sdist).
    - Updated `_build_cursor_mdc` description and globs (`**/*.py`, `**/*.csv`,
@@ -466,12 +466,12 @@ split and model-release chart extensions):
 ## 4h. Seventh pass: modular `_explain` split & frontier model-release chart suite
 
 1. **Modularized `explainer.py` (9,237 → 145-line compatibility facade):**
-   - Split cleanly into `src/figmint/_explain/` (`core.py`, `compare.py`,
+   - Split cleanly into `src/mintfig/_explain/` (`core.py`, `compare.py`,
      `compare_grouped.py`, `trend.py`, `change.py`, `distribution.py`,
      `relate.py`, `matrix.py`, `layout.py`) with a strict DAG dependency
-     structure and module `__getattr__` on `figmint.explainer` preserving 100%
+     structure and module `__getattr__` on `mintfig.explainer` preserving 100%
      backwards compatibility with all external callers and tests.
-2. **Grouped & stacked-boost `fm.compare`:**
+2. **Grouped & stacked-boost `mint.compare`:**
    - Nested `{category: {series: val}}` dicts and tidy `group=` rows draw
      grouped horizontal bars / Cleveland dots with a frameless inline colour
      strip, shared entity colours across panels, win-tally & baseline-gap
@@ -479,7 +479,7 @@ split and model-release chart extensions):
    - `boost=` + `boost_label=` draw tinted stacked extensions (e.g. standard +
      extended thinking), sorting by total, printing total + `(+delta)` labels,
      and emitting `boost_unlabelled` if unnamed.
-3. **Pareto frontier, `label_all`, and trajectories on `fm.relate`:**
+3. **Pareto frontier, `label_all`, and trajectories on `mint.relate`:**
    - `frontier=True` / `"upper-left"` | `"upper-right"` | `"lower-left"` |
      `"lower-right"` computes and draws the exact non-dominated Pareto envelope
      and lists frontier items in `facts`.
@@ -488,7 +488,7 @@ split and model-release chart extensions):
      labels.
    - `connect_groups=True` connects points within each group in x order.
 4. **Release-card styling (`accent=` & `width="slide"`):**
-   - `apply_accent(theme, accent)` in `themes.py` + `accent=` on `fm.explain` /
+   - `apply_accent(theme, accent)` in `themes.py` + `accent=` on `mint.explain` /
      `--accent` in CLI pins a custom brand accent hex (contrast-checked for dark
      and light grounds).
    - `width="slide"` targets a 1280 px display width (exporting 2560 px at
@@ -502,14 +502,14 @@ split and model-release chart extensions):
      targets 420–480 px IDE sidebars (Cursor / VS Code), auto-stacking
      multi-panel layouts vertically (`[["a"], ["b"], ...]`) while keeping
      `min_text_px >= 12.1` px (≥11 px floor).
-   - `src/figmint/interactive.py` (`fm.render_html`, `render_html_fragment`,
+   - `src/mintfig/interactive.py` (`mint.render_html`, `render_html_fragment`,
      `Explanation.to_html()`, `Explanation._repr_html_()`, `fig.save("out.html")`,
-     and `figmint explain ... --out out.html`) emits zero-CDN self-contained
+     and `mintfig explain ... --out out.html`) emits zero-CDN self-contained
      HTML with inline SVG, theme-matched light/dark surfaces, toggleable Facts
      & Data drawer, Download SVG, Copy Spec JSON, and a Critique / Ask Agent
      feedback snippet builder.
-   - `src/figmint/terminal.py` (`fm.render_terminal`, `fm.show_in_terminal`,
-     `Explanation.to_terminal()`, and `figmint show <path_or_spec>`) detects
+   - `src/mintfig/terminal.py` (`mint.render_terminal`, `mint.show_in_terminal`,
+     `Explanation.to_terminal()`, and `mintfig show <path_or_spec>`) detects
      Kitty/Ghostty APC and iTerm2/WezTerm OSC 1337 inline PNG protocols and
      falls back to crisp Unicode/ASCII bars, box-drawn tables, and sparklines.
 2. **Visual-science form upgrades (`_explain/{distribution,compare,trend,relate}.py`):**
@@ -522,16 +522,16 @@ split and model-release chart extensions):
    - `trend` and `relate` gain shaded `regions=[(x0, x1, label)]` and
      collision-aware direct leader `callouts=[(x, y, note)]` (≤4).
 3. **Four-level semantic narrative & advisory epistemic audit (`epistemic.py`):**
-   - `fm.build_narrative` (Lundgard & Satyanarayan L1–L4 + compact `summary`)
+   - `mint.build_narrative` (Lundgard & Satyanarayan L1–L4 + compact `summary`)
      is wired into `summary["narrative"]`.
-   - `fm.audit_epistemic` runs inside `fm.explain()` emitting advisory-only
+   - `mint.audit_epistemic` runs inside `mint.explain()` emitting advisory-only
      `severity="warning"` issues (`claim_overstates_uncertainty`,
      `claim_number_mismatch`) kept outside `_VISUAL_DEFECT_RULES` so they never
      falsely block `ship`, verified at zero false positives across all gallery
      examples and existing tests.
 4. **Exports & docs:** exported `render_html`, `render_terminal`,
-   `show_in_terminal`, `build_narrative`, and `audit_epistemic` on `figmint`
-   and `figmint.explainer`; updated compact `SKILL.md` and
+   `show_in_terminal`, `build_narrative`, and `audit_epistemic` on `mintfig`
+   and `mintfig.explainer`; updated compact `SKILL.md` and
    `references/scientific_and_recipes.md`.
 
 ## 4j. Ninth pass: zero-script agent integration, attribution/timeline forms, & multi-turn visual memory
@@ -539,26 +539,26 @@ split and model-release chart extensions):
 Three structural improvements aimed at how agents actually communicate with humans across tools and multi-turn threads (without requiring human-in-the-loop validation):
 
 1. **Zero-script agent integration (`inspect_data.py`, `edit.py`, `cli.py`):**
-   - `fm.load_table_file(path)` and `fm.inspect_data(source)` profile `.csv`,
+   - `mint.load_table_file(path)` and `mint.inspect_data(source)` profile `.csv`,
      `.tsv`, `.json`, and `.jsonl` files with zero pandas dependency, detect
      shapes (replicates, decade spans, start/end intervals, signed deltas,
      multi-metric scorecards), and return ranked form recommendations with
      ready-to-run Python and CLI snippets.
-   - `fm.edit(figure, ...)` applies surgical one-line edits to a saved PNG
+   - `mint.edit(figure, ...)` applies surgical one-line edits to a saved PNG
      (embedded spec), JSON spec, or live `Explanation` — including
      `takeaway`, `style`, `palette`, `accent`, `width`, `highlight`,
      `baseline`, `show_delta`, `drop_panel=`, and item/series `drop=`/`keep=`
-     filtering across every form (also making the `fm.edit(...)` critique
+     filtering across every form (also making the `mint.edit(...)` critique
      snippet emitted by `interactive.py` directly runnable).
-   - Added three CLI commands: `figmint inspect <file> [--json]`,
-     `figmint plot <file> --kind <form> --takeaway "..." [--out fig.png|fig.html] [--show]`,
-     and `figmint edit <fig.png|spec.json> [flags] [--out out.png|out.html] [--show]`.
+   - Added three CLI commands: `mintfig inspect <file> [--json]`,
+     `mintfig plot <file> --kind <form> --takeaway "..." [--out fig.png|fig.html] [--show]`,
+     and `mintfig edit <fig.png|spec.json> [flags] [--out out.png|out.html] [--show]`.
 2. **Two missing quantitative agent-communication forms (`_explain/waterfall.py`, `_explain/timeline.py`):**
-   - `fm.waterfall(steps, *, start=, total_label=, show_total=, ...)` renders
+   - `mint.waterfall(steps, *, start=, total_label=, show_total=, ...)` renders
      horizontal attribution/delta bridges with vertical bridge connectors,
      optional start/total anchors, exact-total lenient folding into
      `Other (k)`, signed delta labels, and driver/drag `facts`.
-   - `fm.timeline(spans, *, name=, start=, end=, group=, x_label=, ...)`
+   - `mint.timeline(spans, *, name=, start=, end=, group=, x_label=, ...)`
      renders horizontal `[start, end]` execution/phase span timelines with
      milestone diamonds (`start == end`), optional inline group colour strip,
      and wall-span/bottleneck/concurrency `facts`.
@@ -566,20 +566,20 @@ Three structural improvements aimed at how agents actually communicate with huma
      checking), `interactive.py` (data tables), `terminal.py` (Unicode/ASCII
      renderers), and `layout.py` spec round-tripping.
 3. **Multi-turn visual memory & cohesive briefings (`brief.py`):**
-   - `fm.Session(*, style=, palette=, accent=, width=, colors=, state_path=)`
+   - `mint.Session(*, style=, palette=, accent=, width=, colors=, state_path=)`
      maintains a persistent entity-colour ledger across turns with token-boundary
      prefix matching (so `"Alpha-3 (int4)"` inherits `"Alpha-3"`'s hue — solving
      the blind-test leftover from section 5 known limit 8) and optional JSON
      state persistence.
-   - `fm.brief(title, *figures, ...)` / `session.brief(...)` composes 1–12
+   - `mint.brief(title, *figures, ...)` / `session.brief(...)` composes 1–12
      figures (live `Explanation`s or saved PNG/JSON paths) into a self-contained
      zero-CDN interactive HTML briefing (`save("report.html")`) or PR-/Artifact-
      ready Markdown bundle with numbered PNGs, L2/L3 facts, and embedded
      Markdown tables (`save("report.md")`).
 
-## 4k. Tenth pass: `fm.flow`, `trend(fit=)`, `matrix(triangle=)`, `fm.auto_panel`, `figmint brief`, & workflow gallery
+## 4k. Tenth pass: `mint.flow`, `trend(fit=)`, `matrix(triangle=)`, `mint.auto_panel`, `mintfig brief`, & workflow gallery
 
-1. **Cohort / pipeline attrition funnel (`_explain/flow.py` → `fm.flow`):**
+1. **Cohort / pipeline attrition funnel (`_explain/flow.py` → `mint.flow`):**
    - Sequential top-to-bottom proportional bars (never re-sorted, grounded at
      zero) showing remaining counts + `% of initial`, plus dedicated between-row
      step-down connectors annotated with drop counts, `% of prior stage`, and
@@ -587,16 +587,16 @@ Three structural improvements aimed at how agents actually communicate with huma
    - Wired across `core.py`, `layout.py`, `epistemic.py`, `interactive.py`,
      `terminal.py`, `edit.py`, `inspect_data.py`, and `cli.py` (`--kind flow`).
 2. **Scientific clarity upgrades (`_explain/trend.py`, `_explain/matrix.py`):**
-   - `fm.trend(..., fit=True|"linear"|"log"|"power")` overlays dashed OLS fits
+   - `mint.trend(..., fit=True|"linear"|"log"|"power")` overlays dashed OLS fits
      matching linear, log-linear, or log-log power-law axes (including faceted
      panels) and adds linear fit slope + 95% CI + R² facts.
-   - `fm.matrix(..., triangle="lower"|"upper", mask_diagonal=True)` hides the
+   - `mint.matrix(..., triangle="lower"|"upper", mask_diagonal=True)` hides the
      redundant half of symmetric matrices and excludes the masked diagonal from
      colour-scale normalization and empty-cell counts.
 3. **Complete zero-script agent pipeline (`inspect_data.py`, `cli.py`):**
-   - `fm.auto_panel(source)` and `figmint plot <file> --kind auto` build the
+   - `mint.auto_panel(source)` and `mintfig plot <file> --kind auto` build the
      top-recommended panel automatically from a CSV/TSV/JSON/JSONL file.
-   - `figmint brief <fig1.png> <fig2.png> ... --title "..." --out report.html|report.md`
+   - `mintfig brief <fig1.png> <fig2.png> ... --title "..." --out report.html|report.md`
      bundles multi-turn CLI figures into a cohesive HTML or Markdown briefing.
 4. **Visual workflow showcase gallery:**
    - Added `gallery/explain_agent_workflow_examples.py` →
@@ -612,8 +612,8 @@ Verified:
   - `summary["ship"]` boolean (in both strict and lenient modes) separates real
     visual defects (`_VISUAL_DEFECT_RULES`) from advisory polish warnings so
     agents ship good-enough figures on the first try without extra re-render loops.
-  - `with fm.lenient():`, `fm.explain(..., strict=False)`,
-    `fm.explain_from_spec(..., strict=False)`, and CLI `figmint explain --lenient`
+  - `with mint.lenient():`, `mint.explain(..., strict=False)`,
+    `mint.explain_from_spec(..., strict=False)`, and CLI `mintfig explain --lenient`
     (`--no-strict`) auto-adjust soft limits instead of raising `ExplainError`
     (auto-faceting >4 trend series, trimming >20 compare items / >14 change items
     / >8 distribution groups / >3 highlights, dropping NaN / unmatched items,
@@ -663,7 +663,7 @@ Known limits:
    of empty space above the data.
 6. A character in a mathtext run that the body font lacks comes from the
    fallback font at normal weight, so it looks light in a bold title.
-7. `fm.custom` bypasses the form rules (preflight still runs).
+7. `mint.custom` bypasses the form rules (preflight still runs).
 8. Left over from the second blind tests (not fixed): `colors=` pins by exact
    name, so "us-west after" does not inherit "us-west"; grey context names at a
    crowded line end are stacked, not attached to their lines; the thick
@@ -695,10 +695,10 @@ Known limits:
 
 Settled (do not reopen without asking the owner):
 
-- CLI + JSON + `SKILL.md`, not MCP. Distribution is `figmint skill --install`.
+- CLI + JSON + `SKILL.md`, not MCP. Distribution is `mintfig skill --install`.
 - Precision over rule count: deterministic checks are errors, heuristics are
   warnings, repair loops are capped at 2.
-- Script contract for `figmint run`; exit codes 0, 1, 2.
+- Script contract for `mintfig run`; exit codes 0, 1, 2.
 - JSON `schema_version: "0.2"`: add keys, never rename or remove them.
 - Versioned journal specs with source URLs.
 - Neutral style names.
@@ -711,6 +711,6 @@ Open, for the owner:
   form per question; confirm the scope.
 - Whether `sketch` should keep warning on data not marked illustrative.
 - Whether chat figures should offer a dark variant.
-- Carried over: the global style leak in `Plate`/`fm.figure`; `turbo` not on
+- Carried over: the global style leak in `Plate`/`mint.figure`; `turbo` not on
   the banned list; journal widths not checked against the publishers; whether
   to regenerate the stale publication plates and `evals/output/`.

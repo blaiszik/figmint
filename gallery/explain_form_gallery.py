@@ -1,4 +1,4 @@
-"""Dedicated gallery examples covering each primary ``fm.explain`` form (all data synthetic).
+"""Dedicated gallery examples covering each primary ``mint.explain`` form (all data synthetic).
 
 Generates clean reference figures showcasing the core forms and newer capabilities
 (named CIs with ``n=`` and ``baseline=``, ISO-date trends with events and gaps,
@@ -13,16 +13,16 @@ from pathlib import Path
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 SOURCE = "synthetic example data"
 
 
-def compare_intervals() -> fm.Explanation:
-    """fm.compare: signed effects with 95% CIs, sample sizes, baseline, and zero reference."""
-    return fm.explain(
+def compare_intervals() -> mint.Explanation:
+    """mint.compare: signed effects with 95% CIs, sample sizes, baseline, and zero reference."""
+    return mint.explain(
         "High-dose therapy cuts HbA1c by 1.4 points, 1.6 points below placebo",
-        fm.compare(
+        mint.compare(
             {
                 "High dose": -1.4,
                 "Standard dose": -0.7,
@@ -59,8 +59,8 @@ def compare_intervals() -> fm.Explanation:
     )
 
 
-def trend_dates_events() -> fm.Explanation:
-    """fm.trend: ISO dates, event marker, baseline control, and a missing-data gap."""
+def trend_dates_events() -> mint.Explanation:
+    """mint.trend: ISO dates, event marker, baseline control, and a missing-data gap."""
     dates = [
         "2026-01-04",
         "2026-01-11",
@@ -71,9 +71,9 @@ def trend_dates_events() -> fm.Explanation:
         "2026-02-15",
         "2026-02-22",
     ]
-    return fm.explain(
+    return mint.explain(
         "The insulation retrofit cut Lab annex daily power use by 28%; the Gym stayed flat",
-        fm.trend(
+        mint.trend(
             dates,
             {
                 "Lab annex": [418, 425, 412, None, 298, 304, 295, 301],
@@ -93,8 +93,8 @@ def trend_dates_events() -> fm.Explanation:
     )
 
 
-def trend_log_log() -> fm.Explanation:
-    """fm.trend: log-log scaling curves with automatic power-law exponent facts."""
+def trend_log_log() -> mint.Explanation:
+    """mint.trend: log-log scaling curves with automatic power-law exponent facts."""
     rng = np.random.default_rng(19)
     compute = [1e18, 3e18, 1e19, 3e19, 1e20, 3e20, 1e21, 3e21, 1e22]
     arr = np.array(compute)
@@ -109,9 +109,9 @@ def trend_log_log() -> fm.Explanation:
         .round(3)
         .tolist(),
     }
-    return fm.explain(
+    return mint.explain(
         "Sparse MoE scales fastest: loss falls as compute^−0.064 vs −0.050 for dense",
-        fm.trend(
+        mint.trend(
             compute,
             curves,
             log=True,
@@ -126,8 +126,8 @@ def trend_log_log() -> fm.Explanation:
     )
 
 
-def trend_points_tasks() -> fm.Explanation:
-    """fm.trend: individual observations (points=) with custom points_label=."""
+def trend_points_tasks() -> mint.Explanation:
+    """mint.trend: individual observations (points=) with custom points_label=."""
     rng = np.random.default_rng(23)
     stages = ["Baseline", "Pass 1", "Pass 2", "Pass 3"]
     pts = {
@@ -144,9 +144,9 @@ def trend_points_tasks() -> fm.Explanation:
             rng.normal(19.8, 3.5, 6).clip(14, 27).round(1).tolist(),
         ],
     }
-    return fm.explain(
+    return mint.explain(
         "Three fix passes cut mean solve time by 39% (30.9 s to 18.8 s) on core and held-out tasks",
-        fm.trend(
+        mint.trend(
             stages,
             points=pts,
             points_label="tasks",
@@ -160,8 +160,8 @@ def trend_points_tasks() -> fm.Explanation:
     )
 
 
-def distribution_log() -> fm.Explanation:
-    """fm.distribution: raw observations on a log scale with baseline and no-change reference."""
+def distribution_log() -> mint.Explanation:
+    """mint.distribution: raw observations on a log scale with baseline and no-change reference."""
     rng = np.random.default_rng(31)
     groups = {
         "p53 targets": rng.lognormal(np.log(2.5), 0.35, 10).round(2).tolist(),
@@ -169,9 +169,9 @@ def distribution_log() -> fm.Explanation:
         "Housekeeping": rng.lognormal(np.log(1.0), 0.06, 10).round(2).tolist(),
         "Proliferation": rng.lognormal(np.log(0.55), 0.25, 10).round(2).tolist(),
     }
-    return fm.explain(
+    return mint.explain(
         "Drug treatment activates p53 targets (median 2.75×) and halves proliferation genes",
-        fm.distribution(
+        mint.distribution(
             groups,
             log=True,
             baseline="Housekeeping",
@@ -186,8 +186,8 @@ def distribution_log() -> fm.Explanation:
     )
 
 
-def relate_groups_fit() -> fm.Explanation:
-    """fm.relate: grouped scatter with per-group linear fits and computed 95% slope CIs."""
+def relate_groups_fit() -> mint.Explanation:
+    """mint.relate: grouped scatter with per-group linear fits and computed 95% slope CIs."""
     rng = np.random.default_rng(42)
     inv_sqrt_d, yield_mpa, alloy = [], [], []
     params = {
@@ -201,9 +201,9 @@ def relate_groups_fit() -> fm.Explanation:
         inv_sqrt_d.extend(x.round(3).tolist())
         yield_mpa.extend(y.round(1).tolist())
         alloy.extend([name] * 12)
-    return fm.explain(
+    return mint.explain(
         "All three alloys follow Hall–Petch; Cu–Zn strengthens 2.3× faster than pure Cu",
-        fm.relate(
+        mint.relate(
             inv_sqrt_d,
             yield_mpa,
             groups=alloy,
@@ -218,11 +218,11 @@ def relate_groups_fit() -> fm.Explanation:
     )
 
 
-def relate_log_allometry() -> fm.Explanation:
-    """fm.relate: log-log scatter with fitted line and highlighted named points."""
-    return fm.explain(
+def relate_log_allometry() -> mint.Explanation:
+    """mint.relate: log-log scatter with fitted line and highlighted named points."""
+    return mint.explain(
         "Basal metabolic rate scales as body mass^0.75 across six decades of size",
-        fm.relate(
+        mint.relate(
             [0.02, 0.1, 0.5, 2.0, 15.0, 70.0, 400.0, 3000.0],
             [0.05, 0.17, 0.58, 1.7, 7.6, 24.0, 88.0, 410.0],
             x_label="Body mass (kg)",
@@ -239,11 +239,11 @@ def relate_log_allometry() -> fm.Explanation:
     )
 
 
-def matrix_missing() -> fm.Explanation:
-    """fm.matrix: rectangular heat table with highlighted cell and missing-value markers."""
-    return fm.explain(
+def matrix_missing() -> mint.Explanation:
+    """mint.matrix: rectangular heat table with highlighted cell and missing-value markers."""
+    return mint.explain(
         "Model C leads on math (91%) and coding (88%) but has no multimodal score yet",
-        fm.matrix(
+        mint.matrix(
             [
                 [74.0, 78.0, 62.0, 69.0],
                 [83.0, 81.0, 77.0, 75.0],
@@ -261,15 +261,15 @@ def matrix_missing() -> fm.Explanation:
     )
 
 
-def histogram_bimodal() -> fm.Explanation:
-    """fm.histogram: binned single-variable distribution revealing two modes and an SLA threshold."""
+def histogram_bimodal() -> mint.Explanation:
+    """mint.histogram: binned single-variable distribution revealing two modes and an SLA threshold."""
     rng = np.random.default_rng(51)
     fast = rng.normal(18.0, 3.2, 145)
     slow = rng.normal(44.0, 4.8, 75)
     latencies = np.concatenate([fast, slow]).clip(6.0, 62.0).round(1).tolist()
-    return fm.explain(
+    return mint.explain(
         "Request latency splits into two modes near 18 ms and 44 ms; 32% exceed the 35 ms SLA",
-        fm.histogram(
+        mint.histogram(
             latencies,
             bins=18,
             reference=(35.0, "35 ms SLA"),
@@ -282,14 +282,14 @@ def histogram_bimodal() -> fm.Explanation:
     )
 
 
-def histogram_groups() -> fm.Explanation:
-    """fm.distribution(..., bins=...): shared-axis stacked histograms comparing two groups."""
+def histogram_groups() -> mint.Explanation:
+    """mint.distribution(..., bins=...): shared-axis stacked histograms comparing two groups."""
     rng = np.random.default_rng(63)
     before = rng.lognormal(np.log(410), 0.32, 180).clip(150, 1150).round(0).tolist()
     after = rng.lognormal(np.log(310), 0.24, 180).clip(140, 1150).round(0).tolist()
-    return fm.explain(
+    return mint.explain(
         "The new checkout flow cuts median latency by 120 ms and drops >500 ms sessions from 34% to 3%",
-        fm.distribution(
+        mint.distribution(
             {"Before": before, "After": after},
             bins=16,
             baseline="Before",
@@ -318,8 +318,8 @@ EXAMPLES = {
 }
 
 
-def build() -> fm.Explanation:
-    """Entry point for ``figmint run gallery/explain_form_gallery.py --journal screen``."""
+def build() -> mint.Explanation:
+    """Entry point for ``mintfig run gallery/explain_form_gallery.py --journal screen``."""
     return compare_intervals()
 
 

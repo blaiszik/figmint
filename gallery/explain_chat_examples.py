@@ -1,4 +1,4 @@
-"""Message-first chat figures made with ``fm.explain`` (all data synthetic).
+"""Message-first chat figures made with ``mint.explain`` (all data synthetic).
 
 Each example is one takeaway sentence plus the panels that prove it, rendered at
 chat size (1400 px wide, shown ~700 px). Run directly to write PNGs and their
@@ -11,16 +11,16 @@ from pathlib import Path
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 SOURCE = "synthetic example data"
 
 
-def latency_regression() -> fm.Explanation:
+def latency_regression() -> mint.Explanation:
     """A two-step argument: what is wrong, then since when."""
-    return fm.explain(
+    return mint.explain(
         "Checkout is the slow service: its p99 is 4x the next worst",
-        fm.compare(
+        mint.compare(
             {
                 "checkout": 1840,
                 "search": 460,
@@ -34,7 +34,7 @@ def latency_regression() -> fm.Explanation:
             unit="ms",
             highlight="checkout",
         ),
-        fm.trend(
+        mint.trend(
             list(range(1, 9)),
             {
                 "checkout": [540, 560, 550, 570, 980, 1400, 1700, 1840],
@@ -53,11 +53,11 @@ def latency_regression() -> fm.Explanation:
     )
 
 
-def build_time() -> fm.Explanation:
+def build_time() -> mint.Explanation:
     """Part-to-whole without a pie."""
-    return fm.explain(
+    return mint.explain(
         "Three stages take 82% of the build: compile, integration tests and image push",
-        fm.share(
+        mint.share(
             {
                 "compile": 412,
                 "integration tests": 388,
@@ -79,7 +79,7 @@ def build_time() -> fm.Explanation:
     )
 
 
-def benchmark_gains() -> fm.Explanation:
+def benchmark_gains() -> mint.Explanation:
     """Paired before/after across items."""
     before = {
         "MATH-500": 79,
@@ -97,23 +97,23 @@ def benchmark_gains() -> fm.Explanation:
         "SWE-bench": 77,
         "SimpleQA": 58,
     }
-    return fm.explain(
+    return mint.explain(
         "The new model gains most where the old one was weakest: +50 points on AIME",
-        fm.change(
+        mint.change(
             before, after, labels=("Prior", "New"), label="Accuracy", unit="%", highlight="AIME"
         ),
         source=SOURCE,
     )
 
 
-def agent_matrix() -> fm.Explanation:
+def agent_matrix() -> mint.Explanation:
     """Two categorical dimensions: colour for the pattern, a number in every cell."""
     rng = np.random.default_rng(3)
     values = rng.uniform(48, 95, (5, 5)).round(0)
     values[2, 4] = 22
-    return fm.explain(
+    return mint.explain(
         "Rust performance work is the one cell where the agent fails most tasks",
-        fm.matrix(
+        mint.matrix(
             values.tolist(),
             rows=["Python", "Go", "Rust", "TypeScript", "Java"],
             cols=["bugfix", "refactor", "tests", "docs", "perf"],
@@ -125,7 +125,7 @@ def agent_matrix() -> fm.Explanation:
     )
 
 
-def regional_orders() -> fm.Explanation:
+def regional_orders() -> mint.Explanation:
     """More than four series with no single focus: small multiples on one scale."""
     rng = np.random.default_rng(11)
     weeks = [f"W{i}" for i in range(1, 13)]
@@ -137,28 +137,28 @@ def regional_orders() -> fm.Explanation:
         if region == "EMEA":
             path[7:] -= 14
         series[region] = path.round(1).tolist()
-    return fm.explain(
+    return mint.explain(
         "Every region dipped in weeks 5-7, but only EMEA failed to recover",
-        fm.trend(
+        mint.trend(
             weeks, series, label="Orders, indexed to week 0 = 100", facet=True, highlight="EMEA"
         ),
         source=SOURCE,
     )
 
 
-def checkout_story() -> fm.Explanation:
+def checkout_story() -> mint.Explanation:
     """Four panels, one argument: size, onset, spread, consequence."""
     rng = np.random.default_rng(5)
-    return fm.explain(
+    return mint.explain(
         "Checkout regressed after v2.3: slower, more variable, and now most of the wait",
-        fm.compare(
+        mint.compare(
             {"checkout": 1840, "search": 460, "auth": 310, "catalog": 280},
             title="It is 4x slower than anything else",
             label="p99",
             unit="ms",
             highlight="checkout",
         ),
-        fm.trend(
+        mint.trend(
             list(range(1, 9)),
             {
                 "checkout": [540, 560, 550, 570, 980, 1400, 1700, 1840],
@@ -171,7 +171,7 @@ def checkout_story() -> fm.Explanation:
             highlight="checkout",
             events={4: "v2.3"},
         ),
-        fm.distribution(
+        mint.distribution(
             {
                 "before": rng.lognormal(6.2, 0.2, 80).round(0).tolist(),
                 "after": rng.lognormal(7.2, 0.5, 80).round(0).tolist(),
@@ -181,7 +181,7 @@ def checkout_story() -> fm.Explanation:
             unit="ms",
             highlight="after",
         ),
-        fm.share(
+        mint.share(
             {"checkout": 61, "search": 14, "auth": 9, "catalog": 8, "other": 8},
             title="It is now most of the time users wait",
             label="request time",
@@ -202,8 +202,8 @@ EXAMPLES = {
 }
 
 
-def build() -> fm.Explanation:
-    """Entry point for ``figmint run gallery/explain_chat_examples.py --journal screen``."""
+def build() -> mint.Explanation:
+    """Entry point for ``mintfig run gallery/explain_chat_examples.py --journal screen``."""
     return latency_regression()
 
 

@@ -1,4 +1,4 @@
-"""Tests for fm.waterfall (attribution bridges) and fm.timeline (execution span timelines)."""
+"""Tests for mint.waterfall (attribution bridges) and mint.timeline (execution span timelines)."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from pathlib import Path
 
 import pytest
 
-import figmint as fm
-from figmint.themes import THEMES
+import mintfig as mint
+from mintfig.themes import THEMES
 
 # --------------------------------------------------------------------------- #
-# fm.waterfall
+# mint.waterfall
 # --------------------------------------------------------------------------- #
 
 
@@ -25,9 +25,9 @@ class TestWaterfallForm:
 
     @pytest.mark.parametrize("style_name", list(THEMES))
     def test_waterfall_renders_clean_across_all_themes(self, style_name: str) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Retrieval adds +8.2 points while quantization costs only 1.5 points",
-            fm.waterfall(
+            mint.waterfall(
                 self._ablation_steps(),
                 start=("Base model", 69.0),
                 total_label="Shipped",
@@ -61,9 +61,9 @@ class TestWaterfallForm:
             {"driver": "Audit logging", "delta_ms": 6.5},
             {"driver": "No-op check", "delta_ms": 0.0},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Cache warm-up and batching cut 54 ms net off p99 latency",
-            fm.waterfall(
+            mint.waterfall(
                 rows,
                 name="driver",
                 value="delta_ms",
@@ -81,9 +81,9 @@ class TestWaterfallForm:
         assert any("126" in f for f in s["panels"][0]["facts"])
 
     def test_waterfall_without_start_and_negative_only(self) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Three regressions together drop throughput by 35 req/s",
-            fm.waterfall(
+            mint.waterfall(
                 {"JSON parse": -15.0, "TLS handshake": -12.0, "Extra copy": -8.0},
                 title="Throughput regressions",
                 label="Delta",
@@ -99,12 +99,12 @@ class TestWaterfallForm:
     def test_waterfall_lenient_folds_smaller_steps_preserving_exact_total(self) -> None:
         steps = {f"Step {i:02d}": float(i if i % 2 == 0 else -i * 0.5) for i in range(1, 19)}
         expected_total = 100.0 + sum(steps.values())
-        with pytest.raises(fm.ExplainError):
-            fm.waterfall(steps, start=100.0)
-        with fm.lenient():
-            fig = fm.explain(
+        with pytest.raises(mint.ExplainError):
+            mint.waterfall(steps, start=100.0)
+        with mint.lenient():
+            fig = mint.explain(
                 f"Eighteen adjustments move the score to {expected_total:.1f}",
-                fm.waterfall(steps, start=("Base", 100.0), highlight="Step 01", title="All adjustments", label="Score"),
+                mint.waterfall(steps, start=("Base", 100.0), highlight="Step 01", title="All adjustments", label="Score"),
                 source="synthetic",
             )
         s = fig.summary()
@@ -115,9 +115,9 @@ class TestWaterfallForm:
         assert pytest.approx(100.0 + sum(spec_steps.values()), rel=1e-6) == expected_total
 
     def test_waterfall_roundtrip_html_and_terminal(self, tmp_path: Path) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Retrieval drives +8.2 points of the +12.2 point gain",
-            fm.waterfall(
+            mint.waterfall(
                 self._ablation_steps(),
                 start=("Base", 69.0),
                 highlight="+Retrieval",
@@ -129,9 +129,9 @@ class TestWaterfallForm:
         )
         png = tmp_path / "bridge.png"
         fig.save(png)
-        reloaded = fm.load(png)
+        reloaded = mint.load(png)
         assert reloaded.to_spec() == fig.to_spec()
-        assert fm.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
+        assert mint.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
 
         html_out = fig.to_html()
         assert "+Retrieval" in html_out
@@ -144,7 +144,7 @@ class TestWaterfallForm:
 
 
 # --------------------------------------------------------------------------- #
-# fm.timeline
+# mint.timeline
 # --------------------------------------------------------------------------- #
 
 
@@ -162,9 +162,9 @@ class TestTimelineForm:
 
     @pytest.mark.parametrize("style_name", list(THEMES))
     def test_timeline_renders_clean_across_all_themes(self, style_name: str) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Integration tests take 94 s (53% of the 178 s pipeline) and push past the 150 s SLA",
-            fm.timeline(
+            mint.timeline(
                 self._ci_spans(),
                 highlight="integration",
                 reference=(150, "CI SLA"),
@@ -188,7 +188,7 @@ class TestTimelineForm:
 
     def test_timeline_dict_and_tidy_rows_and_group_highlight(self) -> None:
         # Dict input
-        p_dict = fm.timeline(
+        p_dict = mint.timeline(
             {"fetch": (0, 5), "parse": (5, 19), "rank": (19, 31)},
             title="Sequential trace",
             unit="ms",
@@ -202,9 +202,9 @@ class TestTimelineForm:
             {"stage": "fetch", "t0": 2.4, "t1": 9.1, "actor": "worker"},
             {"stage": "synthesize", "t0": 9.1, "t1": 12.0, "actor": "coordinator"},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Parallel worker stages run concurrently for 6.7 s of the 12 s trace",
-            fm.timeline(
+            mint.timeline(
                 rows,
                 name="stage",
                 start="t0",
@@ -222,13 +222,13 @@ class TestTimelineForm:
         assert s["ship"] is True
 
     def test_timeline_rejects_end_before_start(self) -> None:
-        with pytest.raises(fm.ExplainError, match="ends"):
-            fm.timeline({"broken": (50, 10)})
+        with pytest.raises(mint.ExplainError, match="ends"):
+            mint.timeline({"broken": (50, 10)})
 
     def test_timeline_roundtrip_html_and_terminal(self, tmp_path: Path) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "Integration tests dominate the 178 s CI run at 94 s",
-            fm.timeline(
+            mint.timeline(
                 self._ci_spans(),
                 highlight="integration",
                 title="CI trace",
@@ -239,9 +239,9 @@ class TestTimelineForm:
         )
         png = tmp_path / "trace.png"
         fig.save(png)
-        reloaded = fm.load(png)
+        reloaded = mint.load(png)
         assert reloaded.to_spec() == fig.to_spec()
-        assert fm.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
+        assert mint.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
 
         html_out = fig.to_html()
         assert "integration" in html_out

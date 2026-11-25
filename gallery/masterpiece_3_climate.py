@@ -4,7 +4,7 @@ Science (AAAS) 3-column full-width plate (184.0 x 122.0 mm), Panels A-D:
   A: Global surface temperature anomaly (1850-2100) with IPCC AR6 scenarios
      and inset 1850-2025 Ed Hawkins warming-stripes strip.
   B: Zonal-altitude atmospheric warming cross-section (90S-90N, 1000-10 hPa)
-     in figmint_div showing stratospheric cooling, tropical hotspot, and Arctic
+     in mintfig_div showing stratospheric cooling, tropical hotspot, and Arctic
      amplification with tropopause contour and grayscale-safe ΔT callouts.
   C: Earth energy imbalance / cumulative ocean heat uptake (1970-2025) with
      89% ocean share callout.
@@ -21,7 +21,7 @@ import numpy as np
 from matplotlib.lines import Line2D
 from matplotlib.patches import Rectangle
 
-import figmint as fm
+import mintfig as mint
 
 # Cohesive Earth-system editorial palette
 CHARCOAL = "#2B3036"
@@ -75,7 +75,7 @@ def _build_panel_a(ax: plt.Axes, rng: np.random.Generator) -> None:
     ssp126 = hist_end + 0.48 * np.sin(np.pi * 0.72 * tau) - 0.06 * tau**2
     ssp126_w = 0.06 + 0.36 * (tau**0.95)
 
-    fm.subtle_grid(ax, axis="y")
+    mint.subtle_grid(ax, axis="y")
 
     # Preindustrial zero baseline & Paris thresholds (terminated cleanly at 2100)
     ax.plot([1850, 2100], [0.0, 0.0], color="#C5CDD6", lw=0.55, zorder=1)
@@ -131,7 +131,7 @@ def _build_panel_a(ax: plt.Axes, rng: np.random.Generator) -> None:
         hist_t[np.newaxis, :],
         extent=(1850.0, 2025.0, stripe_y0, stripe_y1),
         aspect="auto",
-        cmap="figmint_div",
+        cmap="mintfig_div",
         vmin=-1.25,
         vmax=1.25,
         interpolation="nearest",
@@ -168,7 +168,7 @@ def _build_panel_a(ax: plt.Axes, rng: np.random.Generator) -> None:
     ax.set_title("Global surface warming & scenarios")
 
     # Direct labels placed neatly right of 2100 in open white space
-    for txt in fm.direct_labels(ax, pad_pt=4.5, min_sep_pt=8.5, fontsize=6.2):
+    for txt in mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=8.5, fontsize=6.2):
         txt.set_fontweight("bold")
 
 
@@ -208,7 +208,7 @@ def _build_panel_b(ax: plt.Axes) -> None:
     )
 
     levels = np.linspace(-4.5, 4.5, 19)
-    cf = ax.contourf(lat_g, p_g, dt, levels=levels, cmap="figmint_div", extend="both")
+    cf = ax.contourf(lat_g, p_g, dt, levels=levels, cmap="mintfig_div", extend="both")
 
     # Crisp contour lines: 0 C dashed, +/-2 C solid
     ax.contour(
@@ -291,7 +291,7 @@ def _build_panel_b(ax: plt.Axes) -> None:
         ax.spines[side].set_linewidth(0.5)
 
     cbar = ax.figure.colorbar(cf, ax=ax, pad=0.035, fraction=0.055, aspect=22)
-    fm.style_colorbar(cbar, label="ΔT (°C)")
+    mint.style_colorbar(cbar, label="ΔT (°C)")
     cbar.set_ticks([-4, -2, 0, 2, 4])
 
 
@@ -314,7 +314,7 @@ def _build_panel_c(ax: plt.Axes, rng: np.random.Generator) -> None:
     colors = ["#1F4E79", "#4F86B5", "#8FB9D9", "#D98A4E"]
     labels = ["0–700 m", "700–2000 m", ">2000 m", "Land/ice/atm"]
 
-    fm.subtle_grid(ax, axis="y")
+    mint.subtle_grid(ax, axis="y")
 
     ax.stackplot(
         years,
@@ -399,7 +399,7 @@ def _build_panel_d(ax: plt.Axes) -> None:
         "Multi-centennial": (NAVY, "D"),
     }
 
-    fm.subtle_grid(ax, axis="x")
+    mint.subtle_grid(ax, axis="x")
 
     y_pos = np.arange(len(elements))
     y_bottom = len(elements) - 0.35
@@ -487,10 +487,10 @@ def _build_panel_d(ax: plt.Axes) -> None:
     leg.get_title().set_color("#2B3036")
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     """Construct Masterpiece 3 as a Science 3-column full-width Plate."""
     rng = np.random.default_rng(2025)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal="science",
         width="full",
         height_mm=122.0,

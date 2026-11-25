@@ -15,11 +15,11 @@ from PIL import Image
 
 matplotlib.use("Agg")
 
-import figmint as fm
-from figmint.cli import main as cli_main
-from figmint.explainer import EXAMPLE_SPEC
-from figmint.interactive import render_html, render_html_fragment
-from figmint.terminal import (
+import mintfig as mint
+from mintfig.cli import main as cli_main
+from mintfig.explainer import EXAMPLE_SPEC
+from mintfig.interactive import render_html, render_html_fragment
+from mintfig.terminal import (
     detect_graphics_protocol,
     encode_iterm2_png,
     encode_kitty_png,
@@ -28,21 +28,21 @@ from figmint.terminal import (
 )
 
 
-def _close(exp: fm.Explanation) -> None:
+def _close(exp: mint.Explanation) -> None:
     plt.close(exp.fig)
 
 
-def _sample_multi_panel_exp(*, style: str = "figmint") -> fm.Explanation:
-    return fm.explain(
+def _sample_multi_panel_exp(*, style: str = "mintfig") -> mint.Explanation:
+    return mint.explain(
         "Checkout is the slow service: p99 reached 1,840 ms after v2.3",
-        fm.compare(
+        mint.compare(
             {"checkout": 1840, "search": 460, "auth": 310, "profile": 120},
             title="Checkout stands alone",
             label="p99 latency",
             unit="ms",
             highlight="checkout",
         ),
-        fm.trend(
+        mint.trend(
             [1, 2, 3, 4, 5, 6],
             {
                 "checkout": [540, 560, 580, 980, 1400, 1840],
@@ -79,7 +79,7 @@ class TestInteractiveHtml:
         assert "Critique / Ask Agent" in doc
         assert "Download SVG" in doc
         assert "Copy Spec JSON" in doc
-        assert "fm.edit(" in doc
+        assert "mint.edit(" in doc
         for action in ("highlight", "drop", "zoom", "style", "re-title", "question"):
             assert f'value="{action}"' in doc
 
@@ -122,7 +122,7 @@ class TestInteractiveHtml:
         assert "data-fm-drawer-critique" not in static_doc
 
     def test_light_and_dark_theme_surface_matching(self) -> None:
-        light_exp = _sample_multi_panel_exp(style="figmint")
+        light_exp = _sample_multi_panel_exp(style="mintfig")
         dark_exp = _sample_multi_panel_exp(style="dark")
         try:
             light_html = render_html(light_exp)
@@ -131,7 +131,7 @@ class TestInteractiveHtml:
             _close(light_exp)
             _close(dark_exp)
 
-        assert 'data-fm-theme="figmint"' in light_html
+        assert 'data-fm-theme="mintfig"' in light_html
         assert 'data-fm-mode="light"' in light_html
         assert light_exp.theme.background in light_html
         assert light_exp.theme.ink in light_html
@@ -142,30 +142,30 @@ class TestInteractiveHtml:
         assert dark_exp.theme.ink in dark_html
 
     def test_facts_drawer_covers_table_matrix_and_other_forms(self) -> None:
-        exp = fm.explain(
+        exp = mint.explain(
             "Model A leads on accuracy while maintaining compact latency",
-            fm.table(
+            mint.table(
                 [
                     {"Model": "Alpha", "Accuracy": 92.4, "Latency": 18},
                     {"Model": "Beta", "Accuracy": 87.1, "Latency": 24},
                 ],
                 title="Benchmark table",
             ),
-            fm.matrix(
+            mint.matrix(
                 [[1.0, 0.42], [0.42, 1.0]],
                 rows=["Acc", "Lat"],
                 cols=["Acc", "Lat"],
                 title="Metric correlation",
                 label="Correlation",
             ),
-            fm.change(
+            mint.change(
                 {"Alpha": 84.0, "Beta": 82.0},
                 {"Alpha": 92.4, "Beta": 87.1},
                 title="Before vs after tuning",
                 label="Accuracy",
                 unit="%",
             ),
-            fm.relate(
+            mint.relate(
                 [10, 20, 30, 40],
                 [80, 85, 89, 93],
                 x_label="Params (M)",
@@ -191,9 +191,9 @@ class TestInteractiveHtml:
     def test_xss_and_script_breakout_escaping(self) -> None:
         payload = '</script><script>alert("xss")</script>'
         img_xss = '<img src=x onerror=alert(1)>'
-        exp = fm.explain(
+        exp = mint.explain(
             f"Latency spiked 3x {payload}",
-            fm.compare(
+            mint.compare(
                 {img_xss: 90, "safe": 30},
                 title=f"Title {img_xss}",
                 label="Score",
@@ -219,9 +219,9 @@ class TestInteractiveHtml:
             render_html("not-an-explanation")  # type: ignore[arg-type]
 
     def test_trend_points_replicates_align_with_x_and_means(self) -> None:
-        exp = fm.explain(
+        exp = mint.explain(
             "Core suite runtime fell 40% from 31.0 s to 18.7 s across 3 releases",
-            fm.trend(
+            mint.trend(
                 ["v1", "v2", "v3"],
                 points={
                     "Core": [[30.0, 32.0, 31.0], [], [18.0, 19.0, 19.0]],
@@ -255,9 +255,9 @@ class TestInteractiveHtml:
         assert "11 s → 13 s (+18%)" in term
 
     def test_narrow_width_html_stays_compact(self) -> None:
-        exp = fm.explain(
+        exp = mint.explain(
             "Checkout is 4x slower than search at 1,840 ms",
-            fm.compare(
+            mint.compare(
                 {"checkout": 1840, "search": 460, "auth": 310},
                 label="p99 latency",
                 unit="ms",
@@ -361,9 +361,9 @@ class TestTerminalRendering:
         assert "->" in asc_plain
 
     def test_render_terminal_table_share_matrix_distribution_change_relate(self) -> None:
-        exp = fm.explain(
+        exp = mint.explain(
             "Model Alpha leads accuracy by 5.3 pts with balanced share and tight spread",
-            fm.table(
+            mint.table(
                 [
                     {"Model": "Alpha", "Acc": 92.4, "Cost": 1.2},
                     {"Model": "Beta", "Acc": 87.1, "Cost": 2.4},
@@ -371,21 +371,21 @@ class TestTerminalRendering:
                 title="Scorecard",
                 highlight="Alpha",
             ),
-            fm.share({"Compute": 65, "Storage": 25, "Network": 10}, title="Spend share"),
-            fm.matrix(
+            mint.share({"Compute": 65, "Storage": 25, "Network": 10}, title="Spend share"),
+            mint.matrix(
                 [[1.0, 0.3], [0.3, 1.0]],
                 rows=["A", "B"],
                 cols=["A", "B"],
                 title="Correlations",
                 label="r",
             ),
-            fm.distribution(
+            mint.distribution(
                 {"Alpha": [91, 92, 92.5, 93, 93.5], "Beta": [85, 86, 87, 88, 89]},
                 title="Run spread",
                 label="Acc",
                 unit="%",
             ),
-            style="figmint",
+            style="mintfig",
         )
         try:
             uni = render_terminal(exp, width=78, color=False, ascii_only=False)
@@ -431,7 +431,7 @@ class TestTerminalRendering:
         assert ascii_out.isascii()
         assert "#" in ascii_out
 
-        # Plain PNG without embedded figmint spec falls back gracefully in unicode mode
+        # Plain PNG without embedded mintfig spec falls back gracefully in unicode mode
         plain_png = tmp_path / "plain.png"
         img_buf = io.BytesIO()
         Image.new("RGB", (32, 24), color=(10, 20, 30)).save(img_buf, format="PNG")

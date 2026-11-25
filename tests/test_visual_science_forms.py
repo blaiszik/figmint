@@ -7,10 +7,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-import figmint as fm
-from figmint._explain.distribution import _prob_superiority
-from figmint.audit import audit_figure
-from figmint.explainer import ExplainError
+import mintfig as mint
+from mintfig._explain.distribution import _prob_superiority
+from mintfig.audit import audit_figure
+from mintfig.explainer import ExplainError
 
 # --------------------------------------------------------------------------- #
 # 1. Quantile dotplots & exceedance / superiority probability facts
@@ -24,7 +24,7 @@ def test_quantile_dotplot_basic_and_roundtrip(tmp_path: Path) -> None:
         "Candidate": rng.normal(58.0, 5.5, size=60).tolist(),
         "Legacy": rng.normal(44.0, 7.0, size=60).tolist(),
     }
-    panel = fm.distribution(
+    panel = mint.distribution(
         groups,
         title="Candidate shifts latency distribution right",
         label="Throughput",
@@ -43,7 +43,7 @@ def test_quantile_dotplot_basic_and_roundtrip(tmp_path: Path) -> None:
     assert spec["mode"] == "quantile"
     assert spec["quantiles"] == 20
 
-    exp = fm.explain(
+    exp = mint.explain(
         "Candidate exceeds the 55 req/s target in most quantiles",
         panel,
         source="synthetic benchmark",
@@ -58,7 +58,7 @@ def test_quantile_dotplot_basic_and_roundtrip(tmp_path: Path) -> None:
 
     png = tmp_path / "quantile_roundtrip.png"
     exp.save(png)
-    reloaded = fm.load(png)
+    reloaded = mint.load(png)
     assert reloaded.ship is True
     assert reloaded.issues == []
     assert reloaded.to_spec()["panels"][0]["mode"] == "quantile"
@@ -66,7 +66,7 @@ def test_quantile_dotplot_basic_and_roundtrip(tmp_path: Path) -> None:
 
 
 def test_distribution_default_spec_omits_mode_and_quantiles() -> None:
-    p = fm.distribution(
+    p = mint.distribution(
         {"control": [10, 12, 14, 15, 16], "treated": [18, 20, 21, 23, 25]},
         label="Score",
         baseline="control",
@@ -87,7 +87,7 @@ def test_prob_superiority_exact_with_ties() -> None:
     p_eq = _prob_superiority(np.array([1.0, 2.0, 3.0]), np.array([1.0, 2.0, 3.0]))
     assert p_eq == pytest.approx(0.5)
 
-    panel = fm.distribution(
+    panel = mint.distribution(
         {"ctrl": [1.0, 2.0, 3.0, 4.0], "trt": [2.0, 3.0, 4.0, 5.0]},
         label="Yield",
         baseline="ctrl",
@@ -98,9 +98,9 @@ def test_prob_superiority_exact_with_ties() -> None:
 
 def test_quantile_dotplot_log_single_and_constant() -> None:
     rng = np.random.default_rng(7)
-    exp_log = fm.explain(
+    exp_log = mint.explain(
         "Log-scale quantile dotplot renders cleanly across decades",
-        fm.distribution(
+        mint.distribution(
             {
                 "Slow": np.exp(rng.normal(2.5, 0.4, 50)).tolist(),
                 "Fast": np.exp(rng.normal(1.2, 0.35, 50)).tolist(),
@@ -118,9 +118,9 @@ def test_quantile_dotplot_log_single_and_constant() -> None:
     assert exp_log.issues == []
     assert "6.7% each" in (exp_log.panels["a"].measure_note or "")
 
-    exp_const = fm.explain(
+    exp_const = mint.explain(
         "Constant values stack cleanly in quantile mode",
-        fm.distribution([5.0, 5.0, 5.0, 5.0, 5.0], label="Score", mode="quantile", quantiles=10),
+        mint.distribution([5.0, 5.0, 5.0, 5.0, 5.0], label="Score", mode="quantile", quantiles=10),
         source="synthetic",
     )
     assert exp_const.ship is True
@@ -130,15 +130,15 @@ def test_quantile_dotplot_log_single_and_constant() -> None:
 def test_quantile_dotplot_validation_errors() -> None:
     vals = {"a": [1, 2, 3, 4, 5]}
     with pytest.raises(ExplainError, match="mode"):
-        fm.distribution(vals, mode="beeswarm")
+        mint.distribution(vals, mode="beeswarm")
     with pytest.raises(ExplainError, match="quantiles"):
-        fm.distribution(vals, mode="quantile", quantiles=4)
+        mint.distribution(vals, mode="quantile", quantiles=4)
     with pytest.raises(ExplainError, match="quantiles"):
-        fm.distribution(vals, mode="quantile", quantiles=51)
+        mint.distribution(vals, mode="quantile", quantiles=51)
     with pytest.raises(ExplainError, match="quantiles"):
-        fm.distribution(vals, mode="quantile", quantiles=True)  # type: ignore[arg-type]
+        mint.distribution(vals, mode="quantile", quantiles=True)  # type: ignore[arg-type]
     with pytest.raises(ExplainError, match="bins"):
-        fm.distribution(vals, mode="quantile", bins="auto")
+        mint.distribution(vals, mode="quantile", bins="auto")
 
 
 # --------------------------------------------------------------------------- #
@@ -160,7 +160,7 @@ def test_compare_nested_intervals_and_show_delta_roundtrip(tmp_path: Path) -> No
         "Model C": (72.5, 74.5),
         "Model D": (67.0, 69.2),
     }
-    panel = fm.compare(
+    panel = mint.compare(
         vals,
         title="Model A leads baseline by +9.3 points",
         label="Accuracy",
@@ -177,7 +177,7 @@ def test_compare_nested_intervals_and_show_delta_roundtrip(tmp_path: Path) -> No
     assert spec["inner_error"] is not None
     assert spec["show_delta"] is True
 
-    exp = fm.explain(
+    exp = mint.explain(
         "Model A beats the Model B baseline by +9.3 points with non-overlapping CIs",
         panel,
         source="synthetic eval",
@@ -199,7 +199,7 @@ def test_compare_nested_intervals_and_show_delta_roundtrip(tmp_path: Path) -> No
 
     png = tmp_path / "nested_ci_delta.png"
     exp.save(png)
-    reloaded = fm.load(png)
+    reloaded = mint.load(png)
     assert reloaded.ship is True
     assert reloaded.issues == []
     assert reloaded.to_spec()["panels"][0]["show_delta"] is True
@@ -207,9 +207,9 @@ def test_compare_nested_intervals_and_show_delta_roundtrip(tmp_path: Path) -> No
 
 
 def test_compare_show_delta_on_bars_and_tabular_inner_error() -> None:
-    exp_bar = fm.explain(
+    exp_bar = mint.explain(
         "Bars with inline baseline deltas ship cleanly",
-        fm.compare(
+        mint.compare(
             {"New": 92.4, "Baseline": 83.1, "Old": 79.5},
             label="Win rate",
             unit="%",
@@ -227,9 +227,9 @@ def test_compare_show_delta_on_bars_and_tabular_inner_error() -> None:
         {"model": "B", "score": 72.0, "ci95": 3.5, "ci50": 1.2},
         {"model": "C", "score": 68.0, "ci95": 3.0, "ci50": 1.0},
     ]
-    exp_tab = fm.explain(
+    exp_tab = mint.explain(
         "Tabular inner_error column resolves cleanly",
-        fm.compare(
+        mint.compare(
             rows,
             name="model",
             value="score",
@@ -244,7 +244,7 @@ def test_compare_show_delta_on_bars_and_tabular_inner_error() -> None:
     assert exp_tab.issues == []
 
     # Default compare spec omits inner_error and show_delta
-    plain = fm.compare({"A": 10, "B": 5}, label="Count")
+    plain = mint.compare({"A": 10, "B": 5}, label="Count")
     assert "inner_error" not in plain.to_spec()
     assert "show_delta" not in plain.to_spec()
 
@@ -252,22 +252,22 @@ def test_compare_show_delta_on_bars_and_tabular_inner_error() -> None:
 def test_compare_nested_and_delta_validation_errors() -> None:
     vals = {"A": 10.0, "B": 8.0}
     with pytest.raises(ExplainError, match="requires error="):
-        fm.compare(vals, inner_error=0.5)
+        mint.compare(vals, inner_error=0.5)
     with pytest.raises(ExplainError, match="extends outside outer error"):
-        fm.compare(vals, error=1.0, inner_error=1.5, error_label="CI")
+        mint.compare(vals, error=1.0, inner_error=1.5, error_label="CI")
     with pytest.raises(ExplainError, match="extends outside outer error"):
-        fm.compare(
+        mint.compare(
             vals,
             error={"A": (9.0, 11.0), "B": (7.0, 9.0)},
             inner_error={"A": (8.5, 10.5), "B": (7.5, 8.5)},
             error_label="CI",
         )
     with pytest.raises(ExplainError, match="requires baseline="):
-        fm.compare(vals, show_delta=True)
+        mint.compare(vals, show_delta=True)
     with pytest.raises(ExplainError, match="cannot be combined with boost="):
-        fm.compare(vals, baseline="B", show_delta=True, boost={"A": 2.0, "B": 1.0}, boost_label="extra")
+        mint.compare(vals, baseline="B", show_delta=True, boost={"A": 2.0, "B": 1.0}, boost_label="extra")
     with pytest.raises(ExplainError, match="Grouped compare"):
-        fm.compare({"Cat1": {"A": 10, "B": 8}, "Cat2": {"A": 12, "B": 9}}, show_delta=True)
+        mint.compare({"Cat1": {"A": 10, "B": 8}, "Cat2": {"A": 12, "B": 9}}, show_delta=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -286,7 +286,7 @@ def test_trend_callouts_and_regions_numeric_and_dates(tmp_path: Path) -> None:
         "2026-04-01",
         "2026-04-15",
     ]
-    panel_date = fm.trend(
+    panel_date = mint.trend(
         dates,
         {
             "API v2": [180, 175, 170, 290, 310, 240, 165, 160],
@@ -306,7 +306,7 @@ def test_trend_callouts_and_regions_numeric_and_dates(tmp_path: Path) -> None:
     assert spec["regions"] == [["2026-02-01", "2026-03-15", "Cache outage"]]
     assert spec["callouts"] == [["2026-03-01", 310.0, "Peak 310 ms"], ["2026-04-01", 165.0, "Fix deployed"]]
 
-    exp = fm.explain(
+    exp = mint.explain(
         "API v2 spiked to 310 ms during the Feb–Mar cache outage before recovering",
         panel_date,
         source="synthetic telemetry",
@@ -321,7 +321,7 @@ def test_trend_callouts_and_regions_numeric_and_dates(tmp_path: Path) -> None:
 
     png = tmp_path / "trend_regions_callouts.png"
     exp.save(png)
-    reloaded = fm.load(png)
+    reloaded = mint.load(png)
     assert reloaded.ship is True
     assert reloaded.issues == []
     assert reloaded.to_spec()["panels"][0]["regions"] == spec["regions"]
@@ -329,9 +329,9 @@ def test_trend_callouts_and_regions_numeric_and_dates(tmp_path: Path) -> None:
 
 
 def test_trend_numeric_log_and_facet_with_regions_callouts() -> None:
-    exp_num = fm.explain(
+    exp_num = mint.explain(
         "Training loss drops sharply after warmup",
-        fm.trend(
+        mint.trend(
             [1, 2, 4, 8, 16, 32, 64],
             {"Run A": [2.8, 2.4, 1.9, 1.3, 0.9, 0.72, 0.65], "Run B": [2.9, 2.7, 2.4, 2.0, 1.7, 1.5, 1.4]},
             label="Loss",
@@ -346,9 +346,9 @@ def test_trend_numeric_log_and_facet_with_regions_callouts() -> None:
     assert exp_num.ship is True
     assert exp_num.issues == []
 
-    exp_facet = fm.explain(
+    exp_facet = mint.explain(
         "Faceted trend supports regions and callouts cleanly",
-        fm.trend(
+        mint.trend(
             [1, 2, 3, 4, 5, 6],
             {
                 "S1": [10, 12, 18, 22, 20, 19],
@@ -370,7 +370,7 @@ def test_relate_callouts_and_regions_roundtrip(tmp_path: Path) -> None:
     xs = [0.8, 1.5, 2.4, 4.0, 7.5, 12.0, 18.0, 26.0]
     ys = [64.0, 72.5, 79.0, 86.2, 89.5, 91.2, 92.0, 92.3]
     names = ["Tiny", "Small", "Base", "Sweet", "Mid", "Large", "XL", "XXL"]
-    panel = fm.relate(
+    panel = mint.relate(
         xs,
         ys,
         x_label="Cost ($/1M tok)",
@@ -388,7 +388,7 @@ def test_relate_callouts_and_regions_roundtrip(tmp_path: Path) -> None:
     assert spec["regions"] == [[1.0, 5.5, "Budget sweet spot"]]
     assert spec["callouts"] == [[4.0, 86.2, "Knee: 86.2% at $4"], [26.0, 92.3, "Diminishing returns"]]
 
-    exp = fm.explain(
+    exp = mint.explain(
         "Sweet captures 93% of top accuracy inside the $1–$5.5 budget zone",
         panel,
         source="synthetic eval",
@@ -403,7 +403,7 @@ def test_relate_callouts_and_regions_roundtrip(tmp_path: Path) -> None:
 
     png = tmp_path / "relate_regions_callouts.png"
     exp.save(png)
-    reloaded = fm.load(png)
+    reloaded = mint.load(png)
     assert reloaded.ship is True
     assert reloaded.issues == []
     assert reloaded.to_spec()["panels"][0]["regions"] == spec["regions"]
@@ -411,9 +411,9 @@ def test_relate_callouts_and_regions_roundtrip(tmp_path: Path) -> None:
 
 
 def test_relate_grouped_and_log_x_with_regions_callouts() -> None:
-    exp = fm.explain(
+    exp = mint.explain(
         "Grouped log-x scatter places regions and callouts cleanly",
-        fm.relate(
+        mint.relate(
             [1, 3, 10, 30, 2, 6, 20, 60],
             [20, 35, 55, 72, 28, 46, 68, 84],
             x_label="Compute (FLOPs)",
@@ -437,47 +437,47 @@ def test_callouts_and_regions_validation_errors() -> None:
     # Too many callouts (> 4)
     too_many = [(1, 10, "a"), (2, 20, "b"), (3, 30, "c"), (4, 40, "d"), (5, 50, "e")]
     with pytest.raises(ExplainError, match="at most 4"):
-        fm.trend(xs, ys, callouts=too_many)
+        mint.trend(xs, ys, callouts=too_many)
     with pytest.raises(ExplainError, match="at most 4"):
-        fm.relate(xs, ys, x_label="x", y_label="y", callouts=too_many)
+        mint.relate(xs, ys, x_label="x", y_label="y", callouts=too_many)
 
     # Inverted region x0 >= x1
     with pytest.raises(ExplainError, match="strictly less"):
-        fm.trend(xs, ys, regions=[(4, 2, "bad")])
+        mint.trend(xs, ys, regions=[(4, 2, "bad")])
     with pytest.raises(ExplainError, match="strictly less"):
-        fm.relate(xs, ys, x_label="x", y_label="y", regions=[(4, 4, "bad")])
+        mint.relate(xs, ys, x_label="x", y_label="y", regions=[(4, 4, "bad")])
 
     # Empty callout note
     with pytest.raises(ExplainError, match="empty note"):
-        fm.trend(xs, ys, callouts=[(2, 20, "   ")])
+        mint.trend(xs, ys, callouts=[(2, 20, "   ")])
     with pytest.raises(ExplainError, match="empty note"):
-        fm.relate(xs, ys, x_label="x", y_label="y", callouts=[(2, 20, "")])
+        mint.relate(xs, ys, x_label="x", y_label="y", callouts=[(2, 20, "")])
 
     # Non-positive on log axis
     with pytest.raises(ExplainError, match="positive"):
-        fm.trend(xs, ys, log_x=True, regions=[(0, 3, "bad")])
+        mint.trend(xs, ys, log_x=True, regions=[(0, 3, "bad")])
     with pytest.raises(ExplainError, match="positive"):
-        fm.relate(xs, ys, x_label="x", y_label="y", log_x=True, regions=[(0, 3, "bad")])
+        mint.relate(xs, ys, x_label="x", y_label="y", log_x=True, regions=[(0, 3, "bad")])
     with pytest.raises(ExplainError, match="positive"):
-        fm.relate(xs, ys, x_label="x", y_label="y", log_y=True, callouts=[(2, -1, "bad")])
+        mint.relate(xs, ys, x_label="x", y_label="y", log_y=True, callouts=[(2, -1, "bad")])
 
     # Default specs omit regions and callouts
-    t_plain = fm.trend(xs, ys, label="Metric")
+    t_plain = mint.trend(xs, ys, label="Metric")
     assert "regions" not in t_plain.to_spec()
     assert "callouts" not in t_plain.to_spec()
-    r_plain = fm.relate(xs, ys, x_label="x", y_label="y")
+    r_plain = mint.relate(xs, ys, x_label="x", y_label="y")
     assert "regions" not in r_plain.to_spec()
     assert "callouts" not in r_plain.to_spec()
 
 
 def test_callout_leader_arrows_avoid_lines_labels_and_bottom_spine() -> None:
     """Regression test: callout arrows must not cross unrelated lines/labels or sit on bottom spine."""
-    from figmint._explain.relate import _relate_arrow_segment, _relate_line_paths
-    from figmint._explain.trend import _audit_line_paths, _callout_arrow_segment
+    from mintfig._explain.relate import _relate_arrow_segment, _relate_line_paths
+    from mintfig._explain.trend import _audit_line_paths, _callout_arrow_segment
 
-    exp = fm.explain(
+    exp = mint.explain(
         "Throughput doubled after the Q2 kernel rewrite while staying on the Pareto frontier",
-        fm.trend(
+        mint.trend(
             [1, 2, 3, 4, 5, 6, 7, 8],
             {
                 "v2 kernel": [48, 52, 55, 79, 96, 104, 109, 112],
@@ -495,7 +495,7 @@ def test_callout_leader_arrows_avoid_lines_labels_and_bottom_spine() -> None:
                 (8, 112.0, "Peak 112 req/s"),
             ],
         ),
-        fm.relate(
+        mint.relate(
             [18, 25, 34, 48, 62, 79, 95, 112],
             [71.0, 75.8, 79.4, 83.1, 84.5, 86.0, 86.4, 87.3],
             title="Accuracy vs throughput trade-off",

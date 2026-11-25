@@ -1,4 +1,4 @@
-"""Tests for fm.flow, trend(fit=), matrix(triangle=/mask_diagonal=), fm.auto_panel, and figmint brief/auto CLI."""
+"""Tests for mint.flow, trend(fit=), matrix(triangle=/mask_diagonal=), mint.auto_panel, and mintfig brief/auto CLI."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from pathlib import Path
 
 import pytest
 
-import figmint as fm
-from figmint.cli import main as cli_main
-from figmint.themes import THEMES
+import mintfig as mint
+from mintfig.cli import main as cli_main
+from mintfig.themes import THEMES
 
 # --------------------------------------------------------------------------- #
-# 1. fm.flow (attrition / cohort / pipeline funnel)
+# 1. mint.flow (attrition / cohort / pipeline funnel)
 # --------------------------------------------------------------------------- #
 
 
@@ -27,9 +27,9 @@ class TestFlowForm:
 
     @pytest.mark.parametrize("style_name", list(THEMES))
     def test_flow_renders_clean_across_all_themes(self, style_name: str) -> None:
-        fig = fm.explain(
+        fig = mint.explain(
             "57.6% of screened patients complete follow-up; eligibility screening accounts for the largest drop (26%)",
-            fm.flow(
+            mint.flow(
                 self._cohort_stages(),
                 highlight="Eligible",
                 title="Cohort retention across trial stages",
@@ -53,7 +53,7 @@ class TestFlowForm:
 
     def test_flow_dict_tidy_lenient_edit_html_terminal_roundtrip(self, tmp_path: Path) -> None:
         # Dict input without reasons
-        p_dict = fm.flow({"Raw docs": 4200, "Deduped": 1800, "Filtered": 920}, show_pct=False, label="Docs")
+        p_dict = mint.flow({"Raw docs": 4200, "Deduped": 1800, "Filtered": 920}, show_pct=False, label="Docs")
         assert any("4,200" in f for f in p_dict.facts)
 
         # Tidy rows with auto-inferred columns
@@ -63,9 +63,9 @@ class TestFlowForm:
             {"stage": "Actionable", "count": 31, "drop_reason": "auto-resolved"},
             {"stage": "P0 incidents", "count": 6, "drop_reason": "non-critical"},
         ]
-        fig = fm.explain(
+        fig = mint.explain(
             "Only 6 of 412 alerts (1.5%) reach P0 incident triage",
-            fm.flow(rows, title="Alert triage funnel", label="Alert count"),
+            mint.flow(rows, title="Alert triage funnel", label="Alert count"),
             source="synthetic on-call log",
         )
         assert fig.summary()["ship"] is True
@@ -73,12 +73,12 @@ class TestFlowForm:
         # Round-trip via PNG
         png = tmp_path / "funnel.png"
         fig.save(png)
-        reloaded = fm.load(png)
+        reloaded = mint.load(png)
         assert reloaded.to_spec() == fig.to_spec()
-        assert fm.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
+        assert mint.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
 
         # Edit drop stage
-        edited = fm.edit(fig, drop="Actionable")
+        edited = mint.edit(fig, drop="Actionable")
         assert len(edited.to_spec()["panels"][0]["stages"]) == 3
 
         # HTML & terminal
@@ -89,18 +89,18 @@ class TestFlowForm:
 
         # Lenient trimming >12 stages
         many = [(f"Stage {i:02d}", float(1000 - i * 60)) for i in range(15)]
-        with pytest.raises(fm.ExplainError):
-            fm.flow(many)
-        with fm.lenient():
-            fig_len = fm.explain("Fifteen stages shrink from 1,000 to 160", fm.flow(many, label="Items"), source="synthetic")
+        with pytest.raises(mint.ExplainError):
+            mint.flow(many)
+        with mint.lenient():
+            fig_len = mint.explain("Fifteen stages shrink from 1,000 to 160", mint.flow(many, label="Items"), source="synthetic")
         assert fig_len.summary()["ship"] is True
         assert len(fig_len.to_spec()["panels"][0]["stages"]) == 12
 
     def test_flow_validation_errors(self) -> None:
-        with pytest.raises(fm.ExplainError, match="at least two"):
-            fm.flow({"Only one": 100})
-        with pytest.raises(fm.ExplainError, match="negative"):
-            fm.flow({"Start": 100, "End": -5})
+        with pytest.raises(mint.ExplainError, match="at least two"):
+            mint.flow({"Only one": 100})
+        with pytest.raises(mint.ExplainError, match="negative"):
+            mint.flow({"Start": 100, "End": -5})
 
 
 # --------------------------------------------------------------------------- #
@@ -112,9 +112,9 @@ class TestTrendFit:
     def test_trend_linear_log_and_power_fits_and_roundtrip(self, tmp_path: Path) -> None:
         # Linear fit
         x_lin = [0, 10, 20, 30, 40, 50]
-        fig_lin = fm.explain(
+        fig_lin = mint.explain(
             "Throughput grows steadily by +2.0 req/s per worker across 50 workers",
-            fm.trend(
+            mint.trend(
                 x_lin,
                 {"Optimized": [12, 31, 53, 71, 92, 112], "Baseline": [10, 20, 29, 41, 50, 61]},
                 fit=True,
@@ -136,9 +136,9 @@ class TestTrendFit:
         compute = [1e18, 3e18, 1e19, 3e19, 1e20, 3e20]
         dense = [2.45, 2.26, 2.08, 1.92, 1.77, 1.63]
         moe = [2.30, 2.09, 1.88, 1.71, 1.54, 1.39]
-        fig_pow = fm.explain(
+        fig_pow = mint.explain(
             "MoE scales steeper than Dense across two orders of magnitude in compute",
-            fm.trend(
+            mint.trend(
                 compute,
                 {"MoE": moe, "Dense": dense},
                 log=True,
@@ -159,12 +159,12 @@ class TestTrendFit:
 
         png = tmp_path / "scaling.png"
         fig_pow.save(png)
-        assert fm.load(png).to_spec() == fig_pow.to_spec()
+        assert mint.load(png).to_spec() == fig_pow.to_spec()
 
         # Facet with fit=True
-        fig_fac = fm.explain(
+        fig_fac = mint.explain(
             "All three variants follow near-linear trajectories over 5 epochs",
-            fm.trend(
+            mint.trend(
                 [1, 2, 3, 4, 5],
                 {"A": [10, 21, 29, 42, 51], "B": [8, 15, 24, 31, 40], "C": [5, 11, 14, 19, 25]},
                 facet=True,
@@ -177,8 +177,8 @@ class TestTrendFit:
         assert fig_fac.summary()["ship"] is True
 
     def test_trend_fit_rejects_categorical_x(self) -> None:
-        with pytest.raises(fm.ExplainError, match="numeric or date"):
-            fm.trend(["Q1", "Q2", "Q3"], {"Rev": [10, 20, 30]}, fit=True)
+        with pytest.raises(mint.ExplainError, match="numeric or date"):
+            mint.trend(["Q1", "Q2", "Q3"], {"Rev": [10, 20, 30]}, fit=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -201,9 +201,9 @@ class TestMatrixTriangleAndMaskDiagonal:
     @pytest.mark.parametrize("tri", ["lower", "upper"])
     def test_matrix_triangle_and_mask_diagonal_render_clean(self, tri: str, tmp_path: Path) -> None:
         names, vals = self._corr_matrix()
-        fig = fm.explain(
+        fig = mint.explain(
             "Reasoning and Math correlate most strongly (r = 0.84) while Latency correlates negatively",
-            fm.matrix(
+            mint.matrix(
                 vals,
                 rows=names,
                 cols=names,
@@ -227,15 +227,15 @@ class TestMatrixTriangleAndMaskDiagonal:
 
         png = tmp_path / f"corr_{tri}.png"
         fig.save(png)
-        assert fm.load(png).to_spec() == fig.to_spec()
+        assert mint.load(png).to_spec() == fig.to_spec()
 
     def test_matrix_triangle_rejects_rectangular(self) -> None:
-        with pytest.raises(fm.ExplainError, match="square"):
-            fm.matrix([[1, 2, 3], [4, 5, 6]], rows=["r1", "r2"], cols=["c1", "c2", "c3"], triangle="lower")
+        with pytest.raises(mint.ExplainError, match="square"):
+            mint.matrix([[1, 2, 3], [4, 5, 6]], rows=["r1", "r2"], cols=["c1", "c2", "c3"], triangle="lower")
 
 
 # --------------------------------------------------------------------------- #
-# 4. fm.auto_panel & CLI (figmint plot --kind auto / flow, figmint brief)
+# 4. mint.auto_panel & CLI (mintfig plot --kind auto / flow, mintfig brief)
 # --------------------------------------------------------------------------- #
 
 
@@ -250,12 +250,12 @@ class TestAutoPanelAndBriefCli:
             "Completed,714,lost to follow-up\n",
             encoding="utf-8",
         )
-        info = fm.inspect_data(flow_csv)
+        info = mint.inspect_data(flow_csv)
         assert info["recommendations"][0]["kind"] == "flow"
 
-        panel = fm.auto_panel(flow_csv, title="Cohort funnel", label="Patients")
+        panel = mint.auto_panel(flow_csv, title="Cohort funnel", label="Patients")
         assert panel.kind == "flow"
-        fig = fm.explain("57.6% of screened patients complete follow-up", panel, source="cohort.csv")
+        fig = mint.explain("57.6% of screened patients complete follow-up", panel, source="cohort.csv")
         assert fig.summary()["ship"] is True
 
     def test_cli_plot_auto_flow_and_brief_end_to_end(
@@ -316,7 +316,7 @@ class TestAutoPanelAndBriefCli:
         assert rc == 0
         assert json.loads(capsys.readouterr().out)["ship"] is True
 
-        # Compose both PNGs into HTML and Markdown briefings via `figmint brief`
+        # Compose both PNGs into HTML and Markdown briefings via `mintfig brief`
         brief_html = tmp_path / "report.html"
         rc = cli_main([
             "brief",

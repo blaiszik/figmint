@@ -1,7 +1,7 @@
-"""Generate flagship Nature & Science showcase figures for figmint.
+"""Generate flagship Nature & Science showcase figures for mintfig.
 
 Produces deterministic, publication-grade visual examples and comparison figures:
-1. Before vs. After Showcase (Default Matplotlib vs. figmint Nature 89 mm)
+1. Before vs. After Showcase (Default Matplotlib vs. mintfig Nature 89 mm)
 2. Flagship Nature Double-Column 4-Panel Plate (183 x 118 mm) + Preflight Proof Sheet
 3. One-Line Switch: Nature (183 mm, a/b/c) vs. Science (184 mm, A/B/C) Climate Plate
 
@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader
 
-from figmint import (
+from mintfig import (
     Plate,
     direct_labels,
     get_palette,
@@ -202,7 +202,7 @@ def _dose_response_data(rng: np.random.Generator) -> dict[str, Any]:
 
 
 def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
-    """Generate default Matplotlib vs. figmint Nature 89 mm single-column comparison."""
+    """Generate default Matplotlib vs. mintfig Nature 89 mm single-column comparison."""
     data = _dose_response_data(rng)
     conc_pts = data["conc_pts"]
     conc_dense = data["conc_dense"]
@@ -234,7 +234,7 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
         fig_b.savefig(before_pdf)
         plt.close(fig_b)
 
-    # --- 1B. figmint · Nature 89.0 mm single-column ---
+    # --- 1B. mintfig · Nature 89.0 mm single-column ---
     after_pdf = OUT_DIR / "example1_nature_single.pdf"
     after_png = OUT_DIR / "example1_nature_single.png"
 
@@ -368,7 +368,7 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
     draw.text((margin, 28), "BEFORE vs. AFTER  ·  Single-Column Nature Figure (89 mm)", fill=(255, 255, 255), font=f_title)
     draw.text(
         (margin, 86),
-        "Identical kinase dose-response dataset rendered with stock Matplotlib vs. figmint (1:1 print geometry, zero post-editing)",
+        "Identical kinase dose-response dataset rendered with stock Matplotlib vs. mintfig (1:1 print geometry, zero post-editing)",
         fill=(186, 196, 214),
         font=f_sub,
     )
@@ -380,7 +380,7 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
     # Card containers
     for cx, title, pill_txt, pill_bg, pill_fg, border_col in [
         (left_x, "Default Matplotlib", "FAILS PREFLIGHT", (254, 226, 226), (185, 28, 28), (226, 200, 200)),
-        (right_x, "figmint  ·  Nature 89.0 mm", "PREFLIGHT PASS", (220, 252, 231), (21, 128, 61), (180, 225, 198)),
+        (right_x, "mintfig  ·  Nature 89.0 mm", "PREFLIGHT PASS", (220, 252, 231), (21, 128, 61), (180, 225, 198)),
     ]:
         card_box = [cx - 18, top_y - 12, cx + panel_w + 18, top_y + card_hdr_h + img_area_h + 20 + callout_h]
         draw.rounded_rectangle(card_box, radius=18, fill=(255, 255, 255), outline=border_col, width=2)

@@ -5,14 +5,14 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(209)
-    plate = fm.Plate(journal="science", width="double", height_mm=72.0, layout=(1, 1))
+    plate = mint.Plate(journal="science", width="double", height_mm=72.0, layout=(1, 1))
     ax = plate["A"]
-    colors = fm.get_palette("science")
+    colors = mint.get_palette("science")
     fitted = np.linspace(1.0, 10.0, 90)
     resid = rng.normal(0.0, 0.45, 90)
     ax.axhline(0.0, ls="--", color="#6B7280", lw=0.5)

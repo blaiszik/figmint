@@ -7,9 +7,9 @@ model; the plate demonstrates Edward Tufte's principles (range frames with margi
 paired slopegraph, small multiples with ghosted peer context, and training sparklines)
 at exact NeurIPS full width (139.7 mm).
 
-Run through the figmint contract::
+Run through the mintfig contract::
 
-    figmint run gallery/neurips_frontier_tufte.py --journal neurips \
+    mintfig run gallery/neurips_frontier_tufte.py --journal neurips \
         --bundle gallery/output/neurips_frontier_tufte --json
 """
 
@@ -19,7 +19,7 @@ import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.ticker import FixedLocator, NullFormatter
 
-import figmint as fm
+import mintfig as mint
 
 CAPTION = (
     "Synthetic frontier-model release technical report engineered with Tufte visual grammar "
@@ -130,7 +130,7 @@ def _panel_a_range_scaling(ax) -> None:
     ax.set_yticks([1.7, 2.0, 2.3])
 
     # True Tufte range frame: spines trimmed strictly to actual data domain + checkpoint rug
-    fm.range_frame(
+    mint.range_frame(
         ax,
         xdata=np.array(ckpt_c + all_c),
         ydata=np.array(ckpt_l + all_l),
@@ -158,7 +158,7 @@ def _panel_b_slopegraph(ax) -> None:
     prior = [79, 38, 74, 61, 68, 49, 44, 31]
     frontier = [95, 88, 86, 82, 81, 77, 74, 58]
 
-    fm.slopegraph(
+    mint.slopegraph(
         ax,
         prior,
         frontier,
@@ -198,7 +198,7 @@ def _panel_c_small_multiples(ax) -> None:
         sub_axes.append(sub)
 
     # First draw muted ghost copies of peer domains across all 3 panels ("Compared to what?")
-    fm.ghost_context(
+    mint.ghost_context(
         [(sub_axes[i], budgets, domains[i][1]) for i in range(n)],
         ghost_color="#CFD7E2",
         ghost_lw=0.65,
@@ -300,7 +300,7 @@ def _panel_d_sparklines(ax, rng: np.random.Generator) -> None:
     ]
     for (lbl, vals, band, fmt_s), box in zip(specs, coords, strict=True):
         sub = ax.inset_axes(list(box))
-        fm.sparkline(
+        mint.sparkline(
             sub,
             steps,
             vals,
@@ -327,10 +327,10 @@ def _panel_d_sparklines(ax, rng: np.random.Generator) -> None:
     )
 
 
-def build(journal: str = "neurips") -> fm.Plate:
+def build(journal: str = "neurips") -> mint.Plate:
     """Construct the Tufte-redesigned Frontier model release technical report plate."""
     rng = np.random.default_rng(2026)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal=journal,
         width="full",
         height_mm=124.0,

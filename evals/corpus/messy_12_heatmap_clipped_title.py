@@ -5,12 +5,12 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(212)
-    plate = fm.Plate(journal="nature", width="single", height_mm=64.0, layout=(1, 1))
+    plate = mint.Plate(journal="nature", width="single", height_mm=64.0, layout=(1, 1))
     ax = plate["a"]
     ax.imshow(rng.normal(0, 1, (12, 12)), cmap="viridis", aspect="auto")
     ax.set_xlabel("Time bin")

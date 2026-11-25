@@ -7,21 +7,21 @@ from pathlib import Path
 
 import numpy as np
 
-import figmint as fm
-import figmint.explainer as explainer_mod
+import mintfig as mint
+import mintfig.explainer as explainer_mod
 
 
-def _sample_two_panel(*, width: str | float = "chat", style: str = "figmint") -> fm.Explanation:
-    return fm.explain(
+def _sample_two_panel(*, width: str | float = "chat", style: str = "mintfig") -> mint.Explanation:
+    return mint.explain(
         "Checkout p99 is 4x the next slowest service",
-        fm.compare(
+        mint.compare(
             {"checkout": 1840, "search": 460, "auth": 310, "cart": 240},
             label="p99 latency",
             unit="ms",
             title="Checkout stands alone",
             highlight="checkout",
         ),
-        fm.trend(
+        mint.trend(
             [1, 2, 3, 4, 5, 6],
             {
                 "checkout": [540, 560, 980, 1400, 1700, 1840],
@@ -41,7 +41,7 @@ def _sample_two_panel(*, width: str | float = "chat", style: str = "figmint") ->
 
 
 def test_narrow_spec_and_auto_stack_legibility(tmp_path: Path) -> None:
-    spec = fm.get_spec("screen")
+    spec = mint.get_spec("screen")
     assert spec.resolve_width_mm("narrow") == 92.0
 
     fig = _sample_two_panel(width="narrow")
@@ -60,22 +60,22 @@ def test_narrow_spec_and_auto_stack_legibility(tmp_path: Path) -> None:
     # 450 px * scale=2.0 = 900 px wide (within rounding)
     assert abs(summary["size_px"][0] - 900) <= 4
 
-    rebuilt = fm.load(tmp_path / "narrow.png")
+    rebuilt = mint.load(tmp_path / "narrow.png")
     assert rebuilt.to_spec()["width"] == "narrow"
     assert rebuilt.layout == [["a"], ["b"]]
     assert rebuilt.display_width_px == 450
 
 
 def test_narrow_auto_stacks_three_panels_and_respects_explicit_layout() -> None:
-    p1 = fm.compare({"a": 10, "b": 4}, label="Score", unit="%", title="Panel A")
-    p2 = fm.compare({"c": 8, "d": 2}, label="Score", unit="%", title="Panel B")
-    p3 = fm.compare({"e": 9, "f": 5}, label="Score", unit="%", title="Panel C")
+    p1 = mint.compare({"a": 10, "b": 4}, label="Score", unit="%", title="Panel A")
+    p2 = mint.compare({"c": 8, "d": 2}, label="Score", unit="%", title="Panel B")
+    p3 = mint.compare({"e": 9, "f": 5}, label="Score", unit="%", title="Panel C")
 
-    stacked = fm.explain("Panel A leads with 10% across all checks", p1, p2, p3, width="narrow")
+    stacked = mint.explain("Panel A leads with 10% across all checks", p1, p2, p3, width="narrow")
     assert stacked.layout == [["a"], ["b"], ["c"]]
     assert stacked.min_text_px >= 11.0
 
-    explicit = fm.explain(
+    explicit = mint.explain(
         "Panel A leads with 10% across two groups",
         p1,
         p2,
@@ -145,9 +145,9 @@ def test_summary_includes_four_level_narrative() -> None:
 
 def test_epistemic_audit_wired_into_explain_as_advisory() -> None:
     # 1) Overclaiming with overlapping CIs triggers advisory warning without blocking ship
-    fig_over = fm.explain(
+    fig_over = mint.explain(
         "Model A clearly outperforms Model B at 82%",
-        fm.compare(
+        mint.compare(
             {"Model A": 82, "Model B": 79},
             error={"Model A": (77, 87), "Model B": (74, 84)},
             error_label="95% CI",
@@ -168,9 +168,9 @@ def test_epistemic_audit_wired_into_explain_as_advisory() -> None:
     assert fig_over.ship is True
 
     # In lenient mode, advisory epistemic warnings move to summary["advisories"]
-    fig_lenient = fm.explain(
+    fig_lenient = mint.explain(
         "Model A clearly outperforms Model B at 82%",
-        fm.compare(
+        mint.compare(
             {"Model A": 82, "Model B": 79},
             error={"Model A": (77, 87), "Model B": (74, 84)},
             error_label="95% CI",
@@ -185,9 +185,9 @@ def test_epistemic_audit_wired_into_explain_as_advisory() -> None:
     assert any(i["rule"] == "claim_overstates_uncertainty" for i in fig_lenient.advisories)
 
     # 2) Blatant number mismatch emits advisory claim_number_mismatch
-    fig_mis = fm.explain(
+    fig_mis = mint.explain(
         "Latency dropped 50% after the update",
-        fm.compare(
+        mint.compare(
             {"Before": 100, "After": 92},
             label="Latency",
             unit="ms",
@@ -208,18 +208,18 @@ def test_public_exports_on_package_and_explainer() -> None:
         "audit_epistemic",
     )
     for name in expected:
-        assert hasattr(fm, name), f"figmint missing export {name}"
-        assert hasattr(explainer_mod, name), f"figmint.explainer missing export {name}"
-        assert name in fm.__all__
+        assert hasattr(mint, name), f"mintfig missing export {name}"
+        assert hasattr(explainer_mod, name), f"mintfig.explainer missing export {name}"
+        assert name in mint.__all__
         assert name in explainer_mod.__all__
-        assert getattr(fm, name) is getattr(explainer_mod, name)
+        assert getattr(mint, name) is getattr(explainer_mod, name)
 
 
 def test_narrow_with_new_visual_science_forms() -> None:
     rng = np.random.default_rng(7)
-    fig = fm.explain(
+    fig = mint.explain(
         "Treated samples beat control by +9 points with 90% above target",
-        fm.distribution(
+        mint.distribution(
             {
                 "treated": rng.normal(62, 6, 40),
                 "control": rng.normal(53, 6, 40),
@@ -233,7 +233,7 @@ def test_narrow_with_new_visual_science_forms() -> None:
             unit="%",
             title="Quantile dotplot (5% per dot)",
         ),
-        fm.compare(
+        mint.compare(
             {"treated": 62.0, "control": 53.0},
             error={"treated": 3.5, "control": 3.2},
             inner_error={"treated": 1.7, "control": 1.5},

@@ -1,11 +1,11 @@
-"""Model-release and scorecard gallery examples for ``fm.explain`` (all data synthetic).
+"""Model-release and scorecard gallery examples for ``mint.explain`` (all data synthetic).
 
 Generates reference figures showcasing:
-- Grouped multi-benchmark ``fm.compare`` + stacked ``boost=`` extensions
+- Grouped multi-benchmark ``mint.compare`` + stacked ``boost=`` extensions
   (``style="paper"``, custom ``accent=``, ``width="slide"``)
-- Pareto frontier ``fm.relate(frontier=True, label_all=True, connect_groups=True)``
-  paired with ``fm.table`` (``style="dark"``, custom ``accent=``, ``width="slide"``)
-- Chat-width ``fm.compare`` + ``fm.table`` scorecard sharing entity colours
+- Pareto frontier ``mint.relate(frontier=True, label_all=True, connect_groups=True)``
+  paired with ``mint.table`` (``style="dark"``, custom ``accent=``, ``width="slide"``)
+- Chat-width ``mint.compare`` + ``mint.table`` scorecard sharing entity colours
 
 Writes PNGs and reproducible JSON specs to ``gallery/output/explain_release/``.
 """
@@ -14,12 +14,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import figmint as fm
+import mintfig as mint
 
 SOURCE = "synthetic model evaluation data"
 
 
-def release_benchmarks_paper() -> fm.Explanation:
+def release_benchmarks_paper() -> mint.Explanation:
     """Grouped multi-benchmark comparison + stacked extended-thinking boost on warm paper."""
     scores = {
         "GPQA Diamond": {"Alpha-3": 86.4, "Beta-Pro": 83.2, "Alpha-2": 77.1},
@@ -27,9 +27,9 @@ def release_benchmarks_paper() -> fm.Explanation:
         "AIME 2026": {"Alpha-3": 88.0, "Beta-Pro": 82.0, "Alpha-2": 64.0},
         "MMMU": {"Alpha-3": 79.5, "Beta-Pro": 77.8, "Alpha-2": 71.0},
     }
-    return fm.explain(
+    return mint.explain(
         "Alpha-3 leads all 4 frontier benchmarks and gains +10.4 points from extended thinking",
-        fm.compare(
+        mint.compare(
             scores,
             highlight="Alpha-3",
             baseline="Alpha-2",
@@ -37,7 +37,7 @@ def release_benchmarks_paper() -> fm.Explanation:
             label="Accuracy",
             unit="%",
         ),
-        fm.compare(
+        mint.compare(
             {"Alpha-3": 77.6, "Beta-Pro": 74.0, "Alpha-2": 57.8},
             boost={"Alpha-3": 10.4, "Beta-Pro": 8.0, "Alpha-2": 6.2},
             boost_label="Extended thinking",
@@ -55,8 +55,8 @@ def release_benchmarks_paper() -> fm.Explanation:
     )
 
 
-def release_frontier_dark() -> fm.Explanation:
-    """Capability-vs-cost Pareto frontier with all-point labels, trajectories, and fm.table."""
+def release_frontier_dark() -> mint.Explanation:
+    """Capability-vs-cost Pareto frontier with all-point labels, trajectories, and mint.table."""
     frontier_rows = [
         {"model": "Alpha-3 Mini", "family": "Alpha", "cost": 0.35, "score": 76.5},
         {"model": "Alpha-3", "family": "Alpha", "cost": 2.50, "score": 86.4},
@@ -73,9 +73,9 @@ def release_frontier_dark() -> fm.Explanation:
         {"Model": "Alpha-3 Mini", "GPQA": 76.5, "SWE-bench": 61.4, "Cost": 0.35},
         {"Model": "Gamma-Fast", "GPQA": 68.0, "SWE-bench": None, "Cost": 0.15},
     ]
-    return fm.explain(
+    return mint.explain(
         "The Alpha family pushes the capability-cost Pareto frontier across every price tier",
-        fm.relate(
+        mint.relate(
             "cost",
             "score",
             data=frontier_rows,
@@ -91,7 +91,7 @@ def release_frontier_dark() -> fm.Explanation:
             unit="%",
             title="Capability vs cost frontier",
         ),
-        fm.table(
+        mint.table(
             table_rows,
             units={"GPQA": "%", "SWE-bench": "%", "Cost": "$/M"},
             bold_best={"GPQA": "max", "SWE-bench": "max", "Cost": "min"},
@@ -108,17 +108,17 @@ def release_frontier_dark() -> fm.Explanation:
     )
 
 
-def table_scorecard_chat() -> fm.Explanation:
-    """Chat-width fm.compare + fm.table built directly from tidy row records."""
+def table_scorecard_chat() -> mint.Explanation:
+    """Chat-width mint.compare + mint.table built directly from tidy row records."""
     rows = [
         {"Model": "Alpha-3", "GPQA": 86.4, "SWE-bench": 74.2, "AIME": 88.0, "Cost": 2.50},
         {"Model": "Alpha-2", "GPQA": 77.1, "SWE-bench": 58.6, "AIME": 64.0, "Cost": 3.00},
         {"Model": "Beta-Pro", "GPQA": 83.2, "SWE-bench": 71.0, "AIME": 82.0, "Cost": 6.00},
         {"Model": "Gamma-Fast", "GPQA": 71.5, "SWE-bench": None, "AIME": 55.0, "Cost": 0.40},
     ]
-    return fm.explain(
+    return mint.explain(
         "Alpha-3 leads every reasoning benchmark while costing 17% less than Alpha-2",
-        fm.compare(
+        mint.compare(
             rows,
             name="Model",
             value="GPQA",
@@ -128,7 +128,7 @@ def table_scorecard_chat() -> fm.Explanation:
             highlight="Alpha-3",
             baseline="Alpha-2",
         ),
-        fm.table(
+        mint.table(
             rows,
             units={"GPQA": "%", "SWE-bench": "%", "AIME": "%", "Cost": "$/M"},
             bold_best={"GPQA": "max", "SWE-bench": "max", "AIME": "max", "Cost": "min"},

@@ -2,32 +2,32 @@
 
 Outputs cleanly into ``gallery/output/explain_workflows/`` without modifying any
 earlier tracked gallery directories:
-1. ``01_ablation_waterfall.png`` — ``fm.waterfall`` attribution / delta bridge
-2. ``02_ci_timeline.png`` — ``fm.timeline`` grouped execution & milestone trace
-3. ``03_cohort_flow.png`` — ``fm.flow`` sequential cohort attrition funnel with reasons
-4. ``04_scaling_trend_fit.png`` — ``fm.trend(..., log=True, log_x=True, fit=True)`` + linear fit
-5. ``05_corr_matrix_triangle.png`` — ``fm.matrix(..., triangle="lower", mask_diagonal=True)``
+1. ``01_ablation_waterfall.png`` — ``mint.waterfall`` attribution / delta bridge
+2. ``02_ci_timeline.png`` — ``mint.timeline`` grouped execution & milestone trace
+3. ``03_cohort_flow.png`` — ``mint.flow`` sequential cohort attrition funnel with reasons
+4. ``04_scaling_trend_fit.png`` — ``mint.trend(..., log=True, log_x=True, fit=True)`` + linear fit
+5. ``05_corr_matrix_triangle.png`` — ``mint.matrix(..., triangle="lower", mask_diagonal=True)``
 6. ``06_session_memory_dark.png`` + ``06_investigation_brief.html`` / ``.md`` —
-   ``fm.Session`` prefix colour inheritance + ``fm.brief`` multi-figure briefing
+   ``mint.Session`` prefix colour inheritance + ``mint.brief`` multi-figure briefing
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import figmint as fm
+import mintfig as mint
 
 OUT_DIR = Path(__file__).parent / "output" / "explain_workflows"
 
 
-def build_all() -> list[tuple[str, fm.Explanation]]:
+def build_all() -> list[tuple[str, mint.Explanation]]:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    rendered: list[tuple[str, fm.Explanation]] = []
+    rendered: list[tuple[str, mint.Explanation]] = []
 
     # 1. Waterfall attribution bridge
-    fig_wf = fm.explain(
+    fig_wf = mint.explain(
         "Retrieval adds +8.2 points while int4 quantization costs only 1.5 points",
-        fm.waterfall(
+        mint.waterfall(
             {
                 "+Retrieval": 8.2,
                 "+Reranker": 3.4,
@@ -56,9 +56,9 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
         ("canary gate", 162, 162, "release"),
         ("deploy", 162, 178, "release"),
     ]
-    fig_tl = fm.explain(
+    fig_tl = mint.explain(
         "Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA",
-        fm.timeline(
+        mint.timeline(
             ci_spans,
             reference=(150, "CI SLA"),
             title="Parallel phase trace across four pipeline lanes",
@@ -69,10 +69,10 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
     )
     rendered.append(("02_ci_timeline", fig_tl))
 
-    # 3. Sequential cohort attrition funnel (fm.flow)
-    fig_flow = fm.explain(
+    # 3. Sequential cohort attrition funnel (mint.flow)
+    fig_flow = mint.explain(
         "58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%)",
-        fm.flow(
+        mint.flow(
             [
                 ("Screened", 1240),
                 ("Eligible", 912, "missing baseline labs"),
@@ -93,9 +93,9 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
     dense_loss = [2.52, 2.18, 2.14, 1.88, 1.82, 1.61]
     moe_loss = [2.36, 2.02, 1.94, 1.65, 1.59, 1.34]
     workers = [4, 8, 16, 24, 32, 48]
-    fig_fit = fm.explain(
+    fig_fit = mint.explain(
         "Sparse routing scales steeper on log-log compute while batching doubles linear worker throughput",
-        fm.trend(
+        mint.trend(
             compute,
             {"Sparse MoE": moe_loss, "Dense": dense_loss},
             log=True,
@@ -107,7 +107,7 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
             label="Validation loss",
             x_label="Compute (FLOPs)",
         ),
-        fm.trend(
+        mint.trend(
             workers,
             {"Batched": [18, 52, 76, 138, 158, 254], "Single": [16, 23, 56, 68, 102, 134]},
             fit="linear",
@@ -131,9 +131,9 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
         [0.52, 0.44, 0.39, 1.00, -0.18],
         [-0.34, -0.28, -0.41, -0.18, 1.00],
     ]
-    fig_mat = fm.explain(
+    fig_mat = mint.explain(
         "Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively",
-        fm.matrix(
+        mint.matrix(
             corr,
             rows=metrics,
             cols=metrics,
@@ -150,10 +150,10 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
     rendered.append(("05_corr_matrix_triangle", fig_mat))
 
     # 6. Multi-turn Session prefix colour inheritance + Brief export (dark theme)
-    session = fm.Session(style="dark", accent="#D97757")
+    session = mint.Session(style="dark", accent="#D97757")
     turn1 = session.explain(
         "Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on GPQA",
-        fm.compare(
+        mint.compare(
             {"Alpha-3": 86.4, "Beta-Pro": 83.2, "Baseline": 77.1},
             highlight=["Alpha-3", "Beta-Pro"],
             baseline="Baseline",
@@ -168,7 +168,7 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
     # Turn 2 uses variant names ("Alpha-3 (int4)", "Beta-Pro (int4)") -> inherits exact colours!
     turn2 = session.explain(
         "Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%",
-        fm.compare(
+        mint.compare(
             {"Alpha-3 (int4)": 85.3, "Beta-Pro (int4)": 81.9, "Baseline": 77.1},
             highlight=["Alpha-3 (int4)", "Beta-Pro (int4)"],
             baseline="Baseline",
@@ -178,7 +178,7 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
             label="GPQA",
             unit="%",
         ),
-        fm.waterfall(
+        mint.waterfall(
             {"int4 weights": -1.10, "KV cache compression": -0.45, "Speculative decode": -0.30, "Router overhead": 0.15},
             start=("Full precision", 3.25),
             total_label="Shipped int4",
@@ -198,8 +198,8 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
         print(f"{stem}: ok={summary['ok']} ship={summary['ship']} issues={len(summary['issues'])}")
         assert summary["ok"] and summary["ship"], f"{stem} failed QA: {summary['issues']}"
 
-    # Export a cohesive multi-figure HTML + Markdown briefing showcasing fm.brief
-    report = fm.brief(
+    # Export a cohesive multi-figure HTML + Markdown briefing showcasing mint.brief
+    report = mint.brief(
         "Release Candidate & Pipeline Briefing",
         fig_wf,
         fig_tl,
@@ -207,7 +207,7 @@ def build_all() -> list[tuple[str, fm.Explanation]]:
         fig_mat,
         turn1,
         turn2,
-        subtitle="Generated with fm.Session + fm.brief (zero-CDN HTML & Markdown)",
+        subtitle="Generated with mint.Session + mint.brief (zero-CDN HTML & Markdown)",
         summary=[
             "Retrieval adds +8.2 points while int4 quantization costs only 1.5 points",
             "Integration tests account for 53% of CI wall time and exceed the 150 s SLA",

@@ -1,32 +1,32 @@
-# figmint Visual Gallery
+# mintfig Visual Gallery
 
-Every primary function, visual theme, color palette, and publication plate in `figmint`, rendered directly from the deterministic scripts in this folder (all datasets are synthetic).
+Every primary function, visual theme, color palette, and publication plate in `mintfig`, rendered directly from the deterministic scripts in this folder (all datasets are synthetic).
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [`fm.table`](#fmtable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Model Release Hero Charts](#model-release-hero-charts) |
-| **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`fm.load`)](#editing-returned-figures-and-cli) |
+| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#fmexplain--multi-panel-arguments) · [`mint.compare`](#fmcompare--size-and-intervals) · [`mint.trend`](#fmtrend--change-over-time-dose-or-scale) · [`mint.change`](#fmchange--paired-before-and-after) · [`mint.distribution`](#fmdistribution--raw-observations-and-spread) · [`mint.histogram`](#fmhistogram--binned-distributions) · [`mint.relate`](#fmrelate--two-continuous-measures) · [`mint.share`](#fmshare--part-of-a-whole) · [`mint.matrix`](#fmmatrix--two-categorical-dimensions) · [`mint.table`](#fmtable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
 ---
 
-## `fm.explain` — Multi-panel arguments
+## `mint.explain` — Multi-panel arguments
 
 Combine 2–4 panels when an argument has steps (*what*, *since when*, *how spread*, *so what*). One entity name keeps one colour across every panel, and `fig.save()` returns computed `facts` per panel to verify the takeaway.
 
-### Two-panel scientific ablation (`fm.compare` + `fm.trend`)
+### Two-panel scientific ablation (`mint.compare` + `mint.trend`)
 
 ![Ablation study with 95% CIs and training curves](output/explain_science/ablation.png)
 
 *Generator: [`explain_science_examples.py`](explain_science_examples.py)*
 
-### Three-panel materials optimum (`fm.compare` log + `fm.trend` Arrhenius + `fm.compare`)
+### Three-panel materials optimum (`mint.compare` log + `mint.trend` Arrhenius + `mint.compare`)
 
 ![Doping optimum across conductivity, Arrhenius curves, and activation energy](output/explain_science/doping_optimum.png)
 
 *Generator: [`explain_science_examples.py`](explain_science_examples.py)*
 
-### Four-panel regression story (`fm.compare` + `fm.trend` + `fm.distribution` + `fm.share`)
+### Four-panel regression story (`mint.compare` + `mint.trend` + `mint.distribution` + `mint.share`)
 
 ![Four-panel latency regression story](output/explain/checkout_story.png)
 
@@ -34,7 +34,7 @@ Combine 2–4 panels when an argument has steps (*what*, *since when*, *how spre
 
 ---
 
-## `fm.compare` — Size and intervals
+## `mint.compare` — Size and intervals
 
 Sorted bars from zero by default; switches automatically to dots with whiskers when `error=`, `zero=False`, or `log=True` is passed. Use `baseline=` to draw a control in ink and state every highlighted item against it in `facts`, and `n=` to show sample counts under each name.
 
@@ -43,9 +43,9 @@ Sorted bars from zero by default; switches automatically to dots with whiskers w
 ![Signed treatment effect compare plot with 95% CIs and n counts](output/explain_forms/compare_intervals.png)
 
 ```python
-fm.explain(
+mint.explain(
     "High-dose therapy cuts HbA1c by 1.4 points, 1.6 points below placebo",
-    fm.compare(
+    mint.compare(
         {"High dose": -1.4, "Standard dose": -0.7, "Low dose": -0.3,
          "Diet only": -0.1, "Placebo": 0.2},
         error={"High dose": (-1.7, -1.1), "Standard dose": (-1.0, -0.4),
@@ -62,7 +62,7 @@ fm.explain(
 
 *Generator: [`explain_form_gallery.py`](explain_form_gallery.py)*
 
-### Ranked bars paired with a timeline (`fm.compare` + `fm.trend`)
+### Ranked bars paired with a timeline (`mint.compare` + `mint.trend`)
 
 ![Latency regression compare bars and trend](output/explain/latency_regression.png)
 
@@ -70,7 +70,7 @@ fm.explain(
 
 ---
 
-## `fm.trend` — Change over time, dose, or scale
+## `mint.trend` — Change over time, dose, or scale
 
 Direct end labels (no legend), vertical `events=` markers, missing-value gaps, shaded uncertainty `band=`, raw observations via `points=` (with custom `points_label=`), log axes (`log=`, `log_x=`), and small multiples (`facet=True`).
 
@@ -79,9 +79,9 @@ Direct end labels (no legend), vertical `events=` markers, missing-value gaps, s
 ![ISO-date trend with retrofit event marker, baseline control, and gap](output/explain_forms/trend_dates_events.png)
 
 ```python
-fm.explain(
+mint.explain(
     "The insulation retrofit cut Lab annex daily power use by 28%; the Gym stayed flat",
-    fm.trend(
+    mint.trend(
         dates,
         {"Lab annex": [418, 425, 412, None, 298, 304, 295, 301],
          "Library": [360, 355, 362, 358, 296, 291, 298, 294],
@@ -108,16 +108,16 @@ fm.explain(
 
 ---
 
-## `fm.change` — Paired before and after
+## `mint.change` — Paired before and after
 
 Slopegraph pairing two named states (`before`, `after`), showing absolute deltas inline and automatically wrapping in narrow columns.
 
 ![Paired benchmark accuracy slopegraph](output/explain/benchmark_gains.png)
 
 ```python
-fm.explain(
+mint.explain(
     "The new model gains most where the old one was weakest: +50 points on AIME",
-    fm.change(
+    mint.change(
         before, after,
         labels=("Prior", "New"), label="Accuracy", unit="%", highlight="AIME",
     ),
@@ -129,7 +129,7 @@ fm.explain(
 
 ---
 
-## `fm.distribution` — Raw observations and spread
+## `mint.distribution` — Raw observations and spread
 
 Every observation drawn as a dot with a median (or `stat="mean"`) mark and middle-half (IQR) or ± 1 s.d. bar, plus sample counts `n=` and automatic range-separation facts.
 
@@ -138,9 +138,9 @@ Every observation drawn as a dot with a median (or `stat="mean"`) mark and middl
 ![Log-scale gene expression distribution with baseline and reference](output/explain_forms/distribution_log.png)
 
 ```python
-fm.explain(
+mint.explain(
     "Drug treatment activates p53 targets (median 2.75×) and halves proliferation genes",
-    fm.distribution(
+    mint.distribution(
         groups,
         log=True, baseline="Housekeeping", highlight=["p53 targets", "Proliferation"],
         reference=(1.0, "no change"), label="Expression fold change", unit="×",
@@ -151,7 +151,7 @@ fm.explain(
 )
 ```
 
-### Small-n perturbation paired with mechanism (`fm.distribution` + `fm.relate`)
+### Small-n perturbation paired with mechanism (`mint.distribution` + `mint.relate`)
 
 ![Gene knockout migration distance distribution and speed-area scatter](output/explain_science/knockout.png)
 
@@ -159,18 +159,18 @@ fm.explain(
 
 ---
 
-## `fm.histogram` — Binned distributions
+## `mint.histogram` — Binned distributions
 
-First-class alias for `fm.distribution(..., bins=...)`. Pass a single sequence for a histogram with automatic modal-bin and `% above reference` facts, or a dict of up to 4 groups for stacked shared-axis histograms (never muddy overlapping translucent bars).
+First-class alias for `mint.distribution(..., bins=...)`. Pass a single sequence for a histogram with automatic modal-bin and `% above reference` facts, or a dict of up to 4 groups for stacked shared-axis histograms (never muddy overlapping translucent bars).
 
-### Single-variable bimodal histogram (`fm.histogram`)
+### Single-variable bimodal histogram (`mint.histogram`)
 
 ![Bimodal request latency histogram with median and SLA threshold](output/explain_forms/histogram_bimodal.png)
 
 ```python
-fm.explain(
+mint.explain(
     "Request latency splits into two modes near 18 ms and 44 ms; 32% exceed the 35 ms SLA",
-    fm.histogram(
+    mint.histogram(
         latencies,
         bins=18,
         reference=(35.0, "35 ms SLA"),
@@ -183,14 +183,14 @@ fm.explain(
 )
 ```
 
-### Multi-group stacked histograms (`fm.distribution(..., bins=16)`)
+### Multi-group stacked histograms (`mint.distribution(..., bins=16)`)
 
 ![Shared-axis stacked histograms comparing Before and After cohorts](output/explain_forms/histogram_groups.png)
 
 ```python
-fm.explain(
+mint.explain(
     "The new checkout flow cuts median latency by 120 ms and drops >500 ms sessions from 34% to 3%",
-    fm.distribution(
+    mint.distribution(
         {"Before": before, "After": after},
         bins=16,
         baseline="Before",
@@ -208,7 +208,7 @@ fm.explain(
 
 ---
 
-## `fm.relate` — Two continuous measures
+## `mint.relate` — Two continuous measures
 
 Scatter plot with optional `groups=` (up to 4, directly labelled), `names=` (call out specific points with `highlight=`), `fit=True` least-squares lines with computed `r`, `n`, and 95% slope CIs, and `log_x=`/`log_y=`.
 
@@ -217,9 +217,9 @@ Scatter plot with optional `groups=` (up to 4, directly labelled), `names=` (cal
 | ![Hall-Petch grouped scatter](output/explain_forms/relate_groups_fit.png) | ![Log-log allometry scatter](output/explain_forms/relate_log_allometry.png) |
 
 ```python
-fm.explain(
+mint.explain(
     "All three alloys follow Hall–Petch; Cu–Zn strengthens 2.3× faster than pure Cu",
-    fm.relate(
+    mint.relate(
         inv_sqrt_d, yield_mpa,
         groups=alloy, fit=True, highlight="Cu–Zn",
         x_label="d⁻½ (µm⁻½)", y_label="Yield strength (MPa)", unit="MPa",
@@ -233,16 +233,16 @@ fm.explain(
 
 ---
 
-## `fm.share` — Part of a whole
+## `mint.share` — Part of a whole
 
 Sorted percentage bars (never a pie), folding smaller parts past `top=` into one muted `"Other (n)"` bar while reporting the total and combined highlighted share in `facts`.
 
 ![Build time share bars with folded Other category](output/explain/build_time.png)
 
 ```python
-fm.explain(
+mint.explain(
     "Three stages take 82% of the build: compile, integration tests and image push",
-    fm.share(
+    mint.share(
         stages,
         label="build time", unit="s",
         highlight=["compile", "integration tests", "image push"], top=6,
@@ -255,7 +255,7 @@ fm.explain(
 
 ---
 
-## `fm.matrix` — Two categorical dimensions
+## `mint.matrix` — Two categorical dimensions
 
 Heat table with a number in every cell, automatic high-contrast text colour, highlighted cells/rows/columns, diverging ramps (`diverging=True`) for signed/correlation data, and centred em-dash (`—`) markers for missing (`NaN`) cells.
 
@@ -271,18 +271,18 @@ Heat table with a number in every cell, automatic high-contrast text colour, hig
 
 ---
 
-## `fm.table` — Exact lookups and scorecards
+## `mint.table` — Exact lookups and scorecards
 
 Booktabs-styled tables with proportional column widths, per-column `units=`, mixed `fmt=`, auto-bolded column winners (`bold_best=`), shared entity row `highlight=`, `baseline=` deltas in `facts`, `—` for missing cells, and `panel.to_markdown()` export. Accepts `list[dict]`, DataFrames, column dicts, or 2-D lists.
 
 ![Chat-width compare and booktabs benchmark scorecard sharing entity colours](output/explain_release/table_scorecard_chat.png)
 
 ```python
-fm.explain(
+mint.explain(
     "Alpha-3 leads every reasoning benchmark while costing 17% less than Alpha-2",
-    fm.compare(rows, name="Model", value="GPQA", title="GPQA Diamond", label="Accuracy", unit="%",
+    mint.compare(rows, name="Model", value="GPQA", title="GPQA Diamond", label="Accuracy", unit="%",
                highlight="Alpha-3", baseline="Alpha-2"),
-    fm.table(
+    mint.table(
         rows,
         units={"GPQA": "%", "SWE-bench": "%", "AIME": "%", "Cost": "$/M"},
         bold_best={"GPQA": "max", "SWE-bench": "max", "AIME": "max", "Cost": "min"},
@@ -299,17 +299,17 @@ fm.explain(
 
 ## Agent Workflow Forms & Multi-Turn Briefings
 
-Forms and workflows designed for recurring agent-to-human explanations: attribution bridges (`fm.waterfall`), execution span traces (`fm.timeline`), cohort/pipeline attrition funnels (`fm.flow`), fitted scaling curves (`trend(fit=)`), lower-triangle correlation matrices (`matrix(triangle="lower", mask_diagonal=True)`), persistent multi-turn entity colours (`fm.Session`), and cohesive zero-CDN HTML & Markdown briefings (`fm.brief` / `figmint brief`).
+Forms and workflows designed for recurring agent-to-human explanations: attribution bridges (`mint.waterfall`), execution span traces (`mint.timeline`), cohort/pipeline attrition funnels (`mint.flow`), fitted scaling curves (`trend(fit=)`), lower-triangle correlation matrices (`matrix(triangle="lower", mask_diagonal=True)`), persistent multi-turn entity colours (`mint.Session`), and cohesive zero-CDN HTML & Markdown briefings (`mint.brief` / `mintfig brief`).
 
-### Attribution bridge (`fm.waterfall`)
+### Attribution bridge (`mint.waterfall`)
 
 ![Ablation attribution bridge from base model to shipped candidate](output/explain_workflows/01_ablation_waterfall.png)
 
-### Execution & milestone span timeline (`fm.timeline`)
+### Execution & milestone span timeline (`mint.timeline`)
 
 ![Grouped CI execution trace with parallel lanes, milestone diamond, and SLA reference line](output/explain_workflows/02_ci_timeline.png)
 
-### Sequential cohort / pipeline attrition funnel (`fm.flow`)
+### Sequential cohort / pipeline attrition funnel (`mint.flow`)
 
 ![Clinical cohort attrition funnel with step-down drop counts, percentages, and exclusion reasons](output/explain_workflows/03_cohort_flow.png)
 
@@ -319,7 +319,7 @@ Forms and workflows designed for recurring agent-to-human explanations: attribut
 | :---: | :---: |
 | ![Power-law and linear regression fits on trend panels](output/explain_workflows/04_scaling_trend_fit.png) | ![Lower-triangle correlation matrix with masked diagonal](output/explain_workflows/05_corr_matrix_triangle.png) |
 
-### Multi-turn visual memory (`fm.Session`) & dark serving bridge (`fm.brief` export)
+### Multi-turn visual memory (`mint.Session`) & dark serving bridge (`mint.brief` export)
 
 ![Dark theme multi-turn Session figure preserving Alpha-3 and Beta-Pro colours across variants alongside a serving cost bridge](output/explain_workflows/06_session_memory_dark.png)
 
@@ -329,7 +329,7 @@ Forms and workflows designed for recurring agent-to-human explanations: attribut
 
 ## Visual-Science & Harness-Adaptive Delivery
 
-Grounded in empirical visual communication research (Kay & Hullman quantile dotplots & nested CIs, Franconeri et al. direct delta encoding & spatial contiguity, Segel & Heer narrative callouts, Lundgard & Satyanarayan L1–L4 narratives, Kong et al. tightly scoped epistemic slant checks) and adapted to how real agent harnesses display visuals (`width="narrow"` for IDE sidebars, `fig.save("out.html")` interactive SVG+JS, and `figmint show` for Kitty/iTerm2/Unicode terminals).
+Grounded in empirical visual communication research (Kay & Hullman quantile dotplots & nested CIs, Franconeri et al. direct delta encoding & spatial contiguity, Segel & Heer narrative callouts, Lundgard & Satyanarayan L1–L4 narratives, Kong et al. tightly scoped epistemic slant checks) and adapted to how real agent harnesses display visuals (`width="narrow"` for IDE sidebars, `fig.save("out.html")` interactive SVG+JS, and `mintfig show` for Kitty/iTerm2/Unicode terminals).
 
 ### Quantile dotplots (`mode="quantile"`) + nested 50%/95% CIs (`inner_error=`) & inline baseline deltas (`show_delta=True`)
 
@@ -349,7 +349,7 @@ Grounded in empirical visual communication research (Kay & Hullman quantile dotp
 
 ## Model Release Hero Charts
 
-Combine grouped `fm.compare`, stacked `boost=` extensions, Pareto frontier `fm.relate(frontier=True, label_all=True, connect_groups=True)`, and `fm.table` with `width="slide"` (1280 px display width / 2560 px retina export) and custom `accent="#..."` brand colours.
+Combine grouped `mint.compare`, stacked `boost=` extensions, Pareto frontier `mint.relate(frontier=True, label_all=True, connect_groups=True)`, and `mint.table` with `width="slide"` (1280 px display width / 2560 px retina export) and custom `accent="#..."` brand colours.
 
 ### Grouped multi-benchmark head-to-head + extended-thinking `boost=` (`style="paper"`, `width="slide"`)
 
@@ -365,17 +365,17 @@ Combine grouped `fm.compare`, stacked `boost=` extensions, Pareto frontier `fm.r
 
 ## Themes & Color Palettes
 
-Every built-in surface theme (`style=`) and color palette (`palette=`) is verified for deuteranopia, protanopia, grayscale luminance separation (`≥ 0.05`), and WCAG 4.5:1 text contrast. Mix and match freely: `fm.explain(..., style="paper", palette="okabe_ito")`.
+Every built-in surface theme (`style=`) and color palette (`palette=`) is verified for deuteranopia, protanopia, grayscale luminance separation (`≥ 0.05`), and WCAG 4.5:1 text contrast. Mix and match freely: `mint.explain(..., style="paper", palette="okabe_ito")`.
 
-![Overview of all figmint color palettes, surface themes, and editorial colormaps](output/explain_themes/palettes_overview.png)
+![Overview of all mintfig color palettes, surface themes, and editorial colormaps](output/explain_themes/palettes_overview.png)
 
 ### Themes (`style=`)
 
 The same two-panel comparison + trend rendered across all seven built-in surface styles:
 
-| `style="figmint"` (default) | `style="editorial"` |
+| `style="mintfig"` (default) | `style="editorial"` |
 | :---: | :---: |
-| ![figmint theme](output/explain_themes/style_figmint.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
+| ![mintfig theme](output/explain_themes/style_figmint.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
 | **`style="paper"`** (warm ivory + serif) | **`style="bold"`** (matte gray + heavy strokes) |
 | ![paper theme](output/explain_themes/style_paper.png) | ![bold theme](output/explain_themes/style_bold.png) |
 | **`style="dark"`** (slate charcoal for dark UIs & slides) | **`style="mono"`** (monochrome print + single accent) |
@@ -387,7 +387,7 @@ The same two-panel comparison + trend rendered across all seven built-in surface
 
 ### Color Palettes (`palette=`)
 
-All six `fm.explain` color palettes shown on a four-series figure (so every colour slot — 3 accents + 4th series hue — is visible):
+All six `mint.explain` color palettes shown on a four-series figure (so every colour slot — 3 accents + 4th series hue — is visible):
 
 | `palette="default"` | `palette="okabe_ito"` |
 | :---: | :---: |
@@ -403,27 +403,27 @@ All six `fm.explain` color palettes shown on a four-series figure (so every colo
 
 ## Editing returned figures and CLI
 
-Every PNG saved by `fm.explain` embeds its normalized JSON spec. Rebuild and modify a figure without re-deriving the data:
+Every PNG saved by `mint.explain` embeds its normalized JSON spec. Rebuild and modify a figure without re-deriving the data:
 
 ```python
-spec = fm.load("ablation.png").to_spec()
+spec = mint.load("ablation.png").to_spec()
 spec["style"] = "paper"
 spec["palette"] = "okabe_ito"
 spec["panels"][0]["highlight"] = ["no fine-tuning"]
-print(fm.explain_from_spec(spec).save("ablation_v2.png", write_spec=True))
+print(mint.explain_from_spec(spec).save("ablation_v2.png", write_spec=True))
 ```
 
 Or from the command line with no Python script:
 
 ```bash
-figmint explain --example | figmint explain - --out latency.png
-figmint explain --show-spec latency.png
-figmint explain latency.png --style dark --palette ocean --out latency_dark.png
+mintfig explain --example | mintfig explain - --out latency.png
+mintfig explain --show-spec latency.png
+mintfig explain latency.png --style dark --palette ocean --out latency_dark.png
 ```
 
 ---
 
-## Publication Figures (`fm.figure`, `fm.Plate`, `figmint run`)
+## Publication Figures (`mint.figure`, `mint.Plate`, `mintfig run`)
 
 Exact physical millimetre geometry, uniform sans-serif typography and math, Type 42 vector PDFs, automated CVD + grayscale proof sheets, and reproducible manuscript bundles. See [`benchmark_comparison.md`](benchmark_comparison.md) for the quantitative PDF/preflight audit.
 

@@ -5,19 +5,19 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(106)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal="science",
         width="full",
         height_mm=68.0,
         layout=[["A", "B", "C"]],
         gap_mm=9.5,
     )
-    colors = fm.get_palette("science")
+    colors = mint.get_palette("science")
 
     yr = np.arange(1950, 2025)
     anom = 0.018 * (yr - 1950) + rng.normal(0.0, 0.12, len(yr))

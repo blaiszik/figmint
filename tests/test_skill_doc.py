@@ -14,9 +14,9 @@ from pathlib import Path
 
 import pytest
 
-import figmint as fm
+import mintfig as mint
 
-SKILL = Path(fm.__file__).parent / "assets" / "SKILL.md"
+SKILL = Path(mint.__file__).parent / "assets" / "SKILL.md"
 
 # Deliberately left out of the skill: print targets, the save-on-build shortcut
 # and an alias kept so `trend` and `relate` agree.
@@ -59,7 +59,7 @@ def test_skill_example_runs_verbatim_with_nothing_to_fix(
     exec(compile(example, "SKILL.md", "exec"), scope)  # noqa: S102 - our own documentation
     capsys.readouterr()
     fig = scope["fig"]
-    assert isinstance(fig, fm.Explanation)
+    assert isinstance(fig, mint.Explanation)
     summary = fig.summary()
     assert summary["ok"] is True
     assert summary["issues"] == []
@@ -72,14 +72,14 @@ def test_skill_example_runs_verbatim_with_nothing_to_fix(
 @pytest.mark.parametrize("name", ("explain", *FORMS))
 def test_every_public_argument_is_in_the_skill(name: str) -> None:
     section = _explain_section()
-    signature = inspect.signature(inspect.unwrap(getattr(fm, name)))
+    signature = inspect.signature(inspect.unwrap(getattr(mint, name)))
     missing = []
     for param in signature.parameters.values():
         if param.kind is not inspect.Parameter.KEYWORD_ONLY or param.name in UNDOCUMENTED:
             continue
         if not re.search(rf"\b{re.escape(param.name)}=", section):
             missing.append(param.name)
-    assert not missing, f"fm.{name} arguments missing from SKILL.md: {missing}"
+    assert not missing, f"mint.{name} arguments missing from SKILL.md: {missing}"
 
 
 def test_skill_mentions_only_arguments_that_exist() -> None:
@@ -87,20 +87,20 @@ def test_skill_mentions_only_arguments_that_exist() -> None:
     reference = _python_blocks(_explain_section())[1]
     known: set[str] = set()
     for name in ("explain", *FORMS):
-        known |= set(inspect.signature(inspect.unwrap(getattr(fm, name))).parameters)
-    known |= set(inspect.signature(fm.Explanation.save).parameters)
+        known |= set(inspect.signature(inspect.unwrap(getattr(mint, name))).parameters)
+    known |= set(inspect.signature(mint.Explanation.save).parameters)
     used = set(re.findall(r"\b([a-z_]+)=", reference))
     assert used <= known, f"SKILL.md documents unknown arguments: {sorted(used - known)}"
 
 
 def test_round_trip_shown_in_the_skill(tmp_path: Path) -> None:
-    fig = fm.explain(
+    fig = mint.explain(
         "Checkout p99 is 4x the next slowest service",
-        fm.compare({"checkout": 1840, "search": 460, "auth": 310}, label="p99", unit="ms"),
+        mint.compare({"checkout": 1840, "search": 460, "auth": 310}, label="p99", unit="ms"),
     )
     path = tmp_path / "fig.png"
     fig.save(path)
-    again = fm.load(path)
+    again = mint.load(path)
     assert again.to_spec() == fig.to_spec()
-    assert fm.explain_from_spec(again.to_spec()).to_spec() == fig.to_spec()
+    assert mint.explain_from_spec(again.to_spec()).to_spec() == fig.to_spec()
     assert os.path.getsize(path) > 0

@@ -1,4 +1,4 @@
-"""Visual surface themes for ``fm.explain``: ``figmint``, ``bold``, ``editorial``, ``sketch``."""
+"""Visual surface themes for ``mint.explain``: ``mintfig``, ``bold``, ``editorial``, ``sketch``."""
 
 from __future__ import annotations
 
@@ -12,11 +12,11 @@ import pytest
 from matplotlib.colors import to_hex, to_rgb
 from matplotlib.text import Text
 
-import figmint as fm
-from figmint import explainer
-from figmint.cli import main as cli_main
-from figmint.palettes import simulate_cvd
-from figmint.themes import EXPLAIN_PALETTES, THEMES, contrast_ratio, get_explain_palette, get_theme
+import mintfig as mint
+from mintfig import explainer
+from mintfig.cli import main as cli_main
+from mintfig.palettes import simulate_cvd
+from mintfig.themes import EXPLAIN_PALETTES, THEMES, contrast_ratio, get_explain_palette, get_theme
 
 SERVICES = {"checkout": 1840, "search": 460, "auth": 310, "catalog": 280, "cart": 240}
 WEEKS = list(range(1, 9))
@@ -26,26 +26,26 @@ LATENCY = {
     "auth": [300, 310, 305, 315, 300, 320, 305, 310],
 }
 TAKEAWAY = "Checkout is the slow service: its p99 is 4x the next worst"
-ALL_STYLES = ("figmint", "bold", "editorial", "paper", "dark", "mono", "sketch")
+ALL_STYLES = ("mintfig", "bold", "editorial", "paper", "dark", "mono", "sketch")
 ALL_PALETTES = ("default", "okabe_ito", "tol", "earth", "ocean", "berry")
 
 
-def _all_forms() -> dict[str, fm.Panel]:
+def _all_forms() -> dict[str, mint.Panel]:
     rng = np.random.default_rng(7)
     return {
-        "compare": fm.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
-        "compare_error": fm.compare(
+        "compare": mint.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
+        "compare_error": mint.compare(
             {"control": 4.1, "B": 5.2},
             error={"control": (3.8, 4.4), "B": (4.7, 5.7)},
             error_label="95% CI",
             unit="%",
             highlight="B",
         ),
-        "share": fm.share(
+        "share": mint.share(
             {f"stage {i}": v for i, v in enumerate([400, 380, 160, 60, 50, 40, 30, 9, 7])}
         ),
-        "trend": fm.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", x_label="Week", events={4: "v2.3"}),
-        "trend_dates": fm.trend(
+        "trend": mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", x_label="Week", events={4: "v2.3"}),
+        "trend_dates": mint.trend(
             ["2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01"],
             {"A": [1, 2, 3, 5], "B": [2, 2, 2, 2]},
             band={"A": ([0.5, 1.5, 2.5, 4], [1.5, 2.5, 3.5, 6])},
@@ -54,35 +54,35 @@ def _all_forms() -> dict[str, fm.Panel]:
             label="Active teams",
             unit="thousands",
         ),
-        "trend_highlight": fm.trend(
+        "trend_highlight": mint.trend(
             WEEKS,
             {f"s{i}": rng.normal(i, 1, 8).tolist() for i in range(9)},
             highlight="s3",
             label="Score",
         ),
-        "trend_facet": fm.trend(
+        "trend_facet": mint.trend(
             WEEKS,
             {f"s{i}": rng.normal(i, 1, 8).tolist() for i in range(6)},
             facet=True,
             label="Score",
         ),
-        "change": fm.change(
+        "change": mint.change(
             {"a": 10, "b": 30, "c": 55}, {"a": 40, "b": 28, "c": 60}, highlight="a", unit="%"
         ),
-        "distribution": fm.distribution(
+        "distribution": mint.distribution(
             {"before": rng.lognormal(3, 0.2, 60), "after": rng.lognormal(3.4, 0.5, 60)},
             unit="ms",
             highlight="after",
             reference=(40, "SLO"),
         ),
-        "histogram_single": fm.histogram(
+        "histogram_single": mint.histogram(
             rng.normal(50, 10, 120),
             bins=12,
             label="Score",
             unit="pts",
             reference=(65, "target"),
         ),
-        "histogram_groups": fm.distribution(
+        "histogram_groups": mint.distribution(
             {"before": rng.lognormal(3.0, 0.25, 80), "after": rng.lognormal(3.4, 0.35, 80)},
             bins=14,
             label="Latency",
@@ -91,7 +91,7 @@ def _all_forms() -> dict[str, fm.Panel]:
             highlight="after",
             reference=(40, "SLO"),
         ),
-        "relate": fm.relate(
+        "relate": mint.relate(
             np.arange(1.0, 31.0),
             np.arange(1.0, 31.0) * 3 + rng.normal(0, 4, 30),
             x_label="Batch size",
@@ -100,7 +100,7 @@ def _all_forms() -> dict[str, fm.Panel]:
             highlight="run4",
             fit=True,
         ),
-        "matrix": fm.matrix(
+        "matrix": mint.matrix(
             rng.uniform(20, 95, (4, 5)).round(0).tolist(),
             rows=["Python", "Go", "Rust", "Java"],
             cols=["bugfix", "refactor", "tests", "docs", "perf"],
@@ -111,15 +111,15 @@ def _all_forms() -> dict[str, fm.Panel]:
 
 
 def test_theme_aliases_and_unknown_style_rejection() -> None:
-    assert get_theme("default").name == "figmint"
+    assert get_theme("default").name == "mintfig"
     assert get_theme("bold").name == "bold"
     assert get_theme("newspaper").name == "editorial"
     assert get_theme("hand-drawn").name == "sketch"
     for retired in ("538", "nytimes", "xkcd", "fivethirtyeight", "nyt"):
         with pytest.raises(ValueError):
             get_theme(retired)
-    with pytest.raises(fm.ExplainError) as err:
-        fm.explain(TAKEAWAY, fm.compare(SERVICES, unit="ms"), style="bauhaus")
+    with pytest.raises(mint.ExplainError) as err:
+        mint.explain(TAKEAWAY, mint.compare(SERVICES, unit="ms"), style="bauhaus")
     assert err.value.rule == "unknown_style"
     assert "editorial" in err.value.fix_hint and "bold" in err.value.fix_hint
 
@@ -156,7 +156,7 @@ def test_every_theme_text_contrast_meets_wcag_aa_on_background(style_name: str) 
 @pytest.mark.parametrize("style_name", ALL_STYLES)
 @pytest.mark.parametrize("form_name", list(_all_forms()))
 def test_every_form_renders_clean_across_all_styles(style_name: str, form_name: str) -> None:
-    result = fm.explain(
+    result = mint.explain(
         TAKEAWAY,
         _all_forms()[form_name],
         source="synthetic example data",
@@ -182,7 +182,7 @@ def test_multi_panel_spec_round_trip_is_byte_identical_and_rcparams_clean(
 ) -> None:
     before = dict(mpl.rcParams)
     forms = _all_forms()
-    original = fm.explain(
+    original = mint.explain(
         TAKEAWAY,
         forms["compare"],
         forms["trend"],
@@ -197,18 +197,18 @@ def test_multi_panel_spec_round_trip_is_byte_identical_and_rcparams_clean(
     assert dict(mpl.rcParams) == before
 
     spec = json.loads((tmp_path / "one.json").read_text("utf-8"))
-    if style_name == "figmint":
+    if style_name == "mintfig":
         assert "style" not in spec
     else:
         assert spec["style"] == style_name
-    fm.explain_from_spec(spec, out=tmp_path / "two.png")
+    mint.explain_from_spec(spec, out=tmp_path / "two.png")
     assert (tmp_path / "one.png").read_bytes() == (tmp_path / "two.png").read_bytes()
 
 
 def test_bold_surface_tokens() -> None:
-    result = fm.explain(
+    result = mint.explain(
         TAKEAWAY,
-        fm.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
         source="synthetic",
         style="bold",
     )
@@ -222,15 +222,15 @@ def test_bold_surface_tokens() -> None:
 
 
 def test_editorial_surface_tokens_serif_title_and_inline_y_ticks() -> None:
-    result = fm.explain(
+    result = mint.explain(
         TAKEAWAY,
-        fm.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
         source="synthetic",
         style="editorial",
     )
     assert result.issues == []
     title = result.fig.texts[0]
-    assert getattr(title, "_figmint_allow_serif", False) is True
+    assert getattr(title, "_mintfig_allow_serif", False) is True
     assert "Georgia" in title.get_fontfamily()
     assert len(result.fig.artists) == 2  # crisp top rule + subtle footer rule
     ax = result["a"]
@@ -247,10 +247,10 @@ def test_sketch_surface_tokens_ascii_glyphs_and_honesty_warning() -> None:
         "payments end-to-end regression suite for checkout flow": -12.5,
         "auth": 4.0,
     }
-    measured = fm.explain(
+    measured = mint.explain(
         "Checkout dropped by 12.5 points after the change",
-        fm.compare(long_names, label="Delta", unit="pts"),
-        fm.compare(SERVICES, unit="ms"),
+        mint.compare(long_names, label="Delta", unit="pts"),
+        mint.compare(SERVICES, unit="ms"),
         source="prod/latency.parquet",
         style="sketch",
     )
@@ -265,9 +265,9 @@ def test_sketch_surface_tokens_ascii_glyphs_and_honesty_warning() -> None:
     assert any("..." in s for s in rendered_texts)
 
     # Marking the data synthetic or illustrative silences the honesty warning
-    illustrative = fm.explain(
+    illustrative = mint.explain(
         TAKEAWAY,
-        fm.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
+        mint.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
         note="Illustrative concept sketch.",
         style="sketch",
     )
@@ -318,10 +318,10 @@ def test_every_explain_palette_separates_in_grayscale_and_cvd(palette_name: str)
 def test_palette_renders_clean_and_roundtrips_via_spec(
     palette_name: str, tmp_path: Path
 ) -> None:
-    fig = fm.explain(
+    fig = mint.explain(
         TAKEAWAY,
-        fm.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
-        fm.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", x_label="Week"),
+        mint.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", x_label="Week"),
         source="synthetic",
         palette=palette_name,
     )
@@ -331,12 +331,12 @@ def test_palette_renders_clean_and_roundtrips_via_spec(
     assert summary["palette"] == palette_name
     out = tmp_path / f"{palette_name}.png"
     fig.save(out, write_spec=True)
-    spec = fm.load(out).to_spec()
+    spec = mint.load(out).to_spec()
     if palette_name == "default":
         assert "palette" not in spec
     else:
         assert spec["palette"] == palette_name
-    rebuilt = fm.explain_from_spec(spec)
+    rebuilt = mint.explain_from_spec(spec)
     assert rebuilt.summary()["palette"] == palette_name
 
 
@@ -366,6 +366,6 @@ def test_dark_theme_and_palette_override_cli(tmp_path: Path, capsys: pytest.Capt
     assert summary["palette"] == "okabe_ito"
     assert summary["issues"] == []
     assert set(EXPLAIN_PALETTES) >= set(ALL_PALETTES)
-    with pytest.raises(fm.ExplainError) as err:
-        fm.explain(TAKEAWAY, fm.compare(SERVICES, unit="ms"), palette="rainbow_unicorn")
+    with pytest.raises(mint.ExplainError) as err:
+        mint.explain(TAKEAWAY, mint.compare(SERVICES, unit="ms"), palette="rainbow_unicorn")
     assert err.value.rule == "unknown_palette"

@@ -1,4 +1,4 @@
-"""Message-first chat figures: fm.explain, its forms, rules, JSON spec and CLI."""
+"""Message-first chat figures: mint.explain, its forms, rules, JSON spec and CLI."""
 
 from __future__ import annotations
 
@@ -13,10 +13,10 @@ from matplotlib.colors import to_rgb
 from matplotlib.patches import Rectangle
 from matplotlib.text import Text
 
-import figmint as fm
-from figmint import explainer
-from figmint.cli import main as cli_main
-from figmint.palettes import simulate_cvd
+import mintfig as mint
+from mintfig import explainer
+from mintfig.cli import main as cli_main
+from mintfig.palettes import simulate_cvd
 
 SERVICES = {"checkout": 1840, "search": 460, "auth": 310, "catalog": 280, "cart": 240}
 WEEKS = list(range(1, 9))
@@ -32,22 +32,22 @@ def _rng() -> np.random.Generator:
     return np.random.default_rng(7)
 
 
-def _all_forms() -> dict[str, fm.Panel]:
+def _all_forms() -> dict[str, mint.Panel]:
     rng = _rng()
     return {
-        "compare": fm.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
-        "compare_error": fm.compare(
+        "compare": mint.compare(SERVICES, label="p99 latency", unit="ms", highlight="checkout"),
+        "compare_error": mint.compare(
             {"control": 4.1, "B": 5.2},
             error={"control": (3.8, 4.4), "B": (4.7, 5.7)},
             error_label="95% CI",
             unit="%",
             highlight="B",
         ),
-        "share": fm.share(
+        "share": mint.share(
             {f"stage {i}": v for i, v in enumerate([400, 380, 160, 60, 50, 40, 30, 9, 7])}
         ),
-        "trend": fm.trend(WEEKS, LATENCY, unit="ms", x_label="Week", events={4: "v2.3"}),
-        "trend_dates": fm.trend(
+        "trend": mint.trend(WEEKS, LATENCY, unit="ms", x_label="Week", events={4: "v2.3"}),
+        "trend_dates": mint.trend(
             ["2026-01-01", "2026-02-01", "2026-03-01", "2026-04-01"],
             {"A": [1, 2, 3, 5], "B": [2, 2, 2, 2]},
             band={"A": ([0.5, 1.5, 2.5, 4], [1.5, 2.5, 3.5, 6])},
@@ -56,28 +56,28 @@ def _all_forms() -> dict[str, fm.Panel]:
             label="Active teams",
             unit="thousands",
         ),
-        "trend_highlight": fm.trend(
+        "trend_highlight": mint.trend(
             WEEKS,
             {f"s{i}": rng.normal(i, 1, 8).tolist() for i in range(9)},
             highlight="s3",
             label="Score",
         ),
-        "trend_facet": fm.trend(
+        "trend_facet": mint.trend(
             WEEKS,
             {f"s{i}": rng.normal(i, 1, 8).tolist() for i in range(6)},
             facet=True,
             label="Score",
         ),
-        "change": fm.change(
+        "change": mint.change(
             {"a": 10, "b": 30, "c": 55}, {"a": 40, "b": 28, "c": 60}, highlight="a", unit="%"
         ),
-        "distribution": fm.distribution(
+        "distribution": mint.distribution(
             {"before": rng.lognormal(3, 0.2, 60), "after": rng.lognormal(3.4, 0.5, 60)},
             unit="ms",
             highlight="after",
             reference=(40, "SLO"),
         ),
-        "relate": fm.relate(
+        "relate": mint.relate(
             np.arange(1.0, 31.0),
             np.arange(1.0, 31.0) * 3 + rng.normal(0, 4, 30),
             x_label="Batch size",
@@ -86,7 +86,7 @@ def _all_forms() -> dict[str, fm.Panel]:
             highlight="run4",
             fit=True,
         ),
-        "matrix": fm.matrix(
+        "matrix": mint.matrix(
             rng.uniform(20, 95, (4, 5)).round(0).tolist(),
             rows=["Python", "Go", "Rust", "Java"],
             cols=["bugfix", "refactor", "tests", "docs", "perf"],
@@ -98,7 +98,7 @@ def _all_forms() -> dict[str, fm.Panel]:
 
 @pytest.mark.parametrize("name", list(_all_forms()))
 def test_every_form_renders_clean_at_chat_size(name: str) -> None:
-    result = fm.explain(TAKEAWAY, _all_forms()[name], source="synthetic")
+    result = mint.explain(TAKEAWAY, _all_forms()[name], source="synthetic")
     summary = result.summary()
     assert summary["issues"] == []
     assert summary["ok"] is True
@@ -110,10 +110,10 @@ def test_every_form_renders_clean_at_chat_size(name: str) -> None:
 
 def test_multi_panel_figure_is_clean_and_lettered() -> None:
     forms = _all_forms()
-    result = fm.explain(
+    result = mint.explain(
         TAKEAWAY,
-        fm.compare(SERVICES, title="It stands alone", unit="ms", highlight="checkout"),
-        fm.trend(
+        mint.compare(SERVICES, title="It stands alone", unit="ms", highlight="checkout"),
+        mint.trend(
             WEEKS, LATENCY, title="It regressed at the deploy", unit="ms", highlight="checkout"
         ),
         forms["distribution"],
@@ -123,14 +123,14 @@ def test_multi_panel_figure_is_clean_and_lettered() -> None:
     assert result.summary()["issues"] == []
     assert list(result.panels) == ["a", "b", "c", "d"]
     assert result.layout == [["a", "b"], ["c", "d"]]
-    letters = [t.get_text() for t in result.fig.texts if getattr(t, "_figmint_panel_label", False)]
+    letters = [t.get_text() for t in result.fig.texts if getattr(t, "_mintfig_panel_label", False)]
     assert letters == ["a", "b", "c", "d"]
     assert result.height_mm <= result.spec.max_height_mm
 
 
 def test_png_is_1400_px_wide_and_explain_leaves_rcparams_alone(tmp_path: Path) -> None:
     before = dict(mpl.rcParams)
-    result = fm.explain(TAKEAWAY, fm.compare(SERVICES, unit="ms"), out=tmp_path / "fig.png")
+    result = mint.explain(TAKEAWAY, mint.compare(SERVICES, unit="ms"), out=tmp_path / "fig.png")
     assert dict(mpl.rcParams) == before
     from PIL import Image
 
@@ -146,13 +146,13 @@ def test_png_is_1400_px_wide_and_explain_leaves_rcparams_alone(tmp_path: Path) -
 # --------------------------------------------------------------------------- #
 
 
-def _bars(result: fm.Explanation, key: str = "a") -> list[Rectangle]:
+def _bars(result: mint.Explanation, key: str = "a") -> list[Rectangle]:
     return [p for p in result[key].patches if isinstance(p, Rectangle)]
 
 
 def test_compare_sorts_descending_starts_at_zero_and_colours_only_the_highlight() -> None:
     shuffled = {"auth": 310, "checkout": 1840, "cart": 240, "search": 460}
-    result = fm.explain(TAKEAWAY, fm.compare(shuffled, unit="ms", highlight="checkout"))
+    result = mint.explain(TAKEAWAY, mint.compare(shuffled, unit="ms", highlight="checkout"))
     ax = result["a"]
     assert [t.get_text() for t in ax.get_yticklabels()] == ["checkout", "search", "auth", "cart"]
     assert ax.get_xlim()[0] == 0.0
@@ -162,27 +162,27 @@ def test_compare_sorts_descending_starts_at_zero_and_colours_only_the_highlight(
 
 
 def test_compare_keeps_given_order_when_sort_is_off() -> None:
-    result = fm.explain(TAKEAWAY, fm.compare({"18-24": 3, "25-34": 9, "35-44": 5}, sort=False))
+    result = mint.explain(TAKEAWAY, mint.compare({"18-24": 3, "25-34": 9, "35-44": 5}, sort=False))
     assert [t.get_text() for t in result["a"].get_yticklabels()] == ["18-24", "25-34", "35-44"]
 
 
 def test_intervals_are_drawn_as_dots_not_bars() -> None:
-    result = fm.explain(TAKEAWAY, _all_forms()["compare_error"])
+    result = mint.explain(TAKEAWAY, _all_forms()["compare_error"])
     assert _bars(result) == []
 
 
 def test_trend_never_colours_more_than_four_series() -> None:
     many = {f"s{i}": [1, 2, 3] for i in range(5)}
-    with pytest.raises(fm.ExplainError) as err:
-        fm.trend([1, 2, 3], many)
+    with pytest.raises(mint.ExplainError) as err:
+        mint.trend([1, 2, 3], many)
     assert err.value.rule == "too_many_series"
     assert "highlight" in err.value.fix_hint and "facet" in err.value.fix_hint
-    fm.trend([1, 2, 3], many, highlight="s1")
-    fm.trend([1, 2, 3], many, facet=True)
+    mint.trend([1, 2, 3], many, highlight="s1")
+    mint.trend([1, 2, 3], many, facet=True)
 
 
 def test_trend_uses_direct_labels_and_no_legend() -> None:
-    result = fm.explain(TAKEAWAY, fm.trend(WEEKS, LATENCY, unit="ms", highlight="checkout"))
+    result = mint.explain(TAKEAWAY, mint.trend(WEEKS, LATENCY, unit="ms", highlight="checkout"))
     ax = result["a"]
     assert ax.get_legend() is None
     notes = [t.get_text() for t in ax.texts]
@@ -191,7 +191,7 @@ def test_trend_uses_direct_labels_and_no_legend() -> None:
 
 
 def test_small_multiples_share_one_scale_and_plot_width() -> None:
-    result = fm.explain(TAKEAWAY, _all_forms()["trend_facet"])
+    result = mint.explain(TAKEAWAY, _all_forms()["trend_facet"])
     facets = [ax for ax in result.fig.axes if ax.get_title(loc="left")]
     assert len(facets) == 6
     assert len({tuple(np.round(ax.get_ylim(), 6)) for ax in facets}) == 1
@@ -203,26 +203,26 @@ def test_small_multiples_share_one_scale_and_plot_width() -> None:
     ("build", "rule"),
     [
         (
-            lambda: fm.compare(SERVICES, highlight=["checkout", "search", "auth", "cart"]),
+            lambda: mint.compare(SERVICES, highlight=["checkout", "search", "auth", "cart"]),
             "too_many_highlights",
         ),
-        (lambda: fm.compare({f"i{i}": i for i in range(21)}), "too_many_items"),
-        (lambda: fm.compare(SERVICES, highlight="chekout"), "explain_spec"),
-        (lambda: fm.compare({"a": 1.0, "b": float("nan")}), "explain_spec"),
-        (lambda: fm.compare({"a": "12"}), "explain_spec"),
-        (lambda: fm.share({"a": 3, "b": -1}), "explain_spec"),
-        (lambda: fm.change({"a": 1}, {"b": 2}), "explain_spec"),
-        (lambda: fm.distribution({"a": [1.0, 2.0]}), "explain_spec"),
-        (lambda: fm.relate([1, 2, 3], [1, 2, 3], x_label="", y_label="y"), "explain_spec"),
-        (lambda: fm.trend([1, 2, 3], {"a": [1, 2]}), "explain_spec"),
-        (lambda: fm.explain("", fm.compare(SERVICES)), "takeaway_missing"),
-        (lambda: fm.explain("word " * 60, fm.compare(SERVICES)), "takeaway_too_long"),
-        (lambda: fm.explain(TAKEAWAY, *[fm.compare(SERVICES)] * 7), "too_many_panels"),
-        (lambda: fm.explain(TAKEAWAY), "explain_spec"),
+        (lambda: mint.compare({f"i{i}": i for i in range(21)}), "too_many_items"),
+        (lambda: mint.compare(SERVICES, highlight="chekout"), "explain_spec"),
+        (lambda: mint.compare({"a": 1.0, "b": float("nan")}), "explain_spec"),
+        (lambda: mint.compare({"a": "12"}), "explain_spec"),
+        (lambda: mint.share({"a": 3, "b": -1}), "explain_spec"),
+        (lambda: mint.change({"a": 1}, {"b": 2}), "explain_spec"),
+        (lambda: mint.distribution({"a": [1.0, 2.0]}), "explain_spec"),
+        (lambda: mint.relate([1, 2, 3], [1, 2, 3], x_label="", y_label="y"), "explain_spec"),
+        (lambda: mint.trend([1, 2, 3], {"a": [1, 2]}), "explain_spec"),
+        (lambda: mint.explain("", mint.compare(SERVICES)), "takeaway_missing"),
+        (lambda: mint.explain("word " * 60, mint.compare(SERVICES)), "takeaway_too_long"),
+        (lambda: mint.explain(TAKEAWAY, *[mint.compare(SERVICES)] * 7), "too_many_panels"),
+        (lambda: mint.explain(TAKEAWAY), "explain_spec"),
     ],
 )
 def test_rule_violations_raise_with_a_fix_hint(build, rule: str) -> None:
-    with pytest.raises(fm.ExplainError) as err:
+    with pytest.raises(mint.ExplainError) as err:
         build()
     assert err.value.rule == rule
     assert err.value.fix_hint
@@ -230,18 +230,18 @@ def test_rule_violations_raise_with_a_fix_hint(build, rule: str) -> None:
 
 
 def test_matrix_refuses_cells_too_small_to_read() -> None:
-    wide = fm.matrix(
+    wide = mint.matrix(
         np.full((3, 12), 1234.5).tolist(), rows=list("abc"), cols=[f"c{i}" for i in range(12)]
     )
-    with pytest.raises(fm.ExplainError) as err:
-        fm.explain(TAKEAWAY, wide, fm.compare(SERVICES))
+    with pytest.raises(mint.ExplainError) as err:
+        mint.explain(TAKEAWAY, wide, mint.compare(SERVICES))
     assert err.value.rule == "matrix_cells_too_small"
     assert "Panel a" in err.value.message
 
 
 def test_soft_rules_surface_as_warnings_not_errors() -> None:
-    topic = fm.explain(
-        "Latency by service", fm.compare({"a": 100.0, "b": 101.0, "c": 99.5}, unit="ms")
+    topic = mint.explain(
+        "Latency by service", mint.compare({"a": 100.0, "b": 101.0, "c": 99.5}, unit="ms")
     )
     rules = {issue["rule"]: issue for issue in topic.issues}
     assert set(rules) == {"takeaway_is_a_topic", "differences_invisible"}
@@ -250,14 +250,14 @@ def test_soft_rules_surface_as_warnings_not_errors() -> None:
     assert topic.ok is True
 
     rng = _rng()
-    weak = fm.relate(rng.normal(size=40), rng.normal(size=40), x_label="x", y_label="y", fit=True)
-    assert [i["rule"] for i in fm.explain(TAKEAWAY, weak).issues] == ["fit_on_weak_relationship"]
+    weak = mint.relate(rng.normal(size=40), rng.normal(size=40), x_label="x", y_label="y", fit=True)
+    assert [i["rule"] for i in mint.explain(TAKEAWAY, weak).issues] == ["fit_on_weak_relationship"]
 
 
 def test_a_conclusion_with_a_number_is_not_mistaken_for_a_topic() -> None:
     assert (
-        fm.explain(
-            "Plan B beat Plan A by 26 points vs last year", fm.compare(SERVICES, unit="ms")
+        mint.explain(
+            "Plan B beat Plan A by 26 points vs last year", mint.compare(SERVICES, unit="ms")
         ).issues
         == []
     )
@@ -269,7 +269,7 @@ def test_long_item_names_wrap_and_truncation_is_reported() -> None:
         "notification_delivery_pipeline_contract_tests_nightly": 28,
         "auth": 31,
     }
-    result = fm.explain(TAKEAWAY, fm.compare(names, unit="reruns"), fm.compare(SERVICES, unit="ms"))
+    result = mint.explain(TAKEAWAY, mint.compare(names, unit="reruns"), mint.compare(SERVICES, unit="ms"))
     shown = [t.get_text() for t in result["a"].get_yticklabels()]
     assert any("\n" in text for text in shown)
     assert [i["rule"] for i in result.issues] == ["names_truncated"]
@@ -277,8 +277,8 @@ def test_long_item_names_wrap_and_truncation_is_reported() -> None:
 
 
 def test_dollar_signs_are_text_not_mathtext() -> None:
-    result = fm.explain(
-        "Revenue grew from $5M to $8M in a year", fm.compare({"2025": 5.0, "2026": 8.0}, unit="$")
+    result = mint.explain(
+        "Revenue grew from $5M to $8M in a year", mint.compare({"2025": 5.0, "2026": 8.0}, unit="$")
     )
     title = result.fig.texts[0]
     assert title.get_text() == r"Revenue grew from \$5M to \$8M in a year"
@@ -314,36 +314,36 @@ def test_series_palette_separates_in_grayscale_and_colour_blindness() -> None:
 
 
 def test_facts_report_the_numbers_a_takeaway_would_claim() -> None:
-    facts = fm.compare(SERVICES, unit="ms", highlight="checkout").facts
+    facts = mint.compare(SERVICES, unit="ms", highlight="checkout").facts
     assert "highest: checkout 1,840 ms" in facts
     assert any("4.0\N{MULTIPLICATION SIGN} the next highest (search 460 ms)" in f for f in facts)
-    trend_facts = fm.trend(WEEKS, LATENCY, unit="ms", highlight="checkout").facts
+    trend_facts = mint.trend(WEEKS, LATENCY, unit="ms", highlight="checkout").facts
     assert trend_facts == [
         "checkout: 540 ms \N{RIGHTWARDS ARROW} 1,840 ms from 1 to 8 (+241%); peak 1,840 ms at 8",
         "the other 2 change by +2.2% to +3.3% from first to last value",
     ]
-    share_facts = fm.share({"a": 50, "b": 30, "c": 20}).facts
+    share_facts = mint.share({"a": 50, "b": 30, "c": 20}).facts
     assert "top 3 together: 100%" in share_facts
 
 
 def test_layout_can_be_given_and_is_validated() -> None:
-    panels = [fm.compare(SERVICES), fm.compare(SERVICES), fm.compare(SERVICES)]
-    assert fm.explain(TAKEAWAY, *panels).layout == [["a", "a"], ["b", "c"]]
-    stacked = fm.explain(TAKEAWAY, *panels[:2], layout=[["a"], ["b"]])
+    panels = [mint.compare(SERVICES), mint.compare(SERVICES), mint.compare(SERVICES)]
+    assert mint.explain(TAKEAWAY, *panels).layout == [["a", "a"], ["b", "c"]]
+    stacked = mint.explain(TAKEAWAY, *panels[:2], layout=[["a"], ["b"]])
     assert stacked["a"].get_position().y0 > stacked["b"].get_position().y1
-    with pytest.raises(fm.ExplainError):
-        fm.explain(TAKEAWAY, *panels[:2], layout=[["a"], ["a", "b"]])
-    with pytest.raises(fm.ExplainError):
-        fm.explain(TAKEAWAY, *panels[:2], layout=[["a"]])
+    with pytest.raises(mint.ExplainError):
+        mint.explain(TAKEAWAY, *panels[:2], layout=[["a"], ["a", "b"]])
+    with pytest.raises(mint.ExplainError):
+        mint.explain(TAKEAWAY, *panels[:2], layout=[["a"]])
 
 
 def test_wider_canvas_is_flagged_because_chat_scales_it_back_down() -> None:
-    result = fm.explain(TAKEAWAY, fm.compare(SERVICES, unit="ms"), width="wide")
+    result = mint.explain(TAKEAWAY, mint.compare(SERVICES, unit="ms"), width="wide")
     assert [i["rule"] for i in result.issues] == ["small_at_chat_size"]
 
 
 def test_no_text_is_rotated() -> None:
-    result = fm.explain(TAKEAWAY, *list(_all_forms().values())[:6])
+    result = mint.explain(TAKEAWAY, *list(_all_forms().values())[:6])
     rotated = [
         t.get_text()
         for t in result.fig.findobj(Text)
@@ -359,7 +359,7 @@ def test_no_text_is_rotated() -> None:
 
 def test_spec_round_trip_reproduces_the_same_pixels(tmp_path: Path) -> None:
     forms = _all_forms()
-    original = fm.explain(
+    original = mint.explain(
         TAKEAWAY,
         forms["trend_dates"],
         forms["compare"],
@@ -372,19 +372,19 @@ def test_spec_round_trip_reproduces_the_same_pixels(tmp_path: Path) -> None:
     original.save(tmp_path / "one.png", write_spec=True)
     spec = json.loads((tmp_path / "one.json").read_text("utf-8"))
     assert spec["takeaway"] == TAKEAWAY and len(spec["panels"]) == 4
-    fm.explain_from_spec(spec, out=tmp_path / "two.png")
+    mint.explain_from_spec(spec, out=tmp_path / "two.png")
     assert (tmp_path / "one.png").read_bytes() == (tmp_path / "two.png").read_bytes()
 
 
 def test_spec_errors_name_the_valid_choices() -> None:
-    with pytest.raises(fm.ExplainError, match="compare, trend, change"):
-        fm.explain_from_spec({"takeaway": TAKEAWAY, "panels": [{"kind": "pie"}]})
-    with pytest.raises(fm.ExplainError, match="'values'"):
-        fm.explain_from_spec({"takeaway": TAKEAWAY, "panels": [{"kind": "compare"}]})
-    with pytest.raises(fm.ExplainError, match="unexpected keyword"):
-        fm.panel_from_spec({"kind": "compare", "values": {"a": 1}, "colour": "red"})
-    with pytest.raises(fm.ExplainError, match="Unknown top-level"):
-        fm.explain_from_spec(
+    with pytest.raises(mint.ExplainError, match="compare, trend, change"):
+        mint.explain_from_spec({"takeaway": TAKEAWAY, "panels": [{"kind": "pie"}]})
+    with pytest.raises(mint.ExplainError, match="'values'"):
+        mint.explain_from_spec({"takeaway": TAKEAWAY, "panels": [{"kind": "compare"}]})
+    with pytest.raises(mint.ExplainError, match="unexpected keyword"):
+        mint.panel_from_spec({"kind": "compare", "values": {"a": 1}, "colour": "red"})
+    with pytest.raises(mint.ExplainError, match="Unknown top-level"):
+        mint.explain_from_spec(
             {
                 "takeaway": TAKEAWAY,
                 "panels": [{"kind": "compare", "values": {"a": 1}}],
@@ -418,18 +418,18 @@ def test_cli_explain_example_renders_and_rejects(
     assert cli_main(["explain"]) == 2
 
 
-def test_figmint_run_accepts_a_script_that_returns_an_explanation(tmp_path: Path) -> None:
+def test_mintfig_run_accepts_a_script_that_returns_an_explanation(tmp_path: Path) -> None:
     script = tmp_path / "plot.py"
     script.write_text(
-        "import figmint as fm\n"
+        "import mintfig as mint\n"
         "def build():\n"
-        "    return fm.explain('Checkout p99 is 4x the next worst service',\n"
-        "        fm.compare({'checkout': 1840, 'search': 460}, unit='ms', highlight='checkout'))\n",
+        "    return mint.explain('Checkout p99 is 4x the next worst service',\n"
+        "        mint.compare({'checkout': 1840, 'search': 460}, unit='ms', highlight='checkout'))\n",
         encoding="utf-8",
     )
     # The runner restores the backend name with different capitalisation; compare the rest.
     before = {k: v for k, v in mpl.rcParams.items() if k != "backend"}
-    result = fm.run_script(script, journal="screen", bundle_dir=tmp_path / "out")
+    result = mint.run_script(script, journal="screen", bundle_dir=tmp_path / "out")
     assert {k: v for k, v in mpl.rcParams.items() if k != "backend"} == before
     assert result.ok and result.exit_code == 0
     assert result.report is not None and not result.report.issues
@@ -438,14 +438,14 @@ def test_figmint_run_accepts_a_script_that_returns_an_explanation(tmp_path: Path
 
 def test_hidden_axis_is_not_reported_as_an_unlabeled_scale() -> None:
     """Regression: tick labels of a hidden axis are never drawn but still report visible."""
-    fig, ax = fm.figure("screen", width="chat", height_mm=50)
+    fig, ax = mint.figure("screen", width="chat", height_mm=50)
     ax.barh(["a", "b"], [3, 1])
     ax.xaxis.set_visible(False)
-    report = fm.preflight_figure(fig, "screen")
+    report = mint.preflight_figure(fig, "screen")
     assert "clarity_metadata" not in {issue.rule for issue in report.issues}
 
 
 def test_a_panel_that_does_not_name_its_measure_is_flagged() -> None:
-    result = fm.explain(TAKEAWAY, fm.trend(WEEKS, LATENCY, highlight="checkout"))
+    result = mint.explain(TAKEAWAY, mint.trend(WEEKS, LATENCY, highlight="checkout"))
     assert [(i["rule"], i["panel"]) for i in result.issues] == [("measure_unnamed", "a")]
     assert "label=" in result.issues[0]["fix_hint"]

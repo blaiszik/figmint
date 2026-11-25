@@ -13,12 +13,12 @@ import pytest
 
 matplotlib.use("Agg")
 
-import figmint as fm
-from figmint.export import save_figure
-from figmint.plate import Plate
-from figmint.preflight import CheckResult, PreflightReport, preflight_figure, preflight_pdf
-from figmint.specs import get_spec, mm_to_in
-from figmint.style import use
+import mintfig as mint
+from mintfig.export import save_figure
+from mintfig.plate import Plate
+from mintfig.preflight import CheckResult, PreflightReport, preflight_figure, preflight_pdf
+from mintfig.specs import get_spec, mm_to_in
+from mintfig.style import use
 
 
 def _check_by_rule(report: PreflightReport, rule: str) -> CheckResult:
@@ -268,7 +268,7 @@ _DEFAULT_FONT_RC = {"pdf.fonttype": 3, "svg.fonttype": "path"}
 
 
 class TestVectorFontsLiveRcParams:
-    def test_figmint_tagged_figure_passes_after_rcparams_reset(self, tmp_path: Path) -> None:
+    def test_mintfig_tagged_figure_passes_after_rcparams_reset(self, tmp_path: Path) -> None:
         plate = Plate(journal="nature", width="single", height_mm=65.0, layout=(1, 1))
         plate["a"].plot([0, 1], [0, 1])
         try:
@@ -278,13 +278,13 @@ class TestVectorFontsLiveRcParams:
         finally:
             plt.close(plate.fig)
         assert check.status == "pass"
-        assert check.details["basis"] == "figmint_export"
+        assert check.details["basis"] == "mintfig_export"
         assert check.details["authoritative"] is False
         # And the exported PDF really has no Type 3 fonts.
         assert _check_by_rule(preflight_pdf(pdf_path, "nature"), "vector_fonts").status == "pass"
 
     def test_fm_figure_tagged_passes(self) -> None:
-        fig, ax = fm.figure(journal="nature", width="single", height_mm=60.0)
+        fig, ax = mint.figure(journal="nature", width="single", height_mm=60.0)
         ax.plot([0, 1], [0, 1])
         try:
             with mpl.rc_context(_DEFAULT_FONT_RC):
@@ -294,7 +294,7 @@ class TestVectorFontsLiveRcParams:
         assert check.status == "pass"
 
     def test_untagged_figure_after_use_context_warns_honestly(self, tmp_path: Path) -> None:
-        # Mirrors evals/corpus/messy_11: built inside fm.use(), checked after exit.
+        # Mirrors evals/corpus/messy_11: built inside mint.use(), checked after exit.
         with use("nature"):
             fig, ax = plt.subplots(figsize=(mm_to_in(89.0), mm_to_in(58.0)), layout="constrained")
             ax.plot([0, 1], [0, 1])
@@ -308,9 +308,9 @@ class TestVectorFontsLiveRcParams:
         assert check.status == "warn"
         assert check.severity == "warning"
         assert check.details["basis"] == "current_rcparams"
-        # ...and it says plainly that figmint's exporters force Type 42.
+        # ...and it says plainly that mintfig's exporters force Type 42.
         assert "plain fig.savefig" in check.message
-        assert "fm.save_figure" in check.message
+        assert "mint.save_figure" in check.message
         assert check.fix_hint and "No plotting change needed" in check.fix_hint
         assert check.elements == ["pdf.fonttype=3 (expected 42)", "svg.fonttype='path' (expected 'none')"]
         assert _check_by_rule(preflight_pdf(pdf_path, "nature"), "vector_fonts").status == "pass"
@@ -361,7 +361,7 @@ def _close_all_figures():
 
 
 def _dose_axes():
-    plate = fm.Plate(journal="nature", width="single", height_mm=64.0, layout=(1, 1))
+    plate = mint.Plate(journal="nature", width="single", height_mm=64.0, layout=(1, 1))
     ax = plate["a"]
     x = np.logspace(-3, 2, 40)
     for name, ic50 in (("A", 0.02), ("B", 0.3)):
@@ -380,7 +380,7 @@ def _rule(report, rule):
 def test_direct_labels_bounds_a_full_width_reference_line():
     plate, ax = _dose_axes()
     ref = ax.axhline(50.0, linestyle="--", linewidth=0.5)
-    fm.direct_labels(ax, expand_xlim=0.34)
+    mint.direct_labels(ax, expand_xlim=0.34)
     ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
     xs = ref.get_xdata()
     assert np.isclose(min(xs), 7e-4) and np.isclose(max(xs), 1.4e2)
@@ -389,7 +389,7 @@ def test_direct_labels_bounds_a_full_width_reference_line():
 
 def test_reference_line_past_a_trimmed_axis_fails_preflight():
     plate, ax = _dose_axes()
-    fm.direct_labels(ax, expand_xlim=0.34)
+    mint.direct_labels(ax, expand_xlim=0.34)
     ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
     ax.axhline(50.0, linestyle="--", linewidth=0.5)  # drawn after: spans the label gutter
     result = _rule(plate.preflight(), "line_past_axis")
@@ -401,7 +401,7 @@ def test_reference_line_past_a_trimmed_axis_fails_preflight():
 
 
 def test_ordinary_axes_with_reference_lines_pass():
-    plate = fm.Plate(journal="nature", width="single", height_mm=60.0, layout=(1, 1))
+    plate = mint.Plate(journal="nature", width="single", height_mm=60.0, layout=(1, 1))
     ax = plate["a"]
     ax.plot([0, 1, 2], [1, 3, 2], label="a")
     ax.axhline(2.0, linestyle="--")
@@ -413,7 +413,7 @@ def test_ordinary_axes_with_reference_lines_pass():
 
 
 def test_unclipped_line_off_the_canvas_fails():
-    plate = fm.Plate(journal="nature", width="single", height_mm=60.0, layout=(1, 1))
+    plate = mint.Plate(journal="nature", width="single", height_mm=60.0, layout=(1, 1))
     ax = plate["a"]
     ax.plot([0, 1], [0, 1], label="a")
     ax.plot([0, 3], [0.5, 0.5], clip_on=False, label="runaway")

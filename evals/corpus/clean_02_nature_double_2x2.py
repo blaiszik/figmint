@@ -5,19 +5,19 @@ from __future__ import annotations
 
 import numpy as np
 
-import figmint as fm
+import mintfig as mint
 
 
-def build() -> fm.Plate:
+def build() -> mint.Plate:
     rng = np.random.default_rng(102)
-    plate = fm.Plate(
+    plate = mint.Plate(
         journal="nature",
         width="double",
         height_mm=112.0,
         layout=[["a", "b"], ["c", "d"]],
         gap_mm=(10.0, 9.5),
     )
-    colors = fm.get_palette("nature")
+    colors = mint.get_palette("nature")
 
     # a: time series
     t = np.linspace(0, 12, 120)

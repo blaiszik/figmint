@@ -14,9 +14,9 @@ from pypdf import PdfReader
 
 matplotlib.use("Agg")
 
-from figmint import plate as plate_mod
-from figmint.plate import Plate, figure
-from figmint.specs import mm_to_in
+from mintfig import plate as plate_mod
+from mintfig.plate import Plate, figure
+from mintfig.specs import mm_to_in
 
 PT_TO_MM = 25.4 / 72.0
 DY_TOL_MM = 0.3
@@ -211,7 +211,7 @@ class TestLabelInvariants:
             assert again[1] == pytest.approx(first[1], abs=1e-9)
             assert again[2] == pytest.approx(first[2], abs=1e-12)
             assert again[3] == pytest.approx(first[3], abs=1e-12)
-        labels = [t for t in p.fig.texts if getattr(t, "_figmint_panel_label", False)]
+        labels = [t for t in p.fig.texts if getattr(t, "_mintfig_panel_label", False)]
         assert len(labels) == len(p.panel_keys)
         assert len(p.fig.texts) == n_texts_before + len(p.panel_keys)
 
