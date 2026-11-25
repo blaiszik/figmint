@@ -313,6 +313,7 @@ SKETCH_THEME = Theme(
         "Chalkboard SE",
         "Chalkboard",
         "Comic Sans MS",
+        "Liberation Sans",
         "DejaVu Sans",
     ),
     title_scale=1.35,

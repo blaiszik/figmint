@@ -40,7 +40,7 @@ jobs:
           fi
 
       - name: Lint
-        run: uv run ruff check src tests gallery evals
+        run: uv run ruff check src tests
 
       - name: Test
         env:

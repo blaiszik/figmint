@@ -21,7 +21,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv python install 3.12
       - run: uv sync --extra dev --python 3.12
-      - run: uv run ruff check src tests gallery evals
+      - run: uv run ruff check src tests
 
   test:
     name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})

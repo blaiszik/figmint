@@ -1886,19 +1886,24 @@ def _place_event_labels(ctx: _Ctx, ax: Axes, events: Sequence[Any], avoid: Seque
         frac_top = float(ax.transAxes.inverted().transform(display)[1])
     for note, _rule, pos, text, near_right in events:
         sides = [near_right, not near_right]
-        spots = [(1.0, "top", side) for side in sides]
+        spots: list[tuple[float, str, bool | None]] = [(1.0, "top", side) for side in sides]
         if frac_top is not None and 0.2 < frac_top < 0.98:
             spots += [(frac_top, "top", side) for side in sides]
         spots += [(0.0, "bottom", side) for side in sides]
-        # Last resort before warning: just above the plot frame, beside the rule's top.
+        # Intermediate vertical spots along the event rule (for narrow panels / wider Linux fonts)
+        for mid_frac in (0.75, 0.50, 0.25):
+            spots += [(mid_frac, "center", side) for side in sides]
+        # Straddling the top tip of the rule, then just above the plot frame.
+        spots += [(1.0, "center", side) for side in sides]
         spots += [(1.0, "above", side) for side in sides]
         chosen = None
         for frac, va, right in spots:
             note.xy = (pos, frac)
             note.set_verticalalignment("bottom" if va == "above" else va)
             note.set_horizontalalignment("right" if right else "left")
-            dy = -2.0 if va == "top" else (2.0 if va == "bottom" else 1.0)
-            note.set_position((-3.0 if right else 3.0, dy))
+            dx_pt = -3.0 if right else 3.0
+            dy = -2.0 if va == "top" else (2.0 if va == "bottom" else (0.0 if va == "center" else 1.0))
+            note.set_position((dx_pt, dy))
             box = note.get_window_extent(renderer).expanded(1.0, 1.0)
             inside = box.x0 >= left_limit - 1 and box.x1 <= frame.x1 + 1
             if va == "above":
@@ -1955,7 +1960,10 @@ def _reference_in_margin(
     col_right = max([frame.x1, *ends])
     k = ctx.pt_per_px
     dx = 6.0
-    room_pt = (col_right - frame.x1) * k - dx
+    # Allow a few pt into the inter-panel gutter (never past the figure edge) so
+    # wrapped margin labels stay legible under slightly wider Linux fallback fonts.
+    max_right = min(col_right + 4.0 / k, ctx.fig.bbox.x1 - 2.0 / k)
+    room_pt = (max_right - frame.x1) * k - dx
     if room_pt <= 0:
         return False
     size = float(note.get_fontsize())
@@ -1963,6 +1971,10 @@ def _reference_in_margin(
     wrapped = ctx.measure.wrap(text, room_pt, size)
     if len(wrapped) == 2:
         shown.append("\n".join(wrapped))
+    elif "-" in text and len(wrapped) == 1:
+        parts = text.split("-", 1)
+        if parts[0] and parts[1]:
+            shown.append(f"{parts[0]}-\n{parts[1]}")
     for candidate in shown:
         note.set_text(_plain(candidate, ctx.theme))
         note.xy = (1.0, y_value)
@@ -1972,7 +1984,7 @@ def _reference_in_margin(
             note.set_position((dx, dy))
             box = note.get_window_extent(renderer)
             inside = (
-                box.x1 <= col_right + 1
+                box.x1 <= max_right + 1
                 and box.y0 >= frame.y0 - 1
                 and box.y1 <= frame.y1 + 0.5 * ctx.sizes.small / k
             )
@@ -2010,29 +2022,30 @@ def _place_reference_label(ctx: _Ctx, ax: Axes, ref: Any, avoid: Sequence[Any]) 
     # inside the span, where a crowded narrow panel often still has room.
     ends = [1.0 if prefer_right else 0.0, 0.0 if prefer_right else 1.0]
     spots = [(at, above) for above in (True, False) for at in ends]
-    spots += [(at, above) for at in (0.5, 1 / 3, 2 / 3) for above in (True, False)]
+    spots += [(at, above) for at in (0.5, 1 / 3, 2 / 3, 0.2, 0.8) for above in (True, False)]
     y_value = note.xy[1]
 
-    def _put(at: float, above: bool) -> None:
+    def _put(at: float, above: bool, dy_mag: float = 2.5) -> None:
         note.xy = (at, y_value)
         note.set_horizontalalignment("right" if at == 1.0 else "left" if at == 0.0 else "center")
         note.set_verticalalignment("bottom" if above else "top")
         dx = -2.0 if at == 1.0 else 2.0 if at == 0.0 else 0.0
-        note.set_position((dx, 2.5 if above else -2.5))
+        note.set_position((dx, dy_mag if above else -dy_mag))
 
-    for at, above in spots:
-        _put(at, above)
-        box = note.get_window_extent(renderer)
-        inside = (
-            box.x0 >= frame.x0 - 1
-            and box.x1 <= frame.x1 + 1
-            and box.y0 >= frame.y0 - 1
-            and box.y1 <= frame.y1 + 1
-        )
-        clear = not any(box.overlaps(other) for other in taken)
-        free = not any(path.intersects_bbox(box, filled=False) for path in paths)
-        if inside and clear and free:
-            return
+    for dy_mag in (2.5, 4.5):
+        for at, above in spots:
+            _put(at, above, dy_mag)
+            box = note.get_window_extent(renderer)
+            inside = (
+                box.x0 >= frame.x0 - 1
+                and box.x1 <= frame.x1 + 1
+                and box.y0 >= frame.y0 - 1
+                and box.y1 <= frame.y1 + 1
+            )
+            clear = not any(box.overlaps(other) for other in taken)
+            free = not any(path.intersects_bbox(box, filled=False) for path in paths)
+            if inside and clear and free:
+                return
     if _reference_in_margin(ctx, ax, note, text, y_value, avoid, taken, paths):
         return
     note.set_text(_plain(text, ctx.theme))

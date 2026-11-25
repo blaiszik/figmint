@@ -98,7 +98,7 @@ def test_reference_label_is_not_struck_through_by_a_line() -> None:
     result = mint.explain(T, _dose_panel(), mint.compare({"a": 1, "b": 2}, label="x"))
     ax = result["a"]
     renderer = result.fig.canvas.get_renderer()
-    note = next(t for t in ax.texts if t.get_text() == "half-maximal")
+    note = next(t for t in ax.texts if t.get_text().replace("\n", "") == "half-maximal")
     box = note.get_window_extent(renderer)
     ref_line = next(ln for ln in ax.lines if np.ptp(ln.get_ydata()) == 0)
     paths = explainer._data_paths(ax, [ref_line])
