@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - run: uv sync --extra dev --python 3.12
+      - run: uv run ruff check src tests gallery evals
+
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install ${{ matrix.python-version }}
+      - run: uv sync --extra dev --python ${{ matrix.python-version }}
+      - name: Run pytest
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/mpl-mintfig
+          PYTHONHASHSEED: "0"
+        run: uv run pytest -q
+
+  package:
+    name: Build & wheel smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Verify bundled skill assets and clean wheel install
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/mpl-mintfig
+        run: |
+          uv venv "${{ runner.temp }}/smoke-venv" --python 3.12
+          uv pip install --python "${{ runner.temp }}/smoke-venv/bin/python" dist/*.whl
+          "${{ runner.temp }}/smoke-venv/bin/mintfig" --help > /dev/null
+          "${{ runner.temp }}/smoke-venv/bin/mintfig" skill --install --root "${{ runner.temp }}/skill-test"
+          test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/SKILL.md"
+          test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/scientific_and_recipes.md"
+          test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/publication.md"
+          "${{ runner.temp }}/smoke-venv/bin/python" -c '
+          import mintfig as mint
+          fig = mint.explain(
+              "A leads B by 20 ms",
+              mint.compare({"A": 40, "B": 60}, label="Latency", unit="ms"),
+              source="smoke test",
+          )
+          assert fig.summary()["ship"] is True
+          '
