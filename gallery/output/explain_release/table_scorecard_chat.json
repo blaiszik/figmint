@@ -1,0 +1,95 @@
+{
+  "takeaway": "Alpha-3 leads every reasoning benchmark while costing 17% less than Alpha-2",
+  "source": "synthetic model evaluation data",
+  "layout": [
+    [
+      "a"
+    ],
+    [
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "Alpha-3": 86.4,
+        "Alpha-2": 77.1,
+        "Beta-Pro": 83.2,
+        "Gamma-Fast": 71.5
+      },
+      "highlight": [
+        "Alpha-3"
+      ],
+      "baseline": "Alpha-2",
+      "sort": true,
+      "zero": true,
+      "title": "GPQA Diamond",
+      "label": "Accuracy",
+      "unit": "%"
+    },
+    {
+      "kind": "table",
+      "rows": [
+        [
+          "Alpha-3",
+          86.4,
+          74.2,
+          88.0,
+          2.5
+        ],
+        [
+          "Beta-Pro",
+          83.2,
+          71.0,
+          82.0,
+          6.0
+        ],
+        [
+          "Alpha-2",
+          77.1,
+          58.6,
+          64.0,
+          3.0
+        ],
+        [
+          "Gamma-Fast",
+          71.5,
+          null,
+          55.0,
+          0.4
+        ]
+      ],
+      "columns": [
+        "Model",
+        "GPQA",
+        "SWE-bench",
+        "AIME",
+        "Cost"
+      ],
+      "title": "Full benchmark scorecard",
+      "units": {
+        "GPQA": "%",
+        "SWE-bench": "%",
+        "AIME": "%",
+        "Cost": "$/M"
+      },
+      "highlight": [
+        "Alpha-3"
+      ],
+      "baseline": "Alpha-2",
+      "bold_best": {
+        "GPQA": "max",
+        "SWE-bench": "max",
+        "AIME": "max",
+        "Cost": "min"
+      },
+      "fmt": {
+        "GPQA": ".1f",
+        "SWE-bench": ".1f",
+        "AIME": ".0f",
+        "Cost": "${:.2f}"
+      }
+    }
+  ]
+}

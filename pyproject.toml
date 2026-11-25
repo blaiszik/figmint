@@ -39,11 +39,11 @@ figmint = "figmint.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/figmint"]
-artifacts = ["src/figmint/assets/*.md"]
+artifacts = ["src/figmint/assets/*.md", "src/figmint/assets/references/*.md"]
 
 [tool.hatch.build.targets.sdist]
 include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
-artifacts = ["src/figmint/assets/*.md"]
+artifacts = ["src/figmint/assets/*.md", "src/figmint/assets/references/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,73 @@
+{
+  "takeaway": "Alpha-3 leads all 4 frontier benchmarks and gains +10.4 points from extended thinking",
+  "subtitle": "Frontier model evaluation suite, Nov 2026",
+  "source": "synthetic model evaluation data",
+  "style": "paper",
+  "accent": "#D97757",
+  "width": "slide",
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "GPQA Diamond": {
+          "Alpha-3": 86.4,
+          "Beta-Pro": 83.2,
+          "Alpha-2": 77.1
+        },
+        "SWE-bench": {
+          "Alpha-3": 74.2,
+          "Beta-Pro": 71.0,
+          "Alpha-2": 58.6
+        },
+        "AIME 2026": {
+          "Alpha-3": 88.0,
+          "Beta-Pro": 82.0,
+          "Alpha-2": 64.0
+        },
+        "MMMU": {
+          "Alpha-3": 79.5,
+          "Beta-Pro": 77.8,
+          "Alpha-2": 71.0
+        }
+      },
+      "highlight": [
+        "Alpha-3"
+      ],
+      "baseline": "Alpha-2",
+      "sort": false,
+      "zero": true,
+      "title": "Multi-benchmark head-to-head",
+      "label": "Accuracy",
+      "unit": "%"
+    },
+    {
+      "kind": "compare",
+      "values": {
+        "Alpha-3": 77.6,
+        "Beta-Pro": 74.0,
+        "Alpha-2": 57.8
+      },
+      "highlight": [
+        "Alpha-3"
+      ],
+      "baseline": "Alpha-2",
+      "sort": true,
+      "zero": true,
+      "boost": {
+        "Alpha-3": 10.4,
+        "Beta-Pro": 8.0,
+        "Alpha-2": 6.2
+      },
+      "boost_label": "Extended thinking",
+      "title": "AIME 2026: base vs extended thinking",
+      "label": "Accuracy",
+      "unit": "%"
+    }
+  ]
+}

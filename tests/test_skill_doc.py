@@ -31,6 +31,7 @@ FORMS = (
     "relate",
     "share",
     "matrix",
+    "table",
     "custom",
 )
 

@@ -1,0 +1,127 @@
+{
+  "takeaway": "The Alpha family pushes the capability-cost Pareto frontier across every price tier",
+  "subtitle": "Capability-efficiency analysis across 7 models",
+  "source": "synthetic model evaluation data",
+  "style": "dark",
+  "accent": "#4F9CF9",
+  "width": "slide",
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "relate",
+      "title": "Capability vs cost frontier",
+      "unit": "%",
+      "x": [
+        0.35,
+        2.5,
+        9.0,
+        0.6,
+        6.0,
+        0.15,
+        4.5
+      ],
+      "y": [
+        76.5,
+        86.4,
+        89.2,
+        72.0,
+        83.2,
+        68.0,
+        80.5
+      ],
+      "x_label": "Blended API cost ($/M tokens)",
+      "y_label": "GPQA Diamond (%)",
+      "names": [
+        "Alpha-3 Mini",
+        "Alpha-3",
+        "Alpha-3 Max",
+        "Beta-Lite",
+        "Beta-Pro",
+        "Gamma-Fast",
+        "Gamma-Large"
+      ],
+      "groups": [
+        "Alpha",
+        "Alpha",
+        "Alpha",
+        "Beta",
+        "Beta",
+        "Gamma",
+        "Gamma"
+      ],
+      "highlight": [
+        "Alpha"
+      ],
+      "frontier": "upper-left",
+      "label_all": true,
+      "connect_groups": true,
+      "log_x": true
+    },
+    {
+      "kind": "table",
+      "rows": [
+        [
+          "Alpha-3 Max",
+          89.2,
+          76.8,
+          9.0
+        ],
+        [
+          "Alpha-3",
+          86.4,
+          74.2,
+          2.5
+        ],
+        [
+          "Beta-Pro",
+          83.2,
+          71.0,
+          6.0
+        ],
+        [
+          "Alpha-3 Mini",
+          76.5,
+          61.4,
+          0.35
+        ],
+        [
+          "Gamma-Fast",
+          68.0,
+          null,
+          0.15
+        ]
+      ],
+      "columns": [
+        "Model",
+        "GPQA",
+        "SWE-bench",
+        "Cost"
+      ],
+      "title": "Frontier scorecard",
+      "units": {
+        "GPQA": "%",
+        "SWE-bench": "%",
+        "Cost": "$/M"
+      },
+      "highlight": [
+        "Alpha-3"
+      ],
+      "baseline": "Beta-Pro",
+      "bold_best": {
+        "GPQA": "max",
+        "SWE-bench": "max",
+        "Cost": "min"
+      },
+      "fmt": {
+        "GPQA": ".1f",
+        "SWE-bench": ".1f",
+        "Cost": "${:.2f}"
+      }
+    }
+  ]
+}

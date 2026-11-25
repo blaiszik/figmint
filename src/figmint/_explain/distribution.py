@@ -1,0 +1,1062 @@
+"""distribution() and histogram() forms for fm.explain."""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
+
+import numpy as np
+from matplotlib import patheffects
+from matplotlib.axes import Axes
+from matplotlib.ticker import (
+    FuncFormatter,
+    MaxNLocator,
+)
+from matplotlib.transforms import Bbox
+
+from ..themes import (
+    Theme,
+)
+from .core import (
+    MAX_COMPARE_ITEMS,
+    MAX_GROUPS,
+    ExplainError,
+    Panel,
+    _base_spec,
+    _baseline_name,
+    _cover_with_ticks,
+    _Ctx,
+    _diff_with_unit,
+    _fold_unit,
+    _formatter,
+    _guarded,
+    _has_items,
+    _inline_unit,
+    _is_number,
+    _is_one_dimensional,
+    _is_strict,
+    _jsonable,
+    _keep_inside_x,
+    _measure_text,
+    _names,
+    _narrow_log_ticks,
+    _pairs,
+    _plain,
+    _range_with_unit,
+    _ratio_text,
+    _record_adjustment,
+    _reference_line,
+    _signed,
+    _Sizes,
+    _small_n_caution,
+    _tick_label,
+    _value_axis,
+    _values_array,
+    _vs_text,
+    _with_unit,
+)
+
+# --------------------------------------------------------------------------- #
+# distribution
+# --------------------------------------------------------------------------- #
+
+
+def _far_values(arr: np.ndarray, log: bool = False) -> np.ndarray:
+    """Values more than 4 robust s.d. (1.4826·MAD) from the median; groups with n >= 5 only.
+
+    On a log axis the distances are measured in log space, as the reader sees them.
+    """
+    if arr.size < 5:
+        return np.empty(0)
+    scaled = np.log10(arr) if log else arr
+    med = float(np.median(scaled))
+    dist = np.abs(scaled - med)
+    mad = float(np.median(dist))
+    if mad == 0:
+        return np.empty(0)
+    far = dist > 4.0 * 1.4826 * mad
+    return arr[far][np.argsort(-dist[far])]
+
+
+def _separation_fact(
+    h: str,
+    a: np.ndarray,
+    other: str,
+    b: np.ndarray,
+    b_far: np.ndarray,
+    value_fmt: Callable[[float], str],
+    *,
+    stat: str,
+) -> str:
+    """Whether two groups separate, robust to one stray value.
+
+    Every value beyond every other ("every A value is above every B value"); else all
+    but a few (at most max(1, 20% of n)) of one group beyond the other's whole range;
+    else how many of ``h``'s values lie within ``other``'s range (without its far values).
+    """
+    up = (np.median(a) if stat == "median" else a.mean()) >= (
+        np.median(b) if stat == "median" else b.mean()
+    )
+    if (up and a.min() > b.max()) or (not up and a.max() < b.min()):
+        edge_a, edge_b = (a.min(), b.max()) if up else (a.max(), b.min())
+        return (
+            f"every {h} value is {'above' if up else 'below'} every {other} value "
+            f"({h} {'lowest' if up else 'highest'} {value_fmt(float(edge_a))}, "
+            f"{other} {'highest' if up else 'lowest'} {value_fmt(float(edge_b))})"
+        )
+    side = "above" if up else "below"
+    options = []
+    # Groups X, Y with X on ``side`` of Y: X values not beyond all of Y are the exceptions.
+    flipped = "below" if up else "above"
+    for x_name, x, y_name, y, x_side in ((h, a, other, b, side), (other, b, h, a, flipped)):
+        exceptions = x[x <= y.max()] if x_side == "above" else x[x >= y.min()]
+        if exceptions.size <= max(1, int(0.2 * x.size)) and exceptions.size < x.size:
+            options.append((exceptions.size / x.size, x_name, x, y_name, x_side, exceptions))
+    if options:
+        _, x_name, x, y_name, x_side, exceptions = min(options, key=lambda o: o[0])
+        listed = ", ".join(value_fmt(float(v)) for v in exceptions[:3])
+        return (
+            f"all but {exceptions.size} of {x.size} {x_name} values lie {x_side} every "
+            f"{y_name} value (the exception{'s' if exceptions.size > 1 else ''}: {listed})"
+        )
+    core = b if not b_far.size else b[~np.isin(b, b_far)]
+    inside = int(((a >= core.min()) & (a <= core.max())).sum())
+    excluded = (
+        f" (without its {b_far.size} far value{'s' if b_far.size > 1 else ''})" if b_far.size else ""
+    )
+    return (
+        f"{h} and {other} overlap: {inside} of {a.size} {h} values lie within "
+        f"the {other} range{excluded}"
+    )
+
+
+_HIST_ESTIMATORS = frozenset({"auto", "fd", "doane", "scott", "stone", "rice", "sturges", "sqrt"})
+MAX_HIST_GROUPS = 4
+
+
+def _histogram_edges(
+    everything: np.ndarray,
+    bins: int | str | Sequence[float],
+    log: bool,
+) -> tuple[np.ndarray, int | str | list[float], str]:
+    """Validate ``bins`` and return ``(edges, spec_value, width_summary)``."""
+    lo, hi = float(everything.min()), float(everything.max())
+    if isinstance(bins, bool):
+        raise ExplainError(
+            "distribution(bins) must be 'auto', an integer count, or a list of bin edges.",
+            fix_hint='Pass bins="auto", bins=15, or bins=[0, 10, 20, 50].',
+        )
+    if isinstance(bins, (int, np.integer)):
+        count = int(bins)
+        if not 2 <= count <= 60:
+            raise ExplainError(
+                f"distribution(bins={count}) is outside the readable range (2 to 60).",
+                fix_hint='Use between 2 and 60 bins, or bins="auto".',
+            )
+        if log:
+            if hi <= lo:
+                edges = np.geomspace(lo * 0.8, hi * 1.25, count + 1)
+            else:
+                edges = np.geomspace(lo, hi, count + 1)
+            return edges, count, f"{count} log-spaced bins"
+        if hi <= lo:
+            edges = np.linspace(lo - 0.5, hi + 0.5, count + 1)
+        else:
+            edges = np.linspace(lo, hi, count + 1)
+        return edges, count, f"{count} bins"
+    if isinstance(bins, str):
+        key = bins.strip().lower()
+        if key not in _HIST_ESTIMATORS:
+            raise ExplainError(
+                f"distribution(bins={bins!r}) is not a recognised binning rule.",
+                fix_hint=f"Use bins='auto', an integer (2–60), or one of: {', '.join(sorted(_HIST_ESTIMATORS))}.",
+            )
+        if log:
+            log_edges = np.histogram_bin_edges(np.log10(everything), bins=key)
+            count = max(5, min(24, len(log_edges) - 1))
+            if hi <= lo:
+                edges = np.geomspace(lo * 0.8, hi * 1.25, count + 1)
+            else:
+                edges = np.geomspace(lo, hi, count + 1)
+            return edges, key, f"{count} log-spaced bins"
+        edges = np.histogram_bin_edges(everything, bins=key)
+        if len(edges) - 1 > 28:
+            edges = np.linspace(lo, hi, 25)
+        elif len(edges) - 1 < 3 and hi > lo:
+            edges = np.linspace(lo, hi, 6)
+        return edges, key, f"{len(edges) - 1} bins"
+    if isinstance(bins, (Sequence, np.ndarray)):
+        arr = _values_array(bins, "distribution(bins)")
+        if arr.size < 3 or arr.size > 61:
+            raise ExplainError(
+                f"distribution(bins) needs 3 to 61 edges (2 to 60 bins), got {arr.size}.",
+                fix_hint='Pass at least 3 increasing edges, or bins="auto".',
+            )
+        if not np.all(np.isfinite(arr)) or not np.all(np.diff(arr) > 0):
+            raise ExplainError(
+                "distribution(bins) edges must be finite and strictly increasing.",
+                fix_hint="Sort and deduplicate the bin edges.",
+            )
+        if log and float(arr.min()) <= 0:
+            raise ExplainError(
+                "distribution(log=True) needs strictly positive bin edges.",
+                fix_hint="Use positive bin edges or drop log=True.",
+            )
+        spec_edges = [float(v) for v in arr]
+        return arr, spec_edges, f"{arr.size - 1} custom bins"
+    raise ExplainError(
+        f"distribution(bins) got unsupported type {type(bins).__name__}.",
+        fix_hint='Pass bins="auto", an integer (2–60), or a sorted list of edges.',
+    )
+
+
+@_guarded("distribution")
+def distribution(
+    groups: Mapping[str, Sequence[float]] | Sequence[float] | Sequence[Mapping[str, Any]],
+    *,
+    group: str | None = None,
+    value: str | None = None,
+    title: str | None = None,
+    label: str | None = None,
+    unit: str | None = None,
+    highlight: str | Sequence[str] | None = None,
+    baseline: str | None = None,
+    reference: float | tuple[float, str] | None = None,
+    log: bool = False,
+    stat: str = "median",
+    bins: int | str | Sequence[float] | None = None,
+    fmt: str | None = None,
+) -> Panel:
+    """How are values spread within groups? Every observation as a dot, or binned as a histogram.
+
+    ``groups`` maps a group name to its raw observations (or pass one list/array
+    for a single variable, or row-shaped data / DataFrame with ``group=`` and
+    ``value=``). By default every observation is drawn as a dot with
+    a ``stat="median"`` (median and middle half / IQR) or ``stat="mean"`` (mean
+    and \N{PLUS-MINUS SIGN} 1 s.d.) mark. Pass ``bins="auto"`` (an integer 2–60,
+    or explicit edges) — or call the alias :func:`histogram` — to draw a binned
+    histogram (single panel, or shared-axis stacked small multiples for up to 4
+    groups). ``baseline`` names the reference group (a control, "before"): drawn
+    in ink, with every highlighted (or every other) group stated against it.
+    """
+    if stat not in {"median", "mean"}:
+        raise ExplainError(
+            f"distribution(stat={stat!r}) is not a summary this form draws.",
+            fix_hint='Use stat="median" (median and middle half) or stat="mean" (mean and '
+            "\N{PLUS-MINUS SIGN} 1 s.d.).",
+        )
+    from .._tabular import resolve_distribution_table
+
+    tabular = resolve_distribution_table(
+        groups,
+        group=group,
+        value=value,
+        form="distribution",
+    )
+    if tabular is not None:
+        groups = tabular
+    if _has_items(groups) and not _is_one_dimensional(groups):
+        raw = {str(k): v for k, v in _pairs(groups)}
+    elif isinstance(groups, (str, bytes)) or _is_number(groups) or groups is None:
+        raise ExplainError(
+            "distribution(groups) must map group names to lists of observations.",
+            fix_hint='e.g. {"control": [4.1, 3.9, 4.4, ...], "treated": [...]}.',
+        )
+    else:
+        raw = {"": groups}
+    data: dict[str, np.ndarray] = {}
+    dropped: dict[str, int] = {}
+    given: dict[str, np.ndarray] = {}
+    for name, values in raw.items():
+        if _is_number(values) or values is None or isinstance(values, (str, bytes)):
+            raise ExplainError(
+                f"distribution(groups[{name!r}]) is {values!r}, not a list of observations.",
+                fix_hint="distribution() shows raw observations; for one summary number per "
+                "group use compare() (with error= for an interval).",
+            )
+        arr = _values_array(values, f"distribution(groups[{name!r}])")
+        given[name] = arr
+        dropped[name] = int((~np.isfinite(arr)).sum())
+        arr = arr[np.isfinite(arr)]
+        if arr.size < 3:
+            raise ExplainError(
+                f"distribution(groups[{name!r}]) has {arr.size} finite values; a spread needs >= 3.",
+                fix_hint="Use compare() for one or two values per item.",
+            )
+        data[name] = arr
+    if not data:
+        raise ExplainError("distribution(groups) is empty.", fix_hint="Pass at least one group.")
+    names = list(data)
+    group_limit = MAX_HIST_GROUPS if bins is not None else MAX_GROUPS
+    if len(names) > group_limit:
+        if not _is_strict():
+            req_hl = (
+                [highlight]
+                if isinstance(highlight, str)
+                else ([str(h) for h in highlight] if highlight is not None else [])
+            )
+            keep = [nm for nm in req_hl if nm in data]
+            if baseline is not None and str(baseline) in data and str(baseline) not in keep:
+                keep.append(str(baseline))
+            for nm in names:
+                if len(keep) >= group_limit:
+                    break
+                if nm not in keep:
+                    keep.append(nm)
+            keep_set = set(keep)
+            data = {nm: data[nm] for nm in names if nm in keep_set}
+            given = {nm: given[nm] for nm in names if nm in keep_set}
+            dropped = {nm: dropped[nm] for nm in names if nm in keep_set}
+            _record_adjustment(f"distribution(): trimmed {len(names)} groups to {len(data)}")
+            names = list(data)
+        elif bins is None:
+            raise ExplainError(
+                f"distribution() got {len(names)} groups; more than {MAX_GROUPS} rows of dots blur together.",
+                fix_hint=f"distribution() takes at most {MAX_GROUPS} groups: keep the groups the "
+                f"takeaway compares, or compare() their medians (up to {MAX_COMPARE_ITEMS} items, "
+                "with error= for an interval).",
+                rule="too_many_items",
+            )
+    hl = _names(highlight, names)
+    base = _baseline_name(baseline, names, hl, "distribution")
+    ref = _reference_line(reference, "distribution(reference)")
+    everything = np.concatenate(list(data.values()))
+    given_unit = unit
+    # Raw ratios (fold changes) read as ratios: "median 2.46×", not "2.46 fold".
+    if _fold_unit(unit, label, log and float(everything.min()) > 0):
+        unit = "\N{MULTIPLICATION SIGN}"
+    if log and (everything.min() <= 0 or (ref is not None and ref[0] <= 0)):
+        raise ExplainError(
+            "distribution(log=True) needs strictly positive values.",
+            fix_hint="Drop log=True or remove non-positive values.",
+        )
+    if stat == "mean":
+        stats = {}
+        for nm, arr in data.items():
+            m, sd = float(arr.mean()), float(arr.std(ddof=1))
+            stats[nm] = (m - sd, m, m + sd)
+    else:
+        stats = {
+            nm: tuple(float(q) for q in np.percentile(arr, [25, 50, 75]))
+            for nm, arr in data.items()
+        }
+    fmt_fn = _formatter([q for trio in stats.values() for q in trio], fmt, unit=unit, log=log)
+    # Ranges, far values and separation edges share the centres' digits (whole numbers
+    # stay whole: "lowest 91", not "91.0").
+    whole = all(float(v).is_integer() for v in everything)
+    range_fmt = _formatter(list(everything), fmt, unit=unit, log=log) if whole else fmt_fn
+    facts = []
+    for nm in names:
+        lo_q, mid, hi_q = stats[nm]
+        spread = (
+            f"\N{PLUS-MINUS SIGN} 1 s.d. {_range_with_unit(fmt_fn(lo_q), fmt_fn(hi_q), unit)}"
+            if stat == "mean"
+            else f"middle half {_range_with_unit(fmt_fn(lo_q), fmt_fn(hi_q), unit)}"
+        )
+        arr = data[nm]
+        text = (
+            f"{nm or (label or 'values')}: {stat} {_with_unit(fmt_fn(mid), unit)}, {spread}, "
+            f"range {_range_with_unit(range_fmt(float(arr.min())), range_fmt(float(arr.max())), unit)}, "
+            f"n={arr.size}"
+        )
+        if dropped[nm]:
+            text += f"; {dropped[nm]} missing value{'s' if dropped[nm] > 1 else ''} dropped"
+        facts.append(text)
+    caution = _small_n_caution(
+        {nm or (label or "values"): data[nm].size for nm in names},
+        "quartiles are not meaningful" if stat == "median" else "the s.d. is a rough estimate",
+    )
+    if caution:
+        facts.append(caution)
+    outliers = {nm: _far_values(data[nm], log) for nm in names}
+    for nm in names:
+        far = outliers[nm]
+        if far.size:
+            shown_far = ", ".join(_with_unit(range_fmt(float(v)), unit) for v in far[:5])
+            more = f" and {far.size - 5} more" if far.size > 5 else ""
+            word = "value" if far.size == 1 else "values"
+            facts.append(
+                f"{nm or (label or 'values')}: {far.size} {word} far from the rest: "
+                f"{shown_far}{more} (median {_with_unit(fmt_fn(float(np.median(data[nm]))), unit)})"
+            )
+    # Which pairs are stated: each group against the baseline; else among the
+    # highlighted groups (each pair once); a lone highlight against every other group.
+    pairs: list[tuple[str, str]] = []
+    if base is not None:
+        pairs = [(nm, base) for nm in (hl or [nm for nm in names if nm != base])][:6]
+    elif len(hl) >= 2:
+        pairs = [(a, b) for i, a in enumerate(hl) for b in hl[i + 1 :]]
+    elif hl:
+        pairs = [(hl[0], other) for other in names if other != hl[0]]
+    first_pair_fact = len(facts)
+    if log:
+        # On a log axis groups differ by factors: state ratios, not differences.
+        for h, other in pairs:
+            ratio = _ratio_text(stats[h][1] / stats[other][1])
+            facts.append(f"{h} is {ratio} {other} ({stat})")
+    elif pairs:
+        diffs = [(h, other, stats[h][1] - stats[other][1]) for h, other in pairs]
+        diff_fmt = _formatter([d for _, _, d in diffs], fmt, unit=unit)
+        signed_spread = float(everything.min()) < 0 < float(everything.max())
+        for h, other, _d in diffs:
+            if base is not None:
+                vs = _vs_text(
+                    stats[h][1],
+                    stats[other][1],
+                    unit=unit,
+                    diff_fmt=diff_fmt,
+                    relative=not signed_spread,
+                )
+                facts.append(f"{h} vs {other}: {stat} {vs}")
+                continue
+            shown = _diff_with_unit(_signed(diff_fmt(_d)), unit)
+            if stats[h][1] > 0 and stats[other][1] > 0:
+                shown += f" ({_ratio_text(stats[h][1] / stats[other][1])})"
+            facts.append(f"{h} \N{MINUS SIGN} {other}: {stat} {shown}")
+    pair_facts = facts[first_pair_fact:]
+    # Whether every observation of one group lies beyond every one of the other:
+    # the check behind "every treated cell beats every control cell".
+    for h, other in pairs:
+        facts.append(
+            _separation_fact(
+                h,
+                data[h],
+                other,
+                data[other],
+                outliers[other],
+                lambda v: _with_unit(range_fmt(v), unit),
+                stat=stat,
+            )
+        )
+    any_spread = any(a.size >= 5 for a in data.values())
+    # Alt text: every group's centre (or the highlighted groups and the baseline), then
+    # how they compare; never only the first group.
+    paired = {nm for pair in pairs for nm in pair} | set(hl)
+    told = [nm for nm in names if nm in paired] or names
+    alt_facts = [
+        f"{nm or (label or 'values')}: {stat} {_with_unit(fmt_fn(stats[nm][1]), unit)}"
+        for nm in told
+    ]
+    alt_facts += pair_facts
+
+    if bins is not None:
+        if len(names) > MAX_HIST_GROUPS:
+            raise ExplainError(
+                f"Binned distribution() got {len(names)} groups; more than {MAX_HIST_GROUPS} "
+                "stacked histograms crowd a chat figure.",
+                fix_hint=f"Keep at most {MAX_HIST_GROUPS} groups for histograms, or omit bins= "
+                f"for dot strips (up to {MAX_GROUPS} groups).",
+                rule="too_many_items",
+            )
+        edges, bins_spec, bins_desc = _histogram_edges(everything, bins, log)
+        hists = {nm: np.histogram(data[nm], bins=edges)[0] for nm in names}
+        max_count = max(int(c.max()) for c in hists.values()) if hists else 1
+        widths = np.diff(edges)
+        uniform_width = (not log) and bool(np.allclose(widths, widths[0], rtol=1e-4))
+        edge_fmt = _formatter(list(edges), fmt, unit=unit, log=log)
+        if uniform_width:
+            w_fmt = _formatter([float(widths[0])], fmt, unit=unit)
+            bin_note = f"{len(edges) - 1} bins (width {_with_unit(w_fmt(float(widths[0])), unit)})"
+        else:
+            bin_note = bins_desc
+        facts.append(f"binned into {bin_note}")
+        for nm in names:
+            counts = hists[nm]
+            peak_i = int(np.argmax(counts))
+            peak_c = int(counts[peak_i])
+            pct = 100.0 * peak_c / max(1, data[nm].size)
+            lo_e = edge_fmt(float(edges[peak_i]))
+            hi_e = edge_fmt(float(edges[peak_i + 1]))
+            bin_span = _range_with_unit(lo_e, hi_e, unit)
+            tag = nm or (label or "values")
+            facts.append(f"{tag}: peak bin {bin_span} ({peak_c} of {data[nm].size}, {pct:.0f}%)")
+            if ref is not None:
+                above = int((data[nm] > ref[0]).sum())
+                below = int((data[nm] < ref[0]).sum())
+                ref_u = _with_unit(_formatter([ref[0]], log=log)(ref[0]), unit)
+                ref_tag = f" ({ref[1]})" if ref[1] else ""
+                facts.append(
+                    f"{tag}: {100.0 * above / data[nm].size:.0f}% above {ref_u}{ref_tag} "
+                    f"({above} of {data[nm].size}; {below} below)"
+                )
+
+        x_lo = float(edges[0])
+        x_hi = float(edges[-1])
+        if ref is not None:
+            x_lo = min(x_lo, ref[0])
+            x_hi = max(x_hi, ref[0])
+
+        def _setup_hist_axes(
+            ax_h: Axes,
+            sz: _Sizes,
+            theme: Theme,
+            *,
+            show_x: bool,
+            nbins_y: int,
+            cell_w_mm: float,
+        ) -> None:
+            if log:
+                ax_h.set_xscale("log")
+            _value_axis(ax_h, sz, theme, axis="y", nbins=nbins_y)
+            ax_h.yaxis.set_major_locator(MaxNLocator(nbins=nbins_y, integer=True))
+            ax_h.spines["left"].set_visible(False)
+            ax_h.spines["top"].set_visible(False)
+            ax_h.spines["right"].set_visible(False)
+            ax_h.spines["bottom"].set_visible(not theme.hide_spines)
+            if not theme.hide_spines:
+                ax_h.spines["bottom"].set_color(theme.axis)
+                ax_h.spines["bottom"].set_linewidth(theme.axis_lw)
+            ax_h.tick_params(
+                axis="x",
+                length=theme.tick_length if show_x else 0.0,
+                width=theme.tick_width,
+                color=theme.axis,
+                labelsize=sz.small,
+                labelcolor=theme.muted,
+                labelbottom=show_x,
+            )
+            ax_h.set_ylim(0, max(1.0, max_count * 1.14))
+            if log:
+                ax_h.set_xlim(
+                    *_narrow_log_ticks(
+                        ax_h.xaxis,
+                        x_lo / 1.06,
+                        x_hi * 1.06,
+                        theme.minus_sign,
+                        extend=False,
+                        data_hi=x_hi,
+                    )
+                )
+            else:
+                span = (x_hi - x_lo) or abs(x_hi) or 1.0
+                ax_h.set_xlim(x_lo - 0.02 * span, x_hi + 0.02 * span)
+                ax_h.xaxis.set_major_locator(
+                    MaxNLocator(nbins=6 if cell_w_mm >= 100 else 4, steps=[1, 2, 2.5, 5, 10])
+                )
+                ax_h.xaxis.set_major_formatter(
+                    FuncFormatter(
+                        lambda v, _p, m=theme.minus_sign, a=ax_h.xaxis: _tick_label(v, m, a)
+                    )
+                )
+            if show_x:
+                x_title = _measure_text(label, unit)
+                if x_title:
+                    ax_h.set_xlabel(
+                        _plain(x_title, theme),
+                        fontsize=sz.small,
+                        color=theme.muted,
+                        labelpad=3,
+                    )
+
+        def _draw_hist_bars(
+            ctx: _Ctx, ax_h: Axes, nm: str, accent_map: Mapping[str, str], sz: _Sizes, theme: Theme
+        ) -> None:
+            if nm == base:
+                col = ctx.colors.get(nm, theme.ink)
+            else:
+                col = accent_map.get(
+                    nm, theme.context_fill if (hl or accent_map) else ctx.default_color
+                )
+            edge_col = theme.bar_edgecolor or theme.background
+            edge_lw = theme.bar_edge_lw if theme.bar_edgecolor else 0.65
+            ax_h.bar(
+                edges[:-1],
+                hists[nm],
+                width=widths,
+                align="edge",
+                color=col,
+                edgecolor=edge_col,
+                linewidth=edge_lw,
+                alpha=0.88,
+                zorder=2,
+            )
+            med = stats[nm][1]
+            ax_h.axvline(
+                med,
+                color=theme.ink,
+                linewidth=1.1 * sz.scale,
+                linestyle="--",
+                zorder=4,
+            )
+            if ref is not None:
+                ax_h.axvline(
+                    ref[0],
+                    color=theme.muted,
+                    linewidth=0.85 * sz.scale,
+                    linestyle=(0, (3, 2)),
+                    zorder=3,
+                )
+
+        single_measure = (
+            f"Count (n={data[names[0]].size}); {bin_note}; dashed: {stat}"
+            if len(names) == 1
+            else f"Count per group; {bin_note}; dashed: {stat}"
+        )
+
+        if len(names) == 1:
+            nm0 = names[0]
+
+            def _draw_single_hist(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
+                sz = ctx.sizes
+                theme = ctx.theme
+                accent = {
+                    name: col for name, col in ctx.colors.items() if name in names and name != base
+                }
+                _setup_hist_axes(
+                    ax, sz, theme, show_x=True, nbins_y=4, cell_w_mm=ctx.cell_width_mm
+                )
+                _draw_hist_bars(ctx, ax, nm0, accent, sz, theme)
+                med = stats[nm0][1]
+                top_notes: list[Any] = []
+                med_text = f"{stat} {_with_unit(fmt_fn(med), unit)}"
+                med_note = ax.annotate(
+                    _plain(med_text, theme),
+                    (med, 1.0),
+                    xycoords=("data", "axes fraction"),
+                    xytext=(0.0, 3.0),
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom",
+                    fontsize=sz.small,
+                    fontweight="bold",
+                    color=theme.ink,
+                    annotation_clip=False,
+                )
+                top_notes.append(med_note)
+                ref_note = None
+                if ref is not None and ref[1]:
+                    ref_note = ax.annotate(
+                        _plain(ref[1], theme),
+                        (ref[0], 1.0),
+                        xycoords=("data", "axes fraction"),
+                        xytext=(0.0, 3.0),
+                        textcoords="offset points",
+                        ha="center",
+                        va="bottom",
+                        fontsize=sz.small,
+                        color=theme.muted,
+                        annotation_clip=False,
+                    )
+                    top_notes.append(ref_note)
+
+                def _finish_hist() -> None:
+                    for note in top_notes:
+                        _keep_inside_x(ctx, ax, note)
+                    if ref_note is not None:
+                        renderer = ctx.fig.canvas.get_renderer()
+                        b0 = med_note.get_window_extent(renderer)
+                        b1 = ref_note.get_window_extent(renderer)
+                        if b0.overlaps(b1):
+                            ref_note.set_position((ref_note.xyann[0], 13.5))
+
+                return _finish_hist
+
+            return Panel(
+                kind="distribution",
+                title=title,
+                label=label,
+                unit=unit,
+                spec=_base_spec(
+                    title,
+                    label,
+                    given_unit,
+                    groups=_jsonable(given.get("", given)),
+                    highlight=hl or None,
+                    baseline=base,
+                    reference=list(ref) if ref else None,
+                    log=log or None,
+                    stat=stat if stat != "median" else None,
+                    bins=bins_spec,
+                    fmt=fmt,
+                ),
+                facts=facts,
+                alt_facts=alt_facts,
+                describe=(
+                    f"Histogram of {label or 'values'}"
+                    + (f" ({unit})" if unit else "")
+                    + f" across {bin_note} (n={data[nm0].size})"
+                ),
+                _height_mm=lambda w, _m, _s, _t: min(54.0, max(36.0, 0.40 * w)) + 4.0,
+                _min_height_mm=lambda _w, _m, _s, _t: 32.0,
+                stretch=True,
+                _draw=_draw_single_hist,
+                measure_note=single_measure,
+                color_items=tuple(nm for nm in names if nm),
+                color_focus=tuple(hl),
+                color_mode="highlight" if hl else "uniform",
+                uses_default=not hl,
+                color_baseline=base,
+            )
+
+        def _hist_frames(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
+            sz = ctx.sizes
+            theme = ctx.theme
+            accent = {
+                name: col for name, col in ctx.colors.items() if name in names and name != base
+            }
+            ax.remove()
+            nrows = len(names)
+            px_per_mm = float(ctx.fig.dpi) / 25.4
+            gap_y = 4.0 * px_per_mm * sz.scale
+            cell_h = (rect.height - gap_y * (nrows - 1)) / nrows
+            frames: list[tuple[Axes, Bbox]] = []
+            top_ref_note: Any = None
+            top_child: Axes | None = None
+            for idx, nm in enumerate(names):
+                y1 = rect.y1 - idx * (cell_h + gap_y)
+                sub = Bbox.from_extents(rect.x0, y1 - cell_h, rect.x1, y1)
+                child = ctx.fig.add_axes([0.1, 0.1, 0.5, 0.5])
+                ctx.tag(child)
+                ctx.extra_axes.append(child)
+                _setup_hist_axes(
+                    child,
+                    sz,
+                    theme,
+                    show_x=(idx == nrows - 1),
+                    nbins_y=3,
+                    cell_w_mm=ctx.cell_width_mm,
+                )
+                _draw_hist_bars(ctx, child, nm, accent, sz, theme)
+                col = (
+                    ctx.colors.get(nm, theme.ink)
+                    if nm == base
+                    else accent.get(nm, theme.ink if not (hl or accent) else theme.muted)
+                )
+                med = stats[nm][1]
+                title_col = ctx.text_color(col) if nm in accent else theme.ink
+                child.set_title(
+                    _plain(f"{nm}  ({stat} {_with_unit(fmt_fn(med), unit)}, n={data[nm].size})", theme),
+                    loc="left",
+                    fontsize=sz.small,
+                    fontweight="bold" if (nm in accent or nm == base) else "normal",
+                    color=title_col,
+                    pad=3.0,
+                )
+                if idx == 0 and ref is not None and ref[1]:
+                    top_child = child
+                    top_ref_note = child.annotate(
+                        _plain(ref[1], theme),
+                        (ref[0], 1.0),
+                        xycoords=("data", "axes fraction"),
+                        xytext=(3.0, 2.5),
+                        textcoords="offset points",
+                        ha="left",
+                        va="bottom",
+                        fontsize=sz.small,
+                        color=theme.muted,
+                        annotation_clip=False,
+                    )
+                frames.append((child, sub))
+
+            def _equalize_hist() -> None:
+                fig_w = ctx.fig.bbox.width
+                left = max(child.get_position().x0 * fig_w for child, _ in frames)
+                right = min(child.get_position().x1 * fig_w for child, _ in frames)
+                for child, _ in frames:
+                    pos = child.get_position()
+                    child.set_position([left / fig_w, pos.y0, max(1.0, right - left) / fig_w, pos.height])
+                if top_ref_note is not None and top_child is not None:
+                    _keep_inside_x(ctx, top_child, top_ref_note)
+                    renderer = ctx.fig.canvas.get_renderer()
+                    t_title = getattr(top_child, "_left_title", None)
+                    if t_title is not None and t_title.get_window_extent(renderer).overlaps(
+                        top_ref_note.get_window_extent(renderer)
+                    ):
+                        top_ref_note.set_position((3.0, -10.0))
+                        top_ref_note.set_va("top")
+
+            ctx.finishers.append(_equalize_hist)
+            return frames
+
+        return Panel(
+            kind="distribution",
+            title=title,
+            label=label,
+            unit=unit,
+            spec=_base_spec(
+                title,
+                label,
+                given_unit,
+                groups=_jsonable(given),
+                highlight=hl or None,
+                baseline=base,
+                reference=list(ref) if ref else None,
+                log=log or None,
+                stat=stat if stat != "median" else None,
+                bins=bins_spec,
+                fmt=fmt,
+            ),
+            facts=facts,
+            alt_facts=alt_facts,
+            describe=(
+                f"Stacked histograms of {label or 'values'}"
+                + (f" ({unit})" if unit else "")
+                + f" for {len(names)} groups across {bin_note}"
+            ),
+            _height_mm=lambda _w, _m, _s, _t: 22.0 * len(names) + 14.0,
+            _min_height_mm=lambda _w, _m, _s, _t: 18.0 * len(names) + 12.0,
+            _draw=lambda _ctx, _ax: None,
+            _frames=_hist_frames,
+            measure_note=single_measure,
+            color_items=tuple(nm for nm in names if nm),
+            color_focus=tuple(hl),
+            color_mode="highlight" if hl else "uniform",
+            uses_default=not hl,
+            color_baseline=base,
+        )
+
+    def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
+        sz = ctx.sizes
+        theme = ctx.theme
+        accent = {
+            name: col for name, col in ctx.colors.items() if name in names and name != base
+        }
+        n = len(names)
+        if log:
+            ax.set_xscale("log")
+        _value_axis(ax, sz, theme, axis="x", nbins=5 if ctx.cell_width_mm >= 100 else 3)
+        ax.spines["left"].set_visible(False)
+        ax.spines["bottom"].set_visible(False)
+        if theme.grid_style != "none" and theme.grid_lw > 0:
+            ax.grid(
+                axis="x",
+                color=theme.grid,
+                linestyle=theme.grid_style,
+                linewidth=theme.grid_lw,
+            )
+            ax.grid(axis="y", visible=False)
+        ax.set_ylim(n - 0.45, -0.6)
+        lo, hi = float(everything.min()), float(everything.max())
+        if ref is not None:
+            lo, hi = min(lo, ref[0]), max(hi, ref[0])
+        if log:
+            ax.set_xlim(
+                *_narrow_log_ticks(
+                    ax.xaxis, lo / 1.12, hi * 1.12, theme.minus_sign, extend=False, data_hi=hi
+                )
+            )
+        else:
+            span = (hi - lo) or abs(hi) or 1.0
+            ax.set_xlim(lo - 0.04 * span, hi + 0.04 * span)
+            # The value axis covers every dot (re-checked after tick thinning).
+            ax._figmint_cover = (lo, hi)  # type: ignore[attr-defined]
+            # After layout: >= 3 round ticks bracketing every dot (_bracket_with_ticks).
+            ax._figmint_bracket = (  # type: ignore[attr-defined]
+                lo,
+                hi,
+                6 if ctx.cell_width_mm >= 100 else 4,
+                theme.minus_sign,
+            )
+            _cover_with_ticks(ax.xaxis, lo, hi)
+        ax.set_yticks(range(n), [""] * n)
+        ax.tick_params(axis="y", length=0)
+        ax.annotate(
+            stat,
+            (1.0, 1.0),
+            xycoords="axes fraction",
+            xytext=(6.0, 2.5),
+            textcoords="offset points",
+            ha="left",
+            va="bottom",
+            fontsize=sz.small,
+            color=theme.muted,
+            annotation_clip=False,
+        )
+        rng = np.random.default_rng(0)
+        for row, name in enumerate(names):
+            arr = data[name]
+            if name == base:
+                col = ctx.colors.get(name, theme.ink)
+            else:
+                col = accent.get(name, theme.context_line if (hl or accent) else ctx.default_color)
+            shown = arr if arr.size <= 600 else rng.choice(arr, size=600, replace=False)
+            alpha = 0.8 if shown.size <= 30 else (0.5 if shown.size <= 150 else 0.28)
+            jitter = rng.uniform(-0.2, 0.2, size=shown.size)
+            ax.scatter(
+                shown,
+                row + jitter,
+                s=(3.4 * sz.scale) ** 2,
+                color=col,
+                alpha=alpha,
+                linewidth=0,
+                zorder=2,
+            )
+            q1, med, q3 = stats[name]
+            if log:
+                q1 = max(q1, ax.get_xlim()[0])
+            # Summary through the dot row: a thin line for the middle half (or +/- 1 s.d.)
+            # and a taller tick for the centre, haloed so it reads over the dots. With
+            # fewer than five observations quartiles and s.d. mean little: the centre
+            # tick only.
+            halo = [
+                patheffects.withStroke(
+                    linewidth=2.6 * sz.scale, foreground=theme.background, alpha=0.9
+                )
+            ]
+            if arr.size >= 5:
+                ax.hlines(
+                    row,
+                    q1,
+                    q3,
+                    color=theme.ink,
+                    linewidth=1.0 * sz.scale,
+                    zorder=4,
+                    path_effects=halo,
+                )
+            ax.vlines(
+                med,
+                row - 0.3,
+                row + 0.3,
+                color=theme.ink,
+                linewidth=2.0 * sz.scale,
+                zorder=5,
+                path_effects=halo,
+            )
+            for text, dy, va, size, color, weight in (
+                (name, 0.5, "bottom", sz.body, theme.ink, "bold" if name in accent else "normal"),
+                (f"n={arr.size}", -1.5, "top", sz.foot, theme.muted, "normal"),
+            ):
+                ax.annotate(
+                    _plain(text, theme),
+                    (0.0, row),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(-7.0, dy),
+                    textcoords="offset points",
+                    ha="right",
+                    va=va,
+                    fontsize=size,
+                    color=color,
+                    fontweight=weight,
+                    annotation_clip=False,
+                )
+            value = (
+                _with_unit(fmt_fn(med), unit) if (row == 0 or _inline_unit(unit)) else fmt_fn(med)
+            )
+            ax.annotate(
+                _plain(value, theme),
+                (1.0, row),
+                xycoords=("axes fraction", "data"),
+                xytext=(6.0, 0.0),
+                textcoords="offset points",
+                ha="left",
+                va="center",
+                fontsize=sz.small,
+                color=theme.ink,
+                fontweight="bold" if name in accent else "normal",
+                annotation_clip=False,
+            )
+        if ref is not None:
+            ax.axvline(ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=3)
+            if ref[1]:
+                note = ax.annotate(
+                    _plain(ref[1], theme),
+                    (ref[0], 1.0),
+                    xycoords=("data", "axes fraction"),
+                    xytext=(0.0, 2.5),
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom",
+                    fontsize=sz.small,
+                    color=theme.muted,
+                    annotation_clip=False,
+                )
+                return lambda: _keep_inside_x(ctx, ax, note)
+        return None
+
+    return Panel(
+        kind="distribution",
+        title=title,
+        label=label,
+        unit=unit,
+        spec=_base_spec(
+            title,
+            label,
+            given_unit,
+            groups=_jsonable(given.get("", given)),
+            highlight=hl or None,
+            baseline=base,
+            reference=list(ref) if ref else None,
+            log=log or None,
+            stat=stat if stat != "median" else None,
+            fmt=fmt,
+        ),
+        facts=facts,
+        alt_facts=alt_facts,
+        describe=(
+            f"Dot strips of {label or 'values'}"
+            + (f" ({unit})" if unit else "")
+            + f" for {len(names)} group(s), each with "
+            + (
+                f"a {stat} tick"
+                if not any_spread
+                else "a mean tick and a \N{PLUS-MINUS SIGN} 1 s.d. line"
+                if stat == "mean"
+                else "a median tick and a line over the middle half (interquartile range)"
+            )
+        ),
+        _height_mm=lambda _w, _m, _s, _t: 8.5 * len(names) + 11.0,
+        _min_height_mm=lambda _w, _m, _s, _t: 6.5 * len(names) + 11.0,
+        _draw=_draw,
+        # The spread line is drawn only for groups with n >= 5: caption it only then.
+        measure_note=(
+            f"tick: {stat}"
+            if not any_spread
+            else (
+                "tick: mean; line: \N{PLUS-MINUS SIGN} 1 s.d."
+                if stat == "mean"
+                else "tick: median; line: middle half"
+            )
+            + (
+                ""
+                if all(a.size >= 5 for a in data.values())
+                else " (n \N{GREATER-THAN OR EQUAL TO} 5)"
+            )
+        ),
+        color_items=tuple(nm for nm in names if nm),
+        color_focus=tuple(hl),
+        color_mode="highlight" if hl else "uniform",
+        uses_default=not hl,
+        color_baseline=base,
+    )
+
+
+@_guarded("histogram")
+def histogram(
+    values: Mapping[str, Sequence[float]] | Sequence[float] | Sequence[Mapping[str, Any]],
+    *,
+    group: str | None = None,
+    value: str | None = None,
+    bins: int | str | Sequence[float] = "auto",
+    title: str | None = None,
+    label: str | None = None,
+    unit: str | None = None,
+    highlight: str | Sequence[str] | None = None,
+    baseline: str | None = None,
+    reference: float | tuple[float, str] | None = None,
+    log: bool = False,
+    stat: str = "median",
+    fmt: str | None = None,
+) -> Panel:
+    """How is a continuous variable shaped? Alias for ``distribution(..., bins=bins)``.
+
+    Pass a single list/array of observations for a histogram, a dict of up to
+    4 named groups for stacked shared-axis histograms, or row-shaped data /
+    DataFrame with ``value=`` (and optional ``group=``). ``bins`` accepts
+    ``"auto"`` (default), a bin count (2–60), a numpy binning rule, or explicit
+    bin edges.
+    """
+    return distribution(
+        values,
+        group=group,
+        value=value,
+        bins=bins,
+        title=title,
+        label=label,
+        unit=unit,
+        highlight=highlight,
+        baseline=baseline,
+        reference=reference,
+        log=log,
+        stat=stat,
+        fmt=fmt,
+    )

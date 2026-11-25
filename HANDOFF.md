@@ -420,6 +420,81 @@ check looked at line geometry (`canvas_clipping` covers text only).
   hard-coded "8/8".
 - Tests: four in `tests/test_preflight_regressions.py`.
 
+## 4g. Sixth pass: audit-gated `ship`, tidy tabular inputs, `fm.table`, and progressive `SKILL.md`
+
+Modular seams added outside `explainer.py` (preparing for the upcoming `explainer.py`
+split and model-release chart extensions):
+
+1. **Promoted drawn-layout audit into `figmint` (`src/figmint/audit.py`) and `ship`:**
+   - Exported `fm.audit_figure(fig)` and `fm.audit_layout(png)` implementing the
+     drawn-text overlap, line-striking-text, and text well-formedness (`%%`,
+     repeated words, ASCII hyphen minus, `nan`/`None`/`inf`) checks.
+   - Wired `audit_figure` into `explain()` (respecting `theme.minus_sign == "-"`
+     for `sketch`) and fixed the dead `"text_collision"` rule name in
+     `_VISUAL_DEFECT_RULES` → `"text_overlaps"`, plus `"text_struck_by_line"`,
+     `"text_malformed"`, and `"line_past_axis"`.
+2. **Tidy / row-shaped tabular inputs (`src/figmint/_tabular.py`):**
+   - Fixed raw `KeyError: 0` on `fm.compare([{...}, {...}])` and unhelpful
+     `fm.trend(x, rows)` hints; both now raise clear `ExplainError` messages
+     listing columns / pivoting / `data=`.
+   - Added zero-pandas tidy support across all forms (`list[dict]` and duck-typed
+     `pandas.DataFrame`): `compare`/`share` (`name=`, `value=`, 2-col auto-infer,
+     plus column-name `error=` and `n=`), `trend` (`"x_col", "s_col", y="y_col",
+     data=rows` with automatic `points=` replicates and column-name `band=`),
+     `change` (`"col1", "col2", data=rows, name="item"`), `distribution`/
+     `histogram` (`group=`, `value=`), `relate` (`data=rows` with column names),
+     and `matrix` (`rows="r", cols="c", value="v"` auto-pivot).
+3. **Structured table form (`src/figmint/_table.py` → `fm.table`):**
+   - Booktabs-styled exact lookup & scorecard panel supporting `list[dict]`,
+     DataFrames (preserving meaningful index), `{col: [...]}`, and 2-D lists +
+     `columns=`, with `units=`, `highlight=` (shared entity colour across panels),
+     `baseline=`, `bold_best=` (`True`/`"max"`/`"min"`/`{col: ...}`), `sort=`,
+     `align=`, `fmt=`, muted `—` for missing cells, computed `facts`, PNG spec
+     round-tripping, lenient `table_too_wide` auto-stacking, and
+     `panel.to_markdown()`.
+4. **Progressive `SKILL.md` + Cursor `.mdc` fix (`src/figmint/skill.py`, `pyproject.toml`):**
+   - Slimmed `SKILL.md` from 29.7 kB (~7.5k tokens; 23.9 kB chat section) to
+     9.8 kB (~2.2k tokens), added the `pip install` bootstrap line, and moved
+     deep scientific recipes & publication details into
+     `src/figmint/assets/references/{scientific_and_recipes,publication}.md`
+     (installed alongside `SKILL.md` for `claude`/`antigravity`/`codex` and
+     bundled in wheel/sdist).
+   - Updated `_build_cursor_mdc` description and globs (`**/*.py`, `**/*.csv`,
+     `**/*.json`) so Cursor triggers on chat figures and tables, not just
+     publication scripts.
+
+## 4h. Seventh pass: modular `_explain` split & frontier model-release chart suite
+
+1. **Modularized `explainer.py` (9,237 → 145-line compatibility facade):**
+   - Split cleanly into `src/figmint/_explain/` (`core.py`, `compare.py`,
+     `compare_grouped.py`, `trend.py`, `change.py`, `distribution.py`,
+     `relate.py`, `matrix.py`, `layout.py`) with a strict DAG dependency
+     structure and module `__getattr__` on `figmint.explainer` preserving 100%
+     backwards compatibility with all external callers and tests.
+2. **Grouped & stacked-boost `fm.compare`:**
+   - Nested `{category: {series: val}}` dicts and tidy `group=` rows draw
+     grouped horizontal bars / Cleveland dots with a frameless inline colour
+     strip, shared entity colours across panels, win-tally & baseline-gap
+     `facts`, and full spec round-tripping.
+   - `boost=` + `boost_label=` draw tinted stacked extensions (e.g. standard +
+     extended thinking), sorting by total, printing total + `(+delta)` labels,
+     and emitting `boost_unlabelled` if unnamed.
+3. **Pareto frontier, `label_all`, and trajectories on `fm.relate`:**
+   - `frontier=True` / `"upper-left"` | `"upper-right"` | `"lower-left"` |
+     `"lower-right"` computes and draws the exact non-dominated Pareto envelope
+     and lists frontier items in `facts`.
+   - `label_all=True` (with `names=`, ≤24 points) labels every point with
+     multi-candidate collision avoidance against lines, axes bounds, and group
+     labels.
+   - `connect_groups=True` connects points within each group in x order.
+4. **Release-card styling (`accent=` & `width="slide"`):**
+   - `apply_accent(theme, accent)` in `themes.py` + `accent=` on `fm.explain` /
+     `--accent` in CLI pins a custom brand accent hex (contrast-checked for dark
+     and light grounds).
+   - `width="slide"` targets a 1280 px display width (exporting 2560 px at
+     `scale=2.0`) with zero false `small_at_chat_size` warnings while keeping
+     `width="chat"` / `width="wide"` chat-column behavior unchanged.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:

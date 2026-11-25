@@ -4,7 +4,7 @@ Every primary function, visual theme, color palette, and publication plate in `f
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) |
+| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [`fm.table`](#fmtable--exact-lookups-and-scorecards) · [Model Release Hero Charts](#model-release-hero-charts) |
 | **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`fm.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
@@ -268,6 +268,48 @@ Heat table with a number in every cell, automatic high-contrast text colour, hig
 ![Diverging Pearson correlation matrix across materials descriptors](output/explain_science/descriptor_correlations.png)
 
 *Generators: [`explain_chat_examples.py`](explain_chat_examples.py), [`explain_form_gallery.py`](explain_form_gallery.py), [`explain_science_examples.py`](explain_science_examples.py)*
+
+---
+
+## `fm.table` — Exact lookups and scorecards
+
+Booktabs-styled tables with proportional column widths, per-column `units=`, mixed `fmt=`, auto-bolded column winners (`bold_best=`), shared entity row `highlight=`, `baseline=` deltas in `facts`, `—` for missing cells, and `panel.to_markdown()` export. Accepts `list[dict]`, DataFrames, column dicts, or 2-D lists.
+
+![Chat-width compare and booktabs benchmark scorecard sharing entity colours](output/explain_release/table_scorecard_chat.png)
+
+```python
+fm.explain(
+    "Alpha-3 leads every reasoning benchmark while costing 17% less than Alpha-2",
+    fm.compare(rows, name="Model", value="GPQA", title="GPQA Diamond", label="Accuracy", unit="%",
+               highlight="Alpha-3", baseline="Alpha-2"),
+    fm.table(
+        rows,
+        units={"GPQA": "%", "SWE-bench": "%", "AIME": "%", "Cost": "$/M"},
+        bold_best={"GPQA": "max", "SWE-bench": "max", "AIME": "max", "Cost": "min"},
+        highlight="Alpha-3", baseline="Alpha-2", sort="-GPQA",
+        fmt={"GPQA": ".1f", "SWE-bench": ".1f", "AIME": ".0f", "Cost": "${:.2f}"},
+        title="Full benchmark scorecard",
+    ),
+    layout=[["a"], ["b"]],
+    source="synthetic model evaluation data",
+)
+```
+
+---
+
+## Model Release Hero Charts
+
+Combine grouped `fm.compare`, stacked `boost=` extensions, Pareto frontier `fm.relate(frontier=True, label_all=True, connect_groups=True)`, and `fm.table` with `width="slide"` (1280 px display width / 2560 px retina export) and custom `accent="#..."` brand colours.
+
+### Grouped multi-benchmark head-to-head + extended-thinking `boost=` (`style="paper"`, `width="slide"`)
+
+![Warm paper model release hero with grouped benchmarks and stacked extended-thinking bars](output/explain_release/release_benchmarks_paper.png)
+
+### Capability-vs-cost Pareto frontier + scorecard (`style="dark"`, `width="slide"`)
+
+![Dark mode model release hero with Pareto frontier scatter and booktabs scorecard](output/explain_release/release_frontier_dark.png)
+
+*Generator: [`explain_release_examples.py`](explain_release_examples.py)*
 
 ---
 

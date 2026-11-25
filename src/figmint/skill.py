@@ -33,6 +33,18 @@ def get_agents_snippet() -> str:
     )
 
 
+def get_skill_references() -> dict[str, str]:
+    """Return bundled skill reference markdown files keyed by filename."""
+    ref_dir = resources.files("figmint.assets").joinpath("references")
+    if not ref_dir.is_dir():
+        return {}
+    out: dict[str, str] = {}
+    for entry in sorted(ref_dir.iterdir(), key=lambda p: p.name):
+        if entry.name.endswith(".md"):
+            out[entry.name] = entry.read_text(encoding="utf-8")
+    return out
+
+
 def _strip_yaml_frontmatter(markdown: str) -> str:
     """Remove leading YAML frontmatter block if present."""
     if not markdown.startswith("---\n"):
@@ -48,9 +60,12 @@ def _build_cursor_mdc(skill_md: str) -> str:
     body = _strip_yaml_frontmatter(skill_md).rstrip() + "\n"
     frontmatter = (
         "---\n"
-        "description: Generate publication-ready Nature and Science scientific figures with figmint\n"
+        "description: Explain data with message-first chat figures and tables (fm.explain, fm.table), "
+        "or generate publication-ready Nature, Science, Cell, PNAS, and NeurIPS scientific figures with figmint\n"
         "globs:\n"
         '  - "**/*.py"\n'
+        '  - "**/*.csv"\n'
+        '  - "**/*.json"\n'
         "alwaysApply: false\n"
         "---\n\n"
     )
@@ -118,30 +133,32 @@ def install_skill(
 
     root_path = Path(root)
     skill_md = get_skill_markdown()
+    references = get_skill_references()
     snippet = get_agents_snippet()
     written: list[Path] = []
 
+    def _write_skill_dir(dest: Path) -> Path:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(skill_md, encoding="utf-8")
+        if references:
+            ref_root = dest.parent / "references"
+            ref_root.mkdir(parents=True, exist_ok=True)
+            for fname, content in references.items():
+                (ref_root / fname).write_text(content, encoding="utf-8")
+        return dest
+
     for target in normalized:
         if target == "claude":
-            dest = root_path / ".claude" / "skills" / "figmint" / "SKILL.md"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(skill_md, encoding="utf-8")
-            written.append(dest)
+            written.append(_write_skill_dir(root_path / ".claude" / "skills" / "figmint" / "SKILL.md"))
         elif target == "antigravity":
-            dest = root_path / ".agents" / "skills" / "figmint" / "SKILL.md"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(skill_md, encoding="utf-8")
-            written.append(dest)
+            written.append(_write_skill_dir(root_path / ".agents" / "skills" / "figmint" / "SKILL.md"))
         elif target == "cursor":
             dest = root_path / ".cursor" / "rules" / "figmint.mdc"
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(_build_cursor_mdc(skill_md), encoding="utf-8")
             written.append(dest)
         elif target == "codex":
-            dest = root_path / ".codex" / "skills" / "figmint" / "SKILL.md"
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(skill_md, encoding="utf-8")
-            written.append(dest)
+            written.append(_write_skill_dir(root_path / ".codex" / "skills" / "figmint" / "SKILL.md"))
         elif target == "agents-md":
             written.append(_upsert_marked_block(root_path / "AGENTS.md", snippet))
         elif target == "claude-md":

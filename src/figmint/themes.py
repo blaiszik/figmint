@@ -611,6 +611,38 @@ def apply_palette(theme: Theme, palette: str | ExplainPalette | None) -> tuple[T
     )
 
 
+def apply_accent(theme: Theme, accent: str | None) -> tuple[Theme, str | None]:
+    """Override the primary highlight colour on ``theme`` with a custom accent hex/color."""
+    if accent is None:
+        return theme, None
+    if not isinstance(accent, str) or not accent.strip():
+        raise ValueError(f"accent must be a color string like '#2563EB', got {accent!r}.")
+    raw = accent.strip()
+    try:
+        rgb = to_rgb(raw)
+    except ValueError as exc:
+        raise ValueError(f"Unknown accent color {accent!r}. Pass a hex color like '#D97757'.") from exc
+    orig_hex = "#{:02X}{:02X}{:02X}".format(*(round(c * 255) for c in rgb))
+    hex_col = orig_hex
+    is_dark = relative_luminance(theme.background) < 0.2
+    if is_dark:
+        hex_col = _lift_for_dark_ground(hex_col, theme.background)
+    elif contrast_ratio(hex_col, theme.background) < 3.0:
+        # Gently deepen overly pale accents on light grounds so bars/markers stay readable.
+        for factor in (0.82, 0.68, 0.54, 0.40):
+            cand = "#{:02X}{:02X}{:02X}".format(*(round(c * factor * 255) for c in rgb))
+            if contrast_ratio(cand, theme.background) >= 3.0:
+                hex_col = cand
+                break
+    series = list(theme.series_colors)
+    if len(series) >= 2:
+        series[1] = hex_col  # highlight slot 0 ("red")
+    else:
+        series[0] = hex_col
+    accents = (hex_col, *theme.accent_colors[1:])
+    return replace(theme, series_colors=tuple(series), accent_colors=accents), orig_hex
+
+
 def get_theme(theme: str | Theme = "figmint") -> Theme:
     """Resolve a theme name, alias, or :class:`Theme` instance."""
     if isinstance(theme, Theme):

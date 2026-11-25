@@ -18,6 +18,7 @@ from .annotations import (
     tufte_boxplot,
     zoom_inset,
 )
+from .audit import audit_figure, audit_layout
 from .bundle import BundleResult, bundle_figure
 from .explainer import (
     ExplainError,
@@ -36,6 +37,7 @@ from .explainer import (
     panel_from_spec,
     relate,
     share,
+    table,
     trend,
 )
 from .export import rasterize_heavy, save_figure
@@ -80,6 +82,8 @@ __all__ = [
     "Theme",
     "__version__",
     "apply",
+    "audit_figure",
+    "audit_layout",
     "bundle_figure",
     "change",
     "compare",
@@ -126,6 +130,7 @@ __all__ = [
     "style_colorbar",
     "style_heatmap",
     "subtle_grid",
+    "table",
     "trend",
     "tufte_boxplot",
     "use",

@@ -265,6 +265,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Color palette override: default, okabe_ito, tol, earth, ocean, or berry.",
     )
     explain_parser.add_argument(
+        "--accent",
+        default=None,
+        help="Custom primary highlight accent color override (e.g. '#D97757').",
+    )
+    explain_parser.add_argument(
         "--lenient",
         "--no-strict",
         action="store_true",
@@ -393,6 +398,8 @@ def _run_explain(args: argparse.Namespace) -> int:
         spec = {**spec, "style": args.style}
     if args.palette is not None:
         spec = {**spec, "palette": args.palette}
+    if getattr(args, "accent", None) is not None:
+        spec = {**spec, "accent": args.accent}
     try:
         explanation = explain_from_spec(spec, strict=not args.lenient)
     except ExplainError as exc:
