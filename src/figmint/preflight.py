@@ -963,6 +963,139 @@ def _check_canvas_clipping(
     )
 
 
+def _axis_line_span(ax: Any, renderer: Any) -> tuple[float, float, float, float]:
+    """Display extent (x0, x1, y0, y1) the plotted marks may occupy: the visible axis
+    lines (bottom/top spine for x, left/right for y, including ``set_bounds`` trims),
+    falling back to the axes box where no axis line is drawn."""
+    box = ax.get_window_extent(renderer)
+    x0, x1, y0, y1 = float(box.x0), float(box.x1), float(box.y0), float(box.y1)
+
+    def _spine_extent(names: tuple[str, ...]) -> Any:
+        for name in names:
+            spine = ax.spines.get(name)
+            if spine is None or not spine.get_visible() or spine.get_linewidth() <= 0:
+                continue
+            path = spine.get_transform().transform_path(spine.get_path())
+            return path.get_extents()
+        return None
+
+    sx = _spine_extent(("bottom", "top"))
+    if sx is not None and sx.width > 1.0:
+        x0, x1 = max(x0, float(sx.x0)), min(x1, float(sx.x1))
+    sy = _spine_extent(("left", "right"))
+    if sy is not None and sy.height > 1.0:
+        y0, y1 = max(y0, float(sy.y0)), min(y1, float(sy.y1))
+    return x0, x1, y0, y1
+
+
+def _check_lines_past_axes(
+    fig: Figure,
+    panel_map: dict[int, str],
+    *,
+    tol_pt: float = 1.5,
+) -> CheckResult:
+    """Fail lines, bands and line collections drawn past their axis lines or the canvas.
+
+    A full-width reference line (``axhline``) on an axes whose x range was widened for
+    direct labels, or whose spine is trimmed to the data, runs on past the end of the
+    axis into empty space; with ``clip_on=False`` it can leave the figure. Text checks
+    do not see this, so it is checked on the drawn geometry of every ``Line2D``,
+    ``LineCollection`` and ``PolyCollection`` (markers, scatter and text excluded).
+    Artists with a gid starting ``figmint-margin`` (``range_frame`` rugs) are exempt.
+    """
+    renderer = fig.canvas.get_renderer()
+    px_per_pt = float(fig.dpi) / 72.0
+    canvas = fig.bbox
+    offenders: list[dict[str, Any]] = []
+    for ax in fig.axes:
+        if not ax.get_visible() or not ax.axison:
+            continue
+        sx0, sx1, sy0, sy1 = _axis_line_span(ax, renderer)
+        clip = ax.bbox
+        for artist in [*ax.lines, *ax.collections]:
+            if not artist.get_visible() or artist.get_alpha() == 0:
+                continue
+            if str(artist.get_gid() or "").startswith("figmint-margin"):
+                continue  # deliberate margin marks (range_frame rugs)
+            if isinstance(artist, Line2D):
+                if artist.get_linestyle() in ("None", "", " ") or artist.get_linewidth() <= 0:
+                    continue
+                paths = [artist.get_transform().transform_path(artist.get_path())]
+                width_px = float(artist.get_linewidth()) * px_per_pt
+                name = artist.get_label()
+            elif isinstance(artist, (LineCollection, PolyCollection)):
+                tr = artist.get_transform()
+                paths = [tr.transform_path(p) for p in artist.get_paths()]
+                lws = np.atleast_1d(artist.get_linewidths())
+                width_px = float(np.max(lws)) * px_per_pt if lws.size else 0.0
+                name = artist.get_label()
+            else:
+                continue
+            verts = [p.vertices for p in paths if len(p.vertices)]
+            if not verts:
+                continue
+            v = np.concatenate(verts)
+            v = v[np.all(np.isfinite(v), axis=1)]
+            if not v.size:
+                continue
+            if artist.get_clip_on():
+                cb = artist.get_clip_box() or clip
+                v = np.column_stack(
+                    [np.clip(v[:, 0], cb.x0, cb.x1), np.clip(v[:, 1], cb.y0, cb.y1)]
+                )
+            tol = tol_pt * px_per_pt + width_px / 2.0
+            over = {
+                "right": float(v[:, 0].max()) - sx1,
+                "left": sx0 - float(v[:, 0].min()),
+                "top": float(v[:, 1].max()) - sy1,
+                "bottom": sy0 - float(v[:, 1].min()),
+            }
+            off_canvas = (
+                float(v[:, 0].max()) > canvas.x1 + tol
+                or float(v[:, 0].min()) < canvas.x0 - tol
+                or float(v[:, 1].max()) > canvas.y1 + tol
+                or float(v[:, 1].min()) < canvas.y0 - tol
+            )
+            bad = {edge: o for edge, o in over.items() if o > tol}
+            if bad or off_canvas:
+                edge, amount = max(bad.items(), key=lambda kv: kv[1]) if bad else ("canvas", 0.0)
+                label = name if name and not str(name).startswith("_") else type(artist).__name__
+                offenders.append(
+                    {
+                        "artist": str(label),
+                        "panel": panel_map.get(id(ax)),
+                        "edge": edge,
+                        "overflow_pt": round(amount / px_per_pt, 1),
+                        "off_canvas": off_canvas,
+                    }
+                )
+    if offenders:
+        sample = ", ".join(
+            f"{o['artist']} ({'off the canvas' if o['off_canvas'] else o['edge']} "
+            f"+{o['overflow_pt']} pt)" for o in offenders[:4]
+        )
+        return CheckResult(
+            rule="line_past_axis",
+            status="fail",
+            message=f"{len(offenders)} line(s) or band(s) run past their axis line: {sample}",
+            details={"offenders": offenders[:20]},
+            panel=next((o["panel"] for o in offenders if o["panel"]), None),
+            elements=[o["artist"] for o in offenders[:6]],
+            fix_hint=(
+                "Bound reference lines to the data range (ax.hlines(y, x0, x1) instead of "
+                "ax.axhline, or draw them before fm.direct_labels, which bounds them), keep "
+                "curves and bands inside the axis range, and leave clip_on on."
+            ),
+            panels=_distinct_panels(o["panel"] for o in offenders),
+            element_locations=_locate((o["artist"], o["panel"]) for o in offenders[:6]),
+        )
+    return CheckResult(
+        rule="line_past_axis",
+        status="pass",
+        message="Every line and band stays within its axis lines and the canvas",
+    )
+
+
 def _has_visible_rgba(color: Any) -> bool:
     """Return True if a Matplotlib color specification has non-zero alpha."""
     if color is None:
@@ -2065,6 +2198,7 @@ def preflight_figure(
         _check_font_family(visible_texts, spec),
         _check_text_overlaps(visible_texts),
         _check_canvas_clipping(fig, visible_texts),
+        _check_lines_past_axes(fig, panel_map),
         _check_hairline_strokes(fig, spec, panel_map),
         _check_colormaps(fig, panel_map),
         _check_vector_fonts(spec, fig),

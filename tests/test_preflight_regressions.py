@@ -355,3 +355,70 @@ class TestMathtextUsesArtistFontset:
 def _close_all_figures():
     yield
     plt.close("all")
+
+
+# --- Lines past the axis (gallery example 1: a 50% line ran on into the label gutter) ---
+
+
+def _dose_axes():
+    plate = fm.Plate(journal="nature", width="single", height_mm=64.0, layout=(1, 1))
+    ax = plate["a"]
+    x = np.logspace(-3, 2, 40)
+    for name, ic50 in (("A", 0.02), ("B", 0.3)):
+        ax.plot(x, 100 / (1 + (x / ic50)), label=name)
+    ax.set_xscale("log")
+    ax.set_xlim(7e-4, 1.4e2)
+    ax.set_xlabel("Concentration (\N{GREEK SMALL LETTER MU}M)")
+    ax.set_ylabel("Activity (%)")
+    return plate, ax
+
+
+def _rule(report, rule):
+    return next(c for c in report.checks if c.rule == rule)
+
+
+def test_direct_labels_bounds_a_full_width_reference_line():
+    plate, ax = _dose_axes()
+    ref = ax.axhline(50.0, linestyle="--", linewidth=0.5)
+    fm.direct_labels(ax, expand_xlim=0.34)
+    ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
+    xs = ref.get_xdata()
+    assert np.isclose(min(xs), 7e-4) and np.isclose(max(xs), 1.4e2)
+    assert _rule(plate.preflight(), "line_past_axis").status == "pass"
+
+
+def test_reference_line_past_a_trimmed_axis_fails_preflight():
+    plate, ax = _dose_axes()
+    fm.direct_labels(ax, expand_xlim=0.34)
+    ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
+    ax.axhline(50.0, linestyle="--", linewidth=0.5)  # drawn after: spans the label gutter
+    result = _rule(plate.preflight(), "line_past_axis")
+    assert result.status == "fail"
+    assert result.details["offenders"][0]["edge"] == "right"
+    assert "ax.hlines" in result.fix_hint
+    with pytest.raises(ValueError, match="line_past_axis"):
+        plate.preflight(strict=True)
+
+
+def test_ordinary_axes_with_reference_lines_pass():
+    plate = fm.Plate(journal="nature", width="single", height_mm=60.0, layout=(1, 1))
+    ax = plate["a"]
+    ax.plot([0, 1, 2], [1, 3, 2], label="a")
+    ax.axhline(2.0, linestyle="--")
+    ax.axvline(1.0, linestyle=":")
+    ax.fill_between([0, 1, 2], [0.5, 2.5, 1.5], [1.5, 3.5, 2.5], alpha=0.2)
+    ax.set_xlabel("x (s)")
+    ax.set_ylabel("y (V)")
+    assert _rule(plate.preflight(), "line_past_axis").status == "pass"
+
+
+def test_unclipped_line_off_the_canvas_fails():
+    plate = fm.Plate(journal="nature", width="single", height_mm=60.0, layout=(1, 1))
+    ax = plate["a"]
+    ax.plot([0, 1], [0, 1], label="a")
+    ax.plot([0, 3], [0.5, 0.5], clip_on=False, label="runaway")
+    ax.set_xlim(0, 1)
+    ax.set_xlabel("x (s)")
+    ax.set_ylabel("y (V)")
+    result = _rule(plate.preflight(), "line_past_axis")
+    assert result.status == "fail" and "runaway" in result.elements

@@ -293,7 +293,9 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
     ax.set_ylim(-4, 108)
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.set_xticks([1e-3, 1e-2, 1e-1, 1e0, 1e1, 1e2])
-    ax.set_xlabel(r"Inhibitor concentration ($\mu\mathrm{M}$)")
+    # Units upright: the Greek small mu (U+03BC); mathtext puts \mu in the italic slot and
+    # Helvetica draws the micro sign (U+00B5) slanted.
+    ax.set_xlabel("Inhibitor concentration (\N{GREEK SMALL LETTER MU}M)")
     ax.set_ylabel("Kinase activity (% vehicle)")
 
     # Crisp direct endpoint labels (auto-separated in point space)
@@ -312,7 +314,9 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
     ax.text(
         1.1e-3,
         16.0,
-        r"$\mathrm{IC}_{50}$" + "\nFM-402: 18 nM\nFM-118: 0.24 " + r"$\mu\mathrm{M}$" + "\nRef.: 2.8 " + r"$\mu\mathrm{M}$",
+        "IC" + r"$_{\mathrm{50}}$"
+        + "\nFM-402: 18 nM\nFM-118: 0.24 \N{GREEK SMALL LETTER MU}M"
+        + "\nRef.: 2.8 \N{GREEK SMALL LETTER MU}M",
         fontsize=5.5,
         color="#2B303A",
         va="bottom",
@@ -321,6 +325,10 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
     )
 
     report = plate.preflight(strict=True)
+    n_warn = sum(1 for c in report.checks if c.status == "warn")
+    preflight_tally = f"{len(report.checks) - n_warn}/{len(report.checks)} checks pass" + (
+        f", {n_warn} warning" + ("s" if n_warn > 1 else "") if n_warn else ""
+    )
     plate.save(after_pdf)
     plate.save(after_png, dpi=450)
     plt.close(plate.fig)
@@ -402,7 +410,10 @@ def build_example1_before_after(rng: np.random.Generator) -> dict[str, Any]:
         ("Exact print MediaBox:", "89.0 × 64.0 mm locked at 1:1 scale (0.0 mm error in pypdf audit)"),
         ("Editorial typography:", "Helvetica/Arial 6.0–6.5 pt + matched sans-serif math; Type 42 PDF"),
         ("High data-ink ratio:", "0.5 pt spines, outward ticks, zero chartjunk, auto-spaced direct labels"),
-        ("NPG palette & QA:", "Colorblind-checked NPG hues, 95% CI ribbons, 8/8 preflight checks PASS"),
+        (
+            "NPG palette & QA:",
+            f"Colorblind-checked NPG hues, 95% CI ribbons; preflight {preflight_tally}",
+        ),
     ]
 
     for start_x, notes, accent in [

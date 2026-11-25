@@ -291,6 +291,33 @@ def scalebar(
     return bar, txt
 
 
+#: gid for marks drawn in the axis margin on purpose (rugs); preflight's
+#: ``line_past_axis`` check skips artists whose gid starts with this.
+MARGIN_GID = "figmint-margin"
+
+
+def _bound_full_width_lines(ax: Axes, x_lo: float, x_hi: float) -> None:
+    """Re-anchor full-width horizontal lines (``axhline``: x in axes fraction, y in
+    data) to the data interval ``[x_lo, x_hi]`` so they stop where the plotted range
+    does instead of running on under labels placed in a widened margin."""
+    for line in ax.get_lines():
+        x_data, y_data = line.get_transform().contains_branch_seperately(ax.transData)
+        if x_data or not y_data:
+            continue
+        xs = np.asarray(line.get_xdata(orig=True), dtype=float)
+        if xs.size != 2 or np.min(xs) < -1e-9 or np.max(xs) > 1 + 1e-9:
+            continue
+        frac_lo, frac_hi = float(np.min(xs)), float(np.max(xs))
+        if ax.get_xscale() == "log" and x_lo > 0 and x_hi > 0:
+            span = np.log10(x_hi) - np.log10(x_lo)
+            lo = 10 ** (np.log10(x_lo) + frac_lo * span)
+            hi = 10 ** (np.log10(x_lo) + frac_hi * span)
+        else:
+            lo, hi = x_lo + frac_lo * (x_hi - x_lo), x_lo + frac_hi * (x_hi - x_lo)
+        line.set_transform(ax.transData)
+        line.set_xdata([lo, hi])
+
+
 def direct_labels(
     ax: Axes,
     *,
@@ -306,6 +333,8 @@ def direct_labels(
     for labels, trims the bottom spine back to the actual data span when
     ``trim_spine=True`` (so the axis never extends emptily under the labels),
     and iteratively separates vertically adjacent labels in point-space.
+    Full-width reference lines drawn before the call (``axhline``) are bounded to
+    the original x range, so they do not run on through the label margin.
     """
     candidates: list[tuple[Line2D, str, float, float]] = []
     data_x_min = np.inf
@@ -335,8 +364,10 @@ def direct_labels(
     eff_min_sep = max(float(min_sep_pt), fs * 1.15)
     orig_x0, orig_x1 = ax.get_xlim()
 
-    # Expand right x-limit to give labels room inside the axes frame.
+    # Expand right x-limit to give labels room inside the axes frame. Full-width
+    # reference lines keep the original range rather than following the new limit.
     if expand_xlim > 0:
+        _bound_full_width_lines(ax, orig_x0, orig_x1)
         x0, x1 = ax.get_xlim()
         if ax.get_xscale() == "log" and x0 > 0 and x1 > 0:
             ax.set_xlim(x0, x1 * ((x1 / x0) ** expand_xlim))
@@ -425,6 +456,7 @@ def direct_labels(
         texts.append(txt)
 
     # Verify labels fit inside the axes right edge; widen xlim slightly if needed.
+    _bound_full_width_lines(ax, orig_x0, orig_x1)
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     ax_bbox = ax.get_window_extent(renderer)
@@ -730,7 +762,7 @@ def range_frame(
                 linewidth=eff_lw,
                 alpha=0.75,
                 zorder=2,
-            )
+            ).set_gid(MARGIN_GID)  # rug marks sit in the margin past the trimmed spines
         if y_fin.size:
             y_trans = ax.get_yaxis_transform()
             ax.hlines(
@@ -742,7 +774,7 @@ def range_frame(
                 linewidth=eff_lw,
                 alpha=0.75,
                 zorder=2,
-            )
+            ).set_gid(MARGIN_GID)  # rug marks sit in the margin past the trimmed spines
 
     return ax
 

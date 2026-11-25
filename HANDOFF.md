@@ -397,6 +397,29 @@ both `README.md` and `gallery/README.md` as visual first impressions on GitHub:
    directly in the main `README.md` table plus the palette overview card, and
    expanded `gallery/README.md` with full theme & palette side-by-side grids.
 
+## 4f. Publication path: lines past the axis (README's first example)
+
+The README's first figure (`before_after_nature.png`, example 1 in
+`gallery/generate_showcase.py`) passed preflight while its dashed 50% line,
+drawn with `ax.axhline`, ran ~54 pt past the end of the x axis into the
+direct-label gutter: `direct_labels(expand_xlim=...)` widened the axes and the
+spine was trimmed back, but full-width lines followed the new limits, and no
+check looked at line geometry (`canvas_clipping` covers text only).
+
+- New preflight check `line_past_axis` (`_check_lines_past_axes`, a **fail**):
+  every `Line2D`, `LineCollection` and `PolyCollection` must stay within its
+  axis lines (spine extents, including `set_bounds` trims) and the canvas.
+  Marks drawn in the margin on purpose carry gid `figmint-margin`
+  (`annotations.MARGIN_GID`; `range_frame` rugs do) and are skipped. No false
+  positives across the 35 `evals/corpus` scripts or showcase examples 2 and 3.
+- `direct_labels` now bounds full-width `axhline`s to the original x range
+  before widening it (`_bound_full_width_lines`).
+- Example 1: units drawn upright (Greek mu U+03BC; Helvetica's micro sign is
+  slanted and mathtext's `\mu` sits in the italic slot), `IC$_{\mathrm{50}}$`,
+  and the caption's preflight tally is computed from the report instead of a
+  hard-coded "8/8".
+- Tests: four in `tests/test_preflight_regressions.py`.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
