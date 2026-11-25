@@ -23,7 +23,7 @@ Self-contained: you do not need the previous conversations.
 
 ## 2. Current state
 
-- Repository: `https://github.com/blaiszik/figmint`, branch `main`, MIT. The
+- Repository: `https://github.com/blaiszik/mintfig`, branch `main`, MIT. The
   owner asked for all three passes to be committed and pushed; ask before committing
   or pushing in a later pass unless told.
 - Package `mintfig` 0.2.0, Python >= 3.10, `uv`-managed `.venv`.

@@ -32,7 +32,7 @@ dev = [
 ]
 
 [project.urls]
-Repository = "https://github.com/blaiszik/figmint"
+Repository = "https://github.com/blaiszik/mintfig"
 
 [project.scripts]
 mintfig = "mintfig.cli:main"

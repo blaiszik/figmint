@@ -20,7 +20,7 @@ AI agents are great at running analyses and terrible at showing what they found.
 The distribution name on PyPI is still being finalised, so install directly from GitHub:
 
 ```bash
-pip install git+https://github.com/blaiszik/figmint
+pip install git+https://github.com/blaiszik/mintfig
 # or, inside a clone
 uv sync --extra dev
 ```
