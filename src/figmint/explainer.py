@@ -67,6 +67,8 @@ from ._explain.distribution import MAX_HIST_GROUPS, distribution, histogram
 from ._explain.layout import (
     COLOR_SLOTS,
     EXAMPLE_SPEC,
+    NARROW_DISPLAY_WIDTH_PX,
+    SLIDE_DISPLAY_WIDTH_PX,
     Explanation,
     Summary,
     custom,
@@ -80,6 +82,9 @@ from ._explain.layout import (
 from ._explain.matrix import matrix
 from ._explain.relate import relate
 from ._explain.trend import trend
+from .epistemic import audit_epistemic, build_narrative
+from .interactive import render_html
+from .terminal import render_terminal, show_in_terminal
 
 _SUBMODULES = (
     _core,
@@ -125,13 +130,17 @@ __all__ = [
     "MAX_PANELS",
     "MIN_TEXT_PX",
     "MUTED",
+    "NARROW_DISPLAY_WIDTH_PX",
     "PT_TO_MM",
     "SERIES_COLORS",
+    "SLIDE_DISPLAY_WIDTH_PX",
     "_VISUAL_DEFECT_RULES",
     "ExplainError",
     "Explanation",
     "Panel",
     "Summary",
+    "audit_epistemic",
+    "build_narrative",
     "change",
     "compare",
     "custom",
@@ -145,7 +154,10 @@ __all__ = [
     "panel_from_spec",
     "read_png_text",
     "relate",
+    "render_html",
+    "render_terminal",
     "share",
+    "show_in_terminal",
     "table",
     "trend",
 ]

@@ -757,6 +757,8 @@ def trend(
     log_x: bool = False,
     end_values: bool = True,
     fmt: str | None = None,
+    callouts: Sequence[tuple[Any, float, str]] | None = None,
+    regions: Sequence[tuple[Any, Any, str]] | None = None,
 ) -> Panel:
     """How does it change over time or order? Lines labelled at their ends (no legend).
 
@@ -915,32 +917,14 @@ def trend(
             )
     ref = _reference_line(reference, "trend(reference)")
     bands, band_spec, band_modes = _trend_bands(band, data, n)
-    event_items: list[tuple[float, str]] = []
-    for at, text in (events or {}).items():
-        if x_kind == "number":
-            try:
-                pos = _to_float(float(at) if isinstance(at, str) else at, "trend(events) key")
-            except ValueError as exc:
-                raise ExplainError(
-                    f"trend(events) key {at!r} is not a number on this numeric x axis.",
-                    fix_hint="Use an x value, e.g. events={4: 'deploy'}.",
-                ) from exc
-        elif x_kind == "date":
-            try:
-                pos = float(mdates.date2num(np.datetime64(at)))
-            except ValueError as exc:
-                raise ExplainError(
-                    f"trend(events) key {at!r} is not a date.",
-                    fix_hint="Use an ISO date such as '2026-03-01' or a date object.",
-                ) from exc
-        else:
-            if str(at) not in x_text:
-                raise ExplainError(
-                    f"trend(events) key {at!r} is not one of the x labels.",
-                    fix_hint="Use an x value exactly as it appears in x.",
-                )
-            pos = float(x_text.index(str(at)))
-        event_items.append((pos, str(text)))
+    event_items: list[tuple[float, str]] = [
+        (_parse_x_point(at, x_kind, x_text, "trend(events) key"), str(text))
+        for at, text in (events or {}).items()
+    ]
+    region_items, regions_spec = _parse_trend_regions(regions, x_kind, x_text, log_x=log_x)
+    callout_items, callouts_spec = _parse_trend_callouts(
+        callouts, x_kind, x_text, log_x=log_x, log_y=log
+    )
 
     all_values = np.concatenate([v[np.isfinite(v)] for v in data.values()])
     rep_values = np.concatenate([r for per_x in reps.values() for r in per_x] or [np.empty(0)])
@@ -1232,6 +1216,15 @@ def trend(
         others: list[Any] = []
         events_drawn: list[Any] = []
         ref_drawn: tuple[Any, ...] | None = None
+        for r_x0, r_x1, _r_text in region_items:
+            ax.axvspan(
+                r_x0,
+                r_x1,
+                color=theme.context_fill,
+                alpha=0.12,
+                linewidth=0,
+                zorder=0,
+            )
         if ref is not None:
             ref_line = ax.axhline(
                 ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=2
@@ -1447,6 +1440,10 @@ def trend(
             _clear_inline_ticks(ctx, ax)
             _place_reference_label(ctx, ax, ref_drawn, annotations)
             _place_event_labels(ctx, ax, events_drawn, [*annotations, *other_notes])
+            if region_items:
+                _place_region_labels(ctx, ax, region_items, log_x=log_x)
+            if callout_items:
+                _place_callouts(ctx, ax, callout_items)
 
         def _relax_end_labels() -> None:
             if not annotations:
@@ -1598,7 +1595,7 @@ def trend(
                 child.set_position([left / fig_w, pos.y0, plot_w / fig_w, pos.height])
 
         ctx.finishers.append(_equalize)
-        for child, child_events, child_notes, child_ref in facet_events:
+        for idx_f, (child, child_events, child_notes, child_ref) in enumerate(facet_events):
             if child_ref is not None:
                 ctx.finishers.append(
                     functools.partial(
@@ -1619,6 +1616,12 @@ def trend(
                         [*child_notes, getattr(child, "_left_title", None)],
                     )
                 )
+            if idx_f == 0 and region_items:
+                ctx.finishers.append(
+                    functools.partial(_place_region_labels, ctx, child, region_items, log_x=log_x)
+                )
+            if idx_f == 0 and callout_items:
+                ctx.finishers.append(functools.partial(_place_callouts, ctx, child, callout_items))
         return frames
 
     series_spec: Any
@@ -1647,6 +1650,8 @@ def trend(
         points={k: [r.tolist() for r in v] for k, v in reps.items()} or None,
         points_label=points_label,
         events={str(_jsonable(k)): str(v) for k, v in (events or {}).items()} or None,
+        regions=regions_spec or None,
+        callouts=callouts_spec or None,
         reference=list(ref) if ref else None,
         zero=zero or None,
         log=log or None,
@@ -1937,3 +1942,468 @@ def _reorder_band(band: Any, order: np.ndarray, n: int) -> Any:
     if _has_items(band) and not _is_one_dimensional(band):
         return {k: _one(v) for k, v in _pairs(band)}
     return _one(band)
+
+
+MAX_CALLOUTS = 4
+
+
+def _parse_x_point(val: Any, x_kind: str, x_text: Sequence[str], what: str) -> float:
+    """Parse a single x coordinate for events, regions, or callouts on trend()."""
+    if x_kind == "number":
+        try:
+            pos = _to_float(float(val) if isinstance(val, str) else val, what)
+        except ValueError as exc:
+            raise ExplainError(
+                f"{what} {val!r} is not a number on this numeric x axis.",
+                fix_hint="Use a numeric x value matching the x axis.",
+            ) from exc
+        if not math.isfinite(pos):
+            raise ExplainError(
+                f"{what} {val!r} must be finite.",
+                fix_hint="Use a finite numeric x value.",
+            )
+        return pos
+    if x_kind == "date":
+        try:
+            pos = float(mdates.date2num(np.datetime64(val)))
+        except (ValueError, TypeError) as exc:
+            raise ExplainError(
+                f"{what} {val!r} is not a valid date.",
+                fix_hint="Use an ISO date such as '2026-03-01' or a date/datetime object.",
+            ) from exc
+        return pos
+    if str(val) not in x_text:
+        raise ExplainError(
+            f"{what} {val!r} is not one of the x labels.",
+            fix_hint="Use an x value exactly as it appears in x.",
+        )
+    return float(x_text.index(str(val)))
+
+
+def _parse_trend_regions(
+    regions: Sequence[tuple[Any, Any, str]] | None,
+    x_kind: str,
+    x_text: Sequence[str],
+    *,
+    log_x: bool,
+) -> tuple[list[tuple[float, float, str]], list[list[Any]]]:
+    """Validate ``trend(regions=[(x0, x1, label), ...])``."""
+    if regions is None:
+        return [], []
+    if isinstance(regions, (str, bytes, Mapping)) or not isinstance(regions, Sequence):
+        raise ExplainError(
+            f"trend(regions) must be a list of (x0, x1, label) tuples, got {type(regions).__name__}.",
+            fix_hint='e.g. regions=[(2, 5, "warmup")] or regions=[("2026-01-01", "2026-03-01", "Q1")].',
+        )
+    parsed: list[tuple[float, float, str]] = []
+    spec_out: list[list[Any]] = []
+    for idx, item in enumerate(regions):
+        if isinstance(item, (str, bytes, Mapping)) or not isinstance(item, Sequence) or len(item) != 3:
+            raise ExplainError(
+                f"trend(regions[{idx}]) must be a (x0, x1, label) 3-tuple, got {item!r}.",
+                fix_hint='Pass (x0, x1, "short label") for each shaded region.',
+            )
+        raw0, raw1, label = item
+        p0 = _parse_x_point(raw0, x_kind, x_text, f"trend(regions[{idx}]) start")
+        p1 = _parse_x_point(raw1, x_kind, x_text, f"trend(regions[{idx}]) end")
+        if p0 >= p1:
+            raise ExplainError(
+                f"trend(regions[{idx}]) start {raw0!r} must be strictly less than end {raw1!r}.",
+                fix_hint="Order each region tuple as (x0, x1, label) with x0 < x1.",
+            )
+        if log_x and p0 <= 0:
+            raise ExplainError(
+                f"trend(regions[{idx}]) requires positive x bounds on a log_x axis.",
+                fix_hint="Use positive x0 and x1 values when log_x=True.",
+            )
+        text = str(label).strip()
+        parsed.append((p0, p1, text))
+        spec_out.append([_jsonable(raw0), _jsonable(raw1), text])
+    return parsed, spec_out
+
+
+def _parse_trend_callouts(
+    callouts: Sequence[tuple[Any, float, str]] | None,
+    x_kind: str,
+    x_text: Sequence[str],
+    *,
+    log_x: bool,
+    log_y: bool,
+) -> tuple[list[tuple[float, float, str]], list[list[Any]]]:
+    """Validate ``trend(callouts=[(x, y, note), ...])`` (max 4)."""
+    if callouts is None:
+        return [], []
+    if isinstance(callouts, (str, bytes, Mapping)) or not isinstance(callouts, Sequence):
+        raise ExplainError(
+            f"trend(callouts) must be a list of (x, y, note) tuples, got {type(callouts).__name__}.",
+            fix_hint='e.g. callouts=[(5, 1200, "peak load")].',
+        )
+    if len(callouts) > MAX_CALLOUTS:
+        raise ExplainError(
+            f"trend(callouts) got {len(callouts)} callouts; at most {MAX_CALLOUTS} stay legible.",
+            fix_hint=f"Keep at most {MAX_CALLOUTS} callouts for the most important points.",
+        )
+    parsed: list[tuple[float, float, str]] = []
+    spec_out: list[list[Any]] = []
+    for idx, item in enumerate(callouts):
+        if isinstance(item, (str, bytes, Mapping)) or not isinstance(item, Sequence) or len(item) != 3:
+            raise ExplainError(
+                f"trend(callouts[{idx}]) must be an (x, y, note) 3-tuple, got {item!r}.",
+                fix_hint='Pass (x, y, "short note") for each callout.',
+            )
+        raw_x, raw_y, note = item
+        px = _parse_x_point(raw_x, x_kind, x_text, f"trend(callouts[{idx}]) x")
+        py = _to_float(raw_y, f"trend(callouts[{idx}]) y")
+        if not math.isfinite(py):
+            raise ExplainError(
+                f"trend(callouts[{idx}]) y={raw_y!r} must be finite.",
+                fix_hint="Pass a finite numeric y coordinate for the callout anchor.",
+            )
+        if log_x and px <= 0:
+            raise ExplainError(
+                f"trend(callouts[{idx}]) x must be positive on a log_x axis.",
+                fix_hint="Use positive x values when log_x=True.",
+            )
+        if log_y and py <= 0:
+            raise ExplainError(
+                f"trend(callouts[{idx}]) y must be positive on a log y axis.",
+                fix_hint="Use positive y values when log=True.",
+            )
+        text = str(note).strip()
+        if not text:
+            raise ExplainError(
+                f"trend(callouts[{idx}]) has an empty note.",
+                fix_hint='Pass a short descriptive note, e.g. (5, 1200, "v2.3 regression").',
+            )
+        parsed.append((px, py, text))
+        spec_out.append([_jsonable(raw_x), float(py), text])
+    return parsed, spec_out
+
+
+def _visible_text_boxes(ctx: _Ctx, exclude: Any = None) -> list[Bbox]:
+    """Window bounding boxes of all visible non-empty Text artists on the figure."""
+    from matplotlib.text import Text
+
+    renderer = ctx.fig.canvas.get_renderer()
+    return [
+        t.get_window_extent(renderer)
+        for t in ctx.fig.findobj(Text)
+        if t is not exclude and t.get_visible() and t.get_text().strip() and t.get_alpha() != 0
+    ]
+
+
+def _audit_line_paths(ax: Axes) -> list[Any]:
+    """Display-space paths of visible non-grid lines on ``ax`` (matching audit_figure)."""
+    grid = {id(g) for g in (*ax.get_xgridlines(), *ax.get_ygridlines())}
+    return [
+        ln.get_transform().transform_path(ln.get_path())
+        for ln in ax.lines
+        if id(ln) not in grid
+        and ln.get_visible()
+        and len(ln.get_xdata()) >= 2
+        and ln.get_linestyle() not in ("None", "", " ")
+        and ln.get_linewidth() > 0
+    ]
+
+
+def _pad_bbox(bb: Bbox, pad: float = 1.5) -> Bbox:
+    return Bbox.from_extents(bb.x0 - pad, bb.y0 - pad, bb.x1 + pad, bb.y1 + pad)
+
+
+def _place_region_labels(
+    ctx: _Ctx,
+    ax: Axes,
+    regions: Sequence[tuple[float, float, str]],
+    *,
+    log_x: bool = False,
+) -> None:
+    """Place muted top labels centered inside shaded regions, avoiding lines and text."""
+    sz = ctx.sizes
+    theme = ctx.theme
+    renderer = ctx.fig.canvas.get_renderer()
+    frame = ax.get_window_extent(renderer)
+    fig_box = ctx.fig.bbox
+    paths = _audit_line_paths(ax)
+    taken = _visible_text_boxes(ctx)
+    x_lo, x_hi = sorted(ax.get_xlim())
+    for r0, r1, text in regions:
+        if not text:
+            continue
+        vis0 = max(r0, x_lo)
+        vis1 = min(r1, x_hi)
+        if vis0 >= vis1:
+            vis0, vis1 = r0, r1
+        mid_x = math.sqrt(vis0 * vis1) if (log_x and vis0 > 0 and vis1 > 0) else 0.5 * (vis0 + vis1)
+        note = ax.annotate(
+            _plain(text, theme),
+            (mid_x, 1.0),
+            xycoords=("data", "axes fraction"),
+            xytext=(0.0, -3.0),
+            textcoords="offset points",
+            ha="center",
+            va="top",
+            fontsize=sz.small,
+            color=theme.muted,
+            zorder=6,
+            bbox=ctx.halo_bbox(0.08, alpha=0.82),
+            annotation_clip=False,
+        )
+        cands = [
+            (mid_x, 1.0, "center", "top", 0.0, -3.0, True),
+            (mid_x, 0.88, "center", "top", 0.0, 0.0, True),
+            (mid_x, 0.0, "center", "bottom", 0.0, 3.0, True),
+            (vis0, 1.0, "left", "top", 3.0, -3.0, True),
+            (vis1, 1.0, "right", "top", -3.0, -3.0, True),
+            (vis0, 0.0, "left", "bottom", 3.0, 3.0, True),
+            (vis1, 0.0, "right", "bottom", -3.0, 3.0, True),
+            (mid_x, 0.72, "center", "top", 0.0, 0.0, True),
+            (mid_x, 0.50, "center", "center", 0.0, 0.0, True),
+            (mid_x, 0.25, "center", "bottom", 0.0, 0.0, True),
+            (mid_x, 1.0, "center", "bottom", 0.0, 2.5, False),
+        ]
+        best = cands[0]
+        best_score = (999, 999, 999, 999)
+        for cx, yfrac, ha, va, dx, dy, inside_pref in cands:
+            note.xy = (cx, yfrac)
+            note.set_ha(ha)
+            note.set_va(va)
+            note.set_position((dx, dy))
+            bb = note.get_window_extent(renderer)
+            pbb = _pad_bbox(bb, 1.5)
+            out_fig = int(
+                not (
+                    bb.x0 >= fig_box.x0 + 2
+                    and bb.x1 <= fig_box.x1 - 2
+                    and bb.y0 >= fig_box.y0 + 2
+                    and bb.y1 <= fig_box.y1 - 2
+                )
+            )
+            out_frame = int(
+                not (
+                    bb.x0 >= frame.x0 - 2
+                    and bb.x1 <= frame.x1 + 2
+                    and bb.y0 >= frame.y0 - 2
+                    and bb.y1 <= frame.y1 + 2
+                )
+            )
+            n_line = sum(1 for p in paths if p.intersects_bbox(bb, filled=False))
+            n_text = sum(1 for tb in taken if pbb.overlaps(tb))
+            score = (out_fig, n_line, n_text, out_frame if inside_pref else out_frame + 1)
+            if score < best_score:
+                best_score = score
+                best = (cx, yfrac, ha, va, dx, dy, inside_pref)
+            if score == (0, 0, 0, 0):
+                break
+        note.xy = (best[0], best[1])
+        note.set_ha(best[2])
+        note.set_va(best[3])
+        note.set_position((best[4], best[5]))
+        taken.append(note.get_window_extent(renderer))
+
+
+def _callout_arrow_segment(
+    ax_px: float, ay_px: float, bb: Bbox
+) -> tuple[float, float, Any | None]:
+    """Return ``(start_x_px, start_y_px, trimmed_path)`` from nearest edge of ``bb`` to anchor."""
+    from matplotlib.path import Path as MplPath
+
+    px = min(max(ax_px, bb.x0), bb.x1)
+    py = min(max(ay_px, bb.y0), bb.y1)
+    vx, vy = ax_px - px, ay_px - py
+    seg_len = math.hypot(vx, vy)
+    if seg_len < 7.0:
+        return px, py, None
+    t0 = min(0.35, 3.0 / seg_len)
+    t1 = max(t0 + 0.05, 1.0 - 7.5 / seg_len)
+    s0 = (px + t0 * vx, py + t0 * vy)
+    s1 = (px + t1 * vx, py + t1 * vy)
+    return px, py, MplPath([s0, s1])
+
+
+def _two_line_wrap(text: str) -> str | None:
+    """Split a multi-word callout near its middle onto two lines; None for single words."""
+    words = text.split()
+    if len(words) < 2 or "\n" in text:
+        return None
+    best_i = min(
+        range(1, len(words)),
+        key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))),
+    )
+    return " ".join(words[:best_i]) + "\n" + " ".join(words[best_i:])
+
+
+def _place_callouts(
+    ctx: _Ctx,
+    ax: Axes,
+    callouts: Sequence[tuple[float, float, str]],
+) -> None:
+    """Place direct callout annotations with leader arrows, avoiding lines, text, and arrow crossings."""
+    sz = ctx.sizes
+    theme = ctx.theme
+    renderer = ctx.fig.canvas.get_renderer()
+    frame = ax.get_window_extent(renderer)
+    fig_box = ctx.fig.bbox
+    paths = _audit_line_paths(ax)
+    taken = _visible_text_boxes(ctx)
+    k = ctx.pt_per_px
+    arrow_kw = {
+        "arrowstyle": "-|>,head_length=0.35,head_width=0.2",
+        "color": theme.muted,
+        "linewidth": 0.75 * sz.scale,
+        "shrinkA": 2.0,
+        "shrinkB": 3.5,
+    }
+    base_offsets = [
+        # Tier 1: short clean offsets
+        (12.0, 14.0, "left", "bottom"),
+        (-12.0, 14.0, "right", "bottom"),
+        (12.0, -14.0, "left", "top"),
+        (-12.0, -14.0, "right", "top"),
+        (0.0, 18.0, "center", "bottom"),
+        (0.0, -18.0, "center", "top"),
+        (18.0, 0.0, "left", "center"),
+        (-18.0, 0.0, "right", "center"),
+        # Tier 2: medium & shifted-center offsets
+        (20.0, 22.0, "left", "bottom"),
+        (-20.0, 22.0, "right", "bottom"),
+        (20.0, -22.0, "left", "top"),
+        (-20.0, -22.0, "right", "top"),
+        (14.0, -22.0, "center", "top"),
+        (-14.0, -22.0, "center", "top"),
+        (14.0, 22.0, "center", "bottom"),
+        (-14.0, 22.0, "center", "bottom"),
+        (0.0, 28.0, "center", "bottom"),
+        (0.0, -28.0, "center", "top"),
+        (28.0, 10.0, "left", "bottom"),
+        (-28.0, 10.0, "right", "bottom"),
+        (28.0, -10.0, "left", "top"),
+        (-28.0, -10.0, "right", "top"),
+        # Tier 3: wider fallback offsets
+        (0.0, 42.0, "center", "bottom"),
+        (0.0, -42.0, "center", "top"),
+        (32.0, 34.0, "left", "bottom"),
+        (-32.0, 34.0, "right", "bottom"),
+        (32.0, -34.0, "left", "top"),
+        (-32.0, -34.0, "right", "top"),
+        (44.0, 0.0, "left", "center"),
+        (-44.0, 0.0, "right", "center"),
+        (0.0, 56.0, "center", "bottom"),
+        (0.0, -56.0, "center", "top"),
+    ]
+    for cx, cy, text in callouts:
+        disp = ax.transData.transform((cx, cy))
+        ax_px, ay_px = float(disp[0]), float(disp[1])
+        fx, fy = ax.transAxes.inverted().transform(disp)
+        note = ax.annotate(
+            _plain(text, theme),
+            xy=(cx, cy),
+            xycoords="data",
+            xytext=(12.0, 14.0),
+            textcoords="offset points",
+            ha="left",
+            va="bottom",
+            fontsize=sz.small,
+            color=theme.ink,
+            zorder=7,
+            bbox=ctx.halo_bbox(0.16, alpha=0.92),
+            annotation_clip=False,
+        )
+        # Prefer pointing inward away from the nearest plot edges.
+        prefer_dx = -1.0 if fx > 0.55 else 1.0
+        prefer_dy = -1.0 if fy > 0.60 else 1.0
+        ordered = sorted(
+            base_offsets,
+            key=lambda c: (
+                int(math.hypot(c[0], c[1]) // 18),
+                0 if c[0] * prefer_dx >= 0 else 1,
+                0 if c[1] * prefer_dy >= 0 else 1,
+                math.hypot(c[0], c[1]),
+            ),
+        )
+        text_variants = [text]
+        wrapped = _two_line_wrap(text)
+        if wrapped is not None:
+            text_variants.append(wrapped)
+
+        best_variant = text
+        best = ordered[0]
+        best_score: tuple[int, int, int, int, int, int, int, float] = (
+            999,
+            999,
+            999,
+            999,
+            999,
+            999,
+            999,
+            1e9,
+        )
+        for v_idx, variant in enumerate(text_variants):
+            note.set_text(_plain(variant, theme))
+            for dx, dy, ha, va in ordered:
+                note.set_position((dx, dy))
+                note.set_ha(ha)
+                note.set_va(va)
+                bb = note.get_window_extent(renderer)
+                pbb = _pad_bbox(bb, 1.5)
+                out_fig = int(
+                    not (
+                        bb.x0 >= fig_box.x0 + 3
+                        and bb.x1 <= fig_box.x1 - 3
+                        and bb.y0 >= fig_box.y0 + 3
+                        and bb.y1 <= fig_box.y1 - 3
+                    )
+                )
+                out_frame = int(
+                    not (
+                        bb.x0 >= frame.x0 + 1
+                        and bb.x1 <= frame.x1 - 1
+                        and bb.y0 >= frame.y0 + 3.5
+                        and bb.y1 <= frame.y1 - 1
+                    )
+                )
+                n_line = sum(1 for p in paths if p.intersects_bbox(bb, filled=False))
+                n_text = sum(1 for tb in taken if pbb.overlaps(tb))
+                _, _, seg_path = _callout_arrow_segment(ax_px, ay_px, bb)
+                if seg_path is not None:
+                    n_arrow_text = sum(
+                        1 for tb in taken if seg_path.intersects_bbox(_pad_bbox(tb, 1.0), filled=True)
+                    )
+                    n_arrow_line = sum(1 for p in paths if seg_path.intersects_path(p, filled=False))
+                else:
+                    n_arrow_text = 0
+                    n_arrow_line = 0
+                score = (
+                    out_fig,
+                    n_line,
+                    n_text,
+                    n_arrow_text,
+                    n_arrow_line,
+                    out_frame,
+                    v_idx,
+                    math.hypot(dx, dy),
+                )
+                if score < best_score:
+                    best_score = score
+                    best = (dx, dy, ha, va)
+                    best_variant = variant
+                if score[:6] == (0, 0, 0, 0, 0, 0):
+                    break
+            if best_score[:6] == (0, 0, 0, 0, 0, 0):
+                break
+        note.set_text(_plain(best_variant, theme))
+        note.set_position((best[0], best[1]))
+        note.set_ha(best[2])
+        note.set_va(best[3])
+        final_bb = note.get_window_extent(renderer)
+        start_px, start_py, _ = _callout_arrow_segment(ax_px, ay_px, final_bb)
+        ax.annotate(
+            "",
+            xy=(cx, cy),
+            xycoords="data",
+            xytext=((start_px - ax_px) * k, (start_py - ay_px) * k),
+            textcoords="offset points",
+            arrowprops=arrow_kw,
+            zorder=6,
+            annotation_clip=False,
+        )
+        taken.append(final_bb)

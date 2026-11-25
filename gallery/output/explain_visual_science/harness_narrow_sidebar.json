@@ -1,0 +1,67 @@
+{
+  "takeaway": "Cache warmup trims cold-start p99 from 410 ms to 125 ms across all regions",
+  "source": "synthetic edge telemetry (450 px sidebar preset)",
+  "width": "narrow",
+  "layout": [
+    [
+      "a"
+    ],
+    [
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "Cold baseline": 410.0,
+        "ap-south": 134.0,
+        "eu-west": 125.0,
+        "us-east": 118.0
+      },
+      "highlight": [
+        "eu-west"
+      ],
+      "baseline": "Cold baseline",
+      "sort": true,
+      "zero": true,
+      "show_delta": true,
+      "title": "Regional p99 latency after warmup",
+      "label": "p99 latency",
+      "unit": "ms"
+    },
+    {
+      "kind": "trend",
+      "x": [
+        "00:00",
+        "04:00",
+        "08:00",
+        "12:00",
+        "16:00",
+        "20:00"
+      ],
+      "series": {
+        "Cold": [
+          405.0,
+          398.0,
+          412.0,
+          418.0,
+          409.0,
+          410.0
+        ],
+        "Warm cache": [
+          126.0,
+          121.0,
+          119.0,
+          125.0,
+          123.0,
+          120.0
+        ]
+      },
+      "baseline": "Cold",
+      "title": "24-hour stability",
+      "label": "p99 latency",
+      "unit": "ms"
+    }
+  ]
+}

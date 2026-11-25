@@ -7,11 +7,11 @@ Read this reference when building complex multi-panel scientific figures, sizing
 - **Show uncertainty and name it:**
   | You have | Use |
   | :--- | :--- |
-  | Raw replicates per condition (seeds, wells, samples) | `fm.distribution` — every observation drawn (`stat="mean"` if claim is about means) |
+  | Raw replicates per condition (seeds, wells, samples) | `fm.distribution` — every observation drawn (`stat="mean"` if claim is about means), or `mode="quantile", quantiles=20` for countable frequency dotplots (5% per dot) |
   | Raw replicates or units along x (dose, time, step) | `fm.trend(x, points={name: [[reps], ...]})` or tidy `fm.trend("x", "group", y="val", data=rows)` (repeated `(x, group)` rows auto-become `points=`) |
-  | Only an estimate and its interval | `fm.compare(error=..., error_label="95% CI")` or `fm.trend(band=..., band_label="± 1 s.d.")` |
+  | Only an estimate and its interval | `fm.compare(error=..., inner_error=..., error_label="50% / 95% CI")` or `fm.trend(band=..., band_label="± 1 s.d.")` |
 
-  An unlabelled interval triggers `interval_unlabelled`. `facts` state whether intervals overlap; do not write "significant" unless you ran the test, and name it in `note=`.
+  An unlabelled interval triggers `interval_unlabelled`. `facts` state whether intervals overlap, exceedance probabilities above `reference=`, and empirical superiority `P(group > baseline)` on `distribution`. Do not write "significant" unless you ran the test, and name it in `note=`; advisory `claim_overstates_uncertainty` and `claim_number_mismatch` warn on clear mismatches.
 - **Values spanning decades:** `log=True` for y (`compare`, `trend`, `distribution`), `log_x=True` for x (`trend`, `relate`). Bars are never drawn on a log axis.
 - **Lower is better** (loss, error, IC50): `sort="asc"` puts the best item on top (`fm.table(..., sort="cost", bold_best="min")`).
 - **Units & Unicode:** `unit=` is a short symbol (`ms`, `%`, `mg/L`, `×`); words go in `label=`. Write Unicode directly (`µm`, `cm⁻³`, `°C`, `Å`, `χ²`); `$...$` triggers `latex_markup`. Write fractional exponents as `"d⁻½"` or `"1/√d"`, never `"d⁻¹ᐟ²"`.
@@ -92,7 +92,33 @@ wide = df.pivot(index="time", columns="unit_id", values="value")
 rel = wide / df[df.time < t_event].groupby("unit_id").value.median() * 100
 fm.trend(rel.index, rel, baseline="untreated", events={t_event: "event"},
          label="Value vs own median before", unit="%")
+
+# Visual-science upgrades: quantile dotplots, nested intervals + inline deltas, callouts & shaded regions
+fm.distribution(
+    {"treated": treated_samples, "control": control_samples},
+    mode="quantile", quantiles=20, baseline="control", reference=(50, "target"),
+    highlight="treated", label="Response", unit="%", title="90% of treated runs clear target",
+)
+fm.compare(
+    {"variant A": 84.2, "variant B": 79.1, "control": 74.9},
+    error={"variant A": 3.4, "variant B": 3.1, "control": 2.9},
+    inner_error={"variant A": 1.6, "variant B": 1.5, "control": 1.4},
+    error_label="50% / 95% CI", baseline="control", show_delta=True,
+    highlight="variant A", label="Accuracy", unit="%",
+)
+fm.trend(
+    days, {"service": latency}, x_label="Day", label="p99 latency", unit="ms",
+    regions=[(10, 14, "migration window")],
+    callouts=[(12, 420, "cache cold-start spike")],
+)
 ```
+
+## Harness-adaptive delivery (IDE sidebars, HTML review, & terminals)
+
+- **IDE sidebars (~420–480 px):** pass `width="narrow"` (92 mm, 450 px target width; multi-panel layouts auto-stack vertically so panels stay crisp at ≥12 px text).
+- **Interactive HTML review:** `fig.save("review.html")` (or `figmint explain spec.json --out review.html`) emits a zero-CDN self-contained HTML file with embedded SVG, theme-matched surfaces, a toggleable Facts & Data drawer, Download SVG, Copy Spec JSON, and a Critique / Ask Agent feedback panel. Jupyter notebooks render the interactive fragment automatically via `Explanation._repr_html_()`.
+- **Terminal delivery:** `figmint show fig.png` (or `spec.json` / `-` with `--mode auto|kitty|iterm2|unicode|ascii`) auto-detects Kitty/Ghostty or iTerm2/WezTerm inline PNG protocols and falls back to crisp Unicode bars, box-drawn tables, and sparklines (`fig.to_terminal()` in Python).
+- **Four-level narrative (`summary["narrative"]`):** returns `L1` (construction), `L2` (statistical facts), `L3` (perceptual patterns), `L4` (domain takeaway), and a reader-first `summary` string.
 
 ## Editing a returned figure (`fm.load`)
 

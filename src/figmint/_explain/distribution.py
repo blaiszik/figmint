@@ -130,6 +130,41 @@ def _separation_fact(
     )
 
 
+def _prob_superiority(a: np.ndarray, b: np.ndarray) -> float:
+    """Empirical probability of superiority P(A > B) + 0.5 * P(A == B) over all pairs."""
+    b_sorted = np.sort(b)
+    lo = np.searchsorted(b_sorted, a, side="left")
+    hi = np.searchsorted(b_sorted, a, side="right")
+    return float((lo.sum() + 0.5 * (hi - lo).sum()) / (a.size * b.size))
+
+
+def _wilkinson_stack(sorted_vals: np.ndarray, bin_width: float) -> list[tuple[float, int]]:
+    """Bin sorted 1-D values into non-overlapping Wilkinson dot columns ``(center, count)``."""
+    if sorted_vals.size == 0:
+        return []
+    bw = max(float(bin_width), 1e-12)
+    raw_bins: list[list[float]] = [[float(sorted_vals[0])]]
+    anchor = float(sorted_vals[0])
+    for v in sorted_vals[1:]:
+        fv = float(v)
+        if fv - anchor <= bw:
+            raw_bins[-1].append(fv)
+        else:
+            raw_bins.append([fv])
+            anchor = fv
+    # Merge any adjacent columns whose midpoints still sit closer than bin_width.
+    merged: list[list[float]] = [raw_bins[0]]
+    for grp in raw_bins[1:]:
+        prev = merged[-1]
+        c_prev = 0.5 * (prev[0] + prev[-1])
+        c_curr = 0.5 * (grp[0] + grp[-1])
+        if c_curr - c_prev < bw:
+            merged[-1] = prev + grp
+        else:
+            merged.append(grp)
+    return [(0.5 * (grp[0] + grp[-1]), len(grp)) for grp in merged]
+
+
 _HIST_ESTIMATORS = frozenset({"auto", "fd", "doane", "scott", "stone", "rice", "sturges", "sqrt"})
 MAX_HIST_GROUPS = 4
 
@@ -226,24 +261,50 @@ def distribution(
     stat: str = "median",
     bins: int | str | Sequence[float] | None = None,
     fmt: str | None = None,
+    mode: str = "dots",
+    quantiles: int = 20,
 ) -> Panel:
-    """How are values spread within groups? Every observation as a dot, or binned as a histogram.
+    """How are values spread within groups? Every observation as a dot, quantile dotplot, or histogram.
 
     ``groups`` maps a group name to its raw observations (or pass one list/array
     for a single variable, or row-shaped data / DataFrame with ``group=`` and
-    ``value=``). By default every observation is drawn as a dot with
+    ``value=``). By default (``mode="dots"``) every observation is drawn as a dot with
     a ``stat="median"`` (median and middle half / IQR) or ``stat="mean"`` (mean
-    and \N{PLUS-MINUS SIGN} 1 s.d.) mark. Pass ``bins="auto"`` (an integer 2–60,
-    or explicit edges) — or call the alias :func:`histogram` — to draw a binned
-    histogram (single panel, or shared-axis stacked small multiples for up to 4
-    groups). ``baseline`` names the reference group (a control, "before"): drawn
-    in ink, with every highlighted (or every other) group stated against it.
+    and \N{PLUS-MINUS SIGN} 1 s.d.) mark. Pass ``mode="quantile"`` (with optional
+    ``quantiles=20``, 5–50) for Wilkinson-stacked countable quantile dotplots
+    (Kay & Hullman) where each dot represents ``100 / quantiles``% probability.
+    Pass ``bins="auto"`` (an integer 2–60, or explicit edges) — or call the alias
+    :func:`histogram` — to draw a binned histogram (single panel, or shared-axis
+    stacked small multiples for up to 4 groups). ``baseline`` names the reference
+    group (a control, "before"): drawn in ink, with every highlighted (or every
+    other) group stated against it, including pairwise superiority probability
+    ``P(group > baseline)``.
     """
     if stat not in {"median", "mean"}:
         raise ExplainError(
             f"distribution(stat={stat!r}) is not a summary this form draws.",
             fix_hint='Use stat="median" (median and middle half) or stat="mean" (mean and '
             "\N{PLUS-MINUS SIGN} 1 s.d.).",
+        )
+    if not isinstance(mode, str) or mode not in {"dots", "quantile"}:
+        raise ExplainError(
+            f"distribution(mode={mode!r}) is not a recognised mode.",
+            fix_hint='Use mode="dots" (raw observations) or mode="quantile" (stacked countable quantile dotplot).',
+        )
+    if (
+        isinstance(quantiles, bool)
+        or not isinstance(quantiles, (int, np.integer))
+        or not (5 <= int(quantiles) <= 50)
+    ):
+        raise ExplainError(
+            f"distribution(quantiles={quantiles!r}) must be an integer between 5 and 50.",
+            fix_hint="Pass quantiles=20 (each dot = 5%) or another integer from 5 to 50.",
+        )
+    q = int(quantiles)
+    if mode == "quantile" and bins is not None:
+        raise ExplainError(
+            'distribution(mode="quantile") cannot be combined with bins=.',
+            fix_hint='Drop bins= to draw a quantile dotplot, or use mode="dots" with bins= for a histogram.',
         )
     from .._tabular import resolve_distribution_table
 
@@ -428,6 +489,33 @@ def distribution(
                 stat=stat,
             )
         )
+    if base is not None:
+        for h, other in pairs:
+            if data[h].size >= 3 and data[other].size >= 3:
+                p_sup = _prob_superiority(data[h], data[other])
+                facts.append(f"P({h} > {other}) = {100.0 * p_sup:.0f}%")
+    qvals: dict[str, np.ndarray] = {}
+    if mode == "quantile":
+        probs = (np.arange(q, dtype=float) + 0.5) / q
+        qvals = {nm: np.quantile(data[nm], probs) for nm in names}
+    if ref is not None and bins is None:
+        ref_u = _with_unit(_formatter([ref[0]], log=log)(ref[0]), unit)
+        ref_tag = f" ({ref[1]})" if ref[1] else ""
+        for nm in names:
+            tag = nm or (label or "values")
+            if mode == "quantile":
+                k_above = int((qvals[nm] > ref[0]).sum())
+                facts.append(
+                    f"{tag}: {k_above} of {q} quantiles ({100.0 * k_above / q:.0f}%) above "
+                    f"{ref_u}{ref_tag}"
+                )
+            else:
+                arr = data[nm]
+                above = int((arr > ref[0]).sum())
+                facts.append(
+                    f"{tag}: {100.0 * above / arr.size:.0f}% of observations above "
+                    f"{ref_u}{ref_tag} ({above} of {arr.size})"
+                )
     any_spread = any(a.size >= 5 for a in data.values())
     # Alt text: every group's centre (or the highlighted groups and the baseline), then
     # how they compare; never only the first group.
@@ -825,7 +913,7 @@ def distribution(
                 linewidth=theme.grid_lw,
             )
             ax.grid(axis="y", visible=False)
-        ax.set_ylim(n - 0.45, -0.6)
+        ax.set_ylim((n - 0.35, -0.65) if mode == "quantile" else (n - 0.45, -0.6))
         lo, hi = float(everything.min()), float(everything.max())
         if ref is not None:
             lo, hi = min(lo, ref[0]), max(hi, ref[0])
@@ -863,55 +951,58 @@ def distribution(
             annotation_clip=False,
         )
         rng = np.random.default_rng(0)
+        row_colors: dict[str, str] = {}
         for row, name in enumerate(names):
             arr = data[name]
             if name == base:
                 col = ctx.colors.get(name, theme.ink)
             else:
                 col = accent.get(name, theme.context_line if (hl or accent) else ctx.default_color)
-            shown = arr if arr.size <= 600 else rng.choice(arr, size=600, replace=False)
-            alpha = 0.8 if shown.size <= 30 else (0.5 if shown.size <= 150 else 0.28)
-            jitter = rng.uniform(-0.2, 0.2, size=shown.size)
-            ax.scatter(
-                shown,
-                row + jitter,
-                s=(3.4 * sz.scale) ** 2,
-                color=col,
-                alpha=alpha,
-                linewidth=0,
-                zorder=2,
-            )
+            row_colors[name] = col
             q1, med, q3 = stats[name]
             if log:
                 q1 = max(q1, ax.get_xlim()[0])
-            # Summary through the dot row: a thin line for the middle half (or +/- 1 s.d.)
-            # and a taller tick for the centre, haloed so it reads over the dots. With
-            # fewer than five observations quartiles and s.d. mean little: the centre
-            # tick only.
-            halo = [
-                patheffects.withStroke(
-                    linewidth=2.6 * sz.scale, foreground=theme.background, alpha=0.9
+            if mode == "dots":
+                shown = arr if arr.size <= 600 else rng.choice(arr, size=600, replace=False)
+                alpha = 0.8 if shown.size <= 30 else (0.5 if shown.size <= 150 else 0.28)
+                jitter = rng.uniform(-0.2, 0.2, size=shown.size)
+                ax.scatter(
+                    shown,
+                    row + jitter,
+                    s=(3.4 * sz.scale) ** 2,
+                    color=col,
+                    alpha=alpha,
+                    linewidth=0,
+                    zorder=2,
                 )
-            ]
-            if arr.size >= 5:
-                ax.hlines(
-                    row,
-                    q1,
-                    q3,
+                # Summary through the dot row: a thin line for the middle half (or +/- 1 s.d.)
+                # and a taller tick for the centre, haloed so it reads over the dots. With
+                # fewer than five observations quartiles and s.d. mean little: the centre
+                # tick only.
+                halo = [
+                    patheffects.withStroke(
+                        linewidth=2.6 * sz.scale, foreground=theme.background, alpha=0.9
+                    )
+                ]
+                if arr.size >= 5:
+                    ax.hlines(
+                        row,
+                        q1,
+                        q3,
+                        color=theme.ink,
+                        linewidth=1.0 * sz.scale,
+                        zorder=4,
+                        path_effects=halo,
+                    )
+                ax.vlines(
+                    med,
+                    row - 0.3,
+                    row + 0.3,
                     color=theme.ink,
-                    linewidth=1.0 * sz.scale,
-                    zorder=4,
+                    linewidth=2.0 * sz.scale,
+                    zorder=5,
                     path_effects=halo,
                 )
-            ax.vlines(
-                med,
-                row - 0.3,
-                row + 0.3,
-                color=theme.ink,
-                linewidth=2.0 * sz.scale,
-                zorder=5,
-                path_effects=halo,
-            )
             for text, dy, va, size, color, weight in (
                 (name, 0.5, "bottom", sz.body, theme.ink, "bold" if name in accent else "normal"),
                 (f"n={arr.size}", -1.5, "top", sz.foot, theme.muted, "normal"),
@@ -945,10 +1036,11 @@ def distribution(
                 fontweight="bold" if name in accent else "normal",
                 annotation_clip=False,
             )
+        ref_note: Any = None
         if ref is not None:
             ax.axvline(ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=3)
             if ref[1]:
-                note = ax.annotate(
+                ref_note = ax.annotate(
                     _plain(ref[1], theme),
                     (ref[0], 1.0),
                     xycoords=("data", "axes fraction"),
@@ -960,8 +1052,145 @@ def distribution(
                     color=theme.muted,
                     annotation_clip=False,
                 )
-                return lambda: _keep_inside_x(ctx, ax, note)
+        if mode == "quantile":
+
+            def _finish_quantile() -> None:
+                if ref_note is not None:
+                    _keep_inside_x(ctx, ax, ref_note)
+                renderer = ctx.fig.canvas.get_renderer()
+                frame = ax.get_window_extent(renderer)
+                w_pt = max(30.0, frame.width * ctx.pt_per_px)
+                h_pt = max(20.0, frame.height * ctx.pt_per_px)
+                row_h_pt = h_pt / max(1, n)
+                x0_v, x1_v = sorted(ax.get_xlim())
+                x_lo_s = float(np.log10(max(x0_v, 1e-300))) if log else float(x0_v)
+                x_hi_s = float(np.log10(max(x1_v, 1e-300))) if log else float(x1_v)
+                x_span = (x_hi_s - x_lo_s) or 1.0
+                avail_h_pt = 0.72 * row_h_pt
+                d_pt = (4.8 if q <= 25 else 3.8) * sz.scale
+                binned: dict[str, list[tuple[float, int]]] = {}
+                max_stack = 1
+                for _ in range(10):
+                    bw = (1.26 * d_pt / w_pt) * x_span
+                    binned = {
+                        nm: _wilkinson_stack(
+                            np.log10(qvals[nm]) if log else qvals[nm],
+                            bw,
+                        )
+                        for nm in names
+                    }
+                    max_stack = max(
+                        (cnt for stacks in binned.values() for _, cnt in stacks),
+                        default=1,
+                    )
+                    if max_stack * 1.12 * d_pt <= avail_h_pt:
+                        break
+                    d_pt = max(1.8 * sz.scale, min(d_pt * 0.88, avail_h_pt / (max_stack * 1.12)))
+                dy_data = min((1.12 * d_pt) / max(row_h_pt, 1.0), 0.72 / max(1, max_stack))
+                halo = [
+                    patheffects.withStroke(
+                        linewidth=2.2 * sz.scale, foreground=theme.background, alpha=0.9
+                    )
+                ]
+                for row, name in enumerate(names):
+                    col = row_colors[name]
+                    y_base = row + 0.32
+                    ax.hlines(
+                        y_base,
+                        float(qvals[name][0]),
+                        float(qvals[name][-1]),
+                        color=theme.grid,
+                        linewidth=0.6 * sz.scale,
+                        zorder=1,
+                    )
+                    dot_xs: list[float] = []
+                    dot_ys: list[float] = []
+                    for cx_s, count in binned[name]:
+                        cx = float(10.0**cx_s) if log else float(cx_s)
+                        for k in range(count):
+                            dot_xs.append(cx)
+                            dot_ys.append(y_base - (k + 0.55) * dy_data)
+                    ax.scatter(
+                        dot_xs,
+                        dot_ys,
+                        s=d_pt**2,
+                        color=col,
+                        edgecolor=theme.background,
+                        linewidth=0.45 * sz.scale,
+                        alpha=0.92,
+                        zorder=3,
+                    )
+                    q1, med, q3 = stats[name]
+                    if log:
+                        q1 = max(q1, ax.get_xlim()[0])
+                    mark_y = y_base + 0.055
+                    if data[name].size >= 5:
+                        ax.hlines(
+                            mark_y,
+                            q1,
+                            q3,
+                            color=theme.ink,
+                            linewidth=1.25 * sz.scale,
+                            alpha=0.72,
+                            zorder=4,
+                            path_effects=halo,
+                        )
+                    ax.vlines(
+                        med,
+                        y_base - 0.05,
+                        y_base + 0.14,
+                        color=theme.ink,
+                        linewidth=1.8 * sz.scale,
+                        zorder=5,
+                        path_effects=halo,
+                    )
+
+            return _finish_quantile
+        if ref_note is not None:
+            return lambda: _keep_inside_x(ctx, ax, ref_note)
         return None
+
+    pct_each = 100.0 / q
+    pct_txt = f"{pct_each:.0f}%" if abs(pct_each - round(pct_each)) < 1e-6 else f"{pct_each:.1f}%"
+    if mode == "quantile":
+        panel_describe = (
+            f"Quantile dotplot ({q} dots/group, {pct_txt} each) of {label or 'values'}"
+            + (f" ({unit})" if unit else "")
+            + f" for {len(names)} group(s), with {stat} centre mark"
+        )
+        panel_measure_note = f"quantile dotplot ({q} dots/group, {pct_txt} each); tick: {stat}"
+        height_fn = lambda _w, _m, _s, _t: max(26.0, 14.5 * len(names) + 12.0)
+        min_height_fn = lambda _w, _m, _s, _t: max(22.0, 11.5 * len(names) + 11.0)
+    else:
+        panel_describe = (
+            f"Dot strips of {label or 'values'}"
+            + (f" ({unit})" if unit else "")
+            + f" for {len(names)} group(s), each with "
+            + (
+                f"a {stat} tick"
+                if not any_spread
+                else "a mean tick and a \N{PLUS-MINUS SIGN} 1 s.d. line"
+                if stat == "mean"
+                else "a median tick and a line over the middle half (interquartile range)"
+            )
+        )
+        # The spread line is drawn only for groups with n >= 5: caption it only then.
+        panel_measure_note = (
+            f"tick: {stat}"
+            if not any_spread
+            else (
+                "tick: mean; line: \N{PLUS-MINUS SIGN} 1 s.d."
+                if stat == "mean"
+                else "tick: median; line: middle half"
+            )
+            + (
+                ""
+                if all(a.size >= 5 for a in data.values())
+                else " (n \N{GREATER-THAN OR EQUAL TO} 5)"
+            )
+        )
+        height_fn = lambda _w, _m, _s, _t: 8.5 * len(names) + 11.0
+        min_height_fn = lambda _w, _m, _s, _t: 6.5 * len(names) + 11.0
 
     return Panel(
         kind="distribution",
@@ -979,39 +1208,16 @@ def distribution(
             log=log or None,
             stat=stat if stat != "median" else None,
             fmt=fmt,
+            mode=mode if mode != "dots" else None,
+            quantiles=q if mode == "quantile" else None,
         ),
         facts=facts,
         alt_facts=alt_facts,
-        describe=(
-            f"Dot strips of {label or 'values'}"
-            + (f" ({unit})" if unit else "")
-            + f" for {len(names)} group(s), each with "
-            + (
-                f"a {stat} tick"
-                if not any_spread
-                else "a mean tick and a \N{PLUS-MINUS SIGN} 1 s.d. line"
-                if stat == "mean"
-                else "a median tick and a line over the middle half (interquartile range)"
-            )
-        ),
-        _height_mm=lambda _w, _m, _s, _t: 8.5 * len(names) + 11.0,
-        _min_height_mm=lambda _w, _m, _s, _t: 6.5 * len(names) + 11.0,
+        describe=panel_describe,
+        _height_mm=height_fn,
+        _min_height_mm=min_height_fn,
         _draw=_draw,
-        # The spread line is drawn only for groups with n >= 5: caption it only then.
-        measure_note=(
-            f"tick: {stat}"
-            if not any_spread
-            else (
-                "tick: mean; line: \N{PLUS-MINUS SIGN} 1 s.d."
-                if stat == "mean"
-                else "tick: median; line: middle half"
-            )
-            + (
-                ""
-                if all(a.size >= 5 for a in data.values())
-                else " (n \N{GREATER-THAN OR EQUAL TO} 5)"
-            )
-        ),
+        measure_note=panel_measure_note,
         color_items=tuple(nm for nm in names if nm),
         color_focus=tuple(hl),
         color_mode="highlight" if hl else "uniform",

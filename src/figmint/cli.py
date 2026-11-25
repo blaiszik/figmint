@@ -252,7 +252,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out",
         type=Path,
         default=None,
-        help="Output image path (.png, .svg or .pdf). Required unless --example.",
+        help="Output image path (.png, .svg, .pdf, or .html). Required unless --example.",
     )
     explain_parser.add_argument(
         "--style",
@@ -290,6 +290,33 @@ def _build_parser() -> argparse.ArgumentParser:
         "--example",
         action="store_true",
         help="Print an example spec to stdout and exit.",
+    )
+
+    # `figmint show <path_or_spec> [--mode auto|kitty|iterm2|unicode|ascii] [--width 78] [--no-color]`
+    show_parser = subparsers.add_parser(
+        "show",
+        help="Display a figmint spec or PNG in the terminal (Kitty/iTerm2 graphics or Unicode/ASCII).",
+    )
+    show_parser.add_argument(
+        "path_or_spec",
+        help="Path to a JSON spec, a PNG file, or '-' to read a JSON spec from stdin.",
+    )
+    show_parser.add_argument(
+        "--mode",
+        choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
+        default="auto",
+        help="Rendering mode (default: auto).",
+    )
+    show_parser.add_argument(
+        "--width",
+        type=int,
+        default=78,
+        help="Target text width in columns for unicode/ascii modes (default: 78).",
+    )
+    show_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color sequences in unicode/ascii output.",
     )
 
     # `figmint skill [--install] [--target ...] [--root .] [--print] [--snippet]`
@@ -406,9 +433,51 @@ def _run_explain(args: argparse.Namespace) -> int:
         return _reject(exc.message, exc.fix_hint, exc.rule)
     except (KeyError, TypeError, ValueError) as exc:
         return _reject(str(exc), "See `figmint explain --example` for the expected shape.")
-    summary = explanation.save(args.out, write_spec=args.write_spec)
+    if args.out.suffix.lower() in {".html", ".htm"}:
+        from .interactive import render_html
+
+        out_path = Path(args.out)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(render_html(explanation, interactive=True), encoding="utf-8")
+        explanation.saved_path = out_path.resolve()
+        explanation.saved_px = None
+        if args.write_spec:
+            out_path.with_suffix(".json").write_text(
+                json.dumps(explanation.to_spec(), indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+        summary = explanation.summary()
+    else:
+        summary = explanation.save(args.out, write_spec=args.write_spec)
     print(summary)
     return 0 if summary["ok"] else 1
+
+
+def _run_show(args: argparse.Namespace) -> int:
+    """Render a figmint spec or PNG to the terminal."""
+    from .explainer import ExplainError
+    from .terminal import show_in_terminal
+
+    try:
+        target: Any
+        if args.path_or_spec == "-":
+            raw = sys.stdin.read()
+            target = json.loads(raw)
+            if not isinstance(target, dict):
+                raise ValueError("JSON spec from stdin must be a JSON object.")
+        else:
+            target = Path(args.path_or_spec)
+        rendered = show_in_terminal(
+            target,
+            mode=args.mode,
+            width=args.width,
+            color=not args.no_color,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, ExplainError, ValueError, TypeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    print(rendered)
+    return 0
 
 
 def _rerun_with_fixed_hash_seed() -> int | None:
@@ -504,6 +573,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "explain":
         return _run_explain(args)
+
+    if args.command == "show":
+        return _run_show(args)
 
     if args.command == "skill":
         if args.snippet:

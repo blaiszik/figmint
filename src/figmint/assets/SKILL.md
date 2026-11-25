@@ -53,12 +53,13 @@ summary = fig.save("ablation.png")          # already-parsed dict; print() rende
 print(summary)
 ```
 
-No Python handy? Render JSON directly: `figmint explain spec.json --out fig.png` (`--example` prints a starter spec; `-` reads stdin; `--lenient` auto-adjusts soft limits).
+No Python handy? Render JSON directly: `figmint explain spec.json --out fig.png` (or `--out fig.html` for interactive HTML; `--example` prints a starter spec; `-` reads stdin; `--lenient` auto-adjusts soft limits). Display directly in a terminal with `figmint show fig.png` (or `spec.json` / `-`; auto-detects Kitty/iTerm2 graphics or falls back to Unicode/ASCII).
 
-**4. Check `facts` and `ship`, then send.**
-- `summary` is a dict (`summary["panels"][i]["facts"]`, `summary["issues"]`, `summary["ok"]`, `summary["ship"]`).
-- **Read `facts` before computing anything in Python/scipy:** forms compute rankings, gaps vs `baseline=`/`reference=`, interval overlaps, before/after event medians, log-axis slopes/power-law exponents with 95% CI, group correlations, and table leaders. **Your takeaway must agree with `facts`.**
+**4. Check `facts` and `ship`, then deliver.**
+- `summary` is a dict (`summary["panels"][i]["facts"]`, `summary["narrative"]` L1–L4, `summary["issues"]`, `summary["ok"]`, `summary["ship"]`).
+- **Read `facts` before computing anything in Python/scipy:** forms compute rankings, gaps vs `baseline=`/`reference=`, interval overlaps, exceedance/`P(A > B)` superiority, before/after event medians, log-axis slopes/power-law exponents with 95% CI, group correlations, and table leaders. **Your takeaway must agree with `facts`** (advisory checks `claim_overstates_uncertainty` and `claim_number_mismatch` warn on clear mismatches without blocking `ship`).
 - **`summary["ship"]` gates shipping:** `true` means zero errors and zero drawn-layout or text defects (including drawn-text overlaps, lines crossing text, malformed `%`/minus/`nan`, missing glyphs, LaTeX `$...$`, and sub-11 px chat text). When `summary["ship"]` is `true` and the takeaway agrees with `facts`, **send the figure right away** — do not re-render for advisory polish warnings (`many_items`, `too_tall`, `unit_is_long`).
+- **Match the user's harness:** `width="chat"` (700 px default), `width="narrow"` (450 px IDE sidebars — auto-stacks multi-panel vertically), `width="slide"` (1280 px hero/slides). Save interactive HTML via `fig.save("out.html")` (embedded SVG + Facts drawer + Critique/Ask-Agent snippet; Jupyter displays via `_repr_html_()`), or render terminal views with `fig.to_terminal()` / `figmint show`.
 - **Fast lenient mode:** wrap ad-hoc charts in `with fm.lenient():` (or `strict=False` / `--lenient`) to auto-facet >4 trend series, trim oversized lists, auto-stack cramped/wide panels, and move advisory warnings to `summary["advisories"]` (changes logged in `summary["adjustments"]`).
 - **Visual check & cap:** open the PNG when layout is tight; fix issues in at most 2 re-render rounds, then show the image plus 1–2 sentences adding cause, caveat, or next step.
 
@@ -73,26 +74,30 @@ fm.explain(takeaway, *panels,
     palette=None,           # "default" | "okabe_ito" | "tol" | "earth" | "ocean" | "berry"
     accent=None,            # custom primary highlight hex color, e.g. "#D97757"
     strict=True,            # False / `with fm.lenient():`: auto-adjust soft limits
-    width="chat")           # "chat" (700 px) in conversations, "slide" (1280 px) for wide release/hero cards
+    width="chat")           # "narrow" (450 px sidebar, auto-stacks), "chat" (700 px), "slide" (1280 px)
 
 # Shared by every form: title=, label=, unit=, highlight= (1–3 names), fmt=
 # compare, trend, distribution, table also take baseline= (control/"before", drawn in ink)
 
 fm.compare(values,          # {name: num}, {cat: {series: num}} (grouped), Series, or rows
     name=None, group=None, value=None, sort=True, zero=True, log=False,
-    error=None, error_label=None, boost=None, boost_label=None,  # boost= stacks tinted bar extension
-    n=None, reference=None)  # error=/boost=/n= also accept column name(s)
+    error=None, inner_error=None, error_label=None,  # inner_error= thicker inner CI inside error=
+    boost=None, boost_label=None, show_delta=False,  # show_delta= inline (+delta) vs baseline=
+    n=None, reference=None)  # error=/inner_error=/boost=/n= also accept column name(s)
 
 fm.trend(x, series=None,    # wide (x, {name: [nums]} / DataFrame) or tidy ("x_col", "s_col", y="y_col", data=rows)
     y=None, data=None, x_label=None, x_unit=None, log=False, log_x=False, zero=False,
     band=None, band_label=None, points=None, points_label=None,
-    events=None, reference=None, end_values=True, facet=False)
+    events=None, regions=None, callouts=None,  # regions=[(x0, x1, txt)], callouts=[(x, y, txt)] (<=4)
+    reference=None, end_values=True, facet=False)
 
 fm.change(before, after,    # two {name: num} or ("col1", "col2", data=rows, name="item")
     data=None, name=None, labels=("Before", "After"))
 
 fm.distribution(groups,     # {name: [obs]}, wide DataFrame, or rows with group=/value=
-    group=None, value=None, stat="median", bins=None, log=False, reference=None)
+    group=None, value=None, stat="median",
+    mode="dots", quantiles=20,  # mode="quantile" draws stacked countable quantile dotplot (5–50 dots)
+    bins=None, log=False, reference=None)
 
 fm.histogram(values,        # alias for distribution(..., bins=bins); single list, <=4 groups, or rows
     group=None, value=None, bins="auto", stat="median", log=False, reference=None)
@@ -102,6 +107,7 @@ fm.relate(x, y, x_label=, y_label=,   # two lists, or column names with data=row
     frontier=False,         # True/"upper-left" | "upper-right" | "lower-left" | "lower-right" Pareto envelope
     label_all=False,        # label every point (requires names=, <=24 points) with collision avoidance
     connect_groups=False,   # connect points within each group in x order (e.g. model generation trajectories)
+    regions=None, callouts=None,  # shaded x spans [(x0, x1, txt)] & direct leader notes [(x, y, txt)]
     log_x=False, log_y=False, reference=None)
 
 fm.share(parts,             # {name: >=0 num}, Series, or rows with name=/value=

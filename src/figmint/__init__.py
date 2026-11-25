@@ -20,6 +20,7 @@ from .annotations import (
 )
 from .audit import audit_figure, audit_layout
 from .bundle import BundleResult, bundle_figure
+from .epistemic import audit_epistemic, build_narrative
 from .explainer import (
     ExplainError,
     Explanation,
@@ -41,6 +42,7 @@ from .explainer import (
     trend,
 )
 from .export import rasterize_heavy, save_figure
+from .interactive import render_html
 from .palettes import (
     BANNED_COLORMAPS,
     EDITORIAL_COLORMAPS,
@@ -56,6 +58,7 @@ from .runner import RunResult, run_script
 from .skill import VALID_TARGETS, get_agents_snippet, get_skill_markdown, install_skill
 from .specs import JOURNALS, MM_PER_INCH, JournalSpec, get_spec, in_to_mm, mm_to_in
 from .style import apply, rc_params, resolved_font_name, use
+from .terminal import render_terminal, show_in_terminal
 from .themes import EXPLAIN_PALETTES, THEMES, ExplainPalette, Theme, get_explain_palette, get_theme
 
 __version__ = "0.2.0"
@@ -82,8 +85,10 @@ __all__ = [
     "Theme",
     "__version__",
     "apply",
+    "audit_epistemic",
     "audit_figure",
     "audit_layout",
+    "build_narrative",
     "bundle_figure",
     "change",
     "compare",
@@ -117,12 +122,15 @@ __all__ = [
     "rc_params",
     "register_colormaps",
     "relate",
+    "render_html",
     "render_proof_sheet",
+    "render_terminal",
     "resolved_font_name",
     "run_script",
     "save_figure",
     "scalebar",
     "share",
+    "show_in_terminal",
     "sig_bracket",
     "simulate_cvd",
     "slopegraph",

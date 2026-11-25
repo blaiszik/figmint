@@ -495,6 +495,45 @@ split and model-release chart extensions):
      `scale=2.0`) with zero false `small_at_chat_size` warnings while keeping
      `width="chat"` / `width="wide"` chat-column behavior unchanged.
 
+## 4i. Eighth pass: harness-adaptive delivery, visual-science upgrades & epistemic auditing
+
+1. **Harness-adaptive delivery (`interactive.py`, `terminal.py`, `cli.py`, `width="narrow"`):**
+   - `width="narrow"` (92 mm / 450 px target width in `specs.py` & `layout.py`)
+     targets 420–480 px IDE sidebars (Cursor / VS Code), auto-stacking
+     multi-panel layouts vertically (`[["a"], ["b"], ...]`) while keeping
+     `min_text_px >= 12.1` px (≥11 px floor).
+   - `src/figmint/interactive.py` (`fm.render_html`, `render_html_fragment`,
+     `Explanation.to_html()`, `Explanation._repr_html_()`, `fig.save("out.html")`,
+     and `figmint explain ... --out out.html`) emits zero-CDN self-contained
+     HTML with inline SVG, theme-matched light/dark surfaces, toggleable Facts
+     & Data drawer, Download SVG, Copy Spec JSON, and a Critique / Ask Agent
+     feedback snippet builder.
+   - `src/figmint/terminal.py` (`fm.render_terminal`, `fm.show_in_terminal`,
+     `Explanation.to_terminal()`, and `figmint show <path_or_spec>`) detects
+     Kitty/Ghostty APC and iTerm2/WezTerm OSC 1337 inline PNG protocols and
+     falls back to crisp Unicode/ASCII bars, box-drawn tables, and sparklines.
+2. **Visual-science form upgrades (`_explain/{distribution,compare,trend,relate}.py`):**
+   - `distribution(mode="quantile", quantiles=20)` renders Wilkinson-stacked
+     countable quantile dotplots; both modes emit exceedance probabilities above
+     `reference=` and empirical superiority `P(group > baseline)` facts.
+   - `compare(inner_error=..., show_delta=True)` renders nested inner/outer
+     intervals (Kay & Hullman) and inline signed baseline deltas beside value
+     labels.
+   - `trend` and `relate` gain shaded `regions=[(x0, x1, label)]` and
+     collision-aware direct leader `callouts=[(x, y, note)]` (≤4).
+3. **Four-level semantic narrative & advisory epistemic audit (`epistemic.py`):**
+   - `fm.build_narrative` (Lundgard & Satyanarayan L1–L4 + compact `summary`)
+     is wired into `summary["narrative"]`.
+   - `fm.audit_epistemic` runs inside `fm.explain()` emitting advisory-only
+     `severity="warning"` issues (`claim_overstates_uncertainty`,
+     `claim_number_mismatch`) kept outside `_VISUAL_DEFECT_RULES` so they never
+     falsely block `ship`, verified at zero false positives across all gallery
+     examples and existing tests.
+4. **Exports & docs:** exported `render_html`, `render_terminal`,
+   `show_in_terminal`, `build_narrative`, and `audit_epistemic` on `figmint`
+   and `figmint.explainer`; updated compact `SKILL.md` and
+   `references/scientific_and_recipes.md`.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
@@ -513,7 +552,7 @@ Verified:
     style/palette), logging every change in `summary["adjustments"]` and moving
     advisory nudges into `summary["advisories"]`.
   - Updated `SKILL.md`, `AGENTS_SNIPPET.md`, and `README.md`.
-- `pytest`: 603 passed. `ruff check src tests gallery evals`: clean.
+- `pytest`: 742 passed. `ruff check src tests gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host
@@ -565,21 +604,22 @@ Known limits:
 
 ## 6. Next steps, in order
 
-1. CI with a Linux font-fallback job, and a release under whatever PyPI name
+1. **Bet 4 (Human & VLM Comprehension Benchmark) — priority for next cycle:**
+   - Build a reader-comprehension benchmark evaluating both VLMs and humans on
+     factual accuracy, uncertainty calibration, and speed against hand-written
+     baseline plots of the same data.
+   - Include **harness-width evals** comparing legibility and answer accuracy
+     across `450 px` narrow IDE sidebars (`width="narrow"`), `700 px` chat
+     columns (`width="chat"`), and `1280 px` slide/hero cards (`width="slide"`),
+     plus ablations for quantile dotplots, nested CIs, inline deltas, and
+     direct callouts/regions.
+2. CI with a Linux font-fallback job, and a release under whatever PyPI name
    the owner picks.
-2. An understandability eval: a reader model (and ideally a few people) sees a
-   PNG at 700 px and answers factual questions; compare `fm.explain` output
-   with hand-written plots of the same data.
-3. A return channel: a self-contained `review.html` where a person clicks a
-   panel and sends structured feedback; `fm.load` already rebuilds the figure
-   from the PNG it came from.
-4. `trend(fit=...)` for linear and log-linear fits with the slope on the plot.
-5. Split `explainer.py` (forms, formatting and facts, layout) before it grows
-   further; it is about 7,000 lines after the second pass.
-6. The visual leftovers in section 5, known limit 8, then regenerate the
+3. `trend(fit=...)` for linear and log-linear fits with the slope on the plot.
+4. The visual leftovers in section 5, known limit 8, then regenerate the
    `explain*` gallery (with the owner's OK).
-7. figure-bench: a `number_not_in_facts` warning (section 4c), more held-out
-   tasks (the core set has plateaued at ~20 s), and its own environment.
+5. figure-bench: more held-out tasks (the core set has plateaued at ~20 s),
+   narrow-sidebar & HTML-output tasks, and a dedicated venv.
 
 ## 7. Decisions
 

@@ -92,6 +92,7 @@ def _bar_panel(
     baseline: str | None = None,
     counts: Mapping[str, int] | None = None,
     boosts: Sequence[float] | None = None,
+    inner_errors: dict[str, tuple[float, float]] | None = None,
 ) -> Panel:
     n = len(names)
     hl_index = {name: i for i, name in enumerate(highlight)}
@@ -209,6 +210,18 @@ def _bar_panel(
                         color=dot_colors,
                         linewidth=0.9 * sz.scale,
                         zorder=2,
+                    )
+                if inner_errors is not None:
+                    in_lows = np.array([inner_errors[nm][0] for nm in names], dtype=float)
+                    in_highs = np.array([inner_errors[nm][1] for nm in names], dtype=float)
+                    ax.hlines(
+                        y,
+                        in_lows,
+                        in_highs,
+                        color=dot_colors,
+                        linewidth=2.6 * sz.scale,
+                        capstyle="round",
+                        zorder=2.5,
                     )
             else:
                 ax.hlines(y, left, vals, color=stem_color, linewidth=0.7, zorder=1)
@@ -466,16 +479,16 @@ def _sort_order(sort: object) -> str:
 
 
 def _compare_intervals(
-    error: object, data: dict[str, float]
+    error: object, data: dict[str, float], *, arg: str = "error"
 ) -> tuple[dict[str, tuple[float, float]], set[str]]:
-    """Read ``compare(error=...)``: per item (low, high) or a half-width, or one number for all."""
+    """Read ``compare(error=...)`` / ``inner_error=``: per item (low, high) or half-width, or one number."""
     names = list(data)
     hint = (
         "Give each item either (low, high) absolute bounds or one number meaning \N{PLUS-MINUS SIGN} "
-        'that much, e.g. error={"a": (2.8, 3.2), "b": 0.3}, or error=0.2 for every item.'
+        f'that much, e.g. {arg}={{"a": (2.8, 3.2), "b": 0.3}}, or {arg}=0.2 for every item.'
     )
     if _is_number(error):
-        hw = _halfwidth(error, "compare(error)")
+        hw = _halfwidth(error, f"compare({arg})")
         return {nm: (data[nm] - hw, data[nm] + hw) for nm in names}, {"halfwidth"}
     if _has_items(error):
         entries = {str(k): v for k, v in _pairs(error)}
@@ -483,19 +496,19 @@ def _compare_intervals(
         listed = list(error)
         if len(listed) != len(names):
             raise ExplainError(
-                f"compare(error) lists {len(listed)} intervals for {len(names)} items.",
+                f"compare({arg}) lists {len(listed)} intervals for {len(names)} items.",
                 fix_hint=hint + " A list must follow the order of values.",
             )
         entries = dict(zip(names, listed, strict=True))
     else:
         raise ExplainError(
-            f"compare(error) must be a mapping, a list or one number, got {type(error).__name__}.",
+            f"compare({arg}) must be a mapping, a list or one number, got {type(error).__name__}.",
             fix_hint=hint,
         )
     extra = [k for k in entries if k not in data]
     if extra:
         raise ExplainError(
-            f"compare(error) names {extra[:4]!r}, which are not in values.",
+            f"compare({arg}) names {extra[:4]!r}, which are not in values.",
             fix_hint=f"Use names from: {', '.join(map(repr, names[:12]))}.",
         )
     errors: dict[str, tuple[float, float]] = {}
@@ -503,12 +516,12 @@ def _compare_intervals(
     for name in names:
         if name not in entries:
             raise ExplainError(
-                f"compare(error) has no entry for {name!r}.",
-                fix_hint=hint + " Every item needs one, or omit `error`.",
+                f"compare({arg}) has no entry for {name!r}.",
+                fix_hint=hint + f" Every item needs one, or omit `{arg}`.",
             )
         entry = entries[name]
         if _is_number(entry):
-            hw = _halfwidth(entry, f"compare(error[{name!r}])")
+            hw = _halfwidth(entry, f"compare({arg}[{name!r}])")
             errors[name] = (data[name] - hw, data[name] + hw)
             modes.add("halfwidth")
             continue
@@ -516,23 +529,23 @@ def _compare_intervals(
             pair = [v for v in entry]  # type: ignore[union-attr]
         except TypeError as exc:
             raise ExplainError(
-                f"compare(error[{name!r}]) = {entry!r} is neither (low, high) nor a number.",
+                f"compare({arg}[{name!r}]) = {entry!r} is neither (low, high) nor a number.",
                 fix_hint=hint,
             ) from exc
         if len(pair) != 2:
             raise ExplainError(
-                f"compare(error[{name!r}]) has {len(pair)} numbers; an interval has two.",
+                f"compare({arg}[{name!r}]) has {len(pair)} numbers; an interval has two.",
                 fix_hint=hint,
             )
-        low, high = (_to_float(v, f"compare(error[{name!r}])") for v in pair)
+        low, high = (_to_float(v, f"compare({arg}[{name!r}])") for v in pair)
         if not (math.isfinite(low) and math.isfinite(high)):
             raise ExplainError(
-                f"compare(error[{name!r}]) = ({low}, {high}) is not finite.",
+                f"compare({arg}[{name!r}]) = ({low}, {high}) is not finite.",
                 fix_hint=hint,
             )
         if not low <= data[name] <= high:
             raise ExplainError(
-                f"compare(error[{name!r}]) = ({low}, {high}) does not bracket the value "
+                f"compare({arg}[{name!r}]) = ({low}, {high}) does not bracket the value "
                 f"{data[name]}.",
                 fix_hint="Pass absolute (low, high) bounds, not +/- offsets; for a symmetric "
                 "interval pass one number, the half-width.",
@@ -608,12 +621,14 @@ def compare(
     zero: bool = True,
     error: Mapping[str, Any] | Sequence[Any] | float | str | None = None,
     error_label: str | None = None,
+    inner_error: Mapping[str, Any] | Sequence[Any] | float | str | None = None,
     boost: Mapping[str, float] | str | None = None,
     boost_label: str | None = None,
     reference: float | tuple[float, str] | None = None,
     log: bool = False,
     fmt: str | None = None,
     n: Mapping[str, int] | Sequence[int] | str | None = None,
+    show_delta: bool = False,
 ) -> Panel:
     """How do items differ in size? Sorted horizontal bars, grouped bars, or dot-interval marks.
 
@@ -625,17 +640,31 @@ def compare(
     non-negative extension on each bar (e.g. standard score + extended thinking).
     Bars start at zero; pass ``zero=False`` when zero is not meaningful (dot plot)
     or ``log=True`` for values spanning decades. ``error`` + ``error_label`` draw
-    dot-and-interval marks. ``baseline`` draws a control/incumbent in ink and
-    states gaps against it in ``facts``.
+    dot-and-interval marks; pass ``inner_error=`` alongside ``error=`` to draw a
+    thicker inner interval (e.g. 50% CI inside 95% CI, Kay & Hullman ggdist).
+    ``baseline`` draws a control/incumbent in ink and states gaps against it in
+    ``facts``; pass ``show_delta=True`` with ``baseline=`` to append inline signed
+    deltas beside each non-baseline value label.
     """
-    from .._tabular import resolve_grouped_compare_table, resolve_named_table
+    from .._tabular import (
+        extract_records,
+        is_tabular,
+        resolve_grouped_compare_table,
+        resolve_named_table,
+    )
     from .compare_grouped import build_grouped_compare, is_nested_compare
 
     if group is not None:
-        if boost is not None or error is not None or n is not None:
+        if (
+            boost is not None
+            or error is not None
+            or inner_error is not None
+            or n is not None
+            or show_delta
+        ):
             raise ExplainError(
-                "Grouped compare(group=...) cannot be combined with error=, boost=, or n=.",
-                fix_hint="Use separate compare() panels for intervals/boosts, or drop group=.",
+                "Grouped compare(group=...) cannot be combined with error=, inner_error=, boost=, n=, or show_delta=.",
+                fix_hint="Use separate compare() panels for intervals/boosts/deltas, or drop group=.",
             )
         nested = resolve_grouped_compare_table(values, name=name, group=group, value=value)
         return build_grouped_compare(
@@ -653,10 +682,16 @@ def compare(
         )
 
     if is_nested_compare(values):
-        if boost is not None or error is not None or n is not None:
+        if (
+            boost is not None
+            or error is not None
+            or inner_error is not None
+            or n is not None
+            or show_delta
+        ):
             raise ExplainError(
-                "Grouped compare() with nested dicts cannot be combined with error=, boost=, or n=.",
-                fix_hint="Use single-series compare() for intervals/boosts, or drop error=/boost=/n=.",
+                "Grouped compare() with nested dicts cannot be combined with error=, inner_error=, boost=, n=, or show_delta=.",
+                fix_hint="Use single-series compare() for intervals/boosts/deltas, or drop error=/inner_error=/boost=/n=/show_delta=.",
             )
         return build_grouped_compare(
             values,  # type: ignore[arg-type]
@@ -672,6 +707,7 @@ def compare(
             fmt=fmt,
         )
 
+    raw_values_obj = values
     tabular = resolve_named_table(
         values,
         "compare(values)",
@@ -683,6 +719,20 @@ def compare(
         form="compare",
     )
     if tabular is not None:
+        if inner_error is not None and is_tabular(raw_values_obj):
+            t_cols, t_rows = extract_records(raw_values_obj, what="compare(values)")
+            name_col = name or (t_cols[0] if t_cols else "")
+            if isinstance(inner_error, str) and inner_error in t_cols:
+                inner_error = {str(r.get(name_col, "")): r.get(inner_error) for r in t_rows}
+            elif (
+                isinstance(inner_error, (tuple, list))
+                and len(inner_error) == 2
+                and all(isinstance(c, str) and c in t_cols for c in inner_error)
+            ):
+                lo_c, hi_c = str(inner_error[0]), str(inner_error[1])
+                inner_error = {
+                    str(r.get(name_col, "")): (r.get(lo_c), r.get(hi_c)) for r in t_rows
+                }
         values, error, n, boost = tabular
     data = _named_values(values, "compare(values)")
     names = list(data)
@@ -724,6 +774,35 @@ def compare(
     modes: set[str] = set()
     if error is not None:
         errors, modes = _compare_intervals(error, data)
+    inner_errors: dict[str, tuple[float, float]] | None = None
+    if inner_error is not None:
+        if errors is None:
+            raise ExplainError(
+                "compare(inner_error=...) requires error= for the outer interval.",
+                fix_hint="Pass both error= (outer interval, e.g. 95% CI) and inner_error= (inner interval, e.g. 50% CI).",
+            )
+        inner_errors, _inner_modes = _compare_intervals(inner_error, data, arg="inner_error")
+        for nm in names:
+            out_lo, out_hi = errors[nm]
+            in_lo, in_hi = inner_errors[nm]
+            tol = 1e-9 * max(1.0, abs(out_lo), abs(out_hi))
+            if in_lo < out_lo - tol or in_hi > out_hi + tol:
+                raise ExplainError(
+                    f"compare(inner_error[{nm!r}]) = ({in_lo}, {in_hi}) extends outside "
+                    f"outer error ({out_lo}, {out_hi}).",
+                    fix_hint="Ensure inner_error bounds lie within error bounds (e.g. 50% CI inside 95% CI).",
+                )
+    if show_delta:
+        if base is None:
+            raise ExplainError(
+                "compare(show_delta=True) requires baseline= to compute inline deltas against.",
+                fix_hint='Pass baseline="<item>" alongside show_delta=True.',
+            )
+        if boost is not None:
+            raise ExplainError(
+                "compare(show_delta=True) cannot be combined with boost=.",
+                fix_hint="Drop either show_delta=True or boost= so value labels stay unambiguous.",
+            )
     counts = _compare_counts(n, names) if n is not None else {}
     boost_map: dict[str, float] | None = None
     if boost is not None:
@@ -817,6 +896,16 @@ def compare(
         for i, (tot_v, b_v) in enumerate(zip(totals, boost_vals, strict=True)):
             t_txt = _with_unit(fmt_fn(tot_v), unit) if (i == 0 or _inline_unit(unit)) else fmt_fn(tot_v)
             labels.append(f"{t_txt} (+{b_fmt(b_v)})" if b_v > 0 else t_txt)
+    elif show_delta and base is not None:
+        deltas = [data[nm] - data[base] for nm in names if nm != base]
+        d_fmt = _formatter(deltas or [0.0], fmt, unit=unit)
+        labels = []
+        for i, (nm, v) in enumerate(zip(names, vals, strict=True)):
+            base_txt = _with_unit(fmt_fn(v), unit) if (i == 0 or _inline_unit(unit)) else fmt_fn(v)
+            if nm != base:
+                labels.append(f"{base_txt} ({_signed(d_fmt(v - data[base]))})")
+            else:
+                labels.append(base_txt)
     else:
         labels = [
             _with_unit(fmt_fn(v), unit) if (i == 0 or _inline_unit(unit)) else fmt_fn(v)
@@ -1021,14 +1110,16 @@ def compare(
         + (f", in {unit}" if unit else "")
         + (" on a log scale" if log else "")
         + (f", with intervals ({error_label})" if errors and error_label else "")
+        + (" and nested inner interval" if inner_errors is not None else "")
     )
     notes = [
-        n
-        for n in (
+        nt
+        for nt in (
             "log scale" if log else None,
             f"intervals: {error_label}" if errors and error_label else None,
+            "thick bar: inner interval" if inner_errors is not None else None,
         )
-        if n
+        if nt
     ]
     if boost_map is not None:
         b_label_txt = boost_label or "boost"
@@ -1063,17 +1154,20 @@ def compare(
             zero=zero,
             error=_jsonable(error) if errors else None,
             error_label=error_label,
+            inner_error=_jsonable(inner_error) if inner_errors is not None else None,
             boost={nm: boost_map[nm] for nm in data} if boost_map is not None else None,
             boost_label=boost_label,
             reference=list(ref) if ref else None,
             log=log or None,
             fmt=fmt,
             n=dict(counts) or None,
+            show_delta=True if show_delta else None,
         ),
         facts=facts,
         describe=describe,
         dots=(not zero) or errors is not None or log,
         errors=errors,
+        inner_errors=inner_errors,
         reference=ref,
         issues=issues,
         log=log,

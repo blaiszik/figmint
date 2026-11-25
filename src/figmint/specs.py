@@ -247,6 +247,7 @@ JOURNALS: dict[str, JournalSpec] = {
         name="screen",
         display_name="Screen / Chat Review",
         widths_mm={
+            "narrow": 92.0,
             "chat": 140.0,
             "single": 140.0,
             "wide": 180.0,

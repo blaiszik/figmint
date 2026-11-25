@@ -4,7 +4,7 @@ Every primary function, visual theme, color palette, and publication plate in `f
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [`fm.table`](#fmtable--exact-lookups-and-scorecards) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [`fm.table`](#fmtable--exact-lookups-and-scorecards) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Model Release Hero Charts](#model-release-hero-charts) |
 | **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`fm.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
@@ -294,6 +294,26 @@ fm.explain(
     source="synthetic model evaluation data",
 )
 ```
+
+---
+
+## Visual-Science & Harness-Adaptive Delivery
+
+Grounded in empirical visual communication research (Kay & Hullman quantile dotplots & nested CIs, Franconeri et al. direct delta encoding & spatial contiguity, Segel & Heer narrative callouts, Lundgard & Satyanarayan L1–L4 narratives, Kong et al. tightly scoped epistemic slant checks) and adapted to how real agent harnesses display visuals (`width="narrow"` for IDE sidebars, `fig.save("out.html")` interactive SVG+JS, and `figmint show` for Kitty/iTerm2/Unicode terminals).
+
+### Quantile dotplots (`mode="quantile"`) + nested 50%/95% CIs (`inner_error=`) & inline baseline deltas (`show_delta=True`)
+
+![Quantile dotplot with 5% countable dots paired with nested 50%/95% CIs and inline deltas](output/explain_visual_science/uncertainty_quantile_nested_ci.png)
+
+### Shaded `regions=` and collision-checked leader-arrow `callouts=` across `trend` and `relate`
+
+![Trend and scatter panels with shaded regions and direct leader-arrow callouts](output/explain_visual_science/narrative_callouts_regions.png)
+
+### IDE sidebar preset (`width="narrow"`, 450 px auto-stacked)
+
+<img src="output/explain_visual_science/harness_narrow_sidebar.png" width="450" alt="Narrow 450 px IDE sidebar figure with auto-stacked panels and inline baseline deltas">
+
+*Generator: [`explain_visual_science_examples.py`](explain_visual_science_examples.py)*
 
 ---
 

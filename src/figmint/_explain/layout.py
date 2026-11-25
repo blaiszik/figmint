@@ -567,8 +567,8 @@ class Summary(dict):  # type: ignore[type-arg]
     """What :meth:`Explanation.save` returns: a plain dict that prints as indented JSON.
 
     Keys: ``schema_version``, ``ok``, ``style``, ``path``, ``size_px``, ``size_mm``,
-    ``display``, ``takeaway``, ``panels`` (key, kind, title, facts), ``alt_text``,
-    ``colors``, ``issues`` and ``rendered``. ``display`` holds ``width_px`` (the chat
+    ``display``, ``takeaway``, ``panels`` (key, kind, title, facts), ``narrative``
+    (L1–L4 semantic narrative), ``alt_text``, ``colors``, ``issues`` and ``rendered``. ``display`` holds ``width_px`` (the chat
     width the sizes refer to), ``min_text_px`` (smallest font size at that width,
     counting each text at its own size) and ``min_script_px``: the smallest
     mathtext superscript or subscript at that width (drawn at about 70% of its
@@ -580,6 +580,8 @@ class Summary(dict):  # type: ignore[type-arg]
         return json.dumps(self, indent=2, ensure_ascii=False)
 
 
+#: Target display width (CSS px) when rendering for a narrow IDE sidebar (Cursor / VS Code).
+NARROW_DISPLAY_WIDTH_PX = 450
 #: Target display width (CSS px) when rendering a presentation / blog-hero slide.
 SLIDE_DISPLAY_WIDTH_PX = 1280
 
@@ -635,7 +637,12 @@ class Explanation:
 
     @property
     def display_width_px(self) -> int:
-        return SLIDE_DISPLAY_WIDTH_PX if self.width == "slide" else DISPLAY_WIDTH_PX
+        w = self.width.strip().lower() if isinstance(self.width, str) else ""
+        if w == "slide":
+            return SLIDE_DISPLAY_WIDTH_PX
+        if w == "narrow":
+            return NARROW_DISPLAY_WIDTH_PX
+        return DISPLAY_WIDTH_PX
 
     def __getitem__(self, key: str) -> Axes:
         return self.axes[key]
@@ -729,6 +736,8 @@ class Explanation:
 
     def summary(self) -> Summary:
         """What to check before showing the figure: facts to verify the claim, and issues to fix."""
+        from ..epistemic import build_narrative
+
         out: dict[str, Any] = {
             "schema_version": "0.2",
             "ok": self.ok,
@@ -748,6 +757,12 @@ class Explanation:
                 {"key": key, "kind": p.kind, "title": p.title, "facts": p.facts}
                 for key, p in self.panels.items()
             ],
+            "narrative": build_narrative(
+                self.takeaway,
+                self.panels,
+                subtitle=self.subtitle,
+                source=self.source,
+            ),
             "alt_text": self.alt_text,
             "colors": dict(self.entity_colors),
             "issues": self.issues,
@@ -781,6 +796,16 @@ class Explanation:
 
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
+        if out.suffix.lower() in {".html", ".htm"}:
+            out.write_text(self.to_html(interactive=True), encoding="utf-8")
+            self.saved_path = out.resolve()
+            self.saved_px = None
+            if write_spec:
+                out.with_suffix(".json").write_text(
+                    json.dumps(self.to_spec(), indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+            return self.summary()
         if self.spec.name == "screen":
             dpi = round(self.display_width_px * float(scale) / float(self.fig.get_figwidth()))
         else:
@@ -832,6 +857,29 @@ class Explanation:
         kwargs.setdefault("caption", self.alt_text)
         with self.theme.rc_context(self.spec):
             return bundle_figure(self.fig, out_dir, journal=self.spec, **kwargs)
+
+    def to_html(self, interactive: bool = True) -> str:
+        """Render a self-contained interactive HTML document for this figure."""
+        from ..interactive import render_html
+
+        return render_html(self, interactive=interactive)
+
+    def to_terminal(
+        self,
+        width: int = 78,
+        color: bool = True,
+        ascii_only: bool = False,
+    ) -> str:
+        """Render a terminal-friendly Unicode or ASCII view of this figure."""
+        from ..terminal import render_terminal
+
+        return render_terminal(self, width=width, color=color, ascii_only=ascii_only)
+
+    def _repr_html_(self) -> str:
+        """Rich interactive HTML fragment for Jupyter and notebook outputs."""
+        from ..interactive import render_html_fragment
+
+        return render_html_fragment(self)
 
     def _repr_png_(self) -> bytes:
         import io
@@ -1264,7 +1312,13 @@ def _explain_impl(
     spec = get_spec(target)
     keys = [chr(ord("a") + i) for i in range(len(built))]
     panel_map = dict(zip(keys, built, strict=True))
-    rows = _validate_layout(layout, keys) if layout is not None else _auto_layout(keys)
+    is_narrow = isinstance(width, str) and width.strip().lower() == "narrow"
+    if layout is not None:
+        rows = _validate_layout(layout, keys)
+    elif is_narrow and len(keys) > 1:
+        rows = [[k] for k in keys]
+    else:
+        rows = _auto_layout(keys)
 
     issues: list[dict[str, Any]] = list(_takeaway_issues(takeaway))
     issues.extend(_latex_issues((takeaway, subtitle, source, note), panel_map))
@@ -1294,6 +1348,16 @@ def _explain_impl(
 
     with theme.rc_context(spec), _GlyphCapture() as glyph_log:
         sizes = _Sizes.from_spec(spec, theme)
+        if is_narrow and spec.name == "screen":
+            # Keep smallest text >= 12 px at 450 px sidebar width while tightening
+            # the headline slightly so takeaways wrap cleanly within 92 mm.
+            sizes = _Sizes(
+                scale=sizes.scale,
+                title=min(sizes.title, max(sizes.body + 1.5, round(sizes.title * 0.92, 1))),
+                body=sizes.body,
+                small=sizes.small,
+                foot=max(sizes.foot, 7.0),
+            )
         s = sizes.scale
         measure = _Measure(theme)
         width_mm = float(spec.resolve_width_mm(width))
@@ -1741,7 +1805,7 @@ def _explain_impl(
                     "warning",
                     f"The smallest text is {result.min_text_px:.1f} px when shown "
                     f"{result.display_width_px} px wide (floor {MIN_TEXT_PX:.0f} px).",
-                    'Use width="chat" for a 700 px chat column, or width="slide" for a 1280 px presentation/blog hero.',
+                    'Use width="chat" for a 700 px chat column, width="narrow" for a 450 px IDE sidebar, or width="slide" for a 1280 px presentation/blog hero.',
                 )
             )
 
@@ -1770,6 +1834,10 @@ def _explain_impl(
         audit = audit_figure(fig, allow_ascii_minus=(theme.minus_sign == "-"))
         existing_rules = {str(i.get("rule", "")) for i in issues}
         issues.extend(audit_to_issues(audit, existing_rules=existing_rules))
+
+        from ..epistemic import audit_epistemic
+
+        issues.extend(audit_epistemic(takeaway, panel_map))
         if not strict:
             actionable = [
                 i

@@ -137,6 +137,8 @@ def relate(
     reference: float | tuple[float, str] | None = None,
     unit: str | None = None,
     x_unit: str | None = None,
+    callouts: Sequence[tuple[Any, float, str]] | None = None,
+    regions: Sequence[tuple[Any, Any, str]] | None = None,
 ) -> Panel:
     """Do two measures move together? A scatter with both axes named.
 
@@ -274,6 +276,8 @@ def relate(
             "relate(reference) must be positive on a log y axis.",
             fix_hint="Drop the reference or log_y=True.",
         )
+    region_items, regions_spec = _parse_relate_regions(regions, log_x=log_x)
+    callout_items, callouts_spec = _parse_relate_callouts(callouts, log_x=log_x, log_y=log_y)
     fx = np.log10(xs) if log_x else xs
     fy = np.log10(ys) if log_y else ys
 
@@ -568,6 +572,19 @@ def relate(
                     data_hi = max(data_hi, ref[0])
                 lims = _narrow_log_ticks(axis, lo_v, hi_v, minus, extend=False, data_hi=data_hi)
                 (ax.set_xlim if axis is ax.xaxis else ax.set_ylim)(*lims)
+        if region_items:
+            saved_xlim, saved_ylim = ax.get_xlim(), ax.get_ylim()
+            for r0, r1, _r_lbl in region_items:
+                ax.axvspan(
+                    r0,
+                    r1,
+                    color=theme.context_fill,
+                    alpha=0.12,
+                    linewidth=0,
+                    zorder=0,
+                )
+            ax.set_xlim(*saved_xlim)
+            ax.set_ylim(*saved_ylim)
 
         if frontier_mode is not None and len(frontier_idx) >= 2:
             ax.plot(
@@ -735,8 +752,20 @@ def relate(
                 note.set_va(best[3])
                 placed.append(note.get_window_extent(renderer))
 
+        def _finish_annotations(extra_boxes: Sequence[Bbox] = ()) -> None:
+            if point_notes:
+                _clear_point_notes(extra_boxes=extra_boxes)
+            if region_items:
+                _place_relate_regions(ctx, ax, region_items, xs, ys, log_x=log_x)
+            if callout_items:
+                _place_relate_callouts(ctx, ax, callout_items, xs, ys)
+
         if not group_names:
-            return _clear_point_notes if point_notes else None
+            return (
+                _finish_annotations
+                if (point_notes or region_items or callout_items)
+                else None
+            )
 
         # Group names sit at each group's right end (its fit line end when fitted).
         anchors: list[tuple[str, float, float, str, bool]] = []
@@ -784,9 +813,8 @@ def relate(
             )
             for note, y0, y1 in zip(notes, ys_pt, placed, strict=True):
                 note.set_position((5.0, float(y1 - y0)))
-            if point_notes:
-                group_boxes = [n.get_window_extent(renderer) for n in notes]
-                _clear_point_notes(extra_boxes=group_boxes)
+            group_boxes = [n.get_window_extent(renderer) for n in notes]
+            _finish_annotations(extra_boxes=group_boxes)
 
         return _finish
 
@@ -814,6 +842,8 @@ def relate(
             "log_x": log_x or None,
             "log_y": log_y or None,
             "reference": list(ref) if ref else None,
+            "regions": regions_spec or None,
+            "callouts": callouts_spec or None,
         },
         facts=facts,
         describe=f"Scatter plot of {y_label} against {x_label}, {xs.size} points"
@@ -828,3 +858,461 @@ def relate(
         color_mode="highlight" if (hl_groups or hl) else ("series" if group_names else "uniform"),
         uses_default=not group_names and not hl,
     )
+
+
+_MAX_RELATE_CALLOUTS = 4
+
+
+def _parse_relate_regions(
+    regions: Sequence[tuple[Any, Any, str]] | None,
+    *,
+    log_x: bool,
+) -> tuple[list[tuple[float, float, str]], list[list[Any]]]:
+    """Validate ``relate(regions=[(x0, x1, label), ...])``."""
+    from collections.abc import Mapping as _Mapping
+
+    from .core import _to_float
+
+    if regions is None:
+        return [], []
+    if isinstance(regions, (str, bytes, _Mapping)) or not isinstance(regions, Sequence):
+        raise ExplainError(
+            f"relate(regions) must be a list of (x0, x1, label) tuples, got {type(regions).__name__}.",
+            fix_hint='e.g. regions=[(10, 40, "target zone")].',
+        )
+    parsed: list[tuple[float, float, str]] = []
+    spec_out: list[list[Any]] = []
+    for idx, item in enumerate(regions):
+        if isinstance(item, (str, bytes, _Mapping)) or not isinstance(item, Sequence) or len(item) != 3:
+            raise ExplainError(
+                f"relate(regions[{idx}]) must be an (x0, x1, label) 3-tuple, got {item!r}.",
+                fix_hint='Pass (x0, x1, "short label") for each shaded region.',
+            )
+        raw0, raw1, label = item
+        p0 = _to_float(raw0, f"relate(regions[{idx}]) start")
+        p1 = _to_float(raw1, f"relate(regions[{idx}]) end")
+        if not (math.isfinite(p0) and math.isfinite(p1)):
+            raise ExplainError(
+                f"relate(regions[{idx}]) bounds ({raw0!r}, {raw1!r}) must be finite numbers.",
+                fix_hint="Use finite numeric bounds for x0 and x1.",
+            )
+        if p0 >= p1:
+            raise ExplainError(
+                f"relate(regions[{idx}]) start {raw0!r} must be strictly less than end {raw1!r}.",
+                fix_hint="Order each region tuple as (x0, x1, label) with x0 < x1.",
+            )
+        if log_x and p0 <= 0:
+            raise ExplainError(
+                f"relate(regions[{idx}]) requires positive x bounds on a log_x axis.",
+                fix_hint="Use positive x0 and x1 values when log_x=True.",
+            )
+        text = str(label).strip()
+        parsed.append((p0, p1, text))
+        spec_out.append([float(p0), float(p1), text])
+    return parsed, spec_out
+
+
+def _parse_relate_callouts(
+    callouts: Sequence[tuple[Any, float, str]] | None,
+    *,
+    log_x: bool,
+    log_y: bool,
+) -> tuple[list[tuple[float, float, str]], list[list[Any]]]:
+    """Validate ``relate(callouts=[(x, y, note), ...])`` (max 4)."""
+    from collections.abc import Mapping as _Mapping
+
+    from .core import _to_float
+
+    if callouts is None:
+        return [], []
+    if isinstance(callouts, (str, bytes, _Mapping)) or not isinstance(callouts, Sequence):
+        raise ExplainError(
+            f"relate(callouts) must be a list of (x, y, note) tuples, got {type(callouts).__name__}.",
+            fix_hint='e.g. callouts=[(12.0, 94.5, "Pareto knee")].',
+        )
+    if len(callouts) > _MAX_RELATE_CALLOUTS:
+        raise ExplainError(
+            f"relate(callouts) got {len(callouts)} callouts; at most {_MAX_RELATE_CALLOUTS} stay legible.",
+            fix_hint=f"Keep at most {_MAX_RELATE_CALLOUTS} callouts highlighting key points.",
+        )
+    parsed: list[tuple[float, float, str]] = []
+    spec_out: list[list[Any]] = []
+    for idx, item in enumerate(callouts):
+        if isinstance(item, (str, bytes, _Mapping)) or not isinstance(item, Sequence) or len(item) != 3:
+            raise ExplainError(
+                f"relate(callouts[{idx}]) must be an (x, y, note) 3-tuple, got {item!r}.",
+                fix_hint='Pass (x, y, "short note") for each callout.',
+            )
+        raw_x, raw_y, note = item
+        px = _to_float(raw_x, f"relate(callouts[{idx}]) x")
+        py = _to_float(raw_y, f"relate(callouts[{idx}]) y")
+        if not (math.isfinite(px) and math.isfinite(py)):
+            raise ExplainError(
+                f"relate(callouts[{idx}]) coordinates ({raw_x!r}, {raw_y!r}) must be finite numbers.",
+                fix_hint="Pass finite numeric (x, y) coordinates.",
+            )
+        if log_x and px <= 0:
+            raise ExplainError(
+                f"relate(callouts[{idx}]) x must be positive on a log_x axis.",
+                fix_hint="Use positive x values when log_x=True.",
+            )
+        if log_y and py <= 0:
+            raise ExplainError(
+                f"relate(callouts[{idx}]) y must be positive on a log_y axis.",
+                fix_hint="Use positive y values when log_y=True.",
+            )
+        text = str(note).strip()
+        if not text:
+            raise ExplainError(
+                f"relate(callouts[{idx}]) has an empty note.",
+                fix_hint='Pass a short descriptive note, e.g. (12.0, 94.5, "best trade-off").',
+            )
+        parsed.append((px, py, text))
+        spec_out.append([float(px), float(py), text])
+    return parsed, spec_out
+
+
+def _relate_text_boxes(ctx: _Ctx, exclude: Any = None) -> list[Bbox]:
+    from matplotlib.text import Text
+
+    renderer = ctx.fig.canvas.get_renderer()
+    return [
+        t.get_window_extent(renderer)
+        for t in ctx.fig.findobj(Text)
+        if t is not exclude and t.get_visible() and t.get_text().strip() and t.get_alpha() != 0
+    ]
+
+
+def _relate_line_paths(ax: Axes) -> list[Any]:
+    grid = {id(g) for g in (*ax.get_xgridlines(), *ax.get_ygridlines())}
+    return [
+        ln.get_transform().transform_path(ln.get_path())
+        for ln in ax.lines
+        if id(ln) not in grid
+        and ln.get_visible()
+        and len(ln.get_xdata()) >= 2
+        and ln.get_linestyle() not in ("None", "", " ")
+        and ln.get_linewidth() > 0
+    ]
+
+
+def _relate_pad_bbox(bb: Bbox, pad: float = 1.5) -> Bbox:
+    return Bbox.from_extents(bb.x0 - pad, bb.y0 - pad, bb.x1 + pad, bb.y1 + pad)
+
+
+def _place_relate_regions(
+    ctx: _Ctx,
+    ax: Axes,
+    regions: Sequence[tuple[float, float, str]],
+    xs: np.ndarray,
+    ys: np.ndarray,
+    *,
+    log_x: bool = False,
+) -> None:
+    """Place muted top labels centered inside shaded regions on relate(), avoiding lines, text & dots."""
+    sz = ctx.sizes
+    theme = ctx.theme
+    renderer = ctx.fig.canvas.get_renderer()
+    frame = ax.get_window_extent(renderer)
+    fig_box = ctx.fig.bbox
+    paths = _relate_line_paths(ax)
+    taken = _relate_text_boxes(ctx)
+    pts_disp = ax.transData.transform(np.column_stack([xs, ys]))
+    x_lo, x_hi = sorted(ax.get_xlim())
+    for r0, r1, text in regions:
+        if not text:
+            continue
+        vis0 = max(r0, x_lo)
+        vis1 = min(r1, x_hi)
+        if vis0 >= vis1:
+            vis0, vis1 = r0, r1
+        mid_x = math.sqrt(vis0 * vis1) if (log_x and vis0 > 0 and vis1 > 0) else 0.5 * (vis0 + vis1)
+        note = ax.annotate(
+            _plain(text, theme),
+            (mid_x, 1.0),
+            xycoords=("data", "axes fraction"),
+            xytext=(0.0, -3.0),
+            textcoords="offset points",
+            ha="center",
+            va="top",
+            fontsize=sz.small,
+            color=theme.muted,
+            zorder=6,
+            bbox=ctx.halo_bbox(0.08, alpha=0.82),
+            annotation_clip=False,
+        )
+        cands = [
+            (mid_x, 1.0, "center", "top", 0.0, -3.0, True),
+            (mid_x, 0.88, "center", "top", 0.0, 0.0, True),
+            (mid_x, 0.0, "center", "bottom", 0.0, 3.0, True),
+            (vis0, 1.0, "left", "top", 3.0, -3.0, True),
+            (vis1, 1.0, "right", "top", -3.0, -3.0, True),
+            (vis0, 0.0, "left", "bottom", 3.0, 3.0, True),
+            (vis1, 0.0, "right", "bottom", -3.0, 3.0, True),
+            (mid_x, 0.72, "center", "top", 0.0, 0.0, True),
+            (mid_x, 0.50, "center", "center", 0.0, 0.0, True),
+            (mid_x, 0.25, "center", "bottom", 0.0, 0.0, True),
+            (mid_x, 1.0, "center", "bottom", 0.0, 2.5, False),
+        ]
+        best = cands[0]
+        best_score = (999, 999, 999, 999, 999)
+        for cx, yfrac, ha, va, dx, dy, inside_pref in cands:
+            note.xy = (cx, yfrac)
+            note.set_ha(ha)
+            note.set_va(va)
+            note.set_position((dx, dy))
+            bb = note.get_window_extent(renderer)
+            pbb = _relate_pad_bbox(bb, 1.5)
+            out_fig = int(
+                not (
+                    bb.x0 >= fig_box.x0 + 2
+                    and bb.x1 <= fig_box.x1 - 2
+                    and bb.y0 >= fig_box.y0 + 2
+                    and bb.y1 <= fig_box.y1 - 2
+                )
+            )
+            out_frame = int(
+                not (
+                    bb.x0 >= frame.x0 - 2
+                    and bb.x1 <= frame.x1 + 2
+                    and bb.y0 >= frame.y0 - 2
+                    and bb.y1 <= frame.y1 + 2
+                )
+            )
+            n_line = sum(1 for p in paths if p.intersects_bbox(bb, filled=False))
+            n_text = sum(1 for tb in taken if pbb.overlaps(tb))
+            n_dots = int(
+                np.sum(
+                    (pts_disp[:, 0] >= bb.x0 - 3)
+                    & (pts_disp[:, 0] <= bb.x1 + 3)
+                    & (pts_disp[:, 1] >= bb.y0 - 3)
+                    & (pts_disp[:, 1] <= bb.y1 + 3)
+                )
+            )
+            score = (out_fig, n_line, n_text, out_frame if inside_pref else out_frame + 1, n_dots)
+            if score < best_score:
+                best_score = score
+                best = (cx, yfrac, ha, va, dx, dy, inside_pref)
+            if score == (0, 0, 0, 0, 0):
+                break
+        note.xy = (best[0], best[1])
+        note.set_ha(best[2])
+        note.set_va(best[3])
+        note.set_position((best[4], best[5]))
+        taken.append(note.get_window_extent(renderer))
+
+
+def _relate_arrow_segment(
+    ax_px: float, ay_px: float, bb: Bbox
+) -> tuple[float, float, Any | None]:
+    """Return ``(start_x_px, start_y_px, trimmed_path)`` from nearest edge of ``bb`` to anchor."""
+    from matplotlib.path import Path as MplPath
+
+    px = min(max(ax_px, bb.x0), bb.x1)
+    py = min(max(ay_px, bb.y0), bb.y1)
+    vx, vy = ax_px - px, ay_px - py
+    seg_len = math.hypot(vx, vy)
+    if seg_len < 7.0:
+        return px, py, None
+    t0 = min(0.35, 3.0 / seg_len)
+    t1 = max(t0 + 0.05, 1.0 - 7.5 / seg_len)
+    s0 = (px + t0 * vx, py + t0 * vy)
+    s1 = (px + t1 * vx, py + t1 * vy)
+    return px, py, MplPath([s0, s1])
+
+
+def _relate_two_line_wrap(text: str) -> str | None:
+    words = text.split()
+    if len(words) < 2 or "\n" in text:
+        return None
+    best_i = min(
+        range(1, len(words)),
+        key=lambda i: abs(len(" ".join(words[:i])) - len(" ".join(words[i:]))),
+    )
+    return " ".join(words[:best_i]) + "\n" + " ".join(words[best_i:])
+
+
+def _place_relate_callouts(
+    ctx: _Ctx,
+    ax: Axes,
+    callouts: Sequence[tuple[float, float, str]],
+    xs: np.ndarray,
+    ys: np.ndarray,
+) -> None:
+    """Place direct callout annotations with leader arrows on relate(), avoiding lines, text, and arrow crossings."""
+    sz = ctx.sizes
+    theme = ctx.theme
+    renderer = ctx.fig.canvas.get_renderer()
+    frame = ax.get_window_extent(renderer)
+    fig_box = ctx.fig.bbox
+    paths = _relate_line_paths(ax)
+    taken = _relate_text_boxes(ctx)
+    pts_disp = ax.transData.transform(np.column_stack([xs, ys]))
+    k = ctx.pt_per_px
+    arrow_kw = {
+        "arrowstyle": "-|>,head_length=0.35,head_width=0.2",
+        "color": theme.muted,
+        "linewidth": 0.75 * sz.scale,
+        "shrinkA": 2.0,
+        "shrinkB": 3.5,
+    }
+    base_offsets = [
+        (12.0, 14.0, "left", "bottom"),
+        (-12.0, 14.0, "right", "bottom"),
+        (12.0, -14.0, "left", "top"),
+        (-12.0, -14.0, "right", "top"),
+        (0.0, 18.0, "center", "bottom"),
+        (0.0, -18.0, "center", "top"),
+        (18.0, 0.0, "left", "center"),
+        (-18.0, 0.0, "right", "center"),
+        (20.0, 22.0, "left", "bottom"),
+        (-20.0, 22.0, "right", "bottom"),
+        (20.0, -22.0, "left", "top"),
+        (-20.0, -22.0, "right", "top"),
+        (14.0, -22.0, "center", "top"),
+        (-14.0, -22.0, "center", "top"),
+        (14.0, 22.0, "center", "bottom"),
+        (-14.0, 22.0, "center", "bottom"),
+        (0.0, 28.0, "center", "bottom"),
+        (0.0, -28.0, "center", "top"),
+        (28.0, 10.0, "left", "bottom"),
+        (-28.0, 10.0, "right", "bottom"),
+        (28.0, -10.0, "left", "top"),
+        (-28.0, -10.0, "right", "top"),
+        (0.0, 42.0, "center", "bottom"),
+        (0.0, -42.0, "center", "top"),
+        (32.0, 34.0, "left", "bottom"),
+        (-32.0, 34.0, "right", "bottom"),
+        (32.0, -34.0, "left", "top"),
+        (-32.0, -34.0, "right", "top"),
+        (44.0, 0.0, "left", "center"),
+        (-44.0, 0.0, "right", "center"),
+    ]
+    for cx, cy, text in callouts:
+        disp = ax.transData.transform((cx, cy))
+        ax_px, ay_px = float(disp[0]), float(disp[1])
+        fx, fy = ax.transAxes.inverted().transform(disp)
+        note = ax.annotate(
+            _plain(text, theme),
+            xy=(cx, cy),
+            xycoords="data",
+            xytext=(12.0, 14.0),
+            textcoords="offset points",
+            ha="left",
+            va="bottom",
+            fontsize=sz.small,
+            color=theme.ink,
+            zorder=7,
+            bbox=ctx.halo_bbox(0.16, alpha=0.92),
+            annotation_clip=False,
+        )
+        prefer_dx = -1.0 if fx > 0.55 else 1.0
+        prefer_dy = -1.0 if fy > 0.60 else 1.0
+        ordered = sorted(
+            base_offsets,
+            key=lambda c: (
+                int(math.hypot(c[0], c[1]) // 18),
+                0 if c[0] * prefer_dx >= 0 else 1,
+                0 if c[1] * prefer_dy >= 0 else 1,
+                math.hypot(c[0], c[1]),
+            ),
+        )
+        text_variants = [text]
+        wrapped = _relate_two_line_wrap(text)
+        if wrapped is not None:
+            text_variants.append(wrapped)
+
+        best_variant = text
+        best = ordered[0]
+        best_score: tuple[int, int, int, int, int, int, int, int, float] = (
+            999,
+            999,
+            999,
+            999,
+            999,
+            999,
+            999,
+            999,
+            1e9,
+        )
+        for v_idx, variant in enumerate(text_variants):
+            note.set_text(_plain(variant, theme))
+            for dx, dy, ha, va in ordered:
+                note.set_position((dx, dy))
+                note.set_ha(ha)
+                note.set_va(va)
+                bb = note.get_window_extent(renderer)
+                pbb = _relate_pad_bbox(bb, 1.5)
+                out_fig = int(
+                    not (
+                        bb.x0 >= fig_box.x0 + 3
+                        and bb.x1 <= fig_box.x1 - 3
+                        and bb.y0 >= fig_box.y0 + 3
+                        and bb.y1 <= fig_box.y1 - 3
+                    )
+                )
+                out_frame = int(
+                    not (
+                        bb.x0 >= frame.x0 + 1
+                        and bb.x1 <= frame.x1 - 1
+                        and bb.y0 >= frame.y0 + 3.5
+                        and bb.y1 <= frame.y1 - 1
+                    )
+                )
+                n_line = sum(1 for p in paths if p.intersects_bbox(bb, filled=False))
+                n_text = sum(1 for tb in taken if pbb.overlaps(tb))
+                _, _, seg_path = _relate_arrow_segment(ax_px, ay_px, bb)
+                if seg_path is not None:
+                    n_arrow_text = sum(
+                        1
+                        for tb in taken
+                        if seg_path.intersects_bbox(_relate_pad_bbox(tb, 1.0), filled=True)
+                    )
+                    n_arrow_line = sum(1 for p in paths if seg_path.intersects_path(p, filled=False))
+                else:
+                    n_arrow_text = 0
+                    n_arrow_line = 0
+                n_dots = int(
+                    np.sum(
+                        (pts_disp[:, 0] >= bb.x0 - 2)
+                        & (pts_disp[:, 0] <= bb.x1 + 2)
+                        & (pts_disp[:, 1] >= bb.y0 - 2)
+                        & (pts_disp[:, 1] <= bb.y1 + 2)
+                    )
+                )
+                score = (
+                    out_fig,
+                    n_line,
+                    n_text,
+                    n_arrow_text,
+                    n_arrow_line,
+                    out_frame,
+                    n_dots,
+                    v_idx,
+                    math.hypot(dx, dy),
+                )
+                if score < best_score:
+                    best_score = score
+                    best = (dx, dy, ha, va)
+                    best_variant = variant
+                if score[:7] == (0, 0, 0, 0, 0, 0, 0):
+                    break
+            if best_score[:7] == (0, 0, 0, 0, 0, 0, 0):
+                break
+        note.set_text(_plain(best_variant, theme))
+        note.set_position((best[0], best[1]))
+        note.set_ha(best[2])
+        note.set_va(best[3])
+        final_bb = note.get_window_extent(renderer)
+        start_px, start_py, _ = _relate_arrow_segment(ax_px, ay_px, final_bb)
+        ax.annotate(
+            "",
+            xy=(cx, cy),
+            xycoords="data",
+            xytext=((start_px - ax_px) * k, (start_py - ay_px) * k),
+            textcoords="offset points",
+            arrowprops=arrow_kw,
+            zorder=6,
+            annotation_clip=False,
+        )
+        taken.append(final_bb)
