@@ -1,11 +1,11 @@
 # mintfig
 
-**Figures that say one thing.**
+**Mint-condition figures for AI agents and scientists.**
 
-A Python library, CLI, and AI-agent skill built on Matplotlib for two jobs:
+AI agents are great at running analyses and terrible at showing what they found. `mintfig` turns raw data into clear, self-auditing visual explanations — as a Python library (`import mintfig as mint`), zero-script CLI, and coding-agent skill built on Matplotlib.
 
-1. **Explaining results in a conversation (`mint.explain`)** — one takeaway sentence plus evidence panels, with information-design rules built in, CVD-verified themes and palettes, and machine-readable `facts` that let an agent verify its own claim.
-2. **Journal-ready publication plates (`mint.Plate`, `mintfig run`)** — exact millimetre MediaBox geometry, uniform sans-serif typography and math, preflight QA, CVD proof sheets, and reproducible bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
+1. **Explain results in a conversation (`mint.explain`, `mintfig plot`)** — lead with a takeaway sentence and compose panels by question (comparisons, trends, distributions, attribution bridges, timelines, attrition flows, scorecards). Layout, direct labels, named uncertainty, colorblind-safe themes, drawn-text auditing (`ship`), and computed `facts` are built in — delivered as PNGs, interactive HTML, terminal graphics, or multi-figure briefings (`mint.brief`).
+2. **Ship journal-ready manuscript plates (`mint.Plate`, `mintfig run`)** — exact millimeter column geometry, unified sans-serif typography and math, automated preflight QA, colorblind/grayscale proof sheets, and reproducible submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
 
 [Quickstart](#quickstart) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
 
