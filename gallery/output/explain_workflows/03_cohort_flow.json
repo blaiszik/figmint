@@ -1,0 +1,41 @@
+{
+  "takeaway": "58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%)",
+  "source": "Synthetic clinical cohort log",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "flow",
+      "stages": [
+        [
+          "Screened",
+          1240.0
+        ],
+        [
+          "Eligible",
+          912.0,
+          "missing baseline labs"
+        ],
+        [
+          "Enrolled",
+          780.0,
+          "declined consent"
+        ],
+        [
+          "Completed",
+          714.0,
+          "lost to follow-up"
+        ]
+      ],
+      "highlight": [
+        "Eligible"
+      ],
+      "title": "Trial cohort attrition from screening to final analysis",
+      "label": "Cohort size",
+      "unit": "patients"
+    }
+  ]
+}

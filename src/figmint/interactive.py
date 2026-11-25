@@ -318,6 +318,79 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
         note = f"Showing first {max_show} of {n} observations." if n > max_show else None
         return headers, rows, num_flags, note
 
+    if kind == "waterfall":
+        steps = spec.get("steps") or {}
+        if isinstance(steps, Mapping) and steps:
+            rows = []
+            running = 0.0
+            start_val = spec.get("start")
+            if isinstance(start_val, Sequence) and not isinstance(start_val, (str, bytes)) and len(start_val) == 2:
+                running = float(start_val[1])
+                rows.append([str(start_val[0]), "—", _fmt_cell(running)])
+            for step_nm, delta in steps.items():
+                d_val = float(delta)
+                running += d_val
+                sign = "+" if d_val > 0 else ""
+                rows.append([str(step_nm), f"{sign}{_fmt_cell(d_val)}", _fmt_cell(running)])
+            if spec.get("show_total", True):
+                rows.append([str(spec.get("total_label") or "Total"), "—", _fmt_cell(running)])
+            return (
+                ["Step", f"Delta{unit_suffix}", f"Cumulative{unit_suffix}"],
+                rows,
+                [False, True, True],
+                None,
+            )
+
+    if kind == "timeline":
+        spans = spec.get("spans") or []
+        if isinstance(spans, Sequence) and spans:
+            has_group = any(isinstance(s, Sequence) and len(s) >= 4 and s[3] is not None for s in spans)
+            headers = ["Stage", f"Start{unit_suffix}", f"End{unit_suffix}", f"Duration{unit_suffix}"]
+            num_flags = [False, True, True, True]
+            if has_group:
+                headers.append("Group")
+                num_flags.append(False)
+            rows = []
+            for sp in spans:
+                if not isinstance(sp, Sequence) or len(sp) < 3:
+                    continue
+                dur = float(sp[2]) - float(sp[1])
+                row = [str(sp[0]), _fmt_cell(sp[1]), _fmt_cell(sp[2]), _fmt_cell(dur)]
+                if has_group:
+                    row.append(str(sp[3]) if len(sp) >= 4 and sp[3] is not None else "—")
+                rows.append(row)
+            return headers, rows, num_flags, None
+
+    if kind == "flow":
+        stages = spec.get("stages") or []
+        if isinstance(stages, Sequence) and stages:
+            has_reason = any(isinstance(s, Sequence) and len(s) >= 3 and s[2] for s in stages[1:])
+            headers = ["Stage", f"Remaining{unit_suffix}", "% of start", "Step change"]
+            num_flags = [False, True, True, True]
+            if has_reason:
+                headers.append("Reason")
+                num_flags.append(False)
+            rows = []
+            start_v = float(stages[0][1]) if isinstance(stages[0], Sequence) and len(stages[0]) >= 2 else 1.0
+            prev_v: float | None = None
+            for idx_s, st in enumerate(stages):
+                if not isinstance(st, Sequence) or len(st) < 2:
+                    continue
+                val = float(st[1])
+                pct = f"{(100.0 * val / start_v):.1f}%" if start_v > 0 else "—"
+                if prev_v is None:
+                    chg = "—"
+                else:
+                    d = val - prev_v
+                    sign = "+" if d > 0 else ""
+                    chg = f"{sign}{_fmt_cell(d)}"
+                row = [str(st[0]), _fmt_cell(val), pct, chg]
+                if has_reason:
+                    row.append(str(st[2]) if idx_s > 0 and len(st) >= 3 and st[2] else "—")
+                rows.append(row)
+                prev_v = val
+            return headers, rows, num_flags, None
+
     return [], [], [], None
 
 

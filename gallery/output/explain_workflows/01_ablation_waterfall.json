@@ -1,0 +1,35 @@
+{
+  "takeaway": "Retrieval adds +8.2 points while int4 quantization costs only 1.5 points",
+  "source": "Synthetic ablation suite (5 seeds per step)",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "waterfall",
+      "steps": {
+        "+Retrieval": 8.2,
+        "+Reranker": 3.4,
+        "+Chain-of-thought": 2.1,
+        "int4 quantization": -1.5
+      },
+      "start": [
+        "Base model",
+        69.0
+      ],
+      "total_label": "Shipped",
+      "highlight": [
+        "+Retrieval"
+      ],
+      "reference": [
+        80.0,
+        "Release target"
+      ],
+      "title": "Ablation bridge from base to shipped candidate",
+      "label": "Benchmark accuracy",
+      "unit": "%"
+    }
+  ]
+}

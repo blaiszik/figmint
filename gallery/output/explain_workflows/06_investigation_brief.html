@@ -1,0 +1,3883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Release Candidate &amp; Pipeline Briefing</title>
+<style>
+  :root {
+    color-scheme: light;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 20px 64px;
+    background: #F4F5F7;
+    color: #1A1D21;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .fm-brief {
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .fm-bhead {
+    background: #FFFFFF;
+    border: 1px solid rgba(26,29,33,0.12);
+    border-top: 3px solid #CD4324;
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+  }
+  .fm-bhead h1 {
+    margin: 0 0 6px;
+    font-size: 1.65rem;
+    line-height: 1.2;
+  }
+  .fm-bsub {
+    margin: 0 0 16px;
+    color: #5B6570;
+    font-size: 0.98rem;
+  }
+  .fm-bsum {
+    margin: 14px 0 16px;
+    padding: 12px 16px;
+    border-left: 3px solid #CD4324;
+    background: rgba(0,0,0,0.03);
+    border-radius: 0 6px 6px 0;
+  }
+  .fm-bsum h2 {
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #5B6570;
+  }
+  .fm-bsum ul { margin: 0; padding-left: 18px; }
+  .fm-btoc {
+    list-style: none;
+    margin: 12px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+  .fm-btoc a {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    text-decoration: none;
+    color: #1A1D21;
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+  .fm-btoc a:hover {
+    background: rgba(0,0,0,0.04);
+  }
+  .fm-bnum {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: #CD4324;
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .fm-bsec {
+    margin-bottom: 28px;
+  }
+  .fm-bsec-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #5B6570;
+    margin: 0 0 8px 4px;
+  }
+  .fm-bfoot {
+    margin-top: 24px;
+    font-size: 0.85rem;
+    color: #5B6570;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<main class="fm-brief">
+  <header class="fm-bhead">
+    <h1>Release Candidate &amp; Pipeline Briefing</h1>
+    <p class="fm-bsub">Generated with fm.Session + fm.brief (zero-CDN HTML &amp; Markdown)</p>
+    <section class="fm-bsum"><h2>Key findings</h2><ul><li>Retrieval adds +8.2 points while int4 quantization costs only 1.5 points</li><li>Integration tests account for 53% of CI wall time and exceed the 150 s SLA</li><li>58% of screened patients complete follow-up; eligibility screening is the largest drop</li></ul></section>
+    <ol class="fm-btoc"><li><a href="#fig-1"><span class="fm-bnum">1</span><span>Retrieval adds +8.2 points while int4 quantization costs only 1.5 points</span></a></li>
+<li><a href="#fig-2"><span class="fm-bnum">2</span><span>Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA</span></a></li>
+<li><a href="#fig-3"><span class="fm-bnum">3</span><span>58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%)</span></a></li>
+<li><a href="#fig-4"><span class="fm-bnum">4</span><span>Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively</span></a></li>
+<li><a href="#fig-5"><span class="fm-bnum">5</span><span>Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on GPQA</span></a></li>
+<li><a href="#fig-6"><span class="fm-bnum">6</span><span>Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%</span></a></li></ol>
+  </header>
+  <section id="fig-1" class="fm-bsec"><div class="fm-bsec-label">Finding 1 of 6</div><style>
+#fm-b419f33aa9 {
+  --fm-bg: #FFFFFF;
+  --fm-ink: #1A1D21;
+  --fm-muted: #5B6570;
+  --fm-border: #E3E7EC;
+  --fm-surface: #F7F8FA;
+  --fm-surface-alt: #EFF2F6;
+  --fm-accent: #CD4324;
+  --fm-primary: #1F5A9D;
+  --fm-btn-bg: #FFFFFF;
+  --fm-btn-hover: #EEF2F6;
+  --fm-input-bg: #FFFFFF;
+  --fm-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  color: var(--fm-ink);
+  background: var(--fm-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 748px;
+  margin: 0 auto;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  box-shadow: var(--fm-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#fm-b419f33aa9 *, #fm-b419f33aa9 *::before, #fm-b419f33aa9 *::after { box-sizing: border-box; }
+#fm-b419f33aa9 .fm-figure-stage {
+  background: var(--fm-bg);
+  padding: 12px 12px 8px;
+}
+#fm-b419f33aa9 .fm-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#fm-b419f33aa9 .fm-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#fm-b419f33aa9 .fm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--fm-surface);
+  border-top: 1px solid var(--fm-border);
+  font-size: 12.5px;
+}
+#fm-b419f33aa9 .fm-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+#fm-b419f33aa9 .fm-btn {
+  appearance: none;
+  border: 1px solid var(--fm-border);
+  background: var(--fm-btn-bg);
+  color: var(--fm-ink);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+#fm-b419f33aa9 .fm-btn:hover {
+  background: var(--fm-btn-hover);
+  border-color: var(--fm-muted);
+}
+#fm-b419f33aa9 .fm-btn[aria-expanded="true"], #fm-b419f33aa9 .fm-btn-accent {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+#fm-b419f33aa9 .fm-status {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+  margin-left: 4px;
+}
+#fm-b419f33aa9 .fm-drawer {
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-surface);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#fm-b419f33aa9 .fm-drawer[hidden] { display: none; }
+#fm-b419f33aa9 .fm-drawer h3 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-b419f33aa9 .fm-panel-card {
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#fm-b419f33aa9 .fm-panel-card:last-child { margin-bottom: 0; }
+#fm-b419f33aa9 .fm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#fm-b419f33aa9 .fm-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fm-surface-alt);
+  color: var(--fm-accent);
+  border: 1px solid var(--fm-border);
+}
+#fm-b419f33aa9 .fm-panel-title {
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-b419f33aa9 .fm-panel-kind {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-b419f33aa9 .fm-facts {
+  margin: 6px 0 8px 18px;
+  padding: 0;
+  color: var(--fm-ink);
+}
+#fm-b419f33aa9 .fm-facts li { margin-bottom: 3px; }
+#fm-b419f33aa9 .fm-table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+#fm-b419f33aa9 .fm-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#fm-b419f33aa9 .fm-data-table th, #fm-b419f33aa9 .fm-data-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-ink);
+}
+#fm-b419f33aa9 .fm-data-table th {
+  font-weight: 600;
+  color: var(--fm-muted);
+  background: var(--fm-surface);
+}
+#fm-b419f33aa9 .fm-data-table th.fm-num, #fm-b419f33aa9 .fm-data-table td.fm-num {
+  text-align: right;
+}
+#fm-b419f33aa9 .fm-table-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fm-muted);
+}
+#fm-b419f33aa9 .fm-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-b419f33aa9 .fm-critique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#fm-b419f33aa9 .fm-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fm-muted);
+  margin-bottom: 4px;
+}
+#fm-b419f33aa9 .fm-field select, #fm-b419f33aa9 .fm-field textarea {
+  width: 100%;
+  background: var(--fm-input-bg);
+  color: var(--fm-ink);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#fm-b419f33aa9 .fm-field textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+#fm-b419f33aa9 .fm-preview {
+  background: var(--fm-input-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  color: var(--fm-ink);
+}
+#fm-b419f33aa9 .fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<figure id="fm-b419f33aa9" class="fm-root" data-fm-theme="figmint" data-fm-mode="light"><div class="fm-figure-stage"><div class="fm-svg-wrap" role="img" aria-label="Retrieval adds +8.2 points while int4 quantization costs only 1.5 points. Ablation bridge from base to shipped candidate. Waterfall bridge of Benchmark accuracy (%) across 4 steps from Base model to Shipped. Base model 69.0% → Shipped 81.2% (net +12.2 points). largest positive driver: +Retrieval (+8.2 points). largest negative drag: int4 quantization (−1.5 points). Source: Synthetic ablation suite (5 seeds per step)."><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="396.850394pt" height="199.312441pt" viewBox="0 0 396.850394 199.312441" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-25T01:31:50.308854</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 199.312441 
+L 396.850394 199.312441 
+L 396.850394 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 85.458583 169.232598 
+L 385.511811 169.232598 
+L 385.511811 72.498386 
+L 85.458583 72.498386 
+L 85.458583 169.232598 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="ytick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="80.458583" y="84.10197" transform="rotate(-0 80.458583 84.10197)">Base model</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="80.458583" y="100.235628" transform="rotate(-0 80.458583 100.235628)">+Retrieval</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #5b6570" x="80.458583" y="116.341727" transform="rotate(-0 80.458583 116.341727)">+Reranker</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #5b6570" x="80.458583" y="132.074955" transform="rotate(-0 80.458583 132.074955)">+Chain-of-thought</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_5"/>
+     <g id="text_5">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #5b6570" x="80.458583" y="148.183047" transform="rotate(-0 80.458583 148.183047)">int4 quantization</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_6"/>
+     <g id="text_6">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="80.458583" y="164.352896" transform="rotate(-0 80.458583 164.352896)">Shipped</text>
+     </g>
+    </g>
+   </g>
+   <g id="LineCollection_1">
+    <path d="M 290.660802 85.718728 
+L 290.660802 91.522781 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.65"/>
+    <path d="M 315.047153 101.841097 
+L 315.047153 107.64515 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.65"/>
+    <path d="M 325.158567 117.963466 
+L 325.158567 123.767519 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.65"/>
+    <path d="M 331.403852 134.085835 
+L 331.403852 139.889887 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.65"/>
+    <path d="M 326.942934 150.208203 
+L 326.942934 156.012256 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.65"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 85.458583 75.400412 
+L 290.660802 75.400412 
+L 290.660802 85.718728 
+L 85.458583 85.718728 
+z
+" clip-path="url(#p6b7e3906c8)" style="fill: #1a1d21; opacity: 0.92"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 290.660802 91.522781 
+L 315.047153 91.522781 
+L 315.047153 101.841097 
+L 290.660802 101.841097 
+z
+" clip-path="url(#p6b7e3906c8)" style="fill: #cd4324"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 315.047153 107.64515 
+L 325.158567 107.64515 
+L 325.158567 117.963466 
+L 315.047153 117.963466 
+z
+" clip-path="url(#p6b7e3906c8)" style="fill: #0f9478; opacity: 0.42"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 325.158567 123.767519 
+L 331.403852 123.767519 
+L 331.403852 134.085835 
+L 325.158567 134.085835 
+z
+" clip-path="url(#p6b7e3906c8)" style="fill: #0f9478; opacity: 0.42"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 326.942934 139.889887 
+L 331.403852 139.889887 
+L 331.403852 150.208203 
+L 326.942934 150.208203 
+z
+" clip-path="url(#p6b7e3906c8)" style="fill: #cd4324; opacity: 0.42"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 85.458583 156.012256 
+L 326.942934 156.012256 
+L 326.942934 166.330572 
+L 85.458583 166.330572 
+z
+" clip-path="url(#p6b7e3906c8)" style="fill: #1a1d21; opacity: 0.92"/>
+   </g>
+   <g id="text_7">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="295.660802" y="82.734863" transform="rotate(-0 295.660802 82.734863)">69.0%</text>
+   </g>
+   <g id="text_8">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="326.3742" y="98.857232" transform="rotate(-0 326.3742 98.857232)">+8.2%</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="330.158567" y="114.979601" transform="rotate(-0 330.158567 114.979601)">+3.4%</text>
+   </g>
+   <g id="text_10">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="336.403852" y="131.101969" transform="rotate(-0 336.403852 131.101969)">+2.1%</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="336.403852" y="147.224338" transform="rotate(-0 336.403852 147.224338)">−1.5%</text>
+   </g>
+   <g id="text_12">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="331.942934" y="163.346707" transform="rotate(-0 331.942934 163.346707)">81.2%</text>
+   </g>
+   <g id="LineCollection_2">
+    <path d="M 85.458583 73.304504 
+L 85.458583 168.42648 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke: #1a1d21; stroke-width: 0.7"/>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="323.3742" y="68.339011" transform="rotate(-0 323.3742 68.339011)">Release target</text>
+   </g>
+   <g id="line2d_7">
+    <path d="M 323.3742 169.232598 
+L 323.3742 72.498386 
+" clip-path="url(#p6b7e3906c8)" style="fill: none; stroke-dasharray: 2.1,1.4; stroke-dashoffset: 0; stroke: #1a1d21; stroke-width: 0.7"/>
+   </g>
+  </g>
+  <g id="text_14">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="19.588583" transform="rotate(-0 11.338583 19.588583)">Retrieval adds +8.2 points while int4 quantization costs only 1.5 points</text>
+  </g>
+  <g id="text_15">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="42.912165" transform="rotate(-0 11.338583 42.912165)">Ablation bridge from base to shipped candidate</text>
+  </g>
+  <g id="text_16">
+   <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="53.439094" transform="rotate(-0 11.338583 53.439094)">Benchmark accuracy (%)</text>
+  </g>
+  <g id="text_17">
+   <text style="font-size: 7px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="184.403858" transform="rotate(-0 11.338583 184.403858)">Source: Synthetic ablation suite (5 seeds per step)</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p6b7e3906c8">
+   <rect x="85.458583" y="72.498386" width="300.053228" height="96.734213"/>
+  </clipPath>
+ </defs>
+</svg></div><figcaption class="fm-sr-only">Retrieval adds +8.2 points while int4 quantization costs only 1.5 points</figcaption></div><div class="fm-toolbar"><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button><button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button></div><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button><button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button><span class="fm-status" data-fm-status role="status" aria-live="polite"></span></div></div><section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data"><h3>Facts &amp; Underlying Data</h3><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel a</span><span class="fm-panel-title">Ablation bridge from base to shipped candidate</span><span class="fm-panel-kind">(waterfall)</span></div><ul class="fm-facts"><li>Base model 69.0% → Shipped 81.2% (net +12.2 points)</li><li>largest positive driver: +Retrieval (+8.2 points)</li><li>largest negative drag: int4 quantization (−1.5 points)</li><li>+Retrieval: +8.2 points (cumulative 77.2%)</li><li>Shipped vs reference 80.0% (Release target): +1.2 points</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th>Step</th><th class="fm-num">Delta (%)</th><th class="fm-num">Cumulative (%)</th></tr></thead><tbody><tr><td>Base model</td><td class="fm-num">—</td><td class="fm-num">69</td></tr><tr><td>+Retrieval</td><td class="fm-num">+8.2</td><td class="fm-num">77.2</td></tr><tr><td>+Reranker</td><td class="fm-num">+3.4</td><td class="fm-num">80.6</td></tr><tr><td>+Chain-of-thought</td><td class="fm-num">+2.1</td><td class="fm-num">82.7</td></tr><tr><td>int4 quantization</td><td class="fm-num">-1.5</td><td class="fm-num">81.2</td></tr></tbody></table></div></div><div class="fm-meta-row"><span>Style: figmint</span><span>Palette: default</span><span>Size: 140 × 70 mm</span><span>Source: Synthetic ablation suite (5 seeds per step)</span></div></section><section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent"><h3>Click to Critique / Ask Agent</h3><div class="fm-critique-grid"><div class="fm-field"><label for="fm-b419f33aa9-panel">Panel</label><select id="fm-b419f33aa9-panel" data-fm-critique-panel><option value="figure">Whole figure</option><option value="a">Panel a: Ablation bridge from base to shipped candidate</option></select></div><div class="fm-field"><label for="fm-b419f33aa9-action">Action</label><select id="fm-b419f33aa9-action" data-fm-critique-action><option value="highlight">Highlight item / series</option><option value="drop">Drop panel or item</option><option value="zoom">Zoom / focus range</option><option value="style">Adjust style / palette</option><option value="re-title">Re-title takeaway / panel</option><option value="question">Ask question about data</option></select></div></div><div class="fm-field"><label for="fm-b419f33aa9-note">Note / instruction for agent</label><textarea id="fm-b419f33aa9-note" data-fm-critique-note placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea></div><pre class="fm-preview" data-fm-critique-preview></pre><div class="fm-toolbar-group"><button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy fm.edit(...)</button><button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button></div></section></figure>
+<script>
+(function() {
+  var root = document.getElementById("fm-b419f33aa9");
+  if (!root) return;
+  var SPEC = {
+  "takeaway": "Retrieval adds +8.2 points while int4 quantization costs only 1.5 points",
+  "source": "Synthetic ablation suite (5 seeds per step)",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "waterfall",
+      "steps": {
+        "+Retrieval": 8.2,
+        "+Reranker": 3.4,
+        "+Chain-of-thought": 2.1,
+        "int4 quantization": -1.5
+      },
+      "start": [
+        "Base model",
+        69.0
+      ],
+      "total_label": "Shipped",
+      "highlight": [
+        "+Retrieval"
+      ],
+      "reference": [
+        80.0,
+        "Release target"
+      ],
+      "title": "Ablation bridge from base to shipped candidate",
+      "label": "Benchmark accuracy",
+      "unit": "%"
+    }
+  ]
+};
+  var TAKEAWAY = "Retrieval adds +8.2 points while int4 quantization costs only 1.5 points";
+  var statusEl = root.querySelector('[data-fm-status]');
+
+  function setStatus(msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    window.setTimeout(function() {
+      if (statusEl.textContent === msg) statusEl.textContent = '';
+    }, 2600);
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        setStatus('Copied ' + label);
+      }, function() {
+        fallbackCopy(text, label);
+      });
+    } else {
+      fallbackCopy(text, label);
+    }
+  }
+
+  function fallbackCopy(text, label) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setStatus('Copied ' + label);
+    } catch (e) {
+      setStatus('Copy failed');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function toggleDrawer(btnAttr, drawerAttr) {
+    var btn = root.querySelector('[' + btnAttr + ']');
+    var drawer = root.querySelector('[' + drawerAttr + ']');
+    if (!btn || !drawer) return;
+    btn.addEventListener('click', function() {
+      var open = drawer.hasAttribute('hidden');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        drawer.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
+  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
+
+  var dlBtn = root.querySelector('[data-fm-download-svg]');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      var svg = root.querySelector('.fm-svg-wrap svg');
+      if (!svg) return;
+      var xml = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'figmint-figure.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded SVG');
+    });
+  }
+
+  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
+  if (copySpecBtn) {
+    copySpecBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
+    });
+  }
+
+  var panelSel = root.querySelector('[data-fm-critique-panel]');
+  var actionSel = root.querySelector('[data-fm-critique-action]');
+  var noteInput = root.querySelector('[data-fm-critique-note]');
+  var previewEl = root.querySelector('[data-fm-critique-preview]');
+  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
+  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
+
+  function buildCritique() {
+    var panel = panelSel ? panelSel.value : 'figure';
+    var action = actionSel ? actionSel.value : 'highlight';
+    var note = noteInput ? noteInput.value.trim() : '';
+    var payload = {
+      target: panel,
+      action: action,
+      note: note,
+      takeaway: TAKEAWAY
+    };
+    var snippet = 'fm.edit(fig, panel=' + JSON.stringify(panel) +
+      ', action=' + JSON.stringify(action) +
+      ', note=' + JSON.stringify(note) + ')';
+    return { payload: payload, snippet: snippet };
+  }
+
+  function refreshPreview() {
+    if (!previewEl) return;
+    var c = buildCritique();
+    previewEl.textContent = c.snippet + '\n\n' + JSON.stringify(c.payload, null, 2);
+  }
+
+  [panelSel, actionSel, noteInput].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshPreview);
+    if (el) el.addEventListener('change', refreshPreview);
+  });
+  refreshPreview();
+
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
+    });
+  }
+  if (copyEditBtn) {
+    copyEditBtn.addEventListener('click', function() {
+      copyText(buildCritique().snippet, 'fm.edit(...) snippet');
+    });
+  }
+})();
+</script></section><section id="fig-2" class="fm-bsec"><div class="fm-bsec-label">Finding 2 of 6</div><style>
+#fm-6afe30237d {
+  --fm-bg: #FFFFFF;
+  --fm-ink: #1A1D21;
+  --fm-muted: #5B6570;
+  --fm-border: #E3E7EC;
+  --fm-surface: #F7F8FA;
+  --fm-surface-alt: #EFF2F6;
+  --fm-accent: #CD4324;
+  --fm-primary: #1F5A9D;
+  --fm-btn-bg: #FFFFFF;
+  --fm-btn-hover: #EEF2F6;
+  --fm-input-bg: #FFFFFF;
+  --fm-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  color: var(--fm-ink);
+  background: var(--fm-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 748px;
+  margin: 0 auto;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  box-shadow: var(--fm-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#fm-6afe30237d *, #fm-6afe30237d *::before, #fm-6afe30237d *::after { box-sizing: border-box; }
+#fm-6afe30237d .fm-figure-stage {
+  background: var(--fm-bg);
+  padding: 12px 12px 8px;
+}
+#fm-6afe30237d .fm-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#fm-6afe30237d .fm-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#fm-6afe30237d .fm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--fm-surface);
+  border-top: 1px solid var(--fm-border);
+  font-size: 12.5px;
+}
+#fm-6afe30237d .fm-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+#fm-6afe30237d .fm-btn {
+  appearance: none;
+  border: 1px solid var(--fm-border);
+  background: var(--fm-btn-bg);
+  color: var(--fm-ink);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+#fm-6afe30237d .fm-btn:hover {
+  background: var(--fm-btn-hover);
+  border-color: var(--fm-muted);
+}
+#fm-6afe30237d .fm-btn[aria-expanded="true"], #fm-6afe30237d .fm-btn-accent {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+#fm-6afe30237d .fm-status {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+  margin-left: 4px;
+}
+#fm-6afe30237d .fm-drawer {
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-surface);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#fm-6afe30237d .fm-drawer[hidden] { display: none; }
+#fm-6afe30237d .fm-drawer h3 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-6afe30237d .fm-panel-card {
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#fm-6afe30237d .fm-panel-card:last-child { margin-bottom: 0; }
+#fm-6afe30237d .fm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#fm-6afe30237d .fm-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fm-surface-alt);
+  color: var(--fm-accent);
+  border: 1px solid var(--fm-border);
+}
+#fm-6afe30237d .fm-panel-title {
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-6afe30237d .fm-panel-kind {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-6afe30237d .fm-facts {
+  margin: 6px 0 8px 18px;
+  padding: 0;
+  color: var(--fm-ink);
+}
+#fm-6afe30237d .fm-facts li { margin-bottom: 3px; }
+#fm-6afe30237d .fm-table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+#fm-6afe30237d .fm-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#fm-6afe30237d .fm-data-table th, #fm-6afe30237d .fm-data-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-ink);
+}
+#fm-6afe30237d .fm-data-table th {
+  font-weight: 600;
+  color: var(--fm-muted);
+  background: var(--fm-surface);
+}
+#fm-6afe30237d .fm-data-table th.fm-num, #fm-6afe30237d .fm-data-table td.fm-num {
+  text-align: right;
+}
+#fm-6afe30237d .fm-table-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fm-muted);
+}
+#fm-6afe30237d .fm-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-6afe30237d .fm-critique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#fm-6afe30237d .fm-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fm-muted);
+  margin-bottom: 4px;
+}
+#fm-6afe30237d .fm-field select, #fm-6afe30237d .fm-field textarea {
+  width: 100%;
+  background: var(--fm-input-bg);
+  color: var(--fm-ink);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#fm-6afe30237d .fm-field textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+#fm-6afe30237d .fm-preview {
+  background: var(--fm-input-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  color: var(--fm-ink);
+}
+#fm-6afe30237d .fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<figure id="fm-6afe30237d" class="fm-root" data-fm-theme="figmint" data-fm-mode="light"><div class="fm-figure-stage"><div class="fm-svg-wrap" role="img" aria-label="Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA. Parallel phase trace across four pipeline lanes. Timeline of 7 stages spanning 0 s to 178 s. wall span: 0 s to 178 s (178 s total across 7 stages). longest stage: integration (94 s, 53% of wall span, 68 s to 162 s). sum of stage durations: 212 s (1.2× wall span; peak 2 stages overlapping). Source: Synthetic CI execution trace."><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="396.850394pt" height="261.265748pt" viewBox="0 0 396.850394 261.265748" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-25T01:31:50.315251</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 261.265748 
+L 396.850394 261.265748 
+L 396.850394 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 61.458583 209.221491 
+L 385.511811 209.221491 
+L 385.511811 76.7428 
+L 61.458583 76.7428 
+L 61.458583 209.221491 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1">
+      <path d="M 66.770931 209.221491 
+L 66.770931 76.7428 
+" clip-path="url(#p1dd2b8511d)" style="fill: none; stroke: #e3e7ec; stroke-width: 0.5; stroke-linecap: round"/>
+     </g>
+     <g id="line2d_2">
+      <defs>
+       <path id="m0bd6bdf224" d="M 0 0 
+L 0 2.5 
+" style="stroke: #8a939e; stroke-width: 0.6"/>
+      </defs>
+      <g>
+       <use xlink:href="#m0bd6bdf224" x="66.770931" y="209.221491" style="fill: #8a939e; stroke: #8a939e; stroke-width: 0.6"/>
+      </g>
+     </g>
+     <g id="text_1">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="66.770931" y="219.846491" transform="rotate(-0 66.770931 219.846491)">0</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_3">
+      <path d="M 141.38256 209.221491 
+L 141.38256 76.7428 
+" clip-path="url(#p1dd2b8511d)" style="fill: none; stroke: #e3e7ec; stroke-width: 0.5; stroke-linecap: round"/>
+     </g>
+     <g id="line2d_4">
+      <g>
+       <use xlink:href="#m0bd6bdf224" x="141.38256" y="209.221491" style="fill: #8a939e; stroke: #8a939e; stroke-width: 0.6"/>
+      </g>
+     </g>
+     <g id="text_2">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="141.38256" y="219.846491" transform="rotate(-0 141.38256 219.846491)">50</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_5">
+      <path d="M 215.994189 209.221491 
+L 215.994189 76.7428 
+" clip-path="url(#p1dd2b8511d)" style="fill: none; stroke: #e3e7ec; stroke-width: 0.5; stroke-linecap: round"/>
+     </g>
+     <g id="line2d_6">
+      <g>
+       <use xlink:href="#m0bd6bdf224" x="215.994189" y="209.221491" style="fill: #8a939e; stroke: #8a939e; stroke-width: 0.6"/>
+      </g>
+     </g>
+     <g id="text_3">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="215.994189" y="219.846491" transform="rotate(-0 215.994189 219.846491)">100</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_7">
+      <path d="M 290.605819 209.221491 
+L 290.605819 76.7428 
+" clip-path="url(#p1dd2b8511d)" style="fill: none; stroke: #e3e7ec; stroke-width: 0.5; stroke-linecap: round"/>
+     </g>
+     <g id="line2d_8">
+      <g>
+       <use xlink:href="#m0bd6bdf224" x="290.605819" y="209.221491" style="fill: #8a939e; stroke: #8a939e; stroke-width: 0.6"/>
+      </g>
+     </g>
+     <g id="text_4">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="290.605819" y="219.846491" transform="rotate(-0 290.605819 219.846491)">150</text>
+     </g>
+    </g>
+    <g id="xtick_5">
+     <g id="line2d_9">
+      <path d="M 365.217448 209.221491 
+L 365.217448 76.7428 
+" clip-path="url(#p1dd2b8511d)" style="fill: none; stroke: #e3e7ec; stroke-width: 0.5; stroke-linecap: round"/>
+     </g>
+     <g id="line2d_10">
+      <g>
+       <use xlink:href="#m0bd6bdf224" x="365.217448" y="209.221491" style="fill: #8a939e; stroke: #8a939e; stroke-width: 0.6"/>
+      </g>
+     </g>
+     <g id="text_5">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="365.217448" y="219.846491" transform="rotate(-0 365.217448 219.846491)">200</text>
+     </g>
+    </g>
+    <g id="text_6">
+     <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="223.485197" y="229.745906" transform="rotate(-0 223.485197 229.745906)">Elapsed (s)</text>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_11"/>
+     <g id="text_7">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="102.922967" transform="rotate(-0 56.458583 102.922967)">checkout</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_12"/>
+     <g id="text_8">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="119.29" transform="rotate(-0 56.458583 119.29)">deps cache</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_13"/>
+     <g id="text_9">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="136.054474" transform="rotate(-0 56.458583 136.054474)">compile</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_14"/>
+     <g id="text_10">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="152.796702" transform="rotate(-0 56.458583 152.796702)">integration</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_15"/>
+     <g id="text_11">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="169.993813" transform="rotate(-0 56.458583 169.993813)">unit tests</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_16"/>
+     <g id="text_12">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="186.232682" transform="rotate(-0 56.458583 186.232682)">canary gate</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_17"/>
+     <g id="text_13">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="56.458583" y="203.124656" transform="rotate(-0 56.458583 203.124656)">deploy</text>
+     </g>
+    </g>
+   </g>
+   <g id="patch_3">
+    <path d="M 61.458583 209.221491 
+L 385.511811 209.221491 
+" style="fill: none; stroke: #8a939e; stroke-width: 0.6; stroke-linejoin: miter; stroke-linecap: square"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 66.770931 94.183033 
+L 78.708791 94.183033 
+L 78.708791 104.580095 
+L 66.770931 104.580095 
+z
+" clip-path="url(#p1dd2b8511d)" style="fill: #1f5a9d"/>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="83.708791" y="101.556857" transform="rotate(-0 83.708791 101.556857)">8 s</text>
+   </g>
+   <g id="patch_5">
+    <path d="M 78.708791 110.952487 
+L 99.600048 110.952487 
+L 99.600048 121.349549 
+L 78.708791 121.349549 
+z
+" clip-path="url(#p1dd2b8511d)" style="fill: #1f5a9d"/>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="104.600048" y="118.326311" transform="rotate(-0 104.600048 118.326311)">14 s</text>
+   </g>
+   <g id="patch_6">
+    <path d="M 99.600048 127.721942 
+L 168.242747 127.721942 
+L 168.242747 138.119004 
+L 99.600048 138.119004 
+z
+" clip-path="url(#p1dd2b8511d)" style="fill: #cd4324"/>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="173.242747" y="135.095766" transform="rotate(-0 173.242747 135.095766)">46 s</text>
+   </g>
+   <g id="patch_7">
+    <path d="M 168.242747 144.491397 
+L 308.51261 144.491397 
+L 308.51261 154.888458 
+L 168.242747 154.888458 
+z
+" clip-path="url(#p1dd2b8511d)" style="fill: #0f9478"/>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="313.51261" y="151.86522" transform="rotate(-0 313.51261 151.86522)">94 s</text>
+   </g>
+   <g id="patch_8">
+    <path d="M 168.242747 161.260851 
+L 218.978654 161.260851 
+L 218.978654 171.657913 
+L 168.242747 171.657913 
+z
+" clip-path="url(#p1dd2b8511d)" style="fill: #0f9478"/>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="223.978654" y="168.634675" transform="rotate(-0 223.978654 168.634675)">34 s</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="313.51261" y="185.40413" transform="rotate(-0 313.51261 185.40413)">milestone</text>
+   </g>
+   <g id="patch_9">
+    <path d="M 308.51261 194.79976 
+L 332.388331 194.79976 
+L 332.388331 205.196822 
+L 308.51261 205.196822 
+z
+" clip-path="url(#p1dd2b8511d)" style="fill: #cc8800"/>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="337.388331" y="202.173584" transform="rotate(-0 337.388331 202.173584)">16 s</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="290.605819" y="72.968386" transform="rotate(-0 290.605819 72.968386)">CI SLA</text>
+   </g>
+   <g id="PathCollection_1">
+    <defs>
+     <path id="m2f2e44e631" d="M -0 3.394113 
+L 3.394113 0 
+L 0 -3.394113 
+L -3.394113 -0 
+z
+" style="stroke: #ffffff; stroke-width: 0.6"/>
+    </defs>
+    <g clip-path="url(#p1dd2b8511d)">
+     <use xlink:href="#m2f2e44e631" x="308.51261" y="183.228837" style="fill: #cc8800; stroke: #ffffff; stroke-width: 0.6"/>
+    </g>
+   </g>
+   <g id="line2d_18">
+    <path d="M 290.605819 209.221491 
+L 290.605819 76.7428 
+" clip-path="url(#p1dd2b8511d)" style="fill: none; stroke-dasharray: 2.25,1.5; stroke-dashoffset: 0; stroke: #1a1d21; stroke-width: 0.75"/>
+   </g>
+   <g id="patch_10">
+    <path d="M 61.458583 80.599774 
+L 69.23586 80.599774 
+L 69.23586 87.978334 
+L 61.458583 87.978334 
+z
+" style="fill: #1f5a9d"/>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="73.124499" y="86.319914" transform="rotate(-0 73.124499 86.319914)">setup</text>
+   </g>
+   <g id="patch_11">
+    <path d="M 112.356048 80.599774 
+L 120.133325 80.599774 
+L 120.133325 87.978334 
+L 112.356048 87.978334 
+z
+" style="fill: #cd4324"/>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="124.021964" y="86.464347" transform="rotate(-0 124.021964 86.464347)">build</text>
+   </g>
+   <g id="patch_12">
+    <path d="M 159.922546 80.599774 
+L 167.699824 80.599774 
+L 167.699824 87.978334 
+L 159.922546 87.978334 
+z
+" style="fill: #0f9478"/>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="171.588463" y="86.297648" transform="rotate(-0 171.588463 86.297648)">verify</text>
+   </g>
+   <g id="patch_13">
+    <path d="M 210.287057 80.599774 
+L 218.064334 80.599774 
+L 218.064334 87.978334 
+L 210.287057 87.978334 
+z
+" style="fill: #cc8800"/>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="221.952973" y="86.464347" transform="rotate(-0 221.952973 86.464347)">release</text>
+   </g>
+  </g>
+  <g id="text_26">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="19.588583" transform="rotate(-0 11.338583 19.588583)">Integration tests take 94 s (53% of the 178 s CI run) and push past the</text>
+  </g>
+  <g id="text_27">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="33.448583" transform="rotate(-0 11.338583 33.448583)">150 s SLA</text>
+  </g>
+  <g id="text_28">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="56.772165" transform="rotate(-0 11.338583 56.772165)">Parallel phase trace across four pipeline lanes</text>
+  </g>
+  <g id="text_29">
+   <text style="font-size: 7px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="246.357165" transform="rotate(-0 11.338583 246.357165)">Source: Synthetic CI execution trace</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p1dd2b8511d">
+   <rect x="61.458583" y="76.7428" width="324.053228" height="132.478692"/>
+  </clipPath>
+ </defs>
+</svg></div><figcaption class="fm-sr-only">Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA</figcaption></div><div class="fm-toolbar"><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button><button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button></div><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button><button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button><span class="fm-status" data-fm-status role="status" aria-live="polite"></span></div></div><section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data"><h3>Facts &amp; Underlying Data</h3><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel a</span><span class="fm-panel-title">Parallel phase trace across four pipeline lanes</span><span class="fm-panel-kind">(timeline)</span></div><ul class="fm-facts"><li>wall span: 0 s to 178 s (178 s total across 7 stages)</li><li>longest stage: integration (94 s, 53% of wall span, 68 s to 162 s)</li><li>sum of stage durations: 212 s (1.2× wall span; peak 2 stages overlapping)</li><li>end 178 s exceeds reference 150 s (CI SLA) by 28 s</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th>Stage</th><th class="fm-num">Start</th><th class="fm-num">End</th><th class="fm-num">Duration</th><th>Group</th></tr></thead><tbody><tr><td>checkout</td><td class="fm-num">0</td><td class="fm-num">8</td><td class="fm-num">8</td><td>setup</td></tr><tr><td>deps cache</td><td class="fm-num">8</td><td class="fm-num">22</td><td class="fm-num">14</td><td>setup</td></tr><tr><td>compile</td><td class="fm-num">22</td><td class="fm-num">68</td><td class="fm-num">46</td><td>build</td></tr><tr><td>integration</td><td class="fm-num">68</td><td class="fm-num">162</td><td class="fm-num">94</td><td>verify</td></tr><tr><td>unit tests</td><td class="fm-num">68</td><td class="fm-num">102</td><td class="fm-num">34</td><td>verify</td></tr><tr><td>canary gate</td><td class="fm-num">162</td><td class="fm-num">162</td><td class="fm-num">0</td><td>release</td></tr><tr><td>deploy</td><td class="fm-num">162</td><td class="fm-num">178</td><td class="fm-num">16</td><td>release</td></tr></tbody></table></div></div><div class="fm-meta-row"><span>Style: figmint</span><span>Palette: default</span><span>Size: 140 × 92 mm</span><span>Source: Synthetic CI execution trace</span></div></section><section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent"><h3>Click to Critique / Ask Agent</h3><div class="fm-critique-grid"><div class="fm-field"><label for="fm-6afe30237d-panel">Panel</label><select id="fm-6afe30237d-panel" data-fm-critique-panel><option value="figure">Whole figure</option><option value="a">Panel a: Parallel phase trace across four pipeline lanes</option></select></div><div class="fm-field"><label for="fm-6afe30237d-action">Action</label><select id="fm-6afe30237d-action" data-fm-critique-action><option value="highlight">Highlight item / series</option><option value="drop">Drop panel or item</option><option value="zoom">Zoom / focus range</option><option value="style">Adjust style / palette</option><option value="re-title">Re-title takeaway / panel</option><option value="question">Ask question about data</option></select></div></div><div class="fm-field"><label for="fm-6afe30237d-note">Note / instruction for agent</label><textarea id="fm-6afe30237d-note" data-fm-critique-note placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea></div><pre class="fm-preview" data-fm-critique-preview></pre><div class="fm-toolbar-group"><button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy fm.edit(...)</button><button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button></div></section></figure>
+<script>
+(function() {
+  var root = document.getElementById("fm-6afe30237d");
+  if (!root) return;
+  var SPEC = {
+  "takeaway": "Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA",
+  "source": "Synthetic CI execution trace",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "timeline",
+      "spans": [
+        [
+          "checkout",
+          0.0,
+          8.0,
+          "setup"
+        ],
+        [
+          "deps cache",
+          8.0,
+          22.0,
+          "setup"
+        ],
+        [
+          "compile",
+          22.0,
+          68.0,
+          "build"
+        ],
+        [
+          "integration",
+          68.0,
+          162.0,
+          "verify"
+        ],
+        [
+          "unit tests",
+          68.0,
+          102.0,
+          "verify"
+        ],
+        [
+          "canary gate",
+          162.0,
+          162.0,
+          "release"
+        ],
+        [
+          "deploy",
+          162.0,
+          178.0,
+          "release"
+        ]
+      ],
+      "x_label": "Elapsed (s)",
+      "reference": [
+        150.0,
+        "CI SLA"
+      ],
+      "title": "Parallel phase trace across four pipeline lanes",
+      "unit": "s"
+    }
+  ]
+};
+  var TAKEAWAY = "Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA";
+  var statusEl = root.querySelector('[data-fm-status]');
+
+  function setStatus(msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    window.setTimeout(function() {
+      if (statusEl.textContent === msg) statusEl.textContent = '';
+    }, 2600);
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        setStatus('Copied ' + label);
+      }, function() {
+        fallbackCopy(text, label);
+      });
+    } else {
+      fallbackCopy(text, label);
+    }
+  }
+
+  function fallbackCopy(text, label) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setStatus('Copied ' + label);
+    } catch (e) {
+      setStatus('Copy failed');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function toggleDrawer(btnAttr, drawerAttr) {
+    var btn = root.querySelector('[' + btnAttr + ']');
+    var drawer = root.querySelector('[' + drawerAttr + ']');
+    if (!btn || !drawer) return;
+    btn.addEventListener('click', function() {
+      var open = drawer.hasAttribute('hidden');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        drawer.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
+  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
+
+  var dlBtn = root.querySelector('[data-fm-download-svg]');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      var svg = root.querySelector('.fm-svg-wrap svg');
+      if (!svg) return;
+      var xml = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'figmint-figure.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded SVG');
+    });
+  }
+
+  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
+  if (copySpecBtn) {
+    copySpecBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
+    });
+  }
+
+  var panelSel = root.querySelector('[data-fm-critique-panel]');
+  var actionSel = root.querySelector('[data-fm-critique-action]');
+  var noteInput = root.querySelector('[data-fm-critique-note]');
+  var previewEl = root.querySelector('[data-fm-critique-preview]');
+  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
+  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
+
+  function buildCritique() {
+    var panel = panelSel ? panelSel.value : 'figure';
+    var action = actionSel ? actionSel.value : 'highlight';
+    var note = noteInput ? noteInput.value.trim() : '';
+    var payload = {
+      target: panel,
+      action: action,
+      note: note,
+      takeaway: TAKEAWAY
+    };
+    var snippet = 'fm.edit(fig, panel=' + JSON.stringify(panel) +
+      ', action=' + JSON.stringify(action) +
+      ', note=' + JSON.stringify(note) + ')';
+    return { payload: payload, snippet: snippet };
+  }
+
+  function refreshPreview() {
+    if (!previewEl) return;
+    var c = buildCritique();
+    previewEl.textContent = c.snippet + '\n\n' + JSON.stringify(c.payload, null, 2);
+  }
+
+  [panelSel, actionSel, noteInput].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshPreview);
+    if (el) el.addEventListener('change', refreshPreview);
+  });
+  refreshPreview();
+
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
+    });
+  }
+  if (copyEditBtn) {
+    copyEditBtn.addEventListener('click', function() {
+      copyText(buildCritique().snippet, 'fm.edit(...) snippet');
+    });
+  }
+})();
+</script></section><section id="fig-3" class="fm-bsec"><div class="fm-bsec-label">Finding 3 of 6</div><style>
+#fm-1f6be457b9 {
+  --fm-bg: #FFFFFF;
+  --fm-ink: #1A1D21;
+  --fm-muted: #5B6570;
+  --fm-border: #E3E7EC;
+  --fm-surface: #F7F8FA;
+  --fm-surface-alt: #EFF2F6;
+  --fm-accent: #CD4324;
+  --fm-primary: #1F5A9D;
+  --fm-btn-bg: #FFFFFF;
+  --fm-btn-hover: #EEF2F6;
+  --fm-input-bg: #FFFFFF;
+  --fm-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  color: var(--fm-ink);
+  background: var(--fm-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 748px;
+  margin: 0 auto;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  box-shadow: var(--fm-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#fm-1f6be457b9 *, #fm-1f6be457b9 *::before, #fm-1f6be457b9 *::after { box-sizing: border-box; }
+#fm-1f6be457b9 .fm-figure-stage {
+  background: var(--fm-bg);
+  padding: 12px 12px 8px;
+}
+#fm-1f6be457b9 .fm-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#fm-1f6be457b9 .fm-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#fm-1f6be457b9 .fm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--fm-surface);
+  border-top: 1px solid var(--fm-border);
+  font-size: 12.5px;
+}
+#fm-1f6be457b9 .fm-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+#fm-1f6be457b9 .fm-btn {
+  appearance: none;
+  border: 1px solid var(--fm-border);
+  background: var(--fm-btn-bg);
+  color: var(--fm-ink);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+#fm-1f6be457b9 .fm-btn:hover {
+  background: var(--fm-btn-hover);
+  border-color: var(--fm-muted);
+}
+#fm-1f6be457b9 .fm-btn[aria-expanded="true"], #fm-1f6be457b9 .fm-btn-accent {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+#fm-1f6be457b9 .fm-status {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+  margin-left: 4px;
+}
+#fm-1f6be457b9 .fm-drawer {
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-surface);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#fm-1f6be457b9 .fm-drawer[hidden] { display: none; }
+#fm-1f6be457b9 .fm-drawer h3 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-1f6be457b9 .fm-panel-card {
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#fm-1f6be457b9 .fm-panel-card:last-child { margin-bottom: 0; }
+#fm-1f6be457b9 .fm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#fm-1f6be457b9 .fm-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fm-surface-alt);
+  color: var(--fm-accent);
+  border: 1px solid var(--fm-border);
+}
+#fm-1f6be457b9 .fm-panel-title {
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-1f6be457b9 .fm-panel-kind {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-1f6be457b9 .fm-facts {
+  margin: 6px 0 8px 18px;
+  padding: 0;
+  color: var(--fm-ink);
+}
+#fm-1f6be457b9 .fm-facts li { margin-bottom: 3px; }
+#fm-1f6be457b9 .fm-table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+#fm-1f6be457b9 .fm-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#fm-1f6be457b9 .fm-data-table th, #fm-1f6be457b9 .fm-data-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-ink);
+}
+#fm-1f6be457b9 .fm-data-table th {
+  font-weight: 600;
+  color: var(--fm-muted);
+  background: var(--fm-surface);
+}
+#fm-1f6be457b9 .fm-data-table th.fm-num, #fm-1f6be457b9 .fm-data-table td.fm-num {
+  text-align: right;
+}
+#fm-1f6be457b9 .fm-table-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fm-muted);
+}
+#fm-1f6be457b9 .fm-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-1f6be457b9 .fm-critique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#fm-1f6be457b9 .fm-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fm-muted);
+  margin-bottom: 4px;
+}
+#fm-1f6be457b9 .fm-field select, #fm-1f6be457b9 .fm-field textarea {
+  width: 100%;
+  background: var(--fm-input-bg);
+  color: var(--fm-ink);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#fm-1f6be457b9 .fm-field textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+#fm-1f6be457b9 .fm-preview {
+  background: var(--fm-input-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  color: var(--fm-ink);
+}
+#fm-1f6be457b9 .fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<figure id="fm-1f6be457b9" class="fm-root" data-fm-theme="figmint" data-fm-mode="light"><div class="fm-figure-stage"><div class="fm-svg-wrap" role="img" aria-label="58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%). Trial cohort attrition from screening to final analysis. Sequential attrition flow of Cohort size (patients) across 4 stages (Screened to Completed). Screened 1,240 patients → Completed 714 patients (57.6% retained; 526 patients dropped across 3 steps). largest drop: Screened → Eligible (−328 patients, −26% of prior stage) (missing baseline labs). Eligible: 912 patients (73.5% of Screened, −328 patients (−26%) from Screened: missing baseline labs). Source: Synthetic clinical cohort log."><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="396.850394pt" height="219.975591pt" viewBox="0 0 396.850394 219.975591" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-25T01:31:50.324350</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 219.975591 
+L 396.850394 219.975591 
+L 396.850394 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 60.978583 189.895748 
+L 379.518376 189.895748 
+L 379.518376 76.793386 
+L 60.978583 76.793386 
+L 60.978583 189.895748 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="ytick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="55.978583" y="94.697365" transform="rotate(-0 55.978583 94.697365)">Screened</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="55.978583" y="122.872007" transform="rotate(-0 55.978583 122.872007)">Eligible</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #5b6570" x="55.978583" y="151.918563" transform="rotate(-0 55.978583 151.918563)">Enrolled</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="55.978583" y="180.176545" transform="rotate(-0 55.978583 180.176545)">Completed</text>
+     </g>
+    </g>
+   </g>
+   <g id="LineCollection_1">
+    <path d="M 223.673638 97.409513 
+L 223.673638 113.444278 
+" clip-path="url(#pdf0fba2447)" style="fill: none; stroke-dasharray: 1.5,1.5; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.75"/>
+    <path d="M 200.12567 126.043022 
+L 200.12567 142.077787 
+" clip-path="url(#pdf0fba2447)" style="fill: none; stroke-dasharray: 1.5,1.5; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.75"/>
+    <path d="M 188.351686 154.676531 
+L 188.351686 170.711297 
+" clip-path="url(#pdf0fba2447)" style="fill: none; stroke-dasharray: 1.5,1.5; stroke-dashoffset: 0; stroke: #8a939e; stroke-width: 0.75"/>
+   </g>
+   <g id="patch_3">
+    <path d="M 60.978583 84.810768 
+L 282.186772 84.810768 
+L 282.186772 97.409513 
+L 60.978583 97.409513 
+z
+" clip-path="url(#pdf0fba2447)" style="fill: #cdd3da"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 60.978583 113.444278 
+L 223.673638 113.444278 
+L 223.673638 126.043022 
+L 60.978583 126.043022 
+z
+" clip-path="url(#pdf0fba2447)" style="fill: #cd4324"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 60.978583 142.077787 
+L 200.12567 142.077787 
+L 200.12567 154.676531 
+L 60.978583 154.676531 
+z
+" clip-path="url(#pdf0fba2447)" style="fill: #cdd3da"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 60.978583 170.711297 
+L 188.351686 170.711297 
+L 188.351686 183.310041 
+L 60.978583 183.310041 
+z
+" clip-path="url(#pdf0fba2447)" style="fill: #cdd3da"/>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="287.186772" y="93.136898" transform="rotate(-0 287.186772 93.136898)">1,240 patients (100%)</text>
+   </g>
+   <g id="text_6">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="228.673638" y="121.770408" transform="rotate(-0 228.673638 121.770408)">912 patients (74%)</text>
+   </g>
+   <g id="text_7">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #cd4324" x="226.248479" y="107.422598" transform="rotate(-0 226.248479 107.422598)">−328 patients (−26%) · missing baseline labs</text>
+   </g>
+   <g id="text_8">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="205.12567" y="150.408019" transform="rotate(-0 205.12567 150.408019)">780 patients (63%)</text>
+   </g>
+   <g id="text_9">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="206.12567" y="136.091264" transform="rotate(-0 206.12567 136.091264)">−132 patients (−14%) · declined consent</text>
+   </g>
+   <g id="text_10">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="193.351686" y="179.037427" transform="rotate(-0 193.351686 179.037427)">714 patients (58%)</text>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="194.351686" y="164.724773" transform="rotate(-0 194.351686 164.724773)">−66 patients (−8.5%) · lost to follow-up</text>
+   </g>
+   <g id="LineCollection_2">
+    <path d="M 60.978583 78.225061 
+L 60.978583 189.895748 
+" clip-path="url(#pdf0fba2447)" style="fill: none; stroke: #1a1d21; stroke-width: 0.7"/>
+   </g>
+  </g>
+  <g id="text_12">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="19.588583" transform="rotate(-0 11.338583 19.588583)">58% of screened patients complete follow-up; eligibility screening</text>
+  </g>
+  <g id="text_13">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="33.448583" transform="rotate(-0 11.338583 33.448583)">causes the largest drop (26%)</text>
+  </g>
+  <g id="text_14">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="56.772165" transform="rotate(-0 11.338583 56.772165)">Trial cohort attrition from screening to final analysis</text>
+  </g>
+  <g id="text_15">
+   <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="67.299094" transform="rotate(-0 11.338583 67.299094)">Cohort size (patients)</text>
+  </g>
+  <g id="text_16">
+   <text style="font-size: 7px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="205.067008" transform="rotate(-0 11.338583 205.067008)">Source: Synthetic clinical cohort log</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pdf0fba2447">
+   <rect x="60.978583" y="76.793386" width="318.539793" height="113.102362"/>
+  </clipPath>
+ </defs>
+</svg></div><figcaption class="fm-sr-only">58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%)</figcaption></div><div class="fm-toolbar"><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button><button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button></div><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button><button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button><span class="fm-status" data-fm-status role="status" aria-live="polite"></span></div></div><section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data"><h3>Facts &amp; Underlying Data</h3><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel a</span><span class="fm-panel-title">Trial cohort attrition from screening to final analysis</span><span class="fm-panel-kind">(flow)</span></div><ul class="fm-facts"><li>Screened 1,240 patients → Completed 714 patients (57.6% retained; 526 patients dropped across 3 steps)</li><li>largest drop: Screened → Eligible (−328 patients, −26% of prior stage) (missing baseline labs)</li><li>Eligible: 912 patients (73.5% of Screened, −328 patients (−26%) from Screened: missing baseline labs)</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th>Stage</th><th class="fm-num">Remaining (patients)</th><th class="fm-num">% of start</th><th class="fm-num">Step change</th><th>Reason</th></tr></thead><tbody><tr><td>Screened</td><td class="fm-num">1,240</td><td class="fm-num">100.0%</td><td class="fm-num">—</td><td>—</td></tr><tr><td>Eligible</td><td class="fm-num">912</td><td class="fm-num">73.5%</td><td class="fm-num">-328</td><td>missing baseline labs</td></tr><tr><td>Enrolled</td><td class="fm-num">780</td><td class="fm-num">62.9%</td><td class="fm-num">-132</td><td>declined consent</td></tr><tr><td>Completed</td><td class="fm-num">714</td><td class="fm-num">57.6%</td><td class="fm-num">-66</td><td>lost to follow-up</td></tr></tbody></table></div></div><div class="fm-meta-row"><span>Style: figmint</span><span>Palette: default</span><span>Size: 140 × 78 mm</span><span>Source: Synthetic clinical cohort log</span></div></section><section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent"><h3>Click to Critique / Ask Agent</h3><div class="fm-critique-grid"><div class="fm-field"><label for="fm-1f6be457b9-panel">Panel</label><select id="fm-1f6be457b9-panel" data-fm-critique-panel><option value="figure">Whole figure</option><option value="a">Panel a: Trial cohort attrition from screening to final analysis</option></select></div><div class="fm-field"><label for="fm-1f6be457b9-action">Action</label><select id="fm-1f6be457b9-action" data-fm-critique-action><option value="highlight">Highlight item / series</option><option value="drop">Drop panel or item</option><option value="zoom">Zoom / focus range</option><option value="style">Adjust style / palette</option><option value="re-title">Re-title takeaway / panel</option><option value="question">Ask question about data</option></select></div></div><div class="fm-field"><label for="fm-1f6be457b9-note">Note / instruction for agent</label><textarea id="fm-1f6be457b9-note" data-fm-critique-note placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea></div><pre class="fm-preview" data-fm-critique-preview></pre><div class="fm-toolbar-group"><button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy fm.edit(...)</button><button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button></div></section></figure>
+<script>
+(function() {
+  var root = document.getElementById("fm-1f6be457b9");
+  if (!root) return;
+  var SPEC = {
+  "takeaway": "58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%)",
+  "source": "Synthetic clinical cohort log",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "flow",
+      "stages": [
+        [
+          "Screened",
+          1240.0
+        ],
+        [
+          "Eligible",
+          912.0,
+          "missing baseline labs"
+        ],
+        [
+          "Enrolled",
+          780.0,
+          "declined consent"
+        ],
+        [
+          "Completed",
+          714.0,
+          "lost to follow-up"
+        ]
+      ],
+      "highlight": [
+        "Eligible"
+      ],
+      "title": "Trial cohort attrition from screening to final analysis",
+      "label": "Cohort size",
+      "unit": "patients"
+    }
+  ]
+};
+  var TAKEAWAY = "58% of screened patients complete follow-up; eligibility screening causes the largest drop (26%)";
+  var statusEl = root.querySelector('[data-fm-status]');
+
+  function setStatus(msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    window.setTimeout(function() {
+      if (statusEl.textContent === msg) statusEl.textContent = '';
+    }, 2600);
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        setStatus('Copied ' + label);
+      }, function() {
+        fallbackCopy(text, label);
+      });
+    } else {
+      fallbackCopy(text, label);
+    }
+  }
+
+  function fallbackCopy(text, label) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setStatus('Copied ' + label);
+    } catch (e) {
+      setStatus('Copy failed');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function toggleDrawer(btnAttr, drawerAttr) {
+    var btn = root.querySelector('[' + btnAttr + ']');
+    var drawer = root.querySelector('[' + drawerAttr + ']');
+    if (!btn || !drawer) return;
+    btn.addEventListener('click', function() {
+      var open = drawer.hasAttribute('hidden');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        drawer.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
+  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
+
+  var dlBtn = root.querySelector('[data-fm-download-svg]');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      var svg = root.querySelector('.fm-svg-wrap svg');
+      if (!svg) return;
+      var xml = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'figmint-figure.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded SVG');
+    });
+  }
+
+  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
+  if (copySpecBtn) {
+    copySpecBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
+    });
+  }
+
+  var panelSel = root.querySelector('[data-fm-critique-panel]');
+  var actionSel = root.querySelector('[data-fm-critique-action]');
+  var noteInput = root.querySelector('[data-fm-critique-note]');
+  var previewEl = root.querySelector('[data-fm-critique-preview]');
+  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
+  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
+
+  function buildCritique() {
+    var panel = panelSel ? panelSel.value : 'figure';
+    var action = actionSel ? actionSel.value : 'highlight';
+    var note = noteInput ? noteInput.value.trim() : '';
+    var payload = {
+      target: panel,
+      action: action,
+      note: note,
+      takeaway: TAKEAWAY
+    };
+    var snippet = 'fm.edit(fig, panel=' + JSON.stringify(panel) +
+      ', action=' + JSON.stringify(action) +
+      ', note=' + JSON.stringify(note) + ')';
+    return { payload: payload, snippet: snippet };
+  }
+
+  function refreshPreview() {
+    if (!previewEl) return;
+    var c = buildCritique();
+    previewEl.textContent = c.snippet + '\n\n' + JSON.stringify(c.payload, null, 2);
+  }
+
+  [panelSel, actionSel, noteInput].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshPreview);
+    if (el) el.addEventListener('change', refreshPreview);
+  });
+  refreshPreview();
+
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
+    });
+  }
+  if (copyEditBtn) {
+    copyEditBtn.addEventListener('click', function() {
+      copyText(buildCritique().snippet, 'fm.edit(...) snippet');
+    });
+  }
+})();
+</script></section><section id="fig-4" class="fm-bsec"><div class="fm-bsec-label">Finding 4 of 6</div><style>
+#fm-0fce881eab {
+  --fm-bg: #FFFFFF;
+  --fm-ink: #1A1D21;
+  --fm-muted: #5B6570;
+  --fm-border: #E3E7EC;
+  --fm-surface: #F7F8FA;
+  --fm-surface-alt: #EFF2F6;
+  --fm-accent: #CD4324;
+  --fm-primary: #1F5A9D;
+  --fm-btn-bg: #FFFFFF;
+  --fm-btn-hover: #EEF2F6;
+  --fm-input-bg: #FFFFFF;
+  --fm-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  color: var(--fm-ink);
+  background: var(--fm-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 748px;
+  margin: 0 auto;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  box-shadow: var(--fm-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#fm-0fce881eab *, #fm-0fce881eab *::before, #fm-0fce881eab *::after { box-sizing: border-box; }
+#fm-0fce881eab .fm-figure-stage {
+  background: var(--fm-bg);
+  padding: 12px 12px 8px;
+}
+#fm-0fce881eab .fm-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#fm-0fce881eab .fm-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#fm-0fce881eab .fm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--fm-surface);
+  border-top: 1px solid var(--fm-border);
+  font-size: 12.5px;
+}
+#fm-0fce881eab .fm-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+#fm-0fce881eab .fm-btn {
+  appearance: none;
+  border: 1px solid var(--fm-border);
+  background: var(--fm-btn-bg);
+  color: var(--fm-ink);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+#fm-0fce881eab .fm-btn:hover {
+  background: var(--fm-btn-hover);
+  border-color: var(--fm-muted);
+}
+#fm-0fce881eab .fm-btn[aria-expanded="true"], #fm-0fce881eab .fm-btn-accent {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+#fm-0fce881eab .fm-status {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+  margin-left: 4px;
+}
+#fm-0fce881eab .fm-drawer {
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-surface);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#fm-0fce881eab .fm-drawer[hidden] { display: none; }
+#fm-0fce881eab .fm-drawer h3 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-0fce881eab .fm-panel-card {
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#fm-0fce881eab .fm-panel-card:last-child { margin-bottom: 0; }
+#fm-0fce881eab .fm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#fm-0fce881eab .fm-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fm-surface-alt);
+  color: var(--fm-accent);
+  border: 1px solid var(--fm-border);
+}
+#fm-0fce881eab .fm-panel-title {
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-0fce881eab .fm-panel-kind {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-0fce881eab .fm-facts {
+  margin: 6px 0 8px 18px;
+  padding: 0;
+  color: var(--fm-ink);
+}
+#fm-0fce881eab .fm-facts li { margin-bottom: 3px; }
+#fm-0fce881eab .fm-table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+#fm-0fce881eab .fm-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#fm-0fce881eab .fm-data-table th, #fm-0fce881eab .fm-data-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-ink);
+}
+#fm-0fce881eab .fm-data-table th {
+  font-weight: 600;
+  color: var(--fm-muted);
+  background: var(--fm-surface);
+}
+#fm-0fce881eab .fm-data-table th.fm-num, #fm-0fce881eab .fm-data-table td.fm-num {
+  text-align: right;
+}
+#fm-0fce881eab .fm-table-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fm-muted);
+}
+#fm-0fce881eab .fm-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-0fce881eab .fm-critique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#fm-0fce881eab .fm-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fm-muted);
+  margin-bottom: 4px;
+}
+#fm-0fce881eab .fm-field select, #fm-0fce881eab .fm-field textarea {
+  width: 100%;
+  background: var(--fm-input-bg);
+  color: var(--fm-ink);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#fm-0fce881eab .fm-field textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+#fm-0fce881eab .fm-preview {
+  background: var(--fm-input-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  color: var(--fm-ink);
+}
+#fm-0fce881eab .fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<figure id="fm-0fce881eab" class="fm-root" data-fm-theme="figmint" data-fm-mode="light"><div class="fm-figure-stage"><div class="fm-svg-wrap" role="img" aria-label="Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively. Off-diagonal metric correlation structure (diagonal masked). Heat table of Pearson r, 5 rows by 5 columns, a number in every cell. highest: Reasoning × Math = 0.84. Source: Synthetic benchmark suite (n = 24 checkpoints)."><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="396.850394pt" height="211.755118pt" viewBox="0 0 396.850394 211.755118" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-25T01:31:50.330532</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 211.755118 
+L 396.850394 211.755118 
+L 396.850394 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 50.818583 171.610276 
+L 385.511811 171.610276 
+L 385.511811 76.793386 
+L 50.818583 76.793386 
+L 50.818583 171.610276 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="xtick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="84.287906" y="180.235276" transform="rotate(-0 84.287906 180.235276)">Reasoning</text>
+     </g>
+    </g>
+    <g id="xtick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="151.226551" y="180.235276" transform="rotate(-0 151.226551 180.235276)">Coding</text>
+     </g>
+    </g>
+    <g id="xtick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="218.165197" y="180.235276" transform="rotate(-0 218.165197 180.235276)">Math</text>
+     </g>
+    </g>
+    <g id="xtick_4">
+     <g id="line2d_4"/>
+     <g id="text_4">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="285.103843" y="180.235276" transform="rotate(-0 285.103843 180.235276)">Retrieval</text>
+     </g>
+    </g>
+    <g id="xtick_5">
+     <g id="line2d_5"/>
+     <g id="text_5">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="352.042488" y="180.235276" transform="rotate(-0 352.042488 180.235276)">Latency</text>
+     </g>
+    </g>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_1">
+     <g id="line2d_6"/>
+     <g id="text_6">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="47.818583" y="89.087575" transform="rotate(-0 47.818583 89.087575)">Reasoning</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_7"/>
+     <g id="text_7">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="47.818583" y="108.050953" transform="rotate(-0 47.818583 108.050953)">Coding</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_8"/>
+     <g id="text_8">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="47.818583" y="127.014331" transform="rotate(-0 47.818583 127.014331)">Math</text>
+     </g>
+    </g>
+    <g id="ytick_4">
+     <g id="line2d_9"/>
+     <g id="text_9">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="47.818583" y="145.977709" transform="rotate(-0 47.818583 145.977709)">Retrieval</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_10"/>
+     <g id="text_10">
+      <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #1a1d21" x="47.818583" y="164.941087" transform="rotate(-0 47.818583 164.941087)">Latency</text>
+     </g>
+    </g>
+   </g>
+   <g clip-path="url(#pa8fcf176aa)">
+    <image xlink:href="data:image/png;base64,
+iVBORw0KGgoAAAANSUhEUgAAA/8AAAEhCAYAAAApqRAgAAAHoklEQVR4nO3aMU5UURiGYUbNnRuNYAgJobGgtqCxoGYbxmWQuBC3wA4o6FkDrSYswQKoxi3MVCfnzfPUt/jyd2/O3fx++Ls7AvZ2dry4Fuzp6fmfW8EBbr6duhfs6fvlsVvBAd4d8jEAAAAwH/EPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgLjNn18/dqNHwEyWs/PRE2Aa7z9/GT0BpnLy83b0BJjGul1GT4CpePkHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgLjN/fXX3egRMJPTi/PRE2AaV3ePoyfAVNbtMnoCAFFe/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQ92H99HH0BpjK1d3j6AkwjXW7jJ4AAICXfwAAAOjz2z8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4jYvr2+70SNgJut2GT0BAADgIF7+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAACBO/AMAAECc+AcAAIA48Q8AAABx4h8AAADixD8AAADEiX8AAACIE/8AAAAQJ/4BAAAgTvwDAABAnPgHAACAOPEPAAAAceIfAAAA4sQ/AAAAxIl/AAAAiBP/AAAAECf+AQAAIE78AwAAQJz4BwAAgDjxDwAAAHHiHwAAAOLEPwAAAMSJfwAAAIgT/wAAABAn/gEAAOCo7T8TaxboPcYcJQAAAABJRU5ErkJggg==" id="image2f900ee090" transform="scale(1 -1) translate(0 -94.581818)" x="50.727273" y="-76.918754" width="334.8" height="94.581818"/>
+   </g>
+   <g id="LineCollection_1">
+    <path d="M 50.818583 76.793386 
+L 385.511811 76.793386 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 50.818583 95.756764 
+L 385.511811 95.756764 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 50.818583 114.720142 
+L 385.511811 114.720142 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 50.818583 133.68352 
+L 385.511811 133.68352 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 50.818583 152.646898 
+L 385.511811 152.646898 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 50.818583 171.610276 
+L 385.511811 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+   </g>
+   <g id="LineCollection_2">
+    <path d="M 50.818583 76.793386 
+L 50.818583 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 117.757228 76.793386 
+L 117.757228 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 184.695874 76.793386 
+L 184.695874 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 251.63452 76.793386 
+L 251.63452 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 318.573165 76.793386 
+L 318.573165 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+    <path d="M 385.511811 76.793386 
+L 385.511811 171.610276 
+" clip-path="url(#pa8fcf176aa)" style="fill: none; stroke: #ffffff; stroke-width: 1.6"/>
+   </g>
+   <g id="text_11">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="84.287906" y="88.450368" transform="rotate(-0 84.287906 88.450368)">—</text>
+   </g>
+   <g id="text_12">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="84.287906" y="107.413746" transform="rotate(-0 84.287906 107.413746)">0.78</text>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="151.226551" y="107.413746" transform="rotate(-0 151.226551 107.413746)">—</text>
+   </g>
+   <g id="text_14">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="84.287906" y="126.377124" transform="rotate(-0 84.287906 126.377124)">0.84</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="151.226551" y="126.377124" transform="rotate(-0 151.226551 126.377124)">0.71</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="218.165197" y="126.377124" transform="rotate(-0 218.165197 126.377124)">—</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #ffffff" x="84.287906" y="145.340502" transform="rotate(-0 84.287906 145.340502)">0.52</text>
+   </g>
+   <g id="text_18">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="151.226551" y="145.340502" transform="rotate(-0 151.226551 145.340502)">0.44</text>
+   </g>
+   <g id="text_19">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="218.165197" y="145.340502" transform="rotate(-0 218.165197 145.340502)">0.39</text>
+   </g>
+   <g id="text_20">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="285.103843" y="145.340502" transform="rotate(-0 285.103843 145.340502)">—</text>
+   </g>
+   <g id="text_21">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="84.287906" y="164.30388" transform="rotate(-0 84.287906 164.30388)">−0.34</text>
+   </g>
+   <g id="text_22">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="151.226551" y="164.30388" transform="rotate(-0 151.226551 164.30388)">−0.28</text>
+   </g>
+   <g id="text_23">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="218.165197" y="164.30388" transform="rotate(-0 218.165197 164.30388)">−0.41</text>
+   </g>
+   <g id="text_24">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #1a1d21" x="285.103843" y="164.30388" transform="rotate(-0 285.103843 164.30388)">−0.18</text>
+   </g>
+   <g id="text_25">
+    <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: middle; fill: #5b6570" x="352.042488" y="164.30388" transform="rotate(-0 352.042488 164.30388)">—</text>
+   </g>
+   <g id="line2d_11">
+    <path d="M 50.818583 114.720142 
+L 117.757228 114.720142 
+L 117.757228 133.68352 
+L 50.818583 133.68352 
+L 50.818583 114.720142 
+" style="fill: none; stroke: #1a1d21; stroke-width: 1.6; stroke-linejoin: miter; stroke-linecap: round"/>
+   </g>
+   <g id="line2d_12">
+    <path d="M 184.695874 152.646898 
+L 251.63452 152.646898 
+L 251.63452 171.610276 
+L 184.695874 171.610276 
+L 184.695874 152.646898 
+" style="fill: none; stroke: #1a1d21; stroke-width: 1.6; stroke-linejoin: miter; stroke-linecap: round"/>
+   </g>
+  </g>
+  <g id="text_26">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="19.588583" transform="rotate(-0 11.338583 19.588583)">Reasoning and Math correlate most tightly (r = 0.84) while Latency</text>
+  </g>
+  <g id="text_27">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="33.448583" transform="rotate(-0 11.338583 33.448583)">trades off negatively</text>
+  </g>
+  <g id="text_28">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #1a1d21" x="11.338583" y="56.772165" transform="rotate(-0 11.338583 56.772165)">Off-diagonal metric correlation structure (diagonal masked)</text>
+  </g>
+  <g id="text_29">
+   <text style="font-size: 7.5px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="67.299094" transform="rotate(-0 11.338583 67.299094)">Pearson r</text>
+  </g>
+  <g id="text_30">
+   <text style="font-size: 7px; font-family: 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #5b6570" x="11.338583" y="196.846535" transform="rotate(-0 11.338583 196.846535)">Source: Synthetic benchmark suite (n = 24 checkpoints)</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="pa8fcf176aa">
+   <rect x="50.818583" y="76.793386" width="334.693228" height="94.81689"/>
+  </clipPath>
+ </defs>
+</svg></div><figcaption class="fm-sr-only">Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively</figcaption></div><div class="fm-toolbar"><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button><button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button></div><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button><button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button><span class="fm-status" data-fm-status role="status" aria-live="polite"></span></div></div><section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data"><h3>Facts &amp; Underlying Data</h3><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel a</span><span class="fm-panel-title">Off-diagonal metric correlation structure (diagonal masked)</span><span class="fm-panel-kind">(matrix)</span></div><ul class="fm-facts"><li>highest: Reasoning × Math = 0.84</li><li>lowest: Math × Latency = −0.41</li><li>diagonal masked from colour scale and extrema</li><li>highest row mean: Reasoning (0.450)</li><li>lowest row mean: Latency (−0.302)</li><li>Math × Reasoning = 0.84</li><li>Latency × Math = −0.41</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th></th><th class="fm-num">Reasoning</th><th class="fm-num">Coding</th><th class="fm-num">Math</th><th class="fm-num">Retrieval</th><th class="fm-num">Latency</th></tr></thead><tbody><tr><td>Reasoning</td><td class="fm-num">1</td><td class="fm-num">0.78</td><td class="fm-num">0.84</td><td class="fm-num">0.52</td><td class="fm-num">-0.34</td></tr><tr><td>Coding</td><td class="fm-num">0.78</td><td class="fm-num">1</td><td class="fm-num">0.71</td><td class="fm-num">0.44</td><td class="fm-num">-0.28</td></tr><tr><td>Math</td><td class="fm-num">0.84</td><td class="fm-num">0.71</td><td class="fm-num">1</td><td class="fm-num">0.39</td><td class="fm-num">-0.41</td></tr><tr><td>Retrieval</td><td class="fm-num">0.52</td><td class="fm-num">0.44</td><td class="fm-num">0.39</td><td class="fm-num">1</td><td class="fm-num">-0.18</td></tr><tr><td>Latency</td><td class="fm-num">-0.34</td><td class="fm-num">-0.28</td><td class="fm-num">-0.41</td><td class="fm-num">-0.18</td><td class="fm-num">1</td></tr></tbody></table></div></div><div class="fm-meta-row"><span>Style: figmint</span><span>Palette: default</span><span>Size: 140 × 75 mm</span><span>Source: Synthetic benchmark suite (n = 24 checkpoints)</span></div></section><section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent"><h3>Click to Critique / Ask Agent</h3><div class="fm-critique-grid"><div class="fm-field"><label for="fm-0fce881eab-panel">Panel</label><select id="fm-0fce881eab-panel" data-fm-critique-panel><option value="figure">Whole figure</option><option value="a">Panel a: Off-diagonal metric correlation structure (diagonal masked)</option></select></div><div class="fm-field"><label for="fm-0fce881eab-action">Action</label><select id="fm-0fce881eab-action" data-fm-critique-action><option value="highlight">Highlight item / series</option><option value="drop">Drop panel or item</option><option value="zoom">Zoom / focus range</option><option value="style">Adjust style / palette</option><option value="re-title">Re-title takeaway / panel</option><option value="question">Ask question about data</option></select></div></div><div class="fm-field"><label for="fm-0fce881eab-note">Note / instruction for agent</label><textarea id="fm-0fce881eab-note" data-fm-critique-note placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea></div><pre class="fm-preview" data-fm-critique-preview></pre><div class="fm-toolbar-group"><button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy fm.edit(...)</button><button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button></div></section></figure>
+<script>
+(function() {
+  var root = document.getElementById("fm-0fce881eab");
+  if (!root) return;
+  var SPEC = {
+  "takeaway": "Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively",
+  "source": "Synthetic benchmark suite (n = 24 checkpoints)",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "matrix",
+      "values": [
+        [
+          1.0,
+          0.78,
+          0.84,
+          0.52,
+          -0.34
+        ],
+        [
+          0.78,
+          1.0,
+          0.71,
+          0.44,
+          -0.28
+        ],
+        [
+          0.84,
+          0.71,
+          1.0,
+          0.39,
+          -0.41
+        ],
+        [
+          0.52,
+          0.44,
+          0.39,
+          1.0,
+          -0.18
+        ],
+        [
+          -0.34,
+          -0.28,
+          -0.41,
+          -0.18,
+          1.0
+        ]
+      ],
+      "rows": [
+        "Reasoning",
+        "Coding",
+        "Math",
+        "Retrieval",
+        "Latency"
+      ],
+      "cols": [
+        "Reasoning",
+        "Coding",
+        "Math",
+        "Retrieval",
+        "Latency"
+      ],
+      "diverging": true,
+      "center": 0.0,
+      "triangle": "lower",
+      "mask_diagonal": true,
+      "highlight": [
+        [
+          "Math",
+          "Reasoning"
+        ],
+        [
+          "Latency",
+          "Math"
+        ]
+      ],
+      "title": "Off-diagonal metric correlation structure (diagonal masked)",
+      "label": "Pearson r"
+    }
+  ]
+};
+  var TAKEAWAY = "Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively";
+  var statusEl = root.querySelector('[data-fm-status]');
+
+  function setStatus(msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    window.setTimeout(function() {
+      if (statusEl.textContent === msg) statusEl.textContent = '';
+    }, 2600);
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        setStatus('Copied ' + label);
+      }, function() {
+        fallbackCopy(text, label);
+      });
+    } else {
+      fallbackCopy(text, label);
+    }
+  }
+
+  function fallbackCopy(text, label) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setStatus('Copied ' + label);
+    } catch (e) {
+      setStatus('Copy failed');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function toggleDrawer(btnAttr, drawerAttr) {
+    var btn = root.querySelector('[' + btnAttr + ']');
+    var drawer = root.querySelector('[' + drawerAttr + ']');
+    if (!btn || !drawer) return;
+    btn.addEventListener('click', function() {
+      var open = drawer.hasAttribute('hidden');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        drawer.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
+  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
+
+  var dlBtn = root.querySelector('[data-fm-download-svg]');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      var svg = root.querySelector('.fm-svg-wrap svg');
+      if (!svg) return;
+      var xml = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'figmint-figure.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded SVG');
+    });
+  }
+
+  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
+  if (copySpecBtn) {
+    copySpecBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
+    });
+  }
+
+  var panelSel = root.querySelector('[data-fm-critique-panel]');
+  var actionSel = root.querySelector('[data-fm-critique-action]');
+  var noteInput = root.querySelector('[data-fm-critique-note]');
+  var previewEl = root.querySelector('[data-fm-critique-preview]');
+  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
+  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
+
+  function buildCritique() {
+    var panel = panelSel ? panelSel.value : 'figure';
+    var action = actionSel ? actionSel.value : 'highlight';
+    var note = noteInput ? noteInput.value.trim() : '';
+    var payload = {
+      target: panel,
+      action: action,
+      note: note,
+      takeaway: TAKEAWAY
+    };
+    var snippet = 'fm.edit(fig, panel=' + JSON.stringify(panel) +
+      ', action=' + JSON.stringify(action) +
+      ', note=' + JSON.stringify(note) + ')';
+    return { payload: payload, snippet: snippet };
+  }
+
+  function refreshPreview() {
+    if (!previewEl) return;
+    var c = buildCritique();
+    previewEl.textContent = c.snippet + '\n\n' + JSON.stringify(c.payload, null, 2);
+  }
+
+  [panelSel, actionSel, noteInput].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshPreview);
+    if (el) el.addEventListener('change', refreshPreview);
+  });
+  refreshPreview();
+
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
+    });
+  }
+  if (copyEditBtn) {
+    copyEditBtn.addEventListener('click', function() {
+      copyText(buildCritique().snippet, 'fm.edit(...) snippet');
+    });
+  }
+})();
+</script></section><section id="fig-5" class="fm-bsec"><div class="fm-bsec-label">Finding 5 of 6</div><style>
+#fm-4f70731fc0 {
+  --fm-bg: #14181F;
+  --fm-ink: #ECEFF4;
+  --fm-muted: #9AA5B4;
+  --fm-border: #272E3B;
+  --fm-surface: #1C222C;
+  --fm-surface-alt: #232A36;
+  --fm-accent: #D97757;
+  --fm-primary: #4A89DC;
+  --fm-btn-bg: #252D3A;
+  --fm-btn-hover: #303A4B;
+  --fm-input-bg: #11151B;
+  --fm-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--fm-ink);
+  background: var(--fm-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 748px;
+  margin: 0 auto;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  box-shadow: var(--fm-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#fm-4f70731fc0 *, #fm-4f70731fc0 *::before, #fm-4f70731fc0 *::after { box-sizing: border-box; }
+#fm-4f70731fc0 .fm-figure-stage {
+  background: var(--fm-bg);
+  padding: 12px 12px 8px;
+}
+#fm-4f70731fc0 .fm-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#fm-4f70731fc0 .fm-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#fm-4f70731fc0 .fm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--fm-surface);
+  border-top: 1px solid var(--fm-border);
+  font-size: 12.5px;
+}
+#fm-4f70731fc0 .fm-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+#fm-4f70731fc0 .fm-btn {
+  appearance: none;
+  border: 1px solid var(--fm-border);
+  background: var(--fm-btn-bg);
+  color: var(--fm-ink);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+#fm-4f70731fc0 .fm-btn:hover {
+  background: var(--fm-btn-hover);
+  border-color: var(--fm-muted);
+}
+#fm-4f70731fc0 .fm-btn[aria-expanded="true"], #fm-4f70731fc0 .fm-btn-accent {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+#fm-4f70731fc0 .fm-status {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+  margin-left: 4px;
+}
+#fm-4f70731fc0 .fm-drawer {
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-surface);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#fm-4f70731fc0 .fm-drawer[hidden] { display: none; }
+#fm-4f70731fc0 .fm-drawer h3 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-4f70731fc0 .fm-panel-card {
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#fm-4f70731fc0 .fm-panel-card:last-child { margin-bottom: 0; }
+#fm-4f70731fc0 .fm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#fm-4f70731fc0 .fm-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fm-surface-alt);
+  color: var(--fm-accent);
+  border: 1px solid var(--fm-border);
+}
+#fm-4f70731fc0 .fm-panel-title {
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-4f70731fc0 .fm-panel-kind {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-4f70731fc0 .fm-facts {
+  margin: 6px 0 8px 18px;
+  padding: 0;
+  color: var(--fm-ink);
+}
+#fm-4f70731fc0 .fm-facts li { margin-bottom: 3px; }
+#fm-4f70731fc0 .fm-table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+#fm-4f70731fc0 .fm-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#fm-4f70731fc0 .fm-data-table th, #fm-4f70731fc0 .fm-data-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-ink);
+}
+#fm-4f70731fc0 .fm-data-table th {
+  font-weight: 600;
+  color: var(--fm-muted);
+  background: var(--fm-surface);
+}
+#fm-4f70731fc0 .fm-data-table th.fm-num, #fm-4f70731fc0 .fm-data-table td.fm-num {
+  text-align: right;
+}
+#fm-4f70731fc0 .fm-table-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fm-muted);
+}
+#fm-4f70731fc0 .fm-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-4f70731fc0 .fm-critique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#fm-4f70731fc0 .fm-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fm-muted);
+  margin-bottom: 4px;
+}
+#fm-4f70731fc0 .fm-field select, #fm-4f70731fc0 .fm-field textarea {
+  width: 100%;
+  background: var(--fm-input-bg);
+  color: var(--fm-ink);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#fm-4f70731fc0 .fm-field textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+#fm-4f70731fc0 .fm-preview {
+  background: var(--fm-input-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  color: var(--fm-ink);
+}
+#fm-4f70731fc0 .fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<figure id="fm-4f70731fc0" class="fm-root" data-fm-theme="dark" data-fm-mode="dark"><div class="fm-figure-stage"><div class="fm-svg-wrap" role="img" aria-label="Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on GPQA. Turn 1: Full-precision accuracy. Dot plot of GPQA for 3 items, in %. highest: Alpha-3 86.4%. lowest: Baseline 77.1%. Alpha-3 86.4% vs Baseline 77.1%: +9.3 points. Beta-Pro 83.2% vs Baseline 77.1%: +6.1 points. Source: Synthetic evaluation suite."><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="396.850394pt" height="154.77874pt" viewBox="0 0 396.850394 154.77874" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-25T01:31:50.343229</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 154.77874 
+L 396.850394 154.77874 
+L 396.850394 0 
+L 0 0 
+z
+" style="fill: #14181f"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 52.668583 124.698898 
+L 343.965108 124.698898 
+L 343.965108 76.793386 
+L 52.668583 76.793386 
+L 52.668583 124.698898 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="ytick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="47.668583" y="88.570178" transform="rotate(-0 47.668583 88.570178)">Alpha-3</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="47.668583" y="104.895616" transform="rotate(-0 47.668583 104.895616)">Beta-Pro</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="47.668583" y="120.808193" transform="rotate(-0 47.668583 120.808193)">Baseline</text>
+     </g>
+    </g>
+   </g>
+   <g id="LineCollection_1">
+    <path d="M 52.668583 84.777638 
+L 335.873538 84.777638 
+" clip-path="url(#p1bcdbaa5f1)" style="fill: none; stroke: #272e3b; stroke-width: 0.7"/>
+    <path d="M 52.668583 100.746142 
+L 243.066999 100.746142 
+" clip-path="url(#p1bcdbaa5f1)" style="fill: none; stroke: #272e3b; stroke-width: 0.7"/>
+    <path d="M 52.668583 116.714646 
+L 66.154533 116.714646 
+" clip-path="url(#p1bcdbaa5f1)" style="fill: none; stroke: #272e3b; stroke-width: 0.7"/>
+   </g>
+   <g id="PathCollection_1">
+    <defs>
+     <path id="C0_0_e6ee7c8c30" d="M 0 2.6 
+C 0.689528 2.6 1.350908 2.326048 1.838478 1.838478 
+C 2.326048 1.350908 2.6 0.689528 2.6 -0 
+C 2.6 -0.689528 2.326048 -1.350908 1.838478 -1.838478 
+C 1.350908 -2.326048 0.689528 -2.6 0 -2.6 
+C -0.689528 -2.6 -1.350908 -2.326048 -1.838478 -1.838478 
+C -2.326048 -1.350908 -2.6 -0.689528 -2.6 0 
+C -2.6 0.689528 -2.326048 1.350908 -1.838478 1.838478 
+C -1.350908 2.326048 -0.689528 2.6 0 2.6 
+z
+"/>
+    </defs>
+    <g clip-path="url(#p1bcdbaa5f1)">
+     <use xlink:href="#C0_0_e6ee7c8c30" x="335.873538" y="84.777638" style="fill: #d97757; stroke: #14181f; stroke-width: 0.6"/>
+    </g>
+    <g clip-path="url(#p1bcdbaa5f1)">
+     <use xlink:href="#C0_0_e6ee7c8c30" x="243.066999" y="100.746142" style="fill: #4a89dc; stroke: #14181f; stroke-width: 0.6"/>
+    </g>
+    <g clip-path="url(#p1bcdbaa5f1)">
+     <use xlink:href="#C0_0_e6ee7c8c30" x="66.154533" y="116.714646" style="fill: #eceff4; stroke: #14181f; stroke-width: 0.6"/>
+    </g>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="340.873538" y="87.620138" transform="rotate(-0 340.873538 87.620138)">86.4% (+9.3)</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="248.066999" y="103.588642" transform="rotate(-0 248.066999 103.588642)">83.2% (+6.1)</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="71.154533" y="119.485896" transform="rotate(-0 71.154533 119.485896)">77.1%</text>
+   </g>
+  </g>
+  <g id="text_7">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="11.338583" y="22.063583" transform="rotate(-0 11.338583 22.063583)">Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on</text>
+  </g>
+  <g id="text_8">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="11.338583" y="35.923583" transform="rotate(-0 11.338583 35.923583)">GPQA</text>
+  </g>
+  <g id="text_9">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="11.338583" y="58.684665" transform="rotate(-0 11.338583 58.684665)">Turn 1: Full-precision accuracy</text>
+  </g>
+  <g id="text_10">
+   <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="11.338583" y="68.814094" transform="rotate(-0 11.338583 68.814094)">GPQA (%)</text>
+  </g>
+  <g id="text_11">
+   <text style="font-size: 7px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="11.338583" y="141.284157" transform="rotate(-0 11.338583 141.284157)">Source: Synthetic evaluation suite</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p1bcdbaa5f1">
+   <rect x="52.668583" y="76.793386" width="291.296526" height="47.905512"/>
+  </clipPath>
+ </defs>
+</svg></div><figcaption class="fm-sr-only">Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on GPQA</figcaption></div><div class="fm-toolbar"><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button><button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button></div><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button><button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button><span class="fm-status" data-fm-status role="status" aria-live="polite"></span></div></div><section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data"><h3>Facts &amp; Underlying Data</h3><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel a</span><span class="fm-panel-title">Turn 1: Full-precision accuracy</span><span class="fm-panel-kind">(compare)</span></div><ul class="fm-facts"><li>highest: Alpha-3 86.4%</li><li>lowest: Baseline 77.1%</li><li>range: 77.1% to 86.4% (spread 9.3 points)</li><li>Alpha-3: 86.4% (rank 1 of 3, highest first)</li><li>Beta-Pro: 83.2% (rank 2 of 3, highest first)</li><li>Alpha-3 86.4% vs Baseline 77.1%: +9.3 points</li><li>Beta-Pro 83.2% vs Baseline 77.1%: +6.1 points</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th>Item</th><th class="fm-num">GPQA (%)</th></tr></thead><tbody><tr><td>Alpha-3</td><td class="fm-num">86.4</td></tr><tr><td>Beta-Pro</td><td class="fm-num">83.2</td></tr><tr><td>Baseline</td><td class="fm-num">77.1</td></tr></tbody></table></div></div><div class="fm-meta-row"><span>Style: dark</span><span>Palette: default</span><span>Size: 140 × 55 mm</span><span>Source: Synthetic evaluation suite</span></div></section><section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent"><h3>Click to Critique / Ask Agent</h3><div class="fm-critique-grid"><div class="fm-field"><label for="fm-4f70731fc0-panel">Panel</label><select id="fm-4f70731fc0-panel" data-fm-critique-panel><option value="figure">Whole figure</option><option value="a">Panel a: Turn 1: Full-precision accuracy</option></select></div><div class="fm-field"><label for="fm-4f70731fc0-action">Action</label><select id="fm-4f70731fc0-action" data-fm-critique-action><option value="highlight">Highlight item / series</option><option value="drop">Drop panel or item</option><option value="zoom">Zoom / focus range</option><option value="style">Adjust style / palette</option><option value="re-title">Re-title takeaway / panel</option><option value="question">Ask question about data</option></select></div></div><div class="fm-field"><label for="fm-4f70731fc0-note">Note / instruction for agent</label><textarea id="fm-4f70731fc0-note" data-fm-critique-note placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea></div><pre class="fm-preview" data-fm-critique-preview></pre><div class="fm-toolbar-group"><button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy fm.edit(...)</button><button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button></div></section></figure>
+<script>
+(function() {
+  var root = document.getElementById("fm-4f70731fc0");
+  if (!root) return;
+  var SPEC = {
+  "takeaway": "Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on GPQA",
+  "source": "Synthetic evaluation suite",
+  "style": "dark",
+  "accent": "#D97757",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "Alpha-3": 86.4,
+        "Beta-Pro": 83.2,
+        "Baseline": 77.1
+      },
+      "highlight": [
+        "Alpha-3",
+        "Beta-Pro"
+      ],
+      "baseline": "Baseline",
+      "sort": true,
+      "zero": false,
+      "show_delta": true,
+      "title": "Turn 1: Full-precision accuracy",
+      "label": "GPQA",
+      "unit": "%"
+    }
+  ]
+};
+  var TAKEAWAY = "Alpha-3 leads Beta-Pro by 3.2 points and Baseline by 9.3 points on GPQA";
+  var statusEl = root.querySelector('[data-fm-status]');
+
+  function setStatus(msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    window.setTimeout(function() {
+      if (statusEl.textContent === msg) statusEl.textContent = '';
+    }, 2600);
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        setStatus('Copied ' + label);
+      }, function() {
+        fallbackCopy(text, label);
+      });
+    } else {
+      fallbackCopy(text, label);
+    }
+  }
+
+  function fallbackCopy(text, label) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setStatus('Copied ' + label);
+    } catch (e) {
+      setStatus('Copy failed');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function toggleDrawer(btnAttr, drawerAttr) {
+    var btn = root.querySelector('[' + btnAttr + ']');
+    var drawer = root.querySelector('[' + drawerAttr + ']');
+    if (!btn || !drawer) return;
+    btn.addEventListener('click', function() {
+      var open = drawer.hasAttribute('hidden');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        drawer.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
+  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
+
+  var dlBtn = root.querySelector('[data-fm-download-svg]');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      var svg = root.querySelector('.fm-svg-wrap svg');
+      if (!svg) return;
+      var xml = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'figmint-figure.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded SVG');
+    });
+  }
+
+  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
+  if (copySpecBtn) {
+    copySpecBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
+    });
+  }
+
+  var panelSel = root.querySelector('[data-fm-critique-panel]');
+  var actionSel = root.querySelector('[data-fm-critique-action]');
+  var noteInput = root.querySelector('[data-fm-critique-note]');
+  var previewEl = root.querySelector('[data-fm-critique-preview]');
+  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
+  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
+
+  function buildCritique() {
+    var panel = panelSel ? panelSel.value : 'figure';
+    var action = actionSel ? actionSel.value : 'highlight';
+    var note = noteInput ? noteInput.value.trim() : '';
+    var payload = {
+      target: panel,
+      action: action,
+      note: note,
+      takeaway: TAKEAWAY
+    };
+    var snippet = 'fm.edit(fig, panel=' + JSON.stringify(panel) +
+      ', action=' + JSON.stringify(action) +
+      ', note=' + JSON.stringify(note) + ')';
+    return { payload: payload, snippet: snippet };
+  }
+
+  function refreshPreview() {
+    if (!previewEl) return;
+    var c = buildCritique();
+    previewEl.textContent = c.snippet + '\n\n' + JSON.stringify(c.payload, null, 2);
+  }
+
+  [panelSel, actionSel, noteInput].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshPreview);
+    if (el) el.addEventListener('change', refreshPreview);
+  });
+  refreshPreview();
+
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
+    });
+  }
+  if (copyEditBtn) {
+    copyEditBtn.addEventListener('click', function() {
+      copyText(buildCritique().snippet, 'fm.edit(...) snippet');
+    });
+  }
+})();
+</script></section><section id="fig-6" class="fm-bsec"><div class="fm-bsec-label">Finding 6 of 6</div><style>
+#fm-a8f360491b {
+  --fm-bg: #14181F;
+  --fm-ink: #ECEFF4;
+  --fm-muted: #9AA5B4;
+  --fm-border: #272E3B;
+  --fm-surface: #1C222C;
+  --fm-surface-alt: #232A36;
+  --fm-accent: #D97757;
+  --fm-primary: #4A89DC;
+  --fm-btn-bg: #252D3A;
+  --fm-btn-hover: #303A4B;
+  --fm-input-bg: #11151B;
+  --fm-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  color: var(--fm-ink);
+  background: var(--fm-bg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  max-width: 748px;
+  margin: 0 auto;
+  border: 1px solid var(--fm-border);
+  border-radius: 10px;
+  box-shadow: var(--fm-shadow);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+#fm-a8f360491b *, #fm-a8f360491b *::before, #fm-a8f360491b *::after { box-sizing: border-box; }
+#fm-a8f360491b .fm-figure-stage {
+  background: var(--fm-bg);
+  padding: 12px 12px 8px;
+}
+#fm-a8f360491b .fm-svg-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+#fm-a8f360491b .fm-svg-wrap svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+#fm-a8f360491b .fm-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--fm-surface);
+  border-top: 1px solid var(--fm-border);
+  font-size: 12.5px;
+}
+#fm-a8f360491b .fm-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+#fm-a8f360491b .fm-btn {
+  appearance: none;
+  border: 1px solid var(--fm-border);
+  background: var(--fm-btn-bg);
+  color: var(--fm-ink);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+#fm-a8f360491b .fm-btn:hover {
+  background: var(--fm-btn-hover);
+  border-color: var(--fm-muted);
+}
+#fm-a8f360491b .fm-btn[aria-expanded="true"], #fm-a8f360491b .fm-btn-accent {
+  border-color: var(--fm-accent);
+  color: var(--fm-accent);
+}
+#fm-a8f360491b .fm-status {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+  margin-left: 4px;
+}
+#fm-a8f360491b .fm-drawer {
+  border-top: 1px solid var(--fm-border);
+  background: var(--fm-surface);
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+#fm-a8f360491b .fm-drawer[hidden] { display: none; }
+#fm-a8f360491b .fm-drawer h3 {
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-a8f360491b .fm-panel-card {
+  background: var(--fm-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+#fm-a8f360491b .fm-panel-card:last-child { margin-bottom: 0; }
+#fm-a8f360491b .fm-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+#fm-a8f360491b .fm-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--fm-surface-alt);
+  color: var(--fm-accent);
+  border: 1px solid var(--fm-border);
+}
+#fm-a8f360491b .fm-panel-title {
+  font-weight: 600;
+  color: var(--fm-ink);
+}
+#fm-a8f360491b .fm-panel-kind {
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-a8f360491b .fm-facts {
+  margin: 6px 0 8px 18px;
+  padding: 0;
+  color: var(--fm-ink);
+}
+#fm-a8f360491b .fm-facts li { margin-bottom: 3px; }
+#fm-a8f360491b .fm-table-wrap {
+  overflow-x: auto;
+  margin-top: 6px;
+}
+#fm-a8f360491b .fm-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+#fm-a8f360491b .fm-data-table th, #fm-a8f360491b .fm-data-table td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fm-border);
+  color: var(--fm-ink);
+}
+#fm-a8f360491b .fm-data-table th {
+  font-weight: 600;
+  color: var(--fm-muted);
+  background: var(--fm-surface);
+}
+#fm-a8f360491b .fm-data-table th.fm-num, #fm-a8f360491b .fm-data-table td.fm-num {
+  text-align: right;
+}
+#fm-a8f360491b .fm-table-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--fm-muted);
+}
+#fm-a8f360491b .fm-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--fm-muted);
+}
+#fm-a8f360491b .fm-critique-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 10px;
+}
+#fm-a8f360491b .fm-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fm-muted);
+  margin-bottom: 4px;
+}
+#fm-a8f360491b .fm-field select, #fm-a8f360491b .fm-field textarea {
+  width: 100%;
+  background: var(--fm-input-bg);
+  color: var(--fm-ink);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+}
+#fm-a8f360491b .fm-field textarea {
+  min-height: 62px;
+  resize: vertical;
+}
+#fm-a8f360491b .fm-preview {
+  background: var(--fm-input-bg);
+  border: 1px solid var(--fm-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 8px 0;
+  color: var(--fm-ink);
+}
+#fm-a8f360491b .fm-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+</style>
+<figure id="fm-a8f360491b" class="fm-root" data-fm-theme="dark" data-fm-mode="dark"><div class="fm-figure-stage"><div class="fm-svg-wrap" role="img" aria-label="Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%. Panel a: Turn 2: Quantized accuracy (inherited hues). Dot plot of GPQA for 3 items, in %. highest: Alpha-3 (int4) 85.3%. lowest: Baseline 77.1%. Alpha-3 (int4) 85.3% vs Baseline 77.1%: +8.2 points. Beta-Pro (int4) 81.9% vs Baseline 77.1%: +4.8 points. Panel b: Serving cost bridge. Waterfall bridge of Cost ($/M) across 4 steps from Full precision to Shipped int4. Full precision 3.25 $/M → Shipped int4 1.55 $/M (net −1.70 $/M). largest positive driver: Router overhead (+0.15 $/M). largest negative drag: int4 weights (−1.10 $/M). Source: Synthetic serving telemetry."><svg xmlns:xlink="http://www.w3.org/1999/xlink" width="396.850394pt" height="264.701339pt" viewBox="0 0 396.850394 264.701339" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-25T01:31:50.347052</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 264.701339 
+L 396.850394 264.701339 
+L 396.850394 0 
+L 0 0 
+z
+" style="fill: #14181f"/>
+  </g>
+  <g id="axes_1">
+   <g id="patch_2">
+    <path d="M 75.228583 149.780551 
+L 139.226667 149.780551 
+L 139.226667 87.503386 
+L 75.228583 87.503386 
+L 75.228583 149.780551 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_1">
+    <g id="ytick_1">
+     <g id="line2d_1"/>
+     <g id="text_1">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="70.228583" y="101.711313" transform="rotate(-0 70.228583 101.711313)">Alpha-3 (int4)</text>
+     </g>
+    </g>
+    <g id="ytick_2">
+     <g id="line2d_2"/>
+     <g id="text_2">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="70.228583" y="122.470369" transform="rotate(-0 70.228583 122.470369)">Beta-Pro (int4)</text>
+     </g>
+    </g>
+    <g id="ytick_3">
+     <g id="line2d_3"/>
+     <g id="text_3">
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="70.228583" y="143.49457" transform="rotate(-0 70.228583 143.49457)">Baseline</text>
+     </g>
+    </g>
+   </g>
+   <g id="LineCollection_1">
+    <path d="M 75.228583 97.882913 
+L 137.448943 97.882913 
+" clip-path="url(#p03baeaa859)" style="fill: none; stroke: #272e3b; stroke-width: 0.7"/>
+    <path d="M 75.228583 118.641969 
+L 112.878766 118.641969 
+" clip-path="url(#p03baeaa859)" style="fill: none; stroke: #272e3b; stroke-width: 0.7"/>
+    <path d="M 75.228583 139.401024 
+L 78.191457 139.401024 
+" clip-path="url(#p03baeaa859)" style="fill: none; stroke: #272e3b; stroke-width: 0.7"/>
+   </g>
+   <g id="PathCollection_1">
+    <defs>
+     <path id="C0_0_bf32620d58" d="M 0 2.6 
+C 0.689528 2.6 1.350908 2.326048 1.838478 1.838478 
+C 2.326048 1.350908 2.6 0.689528 2.6 -0 
+C 2.6 -0.689528 2.326048 -1.350908 1.838478 -1.838478 
+C 1.350908 -2.326048 0.689528 -2.6 0 -2.6 
+C -0.689528 -2.6 -1.350908 -2.326048 -1.838478 -1.838478 
+C -2.326048 -1.350908 -2.6 -0.689528 -2.6 0 
+C -2.6 0.689528 -2.326048 1.350908 -1.838478 1.838478 
+C -1.350908 2.326048 -0.689528 2.6 0 2.6 
+z
+"/>
+    </defs>
+    <g clip-path="url(#p03baeaa859)">
+     <use xlink:href="#C0_0_bf32620d58" x="137.448943" y="97.882913" style="fill: #d97757; stroke: #14181f; stroke-width: 0.6"/>
+    </g>
+    <g clip-path="url(#p03baeaa859)">
+     <use xlink:href="#C0_0_bf32620d58" x="112.878766" y="118.641969" style="fill: #4a89dc; stroke: #14181f; stroke-width: 0.6"/>
+    </g>
+    <g clip-path="url(#p03baeaa859)">
+     <use xlink:href="#C0_0_bf32620d58" x="78.191457" y="139.401024" style="fill: #eceff4; stroke: #14181f; stroke-width: 0.6"/>
+    </g>
+   </g>
+   <g id="text_4">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="142.448943" y="100.725413" transform="rotate(-0 142.448943 100.725413)">85.3% (+8.2)</text>
+   </g>
+   <g id="text_5">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="117.878766" y="121.484469" transform="rotate(-0 117.878766 121.484469)">81.9% (+4.8)</text>
+   </g>
+   <g id="text_6">
+    <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="83.191457" y="142.172274" transform="rotate(-0 83.191457 142.172274)">77.1%</text>
+   </g>
+  </g>
+  <g id="axes_2">
+   <g id="patch_3">
+    <path d="M 270.77378 234.621496 
+L 367.776396 234.621496 
+L 367.776396 87.503386 
+L 270.77378 87.503386 
+L 270.77378 234.621496 
+z
+" style="fill: none"/>
+   </g>
+   <g id="matplotlib.axis_2">
+    <g id="ytick_4">
+     <g id="line2d_4"/>
+     <g id="text_7">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="265.77378" y="103.555769" transform="rotate(-0 265.77378 103.555769)">Full precision</text>
+     </g>
+    </g>
+    <g id="ytick_5">
+     <g id="line2d_5"/>
+     <g id="text_8">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="265.77378" y="128.045571" transform="rotate(-0 265.77378 128.045571)">int4 weights</text>
+     </g>
+    </g>
+    <g id="ytick_6">
+     <g id="line2d_6"/>
+     <g id="text_9">
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; fill: #9aa5b4" transform="translate(229.56378 148.092782)">KV cache</text>
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; fill: #9aa5b4" transform="translate(216.804483 157.699509)">compression</text>
+     </g>
+    </g>
+    <g id="ytick_7">
+     <g id="line2d_7"/>
+     <g id="text_10">
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; fill: #9aa5b4" transform="translate(221.539248 171.497838)">Speculative</text>
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; fill: #9aa5b4" transform="translate(237.119483 182.614643)">decode</text>
+     </g>
+    </g>
+    <g id="ytick_8">
+     <g id="line2d_8"/>
+     <g id="text_11">
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; fill: #9aa5b4" transform="translate(240.27378 196.736703)">Router</text>
+      <text style="font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; fill: #9aa5b4" transform="translate(230.354014 207.134328)">overhead</text>
+     </g>
+    </g>
+    <g id="ytick_9">
+     <g id="line2d_9"/>
+     <g id="text_12">
+      <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: end; fill: #eceff4" x="265.77378" y="226.190054" transform="rotate(-0 265.77378 226.190054)">Shipped int4</text>
+     </g>
+    </g>
+   </g>
+   <g id="LineCollection_2">
+    <path d="M 350.284121 107.609528 
+L 350.284121 116.436614 
+" clip-path="url(#p5cc5a1fdf1)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #657082; stroke-width: 0.65"/>
+    <path d="M 323.372929 132.129213 
+L 323.372929 140.956299 
+" clip-path="url(#p5cc5a1fdf1)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #657082; stroke-width: 0.65"/>
+    <path d="M 312.363804 156.648898 
+L 312.363804 165.475984 
+" clip-path="url(#p5cc5a1fdf1)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #657082; stroke-width: 0.65"/>
+    <path d="M 305.024388 181.168583 
+L 305.024388 189.995669 
+" clip-path="url(#p5cc5a1fdf1)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #657082; stroke-width: 0.65"/>
+    <path d="M 308.694096 205.688268 
+L 308.694096 214.515354 
+" clip-path="url(#p5cc5a1fdf1)" style="fill: none; stroke-dasharray: 1.3,1.3; stroke-dashoffset: 0; stroke: #657082; stroke-width: 0.65"/>
+   </g>
+   <g id="patch_4">
+    <path d="M 270.77378 91.916929 
+L 350.284121 91.916929 
+L 350.284121 107.609528 
+L 270.77378 107.609528 
+z
+" clip-path="url(#p5cc5a1fdf1)" style="fill: #eceff4; opacity: 0.92"/>
+   </g>
+   <g id="patch_5">
+    <path d="M 323.372929 116.436614 
+L 350.284121 116.436614 
+L 350.284121 132.129213 
+L 323.372929 132.129213 
+z
+" clip-path="url(#p5cc5a1fdf1)" style="fill: #4bd9ba"/>
+   </g>
+   <g id="patch_6">
+    <path d="M 312.363804 140.956299 
+L 323.372929 140.956299 
+L 323.372929 156.648898 
+L 312.363804 156.648898 
+z
+" clip-path="url(#p5cc5a1fdf1)" style="fill: #d97757; opacity: 0.42"/>
+   </g>
+   <g id="patch_7">
+    <path d="M 305.024388 165.475984 
+L 312.363804 165.475984 
+L 312.363804 181.168583 
+L 305.024388 181.168583 
+z
+" clip-path="url(#p5cc5a1fdf1)" style="fill: #d97757; opacity: 0.42"/>
+   </g>
+   <g id="patch_8">
+    <path d="M 305.024388 189.995669 
+L 308.694096 189.995669 
+L 308.694096 205.688268 
+L 305.024388 205.688268 
+z
+" clip-path="url(#p5cc5a1fdf1)" style="fill: #4bd9ba; opacity: 0.42"/>
+   </g>
+   <g id="patch_9">
+    <path d="M 270.77378 214.515354 
+L 308.694096 214.515354 
+L 308.694096 230.207953 
+L 270.77378 230.207953 
+z
+" clip-path="url(#p5cc5a1fdf1)" style="fill: #eceff4; opacity: 0.92"/>
+   </g>
+   <g id="text_13">
+    <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="355.284121" y="102.534478" transform="rotate(-0 355.284121 102.534478)">3.25 $/M</text>
+   </g>
+   <g id="text_14">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="355.284121" y="127.125413" transform="rotate(-0 355.284121 127.125413)">−1.10</text>
+   </g>
+   <g id="text_15">
+    <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="328.372929" y="151.573848" transform="rotate(-0 328.372929 151.573848)">−0.45</text>
+   </g>
+   <g id="text_16">
+    <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="317.363804" y="176.093533" transform="rotate(-0 317.363804 176.093533)">−0.30</text>
+   </g>
+   <g id="text_17">
+    <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="313.694096" y="200.613219" transform="rotate(-0 313.694096 200.613219)">+0.15</text>
+   </g>
+   <g id="text_18">
+    <text style="font-weight: 700; font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="313.694096" y="225.204154" transform="rotate(-0 313.694096 225.204154)">1.55 $/M</text>
+   </g>
+   <g id="LineCollection_3">
+    <path d="M 270.77378 88.72937 
+L 270.77378 233.395512 
+" clip-path="url(#p5cc5a1fdf1)" style="fill: none; stroke: #cbd3df; stroke-width: 0.85"/>
+   </g>
+  </g>
+  <g id="text_19">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="11.338583" y="22.063583" transform="rotate(-0 11.338583 22.063583)">Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by</text>
+  </g>
+  <g id="text_20">
+   <text style="font-weight: 700; font-size: 11px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="11.338583" y="35.923583" transform="rotate(-0 11.338583 35.923583)">52%</text>
+  </g>
+  <g id="text_21">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="11.338583" y="58.684665" transform="rotate(-0 11.338583 58.684665)">a</text>
+  </g>
+  <g id="text_22">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="22.613583" y="58.684665" transform="rotate(-0 22.613583 58.684665)">Turn 2: Quantized accuracy (inherited</text>
+  </g>
+  <g id="text_23">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="22.613583" y="69.394665" transform="rotate(-0 22.613583 69.394665)">hues)</text>
+  </g>
+  <g id="text_24">
+   <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="22.613583" y="79.524094" transform="rotate(-0 22.613583 79.524094)">GPQA (%)</text>
+  </g>
+  <g id="text_25">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="209.76378" y="58.684665" transform="rotate(-0 209.76378 58.684665)">b</text>
+  </g>
+  <g id="text_26">
+   <text style="font-weight: 700; font-size: 8.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #eceff4" x="221.03878" y="58.684665" transform="rotate(-0 221.03878 58.684665)">Serving cost bridge</text>
+  </g>
+  <g id="text_27">
+   <text style="font-size: 7.5px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="221.03878" y="68.814094" transform="rotate(-0 221.03878 68.814094)">Cost ($/M)</text>
+  </g>
+  <g id="text_28">
+   <text style="font-size: 7px; font-family: 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', sans-serif; text-anchor: start; fill: #9aa5b4" x="11.338583" y="251.206756" transform="rotate(-0 11.338583 251.206756)">Source: Synthetic serving telemetry</text>
+  </g>
+ </g>
+ <defs>
+  <clipPath id="p03baeaa859">
+   <rect x="75.228583" y="87.503386" width="63.998085" height="62.277165"/>
+  </clipPath>
+  <clipPath id="p5cc5a1fdf1">
+   <rect x="270.77378" y="87.503386" width="97.002617" height="147.11811"/>
+  </clipPath>
+ </defs>
+</svg></div><figcaption class="fm-sr-only">Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%</figcaption></div><div class="fm-toolbar"><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button><button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button></div><div class="fm-toolbar-group"><button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button><button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button><span class="fm-status" data-fm-status role="status" aria-live="polite"></span></div></div><section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data"><h3>Facts &amp; Underlying Data</h3><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel a</span><span class="fm-panel-title">Turn 2: Quantized accuracy (inherited hues)</span><span class="fm-panel-kind">(compare)</span></div><ul class="fm-facts"><li>highest: Alpha-3 (int4) 85.3%</li><li>lowest: Baseline 77.1%</li><li>range: 77.1% to 85.3% (spread 8.2 points)</li><li>Alpha-3 (int4): 85.3% (rank 1 of 3, highest first)</li><li>Beta-Pro (int4): 81.9% (rank 2 of 3, highest first)</li><li>Alpha-3 (int4) 85.3% vs Baseline 77.1%: +8.2 points</li><li>Beta-Pro (int4) 81.9% vs Baseline 77.1%: +4.8 points</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th>Item</th><th class="fm-num">GPQA (%)</th></tr></thead><tbody><tr><td>Alpha-3 (int4)</td><td class="fm-num">85.3</td></tr><tr><td>Beta-Pro (int4)</td><td class="fm-num">81.9</td></tr><tr><td>Baseline</td><td class="fm-num">77.1</td></tr></tbody></table></div></div><div class="fm-panel-card"><div class="fm-panel-head"><span class="fm-badge">Panel b</span><span class="fm-panel-title">Serving cost bridge</span><span class="fm-panel-kind">(waterfall)</span></div><ul class="fm-facts"><li>Full precision 3.25 $/M → Shipped int4 1.55 $/M (net −1.70 $/M)</li><li>largest positive driver: Router overhead (+0.15 $/M)</li><li>largest negative drag: int4 weights (−1.10 $/M)</li><li>int4 weights: −1.10 $/M (cumulative 2.15 $/M)</li></ul><div class="fm-table-wrap"><table class="fm-data-table"><thead><tr><th>Step</th><th class="fm-num">Delta ($/M)</th><th class="fm-num">Cumulative ($/M)</th></tr></thead><tbody><tr><td>Full precision</td><td class="fm-num">—</td><td class="fm-num">3.25</td></tr><tr><td>int4 weights</td><td class="fm-num">-1.1</td><td class="fm-num">2.15</td></tr><tr><td>KV cache compression</td><td class="fm-num">-0.45</td><td class="fm-num">1.7</td></tr><tr><td>Speculative decode</td><td class="fm-num">-0.3</td><td class="fm-num">1.4</td></tr><tr><td>Router overhead</td><td class="fm-num">+0.15</td><td class="fm-num">1.55</td></tr></tbody></table></div></div><div class="fm-meta-row"><span>Style: dark</span><span>Palette: default</span><span>Size: 140 × 93 mm</span><span>Source: Synthetic serving telemetry</span></div></section><section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent"><h3>Click to Critique / Ask Agent</h3><div class="fm-critique-grid"><div class="fm-field"><label for="fm-a8f360491b-panel">Panel</label><select id="fm-a8f360491b-panel" data-fm-critique-panel><option value="figure">Whole figure</option><option value="a">Panel a: Turn 2: Quantized accuracy (inherited hues)</option><option value="b">Panel b: Serving cost bridge</option></select></div><div class="fm-field"><label for="fm-a8f360491b-action">Action</label><select id="fm-a8f360491b-action" data-fm-critique-action><option value="highlight">Highlight item / series</option><option value="drop">Drop panel or item</option><option value="zoom">Zoom / focus range</option><option value="style">Adjust style / palette</option><option value="re-title">Re-title takeaway / panel</option><option value="question">Ask question about data</option></select></div></div><div class="fm-field"><label for="fm-a8f360491b-note">Note / instruction for agent</label><textarea id="fm-a8f360491b-note" data-fm-critique-note placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea></div><pre class="fm-preview" data-fm-critique-preview></pre><div class="fm-toolbar-group"><button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy fm.edit(...)</button><button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button></div></section></figure>
+<script>
+(function() {
+  var root = document.getElementById("fm-a8f360491b");
+  if (!root) return;
+  var SPEC = {
+  "takeaway": "Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%",
+  "source": "Synthetic serving telemetry",
+  "style": "dark",
+  "accent": "#D97757",
+  "colors": {
+    "Alpha-3 (int4)": "red",
+    "Beta-Pro (int4)": "blue"
+  },
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "Alpha-3 (int4)": 85.3,
+        "Beta-Pro (int4)": 81.9,
+        "Baseline": 77.1
+      },
+      "highlight": [
+        "Alpha-3 (int4)",
+        "Beta-Pro (int4)"
+      ],
+      "baseline": "Baseline",
+      "sort": true,
+      "zero": false,
+      "show_delta": true,
+      "title": "Turn 2: Quantized accuracy (inherited hues)",
+      "label": "GPQA",
+      "unit": "%"
+    },
+    {
+      "kind": "waterfall",
+      "steps": {
+        "int4 weights": -1.1,
+        "KV cache compression": -0.45,
+        "Speculative decode": -0.3,
+        "Router overhead": 0.15
+      },
+      "start": [
+        "Full precision",
+        3.25
+      ],
+      "total_label": "Shipped int4",
+      "highlight": [
+        "int4 weights"
+      ],
+      "title": "Serving cost bridge",
+      "label": "Cost",
+      "unit": "$/M"
+    }
+  ]
+};
+  var TAKEAWAY = "Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%";
+  var statusEl = root.querySelector('[data-fm-status]');
+
+  function setStatus(msg) {
+    if (!statusEl) return;
+    statusEl.textContent = msg;
+    window.setTimeout(function() {
+      if (statusEl.textContent === msg) statusEl.textContent = '';
+    }, 2600);
+  }
+
+  function copyText(text, label) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        setStatus('Copied ' + label);
+      }, function() {
+        fallbackCopy(text, label);
+      });
+    } else {
+      fallbackCopy(text, label);
+    }
+  }
+
+  function fallbackCopy(text, label) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      setStatus('Copied ' + label);
+    } catch (e) {
+      setStatus('Copy failed');
+    }
+    document.body.removeChild(ta);
+  }
+
+  function toggleDrawer(btnAttr, drawerAttr) {
+    var btn = root.querySelector('[' + btnAttr + ']');
+    var drawer = root.querySelector('[' + drawerAttr + ']');
+    if (!btn || !drawer) return;
+    btn.addEventListener('click', function() {
+      var open = drawer.hasAttribute('hidden');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        btn.setAttribute('aria-expanded', 'true');
+      } else {
+        drawer.setAttribute('hidden', '');
+        btn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+
+  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
+  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
+
+  var dlBtn = root.querySelector('[data-fm-download-svg]');
+  if (dlBtn) {
+    dlBtn.addEventListener('click', function() {
+      var svg = root.querySelector('.fm-svg-wrap svg');
+      if (!svg) return;
+      var xml = new XMLSerializer().serializeToString(svg);
+      var blob = new Blob([xml], { type: 'image/svg+xml;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'figmint-figure.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded SVG');
+    });
+  }
+
+  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
+  if (copySpecBtn) {
+    copySpecBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
+    });
+  }
+
+  var panelSel = root.querySelector('[data-fm-critique-panel]');
+  var actionSel = root.querySelector('[data-fm-critique-action]');
+  var noteInput = root.querySelector('[data-fm-critique-note]');
+  var previewEl = root.querySelector('[data-fm-critique-preview]');
+  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
+  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
+
+  function buildCritique() {
+    var panel = panelSel ? panelSel.value : 'figure';
+    var action = actionSel ? actionSel.value : 'highlight';
+    var note = noteInput ? noteInput.value.trim() : '';
+    var payload = {
+      target: panel,
+      action: action,
+      note: note,
+      takeaway: TAKEAWAY
+    };
+    var snippet = 'fm.edit(fig, panel=' + JSON.stringify(panel) +
+      ', action=' + JSON.stringify(action) +
+      ', note=' + JSON.stringify(note) + ')';
+    return { payload: payload, snippet: snippet };
+  }
+
+  function refreshPreview() {
+    if (!previewEl) return;
+    var c = buildCritique();
+    previewEl.textContent = c.snippet + '\n\n' + JSON.stringify(c.payload, null, 2);
+  }
+
+  [panelSel, actionSel, noteInput].forEach(function(el) {
+    if (el) el.addEventListener('input', refreshPreview);
+    if (el) el.addEventListener('change', refreshPreview);
+  });
+  refreshPreview();
+
+  if (copyJsonBtn) {
+    copyJsonBtn.addEventListener('click', function() {
+      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
+    });
+  }
+  if (copyEditBtn) {
+    copyEditBtn.addEventListener('click', function() {
+      copyText(buildCritique().snippet, 'fm.edit(...) snippet');
+    });
+  }
+})();
+</script></section>
+  <footer class="fm-bfoot">Source: Synthetic workflow gallery</footer>
+</main>
+</body>
+</html>

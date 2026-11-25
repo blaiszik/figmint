@@ -80,9 +80,12 @@ from .core import (
     _value_axis,
 )
 from .distribution import distribution, histogram
+from .flow import flow
 from .matrix import matrix
 from .relate import relate
+from .timeline import timeline
 from .trend import trend
+from .waterfall import waterfall
 
 # --------------------------------------------------------------------------- #
 # table
@@ -525,7 +528,13 @@ def _bracket_with_ticks(
 
 
 #: Which tick labels of each form are numbers or dates that may be thinned (never names).
-_TICK_AXES = {"trend": "xy", "relate": "xy", "distribution": "x", "compare": "x"}
+_TICK_AXES = {
+    "trend": "xy",
+    "relate": "xy",
+    "distribution": "x",
+    "compare": "x",
+    "timeline": "x",
+}
 
 
 #: Mathtext draws a superscript or subscript at this fraction of its parent's size.
@@ -1687,7 +1696,15 @@ def _explain_impl(
                 finishers.extend((key, panel, extra) for extra in ctx.finishers)
                 issues.extend({**issue, "panel": key} for issue in (*panel.issues, *ctx.issues))
                 contexts.append((key, ctx, len(ctx.issues)))
-                if panel.kind in KINDS and panel.kind != "table" and not (panel.label or panel.unit):
+                has_measure = bool(
+                    panel.label
+                    or panel.unit
+                    or (
+                        panel.kind == "timeline"
+                        and (panel.spec.get("x_label") or panel.spec.get("unit"))
+                    )
+                )
+                if panel.kind in KINDS and panel.kind != "table" and not has_measure:
                     issues.append(
                         _issue(
                             "measure_unnamed",
@@ -1867,6 +1884,9 @@ _BUILDERS: dict[str, Callable[..., Panel]] = {
     "share": share,
     "matrix": matrix,
     "table": table,
+    "waterfall": waterfall,
+    "timeline": timeline,
+    "flow": flow,
 }
 _POSITIONAL: dict[str, tuple[str, ...]] = {
     "compare": ("values",),
@@ -1878,6 +1898,9 @@ _POSITIONAL: dict[str, tuple[str, ...]] = {
     "share": ("parts",),
     "matrix": ("values",),
     "table": ("rows",),
+    "waterfall": ("steps",),
+    "timeline": ("spans",),
+    "flow": ("stages",),
 }
 
 

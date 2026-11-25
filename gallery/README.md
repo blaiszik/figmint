@@ -4,7 +4,7 @@ Every primary function, visual theme, color palette, and publication plate in `f
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [`fm.table`](#fmtable--exact-lookups-and-scorecards) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Conversation Forms (`fm.explain`)** | [`fm.explain`](#fmexplain--multi-panel-arguments) · [`fm.compare`](#fmcompare--size-and-intervals) · [`fm.trend`](#fmtrend--change-over-time-dose-or-scale) · [`fm.change`](#fmchange--paired-before-and-after) · [`fm.distribution`](#fmdistribution--raw-observations-and-spread) · [`fm.histogram`](#fmhistogram--binned-distributions) · [`fm.relate`](#fmrelate--two-continuous-measures) · [`fm.share`](#fmshare--part-of-a-whole) · [`fm.matrix`](#fmmatrix--two-categorical-dimensions) · [`fm.table`](#fmtable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Model Release Hero Charts](#model-release-hero-charts) |
 | **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`fm.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
@@ -294,6 +294,36 @@ fm.explain(
     source="synthetic model evaluation data",
 )
 ```
+
+---
+
+## Agent Workflow Forms & Multi-Turn Briefings
+
+Forms and workflows designed for recurring agent-to-human explanations: attribution bridges (`fm.waterfall`), execution span traces (`fm.timeline`), cohort/pipeline attrition funnels (`fm.flow`), fitted scaling curves (`trend(fit=)`), lower-triangle correlation matrices (`matrix(triangle="lower", mask_diagonal=True)`), persistent multi-turn entity colours (`fm.Session`), and cohesive zero-CDN HTML & Markdown briefings (`fm.brief` / `figmint brief`).
+
+### Attribution bridge (`fm.waterfall`)
+
+![Ablation attribution bridge from base model to shipped candidate](output/explain_workflows/01_ablation_waterfall.png)
+
+### Execution & milestone span timeline (`fm.timeline`)
+
+![Grouped CI execution trace with parallel lanes, milestone diamond, and SLA reference line](output/explain_workflows/02_ci_timeline.png)
+
+### Sequential cohort / pipeline attrition funnel (`fm.flow`)
+
+![Clinical cohort attrition funnel with step-down drop counts, percentages, and exclusion reasons](output/explain_workflows/03_cohort_flow.png)
+
+### Regression fits (`trend(fit=True)`) & lower-triangle correlation matrix (`triangle="lower", mask_diagonal=True`)
+
+| Power-law & linear regression overlays (`trend(fit=)`) | Lower-triangle masked-diagonal correlation matrix |
+| :---: | :---: |
+| ![Power-law and linear regression fits on trend panels](output/explain_workflows/04_scaling_trend_fit.png) | ![Lower-triangle correlation matrix with masked diagonal](output/explain_workflows/05_corr_matrix_triangle.png) |
+
+### Multi-turn visual memory (`fm.Session`) & dark serving bridge (`fm.brief` export)
+
+![Dark theme multi-turn Session figure preserving Alpha-3 and Beta-Pro colours across variants alongside a serving cost bridge](output/explain_workflows/06_session_memory_dark.png)
+
+*Generator: [`explain_agent_workflow_examples.py`](explain_agent_workflow_examples.py) (also outputs [`06_investigation_brief.html`](output/explain_workflows/06_investigation_brief.html) and [`06_investigation_brief.md`](output/explain_workflows/06_investigation_brief.md)).*
 
 ---
 

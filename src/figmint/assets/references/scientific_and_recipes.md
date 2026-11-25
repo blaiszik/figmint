@@ -120,12 +120,94 @@ fm.trend(
 - **Terminal delivery:** `figmint show fig.png` (or `spec.json` / `-` with `--mode auto|kitty|iterm2|unicode|ascii`) auto-detects Kitty/Ghostty or iTerm2/WezTerm inline PNG protocols and falls back to crisp Unicode bars, box-drawn tables, and sparklines (`fig.to_terminal()` in Python).
 - **Four-level narrative (`summary["narrative"]`):** returns `L1` (construction), `L2` (statistical facts), `L3` (perceptual patterns), `L4` (domain takeaway), and a reader-first `summary` string.
 
-## Editing a returned figure (`fm.load`)
+## Editing a returned figure (`fm.edit` & `fm.load`)
 
 ```python
-spec = fm.load("ablation.png").to_spec()   # or read the .json written by write_spec=True
-spec["takeaway"] = "Removing fine-tuning costs 13 points of accuracy, retrieval 8"
-spec["panels"][0]["highlight"] = ["no fine-tuning"]
-del spec["panels"][1]; spec.pop("layout", None)
-print(fm.explain_from_spec(spec).save("ablation_v2.png", write_spec=True))
+# One-line surgical edit on a saved PNG, JSON spec, or Explanation
+fm.edit(
+    "ablation.png",
+    takeaway="Removing fine-tuning costs 13 points of accuracy, retrieval 8",
+    highlight="no fine-tuning",
+    drop_panel="b",
+    style="dark",
+    out="ablation_v2.png",
+    write_spec=True,
+)
+# CLI equivalent:
+# figmint edit ablation.png --highlight "no fine-tuning" --drop-panel b --style dark --out ablation_v2.png
+```
+
+## Attribution bridges (`fm.waterfall`), execution timelines (`fm.timeline`), & zero-script CLI
+
+```python
+# Attribution / delta bridge (ablation gains, cost/latency budgets)
+fm.waterfall(
+    {"+RAG": 8.0, "+Reranker": 3.4, "+CoT": 2.1, "Quantization": -1.5},
+    start=("Base model", 69.0),
+    total_label="Shipped",
+    highlight="+RAG",
+    reference=(80.0, "Release target"),
+    title="RAG drives 67% of the net gain",
+    label="Benchmark accuracy",
+    unit="%",
+)
+
+# Execution / phase span timeline (CI traces, agent runs, protocols)
+fm.timeline(
+    [
+        ("fetch", 0, 8, "setup"),
+        ("compile", 8, 54, "build"),
+        ("unit tests", 54, 92, "verify"),
+        ("integration", 54, 148, "verify"),
+        ("deploy", 148, 160, "release"),
+    ],
+    highlight="integration",
+    reference=(120, "CI SLA"),
+    title="Integration tests exceed the 120 s budget",
+    x_label="Elapsed (s)",
+    unit="s",
+)
+
+# Zero-script CLI workflow from a CSV/TSV/JSON/JSONL file:
+# figmint inspect results.csv
+# figmint plot results.csv --kind auto --takeaway "..." --out fig1.png
+# figmint brief fig1.png fig2.png --title "Investigation" --out report.html
+
+# Attrition / cohort / filter funnel with exclusion reasons
+fm.flow(
+    [
+        ("Screened", 1240),
+        ("Eligible", 912, "missing baseline"),
+        ("Enrolled", 780, "declined consent"),
+        ("Completed", 714, "lost to follow-up"),
+    ],
+    highlight="Eligible",
+    title="58% of screened patients complete follow-up",
+    label="Cohort size",
+    unit="patients",
+)
+
+# Fitted scaling curves & clean lower-triangle correlation matrix
+fm.trend(compute, {"Dense": loss_d, "MoE": loss_m}, log=True, log_x=True, fit=True,
+         x_label="Compute (FLOPs)", label="Validation loss")
+fm.matrix(corr, rows=metrics, cols=metrics, diverging=True, center=0.0,
+          triangle="lower", mask_diagonal=True, title="Metric correlations", label="Pearson r")
+```
+
+## Multi-turn visual memory (`fm.Session`) & briefings (`fm.brief`)
+
+```python
+session = fm.Session(style="paper", state_path=".figmint_session.json")
+f1 = session.explain("Alpha-3 leads baseline by 9.3 points", fm.compare({"Alpha-3": 86.4, "Baseline": 77.1}, highlight="Alpha-3", baseline="Baseline", unit="%"))
+# Prefix matching: "Alpha-3 (int4)" automatically inherits "Alpha-3"'s hue on turn 2!
+f2 = session.explain("Quantized Alpha-3 stays within 1.1 points at half the latency", fm.compare({"Alpha-3 (int4)": 85.3, "Baseline": 77.1}, highlight="Alpha-3 (int4)", baseline="Baseline", unit="%"))
+
+# Compose into a single zero-CDN HTML report or PR-ready Markdown + PNGs
+report = session.brief(
+    "Release candidate evaluation",
+    subtitle="Synthetic benchmark suite",
+    summary=["Alpha-3 leads by 9.3 points", "int4 quantization retains 99% of accuracy"],
+)
+report.save("eval_brief.html")
+report.save("eval_brief.md")   # writes eval_brief.md + eval_brief_figures/fig_01.png ...
 ```

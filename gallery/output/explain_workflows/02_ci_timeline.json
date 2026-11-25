@@ -1,0 +1,65 @@
+{
+  "takeaway": "Integration tests take 94 s (53% of the 178 s CI run) and push past the 150 s SLA",
+  "source": "Synthetic CI execution trace",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "timeline",
+      "spans": [
+        [
+          "checkout",
+          0.0,
+          8.0,
+          "setup"
+        ],
+        [
+          "deps cache",
+          8.0,
+          22.0,
+          "setup"
+        ],
+        [
+          "compile",
+          22.0,
+          68.0,
+          "build"
+        ],
+        [
+          "integration",
+          68.0,
+          162.0,
+          "verify"
+        ],
+        [
+          "unit tests",
+          68.0,
+          102.0,
+          "verify"
+        ],
+        [
+          "canary gate",
+          162.0,
+          162.0,
+          "release"
+        ],
+        [
+          "deploy",
+          162.0,
+          178.0,
+          "release"
+        ]
+      ],
+      "x_label": "Elapsed (s)",
+      "reference": [
+        150.0,
+        "CI SLA"
+      ],
+      "title": "Parallel phase trace across four pipeline lanes",
+      "unit": "s"
+    }
+  ]
+}

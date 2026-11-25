@@ -32,6 +32,9 @@ FORMS = (
     "share",
     "matrix",
     "table",
+    "waterfall",
+    "timeline",
+    "flow",
     "custom",
 )
 

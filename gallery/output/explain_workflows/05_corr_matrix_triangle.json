@@ -1,0 +1,81 @@
+{
+  "takeaway": "Reasoning and Math correlate most tightly (r = 0.84) while Latency trades off negatively",
+  "source": "Synthetic benchmark suite (n = 24 checkpoints)",
+  "layout": [
+    [
+      "a"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "matrix",
+      "values": [
+        [
+          1.0,
+          0.78,
+          0.84,
+          0.52,
+          -0.34
+        ],
+        [
+          0.78,
+          1.0,
+          0.71,
+          0.44,
+          -0.28
+        ],
+        [
+          0.84,
+          0.71,
+          1.0,
+          0.39,
+          -0.41
+        ],
+        [
+          0.52,
+          0.44,
+          0.39,
+          1.0,
+          -0.18
+        ],
+        [
+          -0.34,
+          -0.28,
+          -0.41,
+          -0.18,
+          1.0
+        ]
+      ],
+      "rows": [
+        "Reasoning",
+        "Coding",
+        "Math",
+        "Retrieval",
+        "Latency"
+      ],
+      "cols": [
+        "Reasoning",
+        "Coding",
+        "Math",
+        "Retrieval",
+        "Latency"
+      ],
+      "diverging": true,
+      "center": 0.0,
+      "triangle": "lower",
+      "mask_diagonal": true,
+      "highlight": [
+        [
+          "Math",
+          "Reasoning"
+        ],
+        [
+          "Latency",
+          "Math"
+        ]
+      ],
+      "title": "Off-diagonal metric correlation structure (diagonal masked)",
+      "label": "Pearson r"
+    }
+  ]
+}

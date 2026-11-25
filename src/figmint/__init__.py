@@ -19,7 +19,9 @@ from .annotations import (
     zoom_inset,
 )
 from .audit import audit_figure, audit_layout
+from .brief import Brief, Session, brief
 from .bundle import BundleResult, bundle_figure
+from .edit import edit
 from .epistemic import audit_epistemic, build_narrative
 from .explainer import (
     ExplainError,
@@ -31,6 +33,7 @@ from .explainer import (
     distribution,
     explain,
     explain_from_spec,
+    flow,
     histogram,
     lenient,
     load,
@@ -39,9 +42,12 @@ from .explainer import (
     relate,
     share,
     table,
+    timeline,
     trend,
+    waterfall,
 )
 from .export import rasterize_heavy, save_figure
+from .inspect_data import auto_panel, inspect_data, load_table_file
 from .interactive import render_html
 from .palettes import (
     BANNED_COLORMAPS,
@@ -72,6 +78,7 @@ __all__ = [
     "PALETTES",
     "THEMES",
     "VALID_TARGETS",
+    "Brief",
     "BundleResult",
     "CheckResult",
     "ExplainError",
@@ -82,12 +89,15 @@ __all__ = [
     "Plate",
     "PreflightReport",
     "RunResult",
+    "Session",
     "Theme",
     "__version__",
     "apply",
     "audit_epistemic",
     "audit_figure",
     "audit_layout",
+    "auto_panel",
+    "brief",
     "build_narrative",
     "bundle_figure",
     "change",
@@ -96,10 +106,12 @@ __all__ = [
     "despine",
     "direct_labels",
     "distribution",
+    "edit",
     "emphasize",
     "explain",
     "explain_from_spec",
     "figure",
+    "flow",
     "get_agents_snippet",
     "get_explain_palette",
     "get_palette",
@@ -109,9 +121,11 @@ __all__ = [
     "ghost_context",
     "histogram",
     "in_to_mm",
+    "inspect_data",
     "install_skill",
     "lenient",
     "load",
+    "load_table_file",
     "matrix",
     "mm_to_in",
     "panel_from_spec",
@@ -139,8 +153,10 @@ __all__ = [
     "style_heatmap",
     "subtle_grid",
     "table",
+    "timeline",
     "trend",
     "tufte_boxplot",
     "use",
+    "waterfall",
     "zoom_inset",
 ]

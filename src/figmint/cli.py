@@ -137,6 +137,79 @@ def _parse_targets_arg(raw_targets: Sequence[str] | None) -> list[str]:
     return parsed or ["claude", "antigravity", "agents-md"]
 
 
+def _parse_list_arg(raw_values: Sequence[str] | None) -> list[str] | None:
+    """Parse comma-separated or repeated CLI string list flags."""
+    if not raw_values:
+        return None
+    out: list[str] = []
+    for item in raw_values:
+        for part in item.split(","):
+            cleaned = part.strip()
+            if cleaned:
+                out.append(cleaned)
+    return out or None
+
+
+def _parse_reference_arg(raw: str | None) -> float | tuple[float, str] | None:
+    """Parse ``--reference 100`` or ``--reference 100:SLA budget``."""
+    if raw is None:
+        return None
+    if ":" in raw:
+        val_s, label_s = raw.split(":", 1)
+        return (float(val_s.strip()), label_s.strip())
+    return float(raw.strip())
+
+
+def _parse_waterfall_start(raw: str | None) -> float | tuple[str, float] | None:
+    """Parse ``--waterfall-start 69.0`` or ``--waterfall-start Base:69.0``."""
+    if raw is None:
+        return None
+    if ":" in raw:
+        label_s, val_s = raw.split(":", 1)
+        return (label_s.strip() or "Start", float(val_s.strip()))
+    return float(raw.strip())
+
+
+def _parse_sort_arg(raw: str | None) -> bool | str | None:
+    if raw is None:
+        return None
+    low = raw.strip().lower()
+    if low in {"true", "1", "yes"}:
+        return True
+    if low in {"false", "0", "no"}:
+        return False
+    return raw.strip()
+
+
+def _format_inspect_text(info: dict[str, Any]) -> str:
+    """Format an ``inspect_data`` dict into concise plain text for terminals."""
+    src = info.get("source") or "<in-memory>"
+    lines = [f"{src} — {info['rows']} rows × {len(info['columns'])} columns"]
+    lines.append("─" * 64)
+    for prof in info.get("column_profiles", []):
+        ctype = prof["type"]
+        if ctype == "numeric":
+            extra = f"min={prof['min']}, median={prof['median']}, max={prof['max']}"
+            if prof.get("spans_decades"):
+                extra += " (spans decades -> log)"
+        elif ctype == "date":
+            extra = f"{prof['min']} .. {prof['max']} ({prof['unique']} unique)"
+        else:
+            samples = ", ".join(prof.get("samples", [])[:4])
+            extra = f"{prof['unique']} unique [{samples}]"
+        miss = f", {prof['missing']} missing" if prof.get("missing") else ""
+        lines.append(f"  {prof['name']:<18} {ctype:<12} {extra}{miss}")
+    recs = info.get("recommendations", [])
+    if recs:
+        lines.append("\nRecommended figmint forms:")
+        for idx, rec in enumerate(recs, 1):
+            lines.append(f"  {idx}. {rec['kind']}: {rec['reason']}")
+            lines.append(f"     Python: {rec['python']}")
+            if rec.get("cli"):
+                lines.append(f"     CLI:    {rec['cli']}")
+    return "\n".join(lines)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="figmint",
@@ -319,6 +392,172 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Disable ANSI color sequences in unicode/ascii output.",
     )
 
+    # `figmint inspect <data.csv|tsv|json|jsonl> [--json]`
+    inspect_parser = subparsers.add_parser(
+        "inspect",
+        help="Profile a CSV/TSV/JSON/JSONL file without pandas and recommend figmint forms.",
+    )
+    inspect_parser.add_argument(
+        "data_path",
+        type=Path,
+        help="Path to a .csv, .tsv, .json, or .jsonl data file.",
+    )
+    inspect_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Output column profiles and recommendations as formatted JSON.",
+    )
+
+    # `figmint plot <data.csv|tsv|json|jsonl> --kind <form> --takeaway "..." --out fig.png`
+    plot_parser = subparsers.add_parser(
+        "plot",
+        help="Render a message-first figure directly from a CSV/TSV/JSON/JSONL file without writing Python.",
+    )
+    plot_parser.add_argument("data_path", type=Path, help="Input .csv, .tsv, .json, or .jsonl file.")
+    plot_parser.add_argument(
+        "--kind",
+        "-k",
+        required=True,
+        choices=(
+            "auto",
+            "compare",
+            "trend",
+            "change",
+            "distribution",
+            "histogram",
+            "relate",
+            "share",
+            "matrix",
+            "table",
+            "waterfall",
+            "timeline",
+            "flow",
+        ),
+        help="Chart form to render (use 'auto' to pick the top recommended form).",
+    )
+    plot_parser.add_argument("--takeaway", "-t", required=True, help="One-sentence takeaway title.")
+    plot_parser.add_argument("--out", "-o", type=Path, default=None, help="Output path (.png, .svg, .pdf, or .html).")
+    plot_parser.add_argument("--show", action="store_true", help="Display the figure in the terminal.")
+    plot_parser.add_argument(
+        "--show-mode",
+        choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
+        default="auto",
+        help="Terminal rendering mode when --show is set (default: auto).",
+    )
+    plot_parser.add_argument("--show-width", type=int, default=78, help="Terminal text width when --show is set.")
+    plot_parser.add_argument("--subtitle", default=None, help="Figure subtitle.")
+    plot_parser.add_argument("--source", default=None, help="Data source line.")
+    plot_parser.add_argument("--note", default=None, help="Figure footer note.")
+    plot_parser.add_argument("--style", default="figmint", help="Visual theme name.")
+    plot_parser.add_argument("--palette", default=None, help="Color palette name.")
+    plot_parser.add_argument("--accent", default=None, help="Custom accent hex color.")
+    plot_parser.add_argument("--width", default="chat", help="Target width preset ('narrow', 'chat', 'slide') or mm.")
+    plot_parser.add_argument("--title", default=None, help="Panel headline.")
+    plot_parser.add_argument("--label", default=None, help="Measured quantity label.")
+    plot_parser.add_argument("--unit", default=None, help="Short unit symbol (e.g. ms, %).")
+    plot_parser.add_argument("--x-label", default=None, help="X-axis label.")
+    plot_parser.add_argument("--y-label", default=None, help="Y-axis label (relate).")
+    plot_parser.add_argument("--name", default=None, help="Item/stage name column.")
+    plot_parser.add_argument("--value", default=None, help="Value/delta column.")
+    plot_parser.add_argument("--group", default=None, help="Group/lane column.")
+    plot_parser.add_argument("--x", default=None, help="X column (trend/relate).")
+    plot_parser.add_argument("--y", default=None, help="Y column (trend/relate).")
+    plot_parser.add_argument("--series", default=None, help="Series column (trend).")
+    plot_parser.add_argument("--before", default=None, help="Before column (change).")
+    plot_parser.add_argument("--after", default=None, help="After column (change).")
+    plot_parser.add_argument("--rows", default=None, help="Row category column (matrix).")
+    plot_parser.add_argument("--cols", default=None, help="Column category column (matrix).")
+    plot_parser.add_argument("--start", default=None, help="Start column (timeline).")
+    plot_parser.add_argument("--end", default=None, help="End column (timeline).")
+    plot_parser.add_argument("--names", default=None, help="Point name column (relate).")
+    plot_parser.add_argument("--groups", default=None, help="Point group column (relate).")
+    plot_parser.add_argument("--highlight", action="append", default=None, help="Highlight name(s), comma-separated or repeated.")
+    plot_parser.add_argument("--baseline", default=None, help="Baseline/control item name.")
+    plot_parser.add_argument("--reference", default=None, help="Reference value or value:label.")
+    plot_parser.add_argument("--sort", default=None, help="Sort order (true/false/asc/desc/column).")
+    plot_parser.add_argument("--fmt", default=None, help="Value format spec.")
+    plot_parser.add_argument("--log", action="store_true", help="Use log scale on y/value axis.")
+    plot_parser.add_argument("--log-x", action="store_true", help="Use log scale on x axis.")
+    plot_parser.add_argument("--no-zero", action="store_true", help="Do not force zero baseline (compare dots).")
+    plot_parser.add_argument("--show-delta", action="store_true", help="Show inline baseline delta (compare).")
+    plot_parser.add_argument("--mode", default=None, help="Distribution mode ('dots' or 'quantile').")
+    plot_parser.add_argument("--bins", default=None, help="Histogram bins ('auto' or integer).")
+    plot_parser.add_argument("--frontier", action="store_true", help="Draw Pareto frontier (relate).")
+    plot_parser.add_argument("--label-all", action="store_true", help="Label all points (relate).")
+    plot_parser.add_argument("--connect-groups", action="store_true", help="Connect group trajectories (relate).")
+    plot_parser.add_argument("--fit", action="store_true", help="Draw linear fit (relate).")
+    plot_parser.add_argument("--bold-best", action="store_true", help="Bold numeric column winners (table).")
+    plot_parser.add_argument("--waterfall-start", default=None, help="Waterfall start value or label:value.")
+    plot_parser.add_argument("--total-label", default="Total", help="Waterfall total bar label.")
+    plot_parser.add_argument("--no-total", action="store_true", help="Omit waterfall final total bar.")
+    plot_parser.add_argument("--reason", default=None, help="Drop reason column (flow).")
+    plot_parser.add_argument("--triangle", choices=("lower", "upper"), default=None, help="Triangle mask (matrix).")
+    plot_parser.add_argument("--mask-diagonal", action="store_true", help="Mask self-diagonal (matrix).")
+    plot_parser.add_argument("--lenient", "--no-strict", action="store_true", dest="lenient", help="Auto-adjust soft limits.")
+    plot_parser.add_argument("--write-spec", action="store_true", help="Also write <out>.json spec.")
+
+    # `figmint brief <fig1.png|spec1.json> [<fig2.png> ...] --title "..." --out report.html|report.md`
+    brief_parser = subparsers.add_parser(
+        "brief",
+        help="Compose 1–12 saved figmint PNGs or JSON specs into a single HTML or Markdown briefing.",
+    )
+    brief_parser.add_argument(
+        "figures",
+        nargs="+",
+        type=Path,
+        help="One or more figmint PNG files (embedded spec) or JSON spec files.",
+    )
+    brief_parser.add_argument("--title", "-t", required=True, help="Briefing title.")
+    brief_parser.add_argument("--out", "-o", type=Path, required=True, help="Output .html or .md path.")
+    brief_parser.add_argument("--subtitle", default=None, help="Briefing subtitle.")
+    brief_parser.add_argument(
+        "--summary",
+        action="append",
+        default=None,
+        help="Key finding bullet (repeatable).",
+    )
+    brief_parser.add_argument("--source", default=None, help="Briefing footer source.")
+    brief_parser.add_argument("--style", default=None, help="Optional theme override for HTML styling.")
+
+    # `figmint edit <fig.png|spec.json> [flags] --out out.png`
+    edit_parser = subparsers.add_parser(
+        "edit",
+        help="Surgically edit an existing figmint PNG or JSON spec without rewriting a script.",
+    )
+    edit_parser.add_argument("figure_path", type=Path, help="Path to a figmint PNG (embedded spec) or JSON spec.")
+    edit_parser.add_argument("--out", "-o", type=Path, default=None, help="Output path (.png, .svg, .pdf, or .html).")
+    edit_parser.add_argument("--show", action="store_true", help="Display the edited figure in the terminal.")
+    edit_parser.add_argument(
+        "--show-mode",
+        choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
+        default="auto",
+        help="Terminal rendering mode when --show is set (default: auto).",
+    )
+    edit_parser.add_argument("--show-width", type=int, default=78, help="Terminal text width when --show is set.")
+    edit_parser.add_argument("--takeaway", "-t", default=None, help="New takeaway title.")
+    edit_parser.add_argument("--subtitle", default=None, help="New subtitle (pass '' to clear).")
+    edit_parser.add_argument("--source", default=None, help="New source line (pass '' to clear).")
+    edit_parser.add_argument("--note", default=None, help="New note (pass '' to clear).")
+    edit_parser.add_argument("--style", default=None, help="New theme name.")
+    edit_parser.add_argument("--palette", default=None, help="New palette name.")
+    edit_parser.add_argument("--accent", default=None, help="New accent hex color (pass '' to clear).")
+    edit_parser.add_argument("--width", default=None, help="New target width ('narrow', 'chat', 'slide', or mm).")
+    edit_parser.add_argument("--panel", default="a", help="Panel key ('a', 'b', ...) to edit (default: a).")
+    edit_parser.add_argument("--title", default=None, help="New panel headline.")
+    edit_parser.add_argument("--label", default=None, help="New panel label.")
+    edit_parser.add_argument("--unit", default=None, help="New panel unit.")
+    edit_parser.add_argument("--highlight", action="append", default=None, help="New highlight name(s), comma-separated or repeated.")
+    edit_parser.add_argument("--baseline", default=None, help="New baseline item (pass '' to clear).")
+    edit_parser.add_argument("--sort", default=None, help="New sort order.")
+    edit_parser.add_argument("--reference", default=None, help="New reference value or value:label.")
+    edit_parser.add_argument("--show-delta", action="store_true", default=None, help="Enable inline baseline delta.")
+    edit_parser.add_argument("--drop", action="append", default=None, help="Item/series name(s) to remove from --panel.")
+    edit_parser.add_argument("--keep", action="append", default=None, help="Keep only these item/series name(s) in --panel.")
+    edit_parser.add_argument("--drop-panel", default=None, help="Drop an entire panel by key (e.g. 'b').")
+    edit_parser.add_argument("--lenient", "--no-strict", action="store_true", dest="lenient", help="Auto-adjust soft limits.")
+    edit_parser.add_argument("--write-spec", action="store_true", help="Also write <out>.json spec.")
+
     # `figmint skill [--install] [--target ...] [--root .] [--print] [--snippet]`
     skill_parser = subparsers.add_parser(
         "skill",
@@ -480,6 +719,453 @@ def _run_show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _emit_explanation(
+    explanation: Any,
+    *,
+    out: Path | None,
+    write_spec: bool,
+    show: bool,
+    show_mode: str,
+    show_width: int,
+) -> int:
+    """Save ``explanation`` to ``out`` (PNG/SVG/PDF/HTML) and/or render to terminal."""
+    if out is not None:
+        if out.suffix.lower() in {".html", ".htm"}:
+            from .interactive import render_html
+
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(render_html(explanation, interactive=True), encoding="utf-8")
+            explanation.saved_path = out.resolve()
+            explanation.saved_px = None
+            if write_spec:
+                out.with_suffix(".json").write_text(
+                    json.dumps(explanation.to_spec(), indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+            summary = explanation.summary()
+        else:
+            summary = explanation.save(out, write_spec=write_spec)
+    else:
+        summary = explanation.summary()
+
+    if show:
+        from .terminal import show_in_terminal
+
+        print(show_in_terminal(explanation, mode=show_mode, width=show_width))
+    else:
+        print(summary)
+    return 0 if summary["ok"] else 1
+
+
+def _run_inspect(args: argparse.Namespace) -> int:
+    """Inspect a CSV/TSV/JSON/JSONL file and recommend figmint forms."""
+    from .explainer import ExplainError
+    from .inspect_data import inspect_data
+
+    try:
+        info = inspect_data(args.data_path)
+    except (ExplainError, OSError, ValueError) as exc:
+        if args.as_json:
+            payload = {
+                "ok": False,
+                "error": exc.message if isinstance(exc, ExplainError) else str(exc),
+                "fix_hint": exc.fix_hint if isinstance(exc, ExplainError) else "Check the file path and format.",
+            }
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    if args.as_json:
+        print(json.dumps(info, indent=2, ensure_ascii=False))
+    else:
+        print(_format_inspect_text(info))
+    return 0
+
+
+def _run_plot(args: argparse.Namespace) -> int:
+    """Build and render a figure directly from a CSV/TSV/JSON/JSONL file."""
+    from . import explainer as fm_exp
+    from .explainer import ExplainError
+    from .inspect_data import load_table_file
+
+    def _reject(message: str, fix_hint: str, rule: str = "plot_cli") -> int:
+        payload = {
+            "schema_version": "0.2",
+            "ok": False,
+            "rendered": False,
+            "stage": "spec",
+            "rule": rule,
+            "error": message,
+            "fix_hint": fix_hint,
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 2
+
+    if args.out is None and not args.show:
+        return _reject(
+            "figmint plot needs --out <path> or --show.",
+            "Pass --out fig.png (or fig.html) to write a file, or --show for terminal display.",
+        )
+
+    try:
+        rows = load_table_file(args.data_path)
+        hl = _parse_list_arg(args.highlight)
+        ref = _parse_reference_arg(args.reference)
+        sort_v = _parse_sort_arg(args.sort)
+        common: dict[str, Any] = {}
+        if args.title is not None:
+            common["title"] = args.title
+        if args.label is not None:
+            common["label"] = args.label
+        if args.unit is not None:
+            common["unit"] = args.unit
+        if hl is not None:
+            common["highlight"] = hl if len(hl) > 1 else hl[0]
+        if args.fmt is not None:
+            common["fmt"] = args.fmt
+
+        kind = args.kind
+        with fm_exp.lenient() if args.lenient else _null_ctx():
+            if kind == "auto":
+                from .inspect_data import auto_panel
+
+                panel = auto_panel(
+                    rows,
+                    title=args.title,
+                    label=args.label,
+                    unit=args.unit,
+                    highlight=common.get("highlight"),
+                    baseline=args.baseline,
+                )
+            elif kind == "compare":
+                kw = {**common}
+                if args.name:
+                    kw["name"] = args.name
+                if args.group:
+                    kw["group"] = args.group
+                if args.value:
+                    kw["value"] = args.value
+                if args.baseline:
+                    kw["baseline"] = args.baseline
+                if ref is not None:
+                    kw["reference"] = ref
+                if sort_v is not None:
+                    kw["sort"] = sort_v
+                if args.log:
+                    kw["log"] = True
+                if args.no_zero:
+                    kw["zero"] = False
+                if args.show_delta:
+                    kw["show_delta"] = True
+                panel = fm_exp.compare(rows, **kw)
+            elif kind == "share":
+                kw = {**common}
+                if args.name:
+                    kw["name"] = args.name
+                if args.value:
+                    kw["value"] = args.value
+                panel = fm_exp.share(rows, **kw)
+            elif kind == "change":
+                if not (args.before and args.after):
+                    raise ExplainError(
+                        "figmint plot --kind change requires --before and --after column names.",
+                        fix_hint="Pass --before col1 --after col2 --name item_col.",
+                    )
+                kw = {**common, "data": rows}
+                if args.name:
+                    kw["name"] = args.name
+                panel = fm_exp.change(args.before, args.after, **kw)
+            elif kind == "trend":
+                if not args.x:
+                    raise ExplainError(
+                        "figmint plot --kind trend requires --x column name.",
+                        fix_hint="Pass --x step_col --y val_col (and optional --series group_col).",
+                    )
+                kw = {**common, "data": rows}
+                if args.y:
+                    kw["y"] = args.y
+                if args.x_label:
+                    kw["x_label"] = args.x_label
+                if args.baseline:
+                    kw["baseline"] = args.baseline
+                if ref is not None:
+                    kw["reference"] = ref
+                if args.log:
+                    kw["log"] = True
+                if args.log_x:
+                    kw["log_x"] = True
+                if args.fit:
+                    kw["fit"] = True
+                panel = fm_exp.trend(args.x, args.series, **kw)
+            elif kind in {"distribution", "histogram"}:
+                kw = {**common}
+                if args.group:
+                    kw["group"] = args.group
+                if args.value:
+                    kw["value"] = args.value
+                if args.baseline:
+                    kw["baseline"] = args.baseline
+                if ref is not None:
+                    kw["reference"] = ref
+                if args.log:
+                    kw["log"] = True
+                if args.mode:
+                    kw["mode"] = args.mode
+                if args.bins is not None:
+                    kw["bins"] = int(args.bins) if args.bins.isdigit() else args.bins
+                panel = (
+                    fm_exp.histogram(rows, **kw)
+                    if kind == "histogram"
+                    else fm_exp.distribution(rows, **kw)
+                )
+            elif kind == "relate":
+                if not (args.x and args.y):
+                    raise ExplainError(
+                        "figmint plot --kind relate requires --x and --y column names.",
+                        fix_hint="Pass --x cost_col --y score_col [--names model_col] [--groups family_col].",
+                    )
+                kw = {**common, "data": rows}
+                kw["x_label"] = args.x_label or args.x
+                kw["y_label"] = args.y_label or args.y
+                if args.names:
+                    kw["names"] = args.names
+                if args.groups:
+                    kw["groups"] = args.groups
+                if ref is not None:
+                    kw["reference"] = ref
+                if args.log:
+                    kw["log_y"] = True
+                if args.log_x:
+                    kw["log_x"] = True
+                if args.frontier:
+                    kw["frontier"] = True
+                if args.label_all:
+                    kw["label_all"] = True
+                if args.connect_groups:
+                    kw["connect_groups"] = True
+                if args.fit:
+                    kw["fit"] = True
+                panel = fm_exp.relate(args.x, args.y, **kw)
+            elif kind == "matrix":
+                kw = {**common}
+                if args.rows:
+                    kw["rows"] = args.rows
+                if args.cols:
+                    kw["cols"] = args.cols
+                if args.value:
+                    kw["value"] = args.value
+                if args.triangle:
+                    kw["triangle"] = args.triangle
+                if args.mask_diagonal:
+                    kw["mask_diagonal"] = True
+                panel = fm_exp.matrix(rows, **kw)
+            elif kind == "table":
+                kw = {**common}
+                if args.baseline:
+                    kw["baseline"] = args.baseline
+                if args.bold_best:
+                    kw["bold_best"] = True
+                if sort_v is not None and isinstance(sort_v, str):
+                    kw["sort"] = sort_v
+                panel = fm_exp.table(rows, **kw)
+            elif kind == "waterfall":
+                kw = {**common}
+                if args.name:
+                    kw["name"] = args.name
+                if args.value:
+                    kw["value"] = args.value
+                if args.waterfall_start is not None:
+                    kw["start"] = _parse_waterfall_start(args.waterfall_start)
+                if args.total_label != "Total":
+                    kw["total_label"] = args.total_label
+                if args.no_total:
+                    kw["show_total"] = False
+                if ref is not None:
+                    kw["reference"] = ref
+                panel = fm_exp.waterfall(rows, **kw)
+            elif kind == "timeline":
+                kw = {**common}
+                if args.name:
+                    kw["name"] = args.name
+                if args.start:
+                    kw["start"] = args.start
+                if args.end:
+                    kw["end"] = args.end
+                if args.group:
+                    kw["group"] = args.group
+                if args.x_label:
+                    kw["x_label"] = args.x_label
+                if ref is not None:
+                    kw["reference"] = ref
+                if sort_v is not None:
+                    kw["sort"] = bool(sort_v)
+                panel = fm_exp.timeline(rows, **kw)
+            elif kind == "flow":
+                kw = {**common}
+                if args.name:
+                    kw["name"] = args.name
+                if args.value:
+                    kw["value"] = args.value
+                if args.reason:
+                    kw["reason"] = args.reason
+                panel = fm_exp.flow(rows, **kw)
+            else:
+                raise ExplainError(f"Unsupported kind {kind!r}.", fix_hint="Choose a valid form.")
+
+            explanation = fm_exp.explain(
+                args.takeaway,
+                panel,
+                subtitle=args.subtitle,
+                source=args.source,
+                note=args.note,
+                style=args.style,
+                palette=args.palette,
+                accent=args.accent,
+                width=_parse_width_arg(args.width) or "chat",
+                strict=not args.lenient,
+            )
+    except ExplainError as exc:
+        return _reject(exc.message, exc.fix_hint, exc.rule)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return _reject(str(exc), "Check column names with `figmint inspect <file>` and re-run.")
+
+    return _emit_explanation(
+        explanation,
+        out=args.out,
+        write_spec=args.write_spec,
+        show=args.show,
+        show_mode=args.show_mode,
+        show_width=args.show_width,
+    )
+
+
+def _run_edit(args: argparse.Namespace) -> int:
+    """Surgically edit a saved figmint PNG or JSON spec from the CLI."""
+    from .edit import edit as _edit
+    from .explainer import ExplainError
+
+    def _reject(message: str, fix_hint: str, rule: str = "edit_cli") -> int:
+        payload = {
+            "schema_version": "0.2",
+            "ok": False,
+            "rendered": False,
+            "stage": "spec",
+            "rule": rule,
+            "error": message,
+            "fix_hint": fix_hint,
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 2
+
+    if args.out is None and not args.show:
+        return _reject(
+            "figmint edit needs --out <path> or --show.",
+            "Pass --out edited.png (or edited.html) or --show.",
+        )
+
+    def _clearable(val: str | None) -> Any:
+        return None if val == "" else val
+
+    try:
+        kwargs: dict[str, Any] = {
+            "panel": args.panel,
+            "strict": not args.lenient,
+        }
+        if args.takeaway is not None:
+            kwargs["takeaway"] = args.takeaway
+        if args.subtitle is not None:
+            kwargs["subtitle"] = _clearable(args.subtitle)
+        if args.source is not None:
+            kwargs["source"] = _clearable(args.source)
+        if args.note is not None:
+            kwargs["note"] = _clearable(args.note)
+        if args.style is not None:
+            kwargs["style"] = args.style
+        if args.palette is not None:
+            kwargs["palette"] = _clearable(args.palette)
+        if args.accent is not None:
+            kwargs["accent"] = _clearable(args.accent)
+        if args.width is not None:
+            kwargs["width"] = _parse_width_arg(args.width)
+        if args.title is not None:
+            kwargs["title"] = _clearable(args.title)
+        if args.label is not None:
+            kwargs["label"] = _clearable(args.label)
+        if args.unit is not None:
+            kwargs["unit"] = _clearable(args.unit)
+        hl = _parse_list_arg(args.highlight)
+        if hl is not None:
+            kwargs["highlight"] = hl if len(hl) > 1 else hl[0]
+        if args.baseline is not None:
+            kwargs["baseline"] = _clearable(args.baseline)
+        if args.sort is not None:
+            kwargs["sort"] = _parse_sort_arg(args.sort)
+        if args.reference is not None:
+            kwargs["reference"] = _parse_reference_arg(args.reference)
+        if args.show_delta is not None:
+            kwargs["show_delta"] = args.show_delta
+        drops = _parse_list_arg(args.drop)
+        if drops is not None:
+            kwargs["drop"] = drops
+        keeps = _parse_list_arg(args.keep)
+        if keeps is not None:
+            kwargs["keep"] = keeps
+        if args.drop_panel is not None:
+            kwargs["drop_panel"] = args.drop_panel
+
+        explanation = _edit(args.figure_path, **kwargs)
+    except ExplainError as exc:
+        return _reject(exc.message, exc.fix_hint, exc.rule)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        return _reject(str(exc), "Verify the input PNG/JSON path and edit flags.")
+
+    return _emit_explanation(
+        explanation,
+        out=args.out,
+        write_spec=args.write_spec,
+        show=args.show,
+        show_mode=args.show_mode,
+        show_width=args.show_width,
+    )
+
+
+class _null_ctx:
+    """Minimal no-op context manager for strict mode inside ``_run_plot``."""
+
+    def __enter__(self) -> None:
+        return None
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+
+def _run_brief(args: argparse.Namespace) -> int:
+    """Compose saved figmint PNGs / JSON specs into a cohesive HTML or Markdown briefing."""
+    from .brief import brief as _brief
+    from .explainer import ExplainError
+
+    try:
+        report = _brief(
+            args.title,
+            *args.figures,
+            subtitle=args.subtitle,
+            summary=args.summary,
+            source=args.source,
+            style=args.style,
+        )
+        meta = report.save(args.out)
+    except (ExplainError, OSError, ValueError, TypeError) as exc:
+        payload = {
+            "ok": False,
+            "error": exc.message if isinstance(exc, ExplainError) else str(exc),
+            "fix_hint": exc.fix_hint if isinstance(exc, ExplainError) else "Check input PNG/JSON paths and --out.",
+        }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 2
+    print(json.dumps(meta, indent=2, ensure_ascii=False))
+    return 0 if meta["ship_all"] else 1
+
+
 def _rerun_with_fixed_hash_seed() -> int | None:
     """Re-run ``figmint run`` or ``figmint explain`` with ``PYTHONHASHSEED=0``.
 
@@ -503,7 +1189,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Only the real command line (argv is None) re-runs; in-process callers keep
     # their interpreter and can set PYTHONHASHSEED themselves.
-    if argv is None and args.command in {"run", "explain"}:
+    if argv is None and args.command in {"run", "explain", "plot", "edit"}:
         child_code = _rerun_with_fixed_hash_seed()
         if child_code is not None:
             return child_code
@@ -576,6 +1262,18 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "show":
         return _run_show(args)
+
+    if args.command == "inspect":
+        return _run_inspect(args)
+
+    if args.command == "plot":
+        return _run_plot(args)
+
+    if args.command == "edit":
+        return _run_edit(args)
+
+    if args.command == "brief":
+        return _run_brief(args)
 
     if args.command == "skill":
         if args.snippet:

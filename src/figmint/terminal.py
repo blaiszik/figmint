@@ -529,6 +529,96 @@ def _render_facts_panel(
                         f"{_fmt_num(av, ascii_only=ascii_only)}{unit} "
                         f"({sign}{_fmt_num(delta, ascii_only=ascii_only)}{unit})"
                     )
+    elif panel.kind == "waterfall":
+        spec = panel.spec
+        steps = spec.get("steps") or {}
+        unit = f" {panel.unit}" if panel.unit else ""
+        if isinstance(steps, Mapping) and steps:
+            rows_wf: list[list[str]] = []
+            running = 0.0
+            st = spec.get("start")
+            if isinstance(st, Sequence) and not isinstance(st, (str, bytes)) and len(st) == 2:
+                running = float(st[1])
+                rows_wf.append([str(st[0]), "-", f"{_fmt_num(running, ascii_only=ascii_only)}{unit}"])
+            for nm, dv in steps.items():
+                val = float(dv)
+                running += val
+                sign = "+" if val > 0 else ""
+                rows_wf.append(
+                    [
+                        str(nm),
+                        f"{sign}{_fmt_num(val, ascii_only=ascii_only)}{unit}",
+                        f"{_fmt_num(running, ascii_only=ascii_only)}{unit}",
+                    ]
+                )
+            if spec.get("show_total", True):
+                rows_wf.append(
+                    [
+                        str(spec.get("total_label") or "Total"),
+                        "-",
+                        f"{_fmt_num(running, ascii_only=ascii_only)}{unit}",
+                    ]
+                )
+            lines.extend(
+                _render_box_table(
+                    ["Step", "Delta", "Cumulative"],
+                    rows_wf,
+                    aligns=["left", "right", "right"],
+                    width=width,
+                    style=style,
+                    ascii_only=ascii_only,
+                )
+            )
+    elif panel.kind == "timeline":
+        spans = panel.spec.get("spans") or []
+        unit = f" {panel.unit}" if panel.unit else ""
+        if isinstance(spans, Sequence) and spans:
+            valid = [s for s in spans if isinstance(s, Sequence) and len(s) >= 3]
+            if valid:
+                t0 = min(float(s[1]) for s in valid)
+                t1 = max(float(s[2]) for s in valid)
+                wall = (t1 - t0) or 1.0
+                max_lbl = min(max(len(str(s[0])) for s in valid), max(12, width // 3))
+                bar_w = max(12, width - max_lbl - 18)
+                fill_ch = "#" if ascii_only else "█"
+                empty_ch = "." if ascii_only else "·"
+                for sp in valid:
+                    nm = str(sp[0])[:max_lbl].rjust(max_lbl)
+                    s_v, e_v = float(sp[1]), float(sp[2])
+                    c0 = max(0, min(bar_w - 1, round((s_v - t0) / wall * bar_w)))
+                    c1 = max(c0 + 1, min(bar_w, round((e_v - t0) / wall * bar_w)))
+                    bar = empty_ch * c0 + fill_ch * (c1 - c0) + empty_ch * (bar_w - c1)
+                    dur_s = _fmt_num(e_v - s_v, ascii_only=ascii_only)
+                    lines.append(f"  {nm}  {style.primary(bar)}  {dur_s}{unit}")
+    elif panel.kind == "flow":
+        stages = panel.spec.get("stages") or []
+        unit = f" {panel.unit}" if panel.unit else ""
+        if isinstance(stages, Sequence) and stages:
+            valid = [s for s in stages if isinstance(s, Sequence) and len(s) >= 2]
+            if valid:
+                max_v = max(float(s[1]) for s in valid) or 1.0
+                start_v = float(valid[0][1]) or 1.0
+                max_lbl = min(max(len(str(s[0])) for s in valid), max(12, width // 3))
+                bar_w = max(10, width - max_lbl - 24)
+                fill_ch = "#" if ascii_only else "█"
+                arrow = "v" if ascii_only else "↓"
+                prev_v: float | None = None
+                for idx_f, st in enumerate(valid):
+                    nm = str(st[0])[:max_lbl].rjust(max_lbl)
+                    val = float(st[1])
+                    if prev_v is not None:
+                        delta = val - prev_v
+                        sp = (100.0 * delta / prev_v) if prev_v > 0 else 0.0
+                        rsn = f" · {st[2]}" if len(st) >= 3 and st[2] else ""
+                        lines.append(
+                            f"  {' ' * max_lbl}  {arrow} {_fmt_num(delta, ascii_only=ascii_only)}{unit} ({sp:+.0f}%){rsn}"
+                        )
+                    filled = max(1 if val > 0 else 0, round(val / max_v * bar_w))
+                    pct = 100.0 * val / start_v
+                    lines.append(
+                        f"  {nm}  {style.primary(fill_ch * filled)}  {_fmt_num(val, ascii_only=ascii_only)}{unit} ({pct:.0f}%)"
+                    )
+                    prev_v = val
 
     if panel.facts:
         for fact in panel.facts:

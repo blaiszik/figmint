@@ -534,6 +534,76 @@ split and model-release chart extensions):
    and `figmint.explainer`; updated compact `SKILL.md` and
    `references/scientific_and_recipes.md`.
 
+## 4j. Ninth pass: zero-script agent integration, attribution/timeline forms, & multi-turn visual memory
+
+Three structural improvements aimed at how agents actually communicate with humans across tools and multi-turn threads (without requiring human-in-the-loop validation):
+
+1. **Zero-script agent integration (`inspect_data.py`, `edit.py`, `cli.py`):**
+   - `fm.load_table_file(path)` and `fm.inspect_data(source)` profile `.csv`,
+     `.tsv`, `.json`, and `.jsonl` files with zero pandas dependency, detect
+     shapes (replicates, decade spans, start/end intervals, signed deltas,
+     multi-metric scorecards), and return ranked form recommendations with
+     ready-to-run Python and CLI snippets.
+   - `fm.edit(figure, ...)` applies surgical one-line edits to a saved PNG
+     (embedded spec), JSON spec, or live `Explanation` — including
+     `takeaway`, `style`, `palette`, `accent`, `width`, `highlight`,
+     `baseline`, `show_delta`, `drop_panel=`, and item/series `drop=`/`keep=`
+     filtering across every form (also making the `fm.edit(...)` critique
+     snippet emitted by `interactive.py` directly runnable).
+   - Added three CLI commands: `figmint inspect <file> [--json]`,
+     `figmint plot <file> --kind <form> --takeaway "..." [--out fig.png|fig.html] [--show]`,
+     and `figmint edit <fig.png|spec.json> [flags] [--out out.png|out.html] [--show]`.
+2. **Two missing quantitative agent-communication forms (`_explain/waterfall.py`, `_explain/timeline.py`):**
+   - `fm.waterfall(steps, *, start=, total_label=, show_total=, ...)` renders
+     horizontal attribution/delta bridges with vertical bridge connectors,
+     optional start/total anchors, exact-total lenient folding into
+     `Other (k)`, signed delta labels, and driver/drag `facts`.
+   - `fm.timeline(spans, *, name=, start=, end=, group=, x_label=, ...)`
+     renders horizontal `[start, end]` execution/phase span timelines with
+     milestone diamonds (`start == end`), optional inline group colour strip,
+     and wall-span/bottleneck/concurrency `facts`.
+   - Wired into `epistemic.py` (L1–L4 narratives + zero false-positive number
+     checking), `interactive.py` (data tables), `terminal.py` (Unicode/ASCII
+     renderers), and `layout.py` spec round-tripping.
+3. **Multi-turn visual memory & cohesive briefings (`brief.py`):**
+   - `fm.Session(*, style=, palette=, accent=, width=, colors=, state_path=)`
+     maintains a persistent entity-colour ledger across turns with token-boundary
+     prefix matching (so `"Alpha-3 (int4)"` inherits `"Alpha-3"`'s hue — solving
+     the blind-test leftover from section 5 known limit 8) and optional JSON
+     state persistence.
+   - `fm.brief(title, *figures, ...)` / `session.brief(...)` composes 1–12
+     figures (live `Explanation`s or saved PNG/JSON paths) into a self-contained
+     zero-CDN interactive HTML briefing (`save("report.html")`) or PR-/Artifact-
+     ready Markdown bundle with numbered PNGs, L2/L3 facts, and embedded
+     Markdown tables (`save("report.md")`).
+
+## 4k. Tenth pass: `fm.flow`, `trend(fit=)`, `matrix(triangle=)`, `fm.auto_panel`, `figmint brief`, & workflow gallery
+
+1. **Cohort / pipeline attrition funnel (`_explain/flow.py` → `fm.flow`):**
+   - Sequential top-to-bottom proportional bars (never re-sorted, grounded at
+     zero) showing remaining counts + `% of initial`, plus dedicated between-row
+     step-down connectors annotated with drop counts, `% of prior stage`, and
+     optional exclusion `reason=`, with automatic retention & largest-drop `facts`.
+   - Wired across `core.py`, `layout.py`, `epistemic.py`, `interactive.py`,
+     `terminal.py`, `edit.py`, `inspect_data.py`, and `cli.py` (`--kind flow`).
+2. **Scientific clarity upgrades (`_explain/trend.py`, `_explain/matrix.py`):**
+   - `fm.trend(..., fit=True|"linear"|"log"|"power")` overlays dashed OLS fits
+     matching linear, log-linear, or log-log power-law axes (including faceted
+     panels) and adds linear fit slope + 95% CI + R² facts.
+   - `fm.matrix(..., triangle="lower"|"upper", mask_diagonal=True)` hides the
+     redundant half of symmetric matrices and excludes the masked diagonal from
+     colour-scale normalization and empty-cell counts.
+3. **Complete zero-script agent pipeline (`inspect_data.py`, `cli.py`):**
+   - `fm.auto_panel(source)` and `figmint plot <file> --kind auto` build the
+     top-recommended panel automatically from a CSV/TSV/JSON/JSONL file.
+   - `figmint brief <fig1.png> <fig2.png> ... --title "..." --out report.html|report.md`
+     bundles multi-turn CLI figures into a cohesive HTML or Markdown briefing.
+4. **Visual workflow showcase gallery:**
+   - Added `gallery/explain_agent_workflow_examples.py` →
+     `gallery/output/explain_workflows/` (6 visually reviewed PNG+JSON plates
+     plus `06_investigation_brief.html` and `06_investigation_brief.md`) and
+     documented them in `gallery/README.md`.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
@@ -552,7 +622,7 @@ Verified:
     style/palette), logging every change in `summary["adjustments"]` and moving
     advisory nudges into `summary["advisories"]`.
   - Updated `SKILL.md`, `AGENTS_SNIPPET.md`, and `README.md`.
-- `pytest`: 742 passed. `ruff check src tests gallery evals`: clean.
+- `pytest`: 796 passed. `ruff check src tests gallery evals`: clean.
 - All six general figures in all four styles, and the five scientific figures,
   render with `ok: true`, no issues, smallest text 12.3 px. The general set is
   also clean with only DejaVu Sans available (a stand-in for a Linux host

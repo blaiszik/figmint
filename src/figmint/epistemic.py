@@ -94,6 +94,10 @@ _L3_PATTERN_RE = re.compile(
     r"\blargest off-diagonal\b|"
     r"\blargest change:|"
     r"\blargest\s+.+\s+gain:|"
+    r"\blargest\s+(?:positive\s+driver|negative\s+drag|drop):|"
+    r"\blongest\s+stage:|"
+    r"\blinear\s+fit\s+slope\b|"
+    r"\bpeak\s+\d+\s+stages\s+overlapping\b|"
     r"\b\d+\s+up,\s+\d+\s+down\b|"
     r"\bchange(?:s)?\s+by\s+.+\s+from first to last\b|"
     r"\bend at\s+.+\s+their first values\b|"
@@ -204,6 +208,9 @@ def _describe_panel_l1(panel: Any) -> str:
         cols = spec.get("cols")
         if isinstance(rows, Sequence) and isinstance(cols, Sequence):
             parts.append(f"{len(rows)}\N{MULTIPLICATION SIGN}{len(cols)}")
+        tri = spec.get("triangle")
+        if isinstance(tri, str) and tri:
+            parts.append(f"{tri} triangle")
     elif kind == "change":
         if label:
             parts.append(str(label))
@@ -225,6 +232,32 @@ def _describe_panel_l1(panel: Any) -> str:
             parts.append("histogram")
         if spec.get("log"):
             parts.append("log scale")
+    elif kind == "waterfall":
+        if label:
+            parts.append(str(label))
+        if unit and (not label or not _label_has_unit(str(label), str(unit))):
+            parts.append(str(unit))
+        steps = spec.get("steps")
+        if isinstance(steps, Mapping):
+            parts.append(f"{len(steps)} steps")
+    elif kind == "timeline":
+        x_label = spec.get("x_label") or label
+        tl_unit = unit or spec.get("unit")
+        if x_label:
+            parts.append(str(x_label))
+        if tl_unit and (not x_label or not _label_has_unit(str(x_label), str(tl_unit))):
+            parts.append(str(tl_unit))
+        spans = spec.get("spans")
+        if isinstance(spans, Sequence) and not isinstance(spans, (str, bytes)):
+            parts.append(f"{len(spans)} stages")
+    elif kind == "flow":
+        if label:
+            parts.append(str(label))
+        if unit and (not label or not _label_has_unit(str(label), str(unit))):
+            parts.append(str(unit))
+        stages = spec.get("stages")
+        if isinstance(stages, Sequence) and not isinstance(stages, (str, bytes)):
+            parts.append(f"{len(stages)} stages")
     elif kind == "custom":
         desc = _pget(panel, "describe")
         if label:
@@ -738,6 +771,110 @@ def _collect_panel_groups(
         for col_nums in col_buckets.values():
             groups.append(col_nums)
             direct.extend(abs(v) for v in col_nums)
+
+    elif kind == "waterfall":
+        steps = spec.get("steps")
+        if isinstance(steps, Mapping):
+            s_val = 0.0
+            start_raw = spec.get("start")
+            if _is_finite_number(start_raw):
+                s_val = float(start_raw)
+                direct.append(abs(s_val))
+            elif (
+                isinstance(start_raw, Sequence)
+                and not isinstance(start_raw, (str, bytes))
+                and len(start_raw) == 2
+                and _is_finite_number(start_raw[1])
+            ):
+                s_val = float(start_raw[1])
+                direct.append(abs(s_val))
+            deltas = [float(v) for v in steps.values() if _is_finite_number(v)]
+            if deltas:
+                running = s_val
+                levels = [s_val] if start_raw is not None else [0.0]
+                for d in deltas:
+                    running += d
+                    levels.append(running)
+                    direct.append(abs(d))
+                    direct.append(abs(running))
+                net = sum(deltas)
+                direct.extend([abs(net), abs(running)])
+                groups.append([abs(d) for d in deltas])
+                groups.append(levels)
+                pos_sum = sum(d for d in deltas if d > 0)
+                neg_sum = sum(-d for d in deltas if d < 0)
+                abs_sum = sum(abs(d) for d in deltas)
+                for denom in (abs(net), pos_sum, neg_sum, abs_sum, abs(s_val)):
+                    if denom > 0:
+                        for d in deltas:
+                            shares.append(100.0 * abs(d) / denom)
+                        shares.append(100.0 * abs(net) / denom)
+
+    elif kind == "timeline":
+        spans = spec.get("spans")
+        if isinstance(spans, Sequence) and not isinstance(spans, (str, bytes)):
+            starts: list[float] = []
+            ends: list[float] = []
+            durs: list[float] = []
+            by_group: dict[str, float] = {}
+            for item in spans:
+                if (
+                    isinstance(item, Sequence)
+                    and not isinstance(item, (str, bytes))
+                    and len(item) >= 3
+                    and _is_finite_number(item[1])
+                    and _is_finite_number(item[2])
+                ):
+                    sv, ev = float(item[1]), float(item[2])
+                    dv = max(0.0, ev - sv)
+                    starts.append(sv)
+                    ends.append(ev)
+                    durs.append(dv)
+                    direct.extend([abs(sv), abs(ev), dv])
+                    if len(item) >= 4 and item[3] is not None:
+                        gk = str(item[3])
+                        by_group[gk] = by_group.get(gk, 0.0) + dv
+            if durs:
+                wall = max(ends) - min(starts)
+                total_w = sum(durs)
+                direct.extend([wall, total_w, *by_group.values()])
+                groups.append([*durs, wall, total_w])
+                if by_group:
+                    groups.append(list(by_group.values()))
+                for denom in (wall, total_w):
+                    if denom > 0:
+                        for d in durs:
+                            shares.append(100.0 * d / denom)
+                        for gd in by_group.values():
+                            shares.append(100.0 * gd / denom)
+
+    elif kind == "flow":
+        stages = spec.get("stages")
+        if isinstance(stages, Sequence) and not isinstance(stages, (str, bytes)):
+            fvals: list[float] = []
+            for st in stages:
+                if (
+                    isinstance(st, Sequence)
+                    and not isinstance(st, (str, bytes))
+                    and len(st) >= 2
+                    and _is_finite_number(st[1])
+                ):
+                    fvals.append(float(st[1]))
+            if fvals:
+                direct.extend(abs(v) for v in fvals)
+                groups.append(fvals)
+                start_v = fvals[0]
+                if start_v > 0:
+                    for v in fvals:
+                        shares.append(100.0 * v / start_v)
+                        shares.append(100.0 * abs(start_v - v) / start_v)
+                for idx_s in range(1, len(fvals)):
+                    prev_v = fvals[idx_s - 1]
+                    drop_v = abs(prev_v - fvals[idx_s])
+                    direct.append(drop_v)
+                    if prev_v > 0:
+                        shares.append(100.0 * drop_v / prev_v)
+                        shares.append(100.0 * fvals[idx_s] / prev_v)
 
     return direct, groups, ratio_groups, shares
 

@@ -5,30 +5,33 @@ description: Explain data to a user with a message-first chat figure or table (o
 
 # figmint — Figures That Say One Thing
 
-> **Not installed yet?** `pip install git+https://github.com/blaiszik/figmint` (or `uv pip install git+https://github.com/blaiszik/figmint`).
+> **Install:** `pip install git+https://github.com/blaiszik/figmint` (or `uv pip install ...`).
 
-**Chat figures: read down to "Publication Figures" and stop.** For deep scientific recipes, height budgets, and colour/spec editing details, read `references/scientific_and_recipes.md`; for full manuscript rules, read `references/publication.md`.
+**Chat figures: read down to "Publication Figures" and stop.** Deep recipes & sizing: `references/scientific_and_recipes.md`; manuscripts: `references/publication.md`.
 
 ## Explain in a Conversation (`fm.explain`)
 
-Use a chart when the reader must compare ≥5 numbers or see a trend, spread, or relationship; use `fm.table` for exact lookups or multi-metric scorecards; use a sentence for 1–3 numbers.
+Use a chart for ≥5 numbers or a trend/spread/relationship; `fm.table` for exact lookups/scorecards; prose for 1–3 numbers.
 
 **1. Write the takeaway first.** One sentence with its number ("Removing retrieval costs 8 points of accuracy", not "Ablation results"). One takeaway per figure.
 
-**2. Pick each panel by the question it answers.** Every form accepts dicts/arrays/Series **and** row-shaped data (`list[dict]` from `csv.DictReader`/`json.loads`, or tidy `pandas.DataFrame`).
+**2. Pick each panel by the question it answers.** Every form accepts dicts/arrays/Series **and** tidy rows (`list[dict]` / DataFrame).
 
 | Question | Form | Wide or tidy input |
 | :--- | :--- | :--- |
-| How do items differ in size? | `fm.compare(values)` | `{name: num}` or `rows, name="col", value="col"` |
-| How does it change over time/order? | `fm.trend(x, series)` | `(x, {name: [nums]})` or `("x_col", "series_col", y="y_col", data=rows)` |
-| What moved between two states? | `fm.change(before, after)` | two `{name: num}` or `("col1", "col2", data=rows, name="item")` |
-| How are raw values spread? | `fm.distribution(groups)` | `{name: [obs]}` or `rows, group="col", value="col"` (add `bins="auto"` or use `fm.histogram`) |
-| Do two measures move together? | `fm.relate(x, y, x_label=, y_label=)` | two lists or `("x_col", "y_col", data=rows, names="...", groups="...")` |
-| What makes up the total? | `fm.share(parts)` | `{name: num}` or `rows, name="col", value="col"` |
-| How do two categories interact? | `fm.matrix(values, rows=, cols=)` | 2-D values / wide DataFrame, or `rows, rows="r", cols="c", value="v"` |
-| Exact lookup or mixed-unit scorecard? | `fm.table(rows)` | `list[dict]`, DataFrame, `{col: [...]}`, or 2-D list + `columns=` |
+| Compare sizes | `fm.compare(values)` | `{name: num}`, `{cat: {s: num}}`, or rows (`name=`, `value=`, `group=`) |
+| Change over order/time | `fm.trend(x, series)` | `(x, {s: [nums]})` or `("x", "s", y="y", data=rows)` |
+| Two states (before→after) | `fm.change(before, after)` | two `{name: num}` or `("c1", "c2", data=rows, name="item")` |
+| Spread of raw values | `fm.distribution(groups)` | `{g: [obs]}` or rows (`group=`, `value=`; `bins=` / `fm.histogram`) |
+| Two continuous measures | `fm.relate(x, y, x_label=, y_label=)` | two lists or `("x", "y", data=rows, names=, groups=)` |
+| Part of whole | `fm.share(parts)` | `{name: num}` or rows (`name=`, `value=`) |
+| Two categorical axes | `fm.matrix(values, rows=, cols=)` | 2-D array / wide DF, or rows (`rows=`, `cols=`, `value=`) |
+| Exact lookup / scorecard | `fm.table(rows)` | `list[dict]`, DataFrame, `{col: [...]}`, or 2-D + `columns=` |
+| Delta bridge start→total | `fm.waterfall(steps)` | `{step: delta}` or rows (`name=`, `value=`, optional `start=`) |
+| Execution/phase spans | `fm.timeline(spans)` | `{stage: (start, end)}` or rows (`name=`, `start=`, `end=`, `group=`) |
+| Cohort/pipeline attrition | `fm.flow(stages)` | `{stage: n}`, `[(stage, n, reason)]`, or rows (`name=`, `value=`, `reason=`) |
 
-**3. Say what is measured and what matters.** Pass `title=`, `label=`, `unit=`, `highlight=` (up to 3; rest turn grey), and `source=`.
+**3. Name what is measured and what matters:** `title=`, `label=`, `unit=`, `highlight=` (≤3; rest grey), `source=`.
 
 ```python
 import figmint as fm
@@ -49,86 +52,83 @@ fig = fm.explain(
              x_label="Training step"),
     source="runs/ablation_2026-11 (5 seeds per variant)",
 )
-summary = fig.save("ablation.png")          # already-parsed dict; print() renders JSON
+summary = fig.save("ablation.png")          # dict (print() renders JSON)
 print(summary)
 ```
 
-No Python handy? Render JSON directly: `figmint explain spec.json --out fig.png` (or `--out fig.html` for interactive HTML; `--example` prints a starter spec; `-` reads stdin; `--lenient` auto-adjusts soft limits). Display directly in a terminal with `figmint show fig.png` (or `spec.json` / `-`; auto-detects Kitty/iTerm2 graphics or falls back to Unicode/ASCII).
+**Zero-script CLI:** `figmint inspect data.csv` profiles & recommends forms; `figmint plot data.csv --kind auto --takeaway "..." --out fig.png` (or explicit `--kind`, `--show`, `.html`) plots directly; `figmint edit fig.png --style dark --out v2.png` refines saved figures; `figmint brief f1.png f2.png --title "..." --out report.html` bundles multi-figure reports; `figmint explain` / `figmint show` handle JSON specs and terminal views.
 
 **4. Check `facts` and `ship`, then deliver.**
-- `summary` is a dict (`summary["panels"][i]["facts"]`, `summary["narrative"]` L1–L4, `summary["issues"]`, `summary["ok"]`, `summary["ship"]`).
-- **Read `facts` before computing anything in Python/scipy:** forms compute rankings, gaps vs `baseline=`/`reference=`, interval overlaps, exceedance/`P(A > B)` superiority, before/after event medians, log-axis slopes/power-law exponents with 95% CI, group correlations, and table leaders. **Your takeaway must agree with `facts`** (advisory checks `claim_overstates_uncertainty` and `claim_number_mismatch` warn on clear mismatches without blocking `ship`).
-- **`summary["ship"]` gates shipping:** `true` means zero errors and zero drawn-layout or text defects (including drawn-text overlaps, lines crossing text, malformed `%`/minus/`nan`, missing glyphs, LaTeX `$...$`, and sub-11 px chat text). When `summary["ship"]` is `true` and the takeaway agrees with `facts`, **send the figure right away** — do not re-render for advisory polish warnings (`many_items`, `too_tall`, `unit_is_long`).
-- **Match the user's harness:** `width="chat"` (700 px default), `width="narrow"` (450 px IDE sidebars — auto-stacks multi-panel vertically), `width="slide"` (1280 px hero/slides). Save interactive HTML via `fig.save("out.html")` (embedded SVG + Facts drawer + Critique/Ask-Agent snippet; Jupyter displays via `_repr_html_()`), or render terminal views with `fig.to_terminal()` / `figmint show`.
-- **Fast lenient mode:** wrap ad-hoc charts in `with fm.lenient():` (or `strict=False` / `--lenient`) to auto-facet >4 trend series, trim oversized lists, auto-stack cramped/wide panels, and move advisory warnings to `summary["advisories"]` (changes logged in `summary["adjustments"]`).
-- **Visual check & cap:** open the PNG when layout is tight; fix issues in at most 2 re-render rounds, then show the image plus 1–2 sentences adding cause, caveat, or next step.
+- `summary` returns `panels[i]["facts"]`, `narrative` (L1–L4), `issues`, `ok`, and `ship`.
+- **Read `facts` instead of recomputing:** forms compute rankings, baseline/reference gaps, interval overlaps, exceedance/`P(A > B)`, event medians, log slopes/power-law CIs, correlations, bottlenecks, and winners. Takeaway must agree with `facts` (`claim_overstates_uncertainty` / `claim_number_mismatch` warn advisories only).
+- **`summary["ship"]` gates shipping:** `true` = zero errors and zero layout/text defects (overlaps, struck text, malformed `%`/minus/`nan`, missing glyphs, `$...$`, <11 px text). When `ship` is `true` and facts agree, **send immediately** — ignore advisory polish warnings.
+- **Harness & output modes:** `width="chat"` (700 px), `width="narrow"` (450 px sidebar, auto-stacks), `width="slide"` (1280 px). `fig.save("out.html")` writes zero-CDN interactive HTML (`_repr_html_()` in Jupyter); `fig.to_terminal()` / `figmint show` renders in terminals.
+- **Lenient mode:** `with fm.lenient():` / `strict=False` / `--lenient` auto-adjusts soft limits (logged in `adjustments`). Visual check if tight; cap fixes at ≤2 rounds.
 
 ### Every argument (unknown arguments raise `ExplainError` naming valid ones)
 
 ```python
 fm.explain(takeaway, *panels,
-    subtitle=None, source=None, note=None,  # scope and figure-level footer
-    layout=None,            # e.g. [["a"], ["b", "c"]]; repeat key to widen: [["a", "a", "b"]]
-    colors=None,            # pin across figures: {"no retrieval": "red"} (blue, red, green, amber)
+    subtitle=None, source=None, note=None,  # scope and figure footer
+    layout=None,            # e.g. [["a"], ["b", "c"]]; repeat key to widen
+    colors=None,            # pin across figures: {"no retrieval": "red"} (blue/red/green/amber)
     style="figmint",        # "figmint" | "bold" | "editorial" | "paper" | "dark" | "mono" | "sketch"
     palette=None,           # "default" | "okabe_ito" | "tol" | "earth" | "ocean" | "berry"
-    accent=None,            # custom primary highlight hex color, e.g. "#D97757"
+    accent=None,            # custom primary highlight hex, e.g. "#D97757"
     strict=True,            # False / `with fm.lenient():`: auto-adjust soft limits
-    width="chat")           # "narrow" (450 px sidebar, auto-stacks), "chat" (700 px), "slide" (1280 px)
+    width="chat")           # "narrow" (450 px), "chat" (700 px), "slide" (1280 px)
 
 # Shared by every form: title=, label=, unit=, highlight= (1–3 names), fmt=
 # compare, trend, distribution, table also take baseline= (control/"before", drawn in ink)
 
-fm.compare(values,          # {name: num}, {cat: {series: num}} (grouped), Series, or rows
+fm.compare(values,          # {name: num}, {cat: {s: num}}, Series, or rows
     name=None, group=None, value=None, sort=True, zero=True, log=False,
-    error=None, inner_error=None, error_label=None,  # inner_error= thicker inner CI inside error=
+    error=None, inner_error=None, error_label=None,  # inner_error= inner CI inside error=
     boost=None, boost_label=None, show_delta=False,  # show_delta= inline (+delta) vs baseline=
-    n=None, reference=None)  # error=/inner_error=/boost=/n= also accept column name(s)
+    n=None, reference=None)
 
-fm.trend(x, series=None,    # wide (x, {name: [nums]} / DataFrame) or tidy ("x_col", "s_col", y="y_col", data=rows)
+fm.trend(x, series=None,    # wide (x, {s: [nums]}) or tidy ("x", "s", y="y", data=rows)
     y=None, data=None, x_label=None, x_unit=None, log=False, log_x=False, zero=False,
+    fit=False,              # True | "linear" | "log" | "power" overlays dashed regression fit
     band=None, band_label=None, points=None, points_label=None,
-    events=None, regions=None, callouts=None,  # regions=[(x0, x1, txt)], callouts=[(x, y, txt)] (<=4)
+    events=None, regions=None, callouts=None,  # regions=[(x0, x1, txt)], callouts=[(x, y, txt)]
     reference=None, end_values=True, facet=False)
 
-fm.change(before, after,    # two {name: num} or ("col1", "col2", data=rows, name="item")
-    data=None, name=None, labels=("Before", "After"))
+fm.change(before, after, data=None, name=None, labels=("Before", "After"))
 
-fm.distribution(groups,     # {name: [obs]}, wide DataFrame, or rows with group=/value=
+fm.distribution(groups,     # {g: [obs]}, wide DF, or rows (group=/value=)
     group=None, value=None, stat="median",
-    mode="dots", quantiles=20,  # mode="quantile" draws stacked countable quantile dotplot (5–50 dots)
+    mode="dots", quantiles=20,  # mode="quantile" countable quantile dotplot (5–50 dots)
     bins=None, log=False, reference=None)
 
-fm.histogram(values,        # alias for distribution(..., bins=bins); single list, <=4 groups, or rows
-    group=None, value=None, bins="auto", stat="median", log=False, reference=None)
+fm.histogram(values, group=None, value=None, bins="auto", stat="median", log=False, reference=None)
 
-fm.relate(x, y, x_label=, y_label=,   # two lists, or column names with data=rows
-    data=None, x_unit=None, names=None, groups=None, fit=False,
-    frontier=False,         # True/"upper-left" | "upper-right" | "lower-left" | "lower-right" Pareto envelope
-    label_all=False,        # label every point (requires names=, <=24 points) with collision avoidance
-    connect_groups=False,   # connect points within each group in x order (e.g. model generation trajectories)
-    regions=None, callouts=None,  # shaded x spans [(x0, x1, txt)] & direct leader notes [(x, y, txt)]
-    log_x=False, log_y=False, reference=None)
+fm.relate(x, y, x_label=, y_label=, data=None, x_unit=None, names=None, groups=None,
+    fit=False, frontier=False, label_all=False, connect_groups=False,
+    regions=None, callouts=None, log_x=False, log_y=False, reference=None)
 
-fm.share(parts,             # {name: >=0 num}, Series, or rows with name=/value=
-    name=None, value=None, top=7)
+fm.share(parts, name=None, value=None, top=7)
 
-fm.matrix(values,           # 2-D array / wide DataFrame, or tidy rows with rows="r", cols="c", value="v"
-    rows=None, cols=None, value=None, diverging=False, center=0.0, highlight=None)
+fm.matrix(values, rows=None, cols=None, value=None, diverging=False, center=0.0,
+    triangle=None, mask_diagonal=False, highlight=None)  # triangle="lower"|"upper" for symmetric matrices
 
-fm.table(rows,              # list[dict], DataFrame, {col: [...]}, or 2-D list + columns=
-    columns=None, units=None, highlight=None, baseline=None,
-    bold_best=False,        # True/"max" | "min" | {col: "max"|"min"} bolds numeric column winners
-    sort=None, align=None, fmt=None)  # sort="col" (asc) / "-col" (desc); panel.to_markdown() exports MD
+fm.table(rows, columns=None, units=None, highlight=None, baseline=None,
+    bold_best=False, sort=None, align=None, fmt=None)  # panel.to_markdown() exports MD
 
-fm.custom(draw_fn, height_mm=48.0, describe="...")  # last resort: draw_fn(ax)
+fm.waterfall(steps, name=None, value=None, start=None, total_label="Total", show_total=True, reference=None)
+
+fm.timeline(spans, name=None, start=None, end=None, group=None, x_label=None, sort=True, reference=None)
+
+fm.flow(stages, name=None, value=None, reason=None, show_pct=True)
+
+fm.custom(draw_fn, height_mm=48.0, describe="...")  # escape hatch: draw_fn(ax)
 ```
 
-### Core rules & limits (details & recipes in `references/scientific_and_recipes.md`)
+### Limits, edits & multi-turn workflows (`references/scientific_and_recipes.md`)
 
-- **Hard limits (strict mode):** `compare` ≤20, `change` ≤14, `distribution` ≤8 groups (≥3 obs each), `matrix` ≤16×12, `table` ≤20×8, `relate(groups=)` ≤4, `trend` ≤4 coloured series (else `highlight=` or `facet=True`, ≤12), `highlight=` ≤3 per panel, 4 shared entity colours per figure, ≤6 panels (warns >4), height warns `too_tall` >135 mm.
-- **Perceptual rules:** bars start at zero (`zero=False` or `error=`/`log=True` → dots); no pies, dual axes, legends, or rotated text; always name intervals (`error_label=`/`band_label=`); write Unicode directly (`µm`, `cm⁻³`, `°C`, `χ²` — never `$...$`).
-- **Round-trip edits:** every PNG embeds its spec (`spec = fm.load("fig.png").to_spec()`, edit, then `fm.explain_from_spec(spec)`). Use `write_spec=True` to also save `.json`.
+- **Hard limits (strict):** `compare`/`timeline`/`table` ≤20, `change`/`waterfall` ≤14, `flow` ≤12, `distribution` ≤8 groups (≥3 obs), `matrix` ≤16×12, `table` ≤8 cols, `relate(groups=)` ≤4, `trend` ≤4 coloured series (else `highlight=`/`facet=True`, ≤12), `highlight=` ≤3, 4 shared colours, ≤6 panels, `too_tall` >135 mm.
+- **Rules:** zero-baseline bars (`zero=False`/`error=`/`log=True` → dots); no pies, dual axes, legends, or rotated text; name every interval (`error_label=`/`band_label=`); direct Unicode (`µm`, `cm⁻³`, `°C` — never `$...$`).
+- **Auto, edits & memory:** `fm.auto_panel("data.csv")` picks form/columns; `fm.edit("fig.png", highlight=..., drop=..., style=..., out="v2.png")`; `s = fm.Session(style=..., state_path=...)` keeps colours across turns (prefix-matching variants); `s.brief("Title").save("report.html"|"report.md")` bundles reports.
 
 ## Publication Figures
 

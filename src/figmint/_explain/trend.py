@@ -730,6 +730,95 @@ def _isolated(arr: np.ndarray) -> np.ndarray:
     return finite & ~left & ~right
 
 
+def _draw_fit_curve(
+    ax: Axes,
+    xpos: np.ndarray,
+    arr: np.ndarray,
+    *,
+    fit_mode: str,
+    color: str,
+    scale: float,
+) -> None:
+    """Overlay a dashed OLS trendline (linear, log-linear, or power-law) within finite x span."""
+    ok = np.isfinite(xpos) & np.isfinite(arr)
+    if fit_mode in {"log", "power"}:
+        ok = ok & (arr > 0)
+    if fit_mode == "power":
+        ok = ok & (xpos > 0)
+    if int(ok.sum()) < 3:
+        return
+    xs = xpos[ok].astype(float)
+    ys = arr[ok].astype(float)
+    if float(np.ptp(xs)) <= 0:
+        return
+
+    if fit_mode == "power":
+        lx, ly = np.log10(xs), np.log10(ys)
+        slope, icept = np.polyfit(lx, ly, 1)
+        grid_x = np.geomspace(float(xs.min()), float(xs.max()), 60)
+        grid_y = 10.0 ** (slope * np.log10(grid_x) + icept)
+    elif fit_mode == "log":
+        ly = np.log10(ys)
+        slope, icept = np.polyfit(xs, ly, 1)
+        grid_x = np.linspace(float(xs.min()), float(xs.max()), 60)
+        grid_y = 10.0 ** (slope * grid_x + icept)
+    else:
+        slope, icept = np.polyfit(xs, ys, 1)
+        grid_x = np.linspace(float(xs.min()), float(xs.max()), 2)
+        grid_y = slope * grid_x + icept
+
+    ax.plot(
+        grid_x,
+        grid_y,
+        color=color,
+        linewidth=1.15 * scale,
+        linestyle=(0, (4, 2.5)),
+        alpha=0.82,
+        zorder=4.5,
+        label="_fit",
+    )
+
+
+def _linear_fit_facts(
+    names: Sequence[str],
+    data: Mapping[str, np.ndarray],
+    xpos: np.ndarray,
+    *,
+    x_kind: str,
+    unit: str | None,
+    x_unit: str | None,
+    label: str | None,
+) -> list[str]:
+    """Compute linear OLS slope (with 95% CI) and R² facts when ``trend(fit='linear'|True)``."""
+    out: list[str] = []
+    if x_kind == "category":
+        return out
+    per = f" per {x_unit}" if x_unit else (" per day" if x_kind == "date" else " per x unit")
+    for name in names:
+        arr = data[name]
+        ok = np.isfinite(xpos) & np.isfinite(arr)
+        if int(ok.sum()) < 3:
+            continue
+        xs = xpos[ok].astype(float)
+        ys = arr[ok].astype(float)
+        if float(np.ptp(xs)) <= 0:
+            continue
+        slope, icept = np.polyfit(xs, ys, 1)
+        resid = ys - (slope * xs + icept)
+        total = float(((ys - ys.mean()) ** 2).sum())
+        r2 = 1.0 - float((resid**2).sum()) / total if total > 0 else float("nan")
+        lo, hi = _slope_ci(xs, ys, float(slope), float(icept))
+        ci = ""
+        if math.isfinite(lo) and math.isfinite(hi):
+            joint = " to " if lo < 0 else "\N{EN DASH}"
+            ci = f" (95% CI {_sig_text(lo, 3)}{joint}{_sig_text(hi, 3)})"
+        shown = name or (label or "value")
+        slope_txt = _diff_with_unit(_signed(_sig_text(float(slope), 3)), unit)
+        r2_txt = f", R\N{SUPERSCRIPT TWO} = {r2:.2f}" if math.isfinite(r2) else ""
+        out.append(f"{shown}: linear fit slope {slope_txt}{per}{ci}{r2_txt}")
+    return out
+
+
 @_guarded("trend")
 def trend(
     x: Sequence[Any] | str,
@@ -755,6 +844,7 @@ def trend(
     log: bool = False,
     log_y: bool | None = None,
     log_x: bool = False,
+    fit: bool | str = False,
     end_values: bool = True,
     fmt: str | None = None,
     callouts: Sequence[tuple[Any, float, str]] | None = None,
@@ -860,6 +950,28 @@ def trend(
             reps = {k: [v[i] for i in order] for k, v in reps.items()}
             if band is not None:
                 band = _reorder_band(band, order, n)
+
+    fit_mode: str | None = None
+    if fit is True:
+        fit_mode = "power" if (log and log_x) else ("log" if log else "linear")
+    elif isinstance(fit, str):
+        fit_norm = fit.strip().lower()
+        if fit_norm not in {"linear", "log", "power"}:
+            raise ExplainError(
+                f"trend(fit={fit!r}) must be False, True, 'linear', 'log', or 'power'.",
+                fix_hint="Pass fit=True (auto-matches linear/log/log-log axes), fit='linear', or fit='log'.",
+            )
+        fit_mode = fit_norm
+    elif fit is not False and fit is not None:
+        raise ExplainError(
+            f"trend(fit={fit!r}) must be a bool or 'linear'/'log'/'power'.",
+            fix_hint="Pass fit=True or fit='linear'.",
+        )
+    if fit_mode is not None and x_kind == "category":
+        raise ExplainError(
+            "trend(fit=...) requires numeric or date x values (cannot fit a regression on categories).",
+            fix_hint="Pass numeric/date x values or drop fit=.",
+        )
     if log_x:
         if x_kind != "number":
             raise ExplainError(
@@ -1140,6 +1252,18 @@ def trend(
             )
     if bands:
         facts.append(_interval_mode_text(band_modes, "bands"))
+    if fit_mode == "linear":
+        facts.extend(
+            _linear_fit_facts(
+                colored,
+                data,
+                xpos,
+                x_kind=x_kind,
+                unit=unit,
+                x_unit=x_unit,
+                label=label,
+            )
+        )
 
     describe = (
         f"{'Small-multiple line charts' if facet else 'Line chart'} of {label or 'values'}"
@@ -1369,6 +1493,8 @@ def trend(
             if effects is not None:
                 line_kw["path_effects"] = effects
             ax.plot(xpos, data[name], **line_kw)
+            if fit_mode is not None:
+                _draw_fit_curve(ax, xpos, data[name], fit_mode=fit_mode, color=col, scale=sz.scale)
             _measured_points(ax, name, col, sz, theme)
             i1, v1 = _last(data[name])
             ax.plot(
@@ -1555,6 +1681,8 @@ def trend(
             if effects is not None:
                 line_kw["path_effects"] = effects
             child.plot(xpos, data[name], **line_kw)
+            if fit_mode is not None:
+                _draw_fit_curve(child, xpos, data[name], fit_mode=fit_mode, color=col, scale=sz.scale)
             _measured_points(child, name, col, sz, theme)
             i1, v1 = _last(data[name])
             child.plot(
@@ -1656,15 +1784,22 @@ def trend(
         zero=zero or None,
         log=log or None,
         log_x=log_x or None,
+        fit=fit if fit else None,
         end_values=None if end_values else False,
         fmt=fmt,
     )
     dot_label = (points_label or "").strip() or "replicates"
+    fit_note = (
+        f"dashed: { {'linear': 'linear fit', 'log': 'log-linear fit', 'power': 'power-law fit'}[fit_mode] }"
+        if fit_mode is not None
+        else None
+    )
     notes = [
         nt
         for nt in (
             f"band: {band_label}" if bands and band_label else None,
             f"dots: {dot_label}" if reps else None,
+            fit_note,
         )
         if nt
     ]

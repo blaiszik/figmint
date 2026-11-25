@@ -1,0 +1,57 @@
+{
+  "takeaway": "Quantized Alpha-3 (int4) retains 85.3% while cutting serving cost by 52%",
+  "source": "Synthetic serving telemetry",
+  "style": "dark",
+  "accent": "#D97757",
+  "colors": {
+    "Alpha-3 (int4)": "red",
+    "Beta-Pro (int4)": "blue"
+  },
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "Alpha-3 (int4)": 85.3,
+        "Beta-Pro (int4)": 81.9,
+        "Baseline": 77.1
+      },
+      "highlight": [
+        "Alpha-3 (int4)",
+        "Beta-Pro (int4)"
+      ],
+      "baseline": "Baseline",
+      "sort": true,
+      "zero": false,
+      "show_delta": true,
+      "title": "Turn 2: Quantized accuracy (inherited hues)",
+      "label": "GPQA",
+      "unit": "%"
+    },
+    {
+      "kind": "waterfall",
+      "steps": {
+        "int4 weights": -1.1,
+        "KV cache compression": -0.45,
+        "Speculative decode": -0.3,
+        "Router overhead": 0.15
+      },
+      "start": [
+        "Full precision",
+        3.25
+      ],
+      "total_label": "Shipped int4",
+      "highlight": [
+        "int4 weights"
+      ],
+      "title": "Serving cost bridge",
+      "label": "Cost",
+      "unit": "$/M"
+    }
+  ]
+}

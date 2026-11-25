@@ -188,6 +188,8 @@ def matrix(
     unit: str | None = None,
     diverging: bool = False,
     center: float = 0.0,
+    triangle: str | None = None,
+    mask_diagonal: bool = False,
     highlight: Any = None,
     fmt: str | None = None,
 ) -> Panel:
@@ -252,9 +254,38 @@ def matrix(
             "rows/columns the takeaway is about, or split into two matrix() panels.",
             rule="too_many_items",
         )
-    finite = grid[np.isfinite(grid)]
+    if triangle is not None:
+        tri_norm = str(triangle).strip().lower()
+        if tri_norm not in {"lower", "upper"}:
+            raise ExplainError(
+                f"matrix(triangle={triangle!r}) must be 'lower', 'upper', or None.",
+                fix_hint="Use triangle='lower' or triangle='upper' for symmetric matrices.",
+            )
+        if len(row_names) != len(col_names):
+            raise ExplainError(
+                f"matrix(triangle={tri_norm!r}) requires a square matrix, got {len(row_names)}x{len(col_names)}.",
+                fix_hint="Drop triangle= for rectangular matrices.",
+            )
+        triangle = tri_norm
+    if mask_diagonal and len(row_names) != len(col_names):
+        raise ExplainError(
+            f"matrix(mask_diagonal=True) requires a square matrix, got {len(row_names)}x{len(col_names)}.",
+            fix_hint="Drop mask_diagonal=True for rectangular matrices.",
+        )
+
+    n_r, n_c = grid.shape
+    hidden_mask = np.zeros((n_r, n_c), dtype=bool)
+    if triangle == "lower":
+        hidden_mask[np.triu_indices(n_r, k=1)] = True
+    elif triangle == "upper":
+        hidden_mask[np.tril_indices(n_r, k=-1)] = True
+    diag_mask = np.eye(n_r, n_c, dtype=bool) if mask_diagonal else np.zeros((n_r, n_c), dtype=bool)
+    active_mask = ~(hidden_mask | diag_mask)
+
+    visible_grid = np.where(active_mask, grid, np.nan)
+    finite = visible_grid[np.isfinite(visible_grid)]
     if finite.size == 0:
-        raise ExplainError("matrix(values) has no finite cells.", fix_hint="Pass numbers.")
+        raise ExplainError("matrix(values) has no finite visible cells.", fix_hint="Pass numbers.")
     cells, hl_rows, hl_cols = _matrix_highlight(highlight, row_names, col_names)
 
     fmt_fn = _formatter(list(finite), fmt, unit=unit)
@@ -265,7 +296,11 @@ def matrix(
     # A constant diagonal (a correlation matrix's 1s) says nothing: leave it out of
     # highest/lowest and the means, and say so once.
     drop_diag = bool(
-        square and np.isfinite(diag).all() and np.all(diag == diag[0]) and grid.size > diag.size
+        square
+        and (
+            mask_diagonal
+            or (np.isfinite(diag).all() and np.all(diag == diag[0]) and grid.size > diag.size)
+        )
     )
     body = grid.copy()
     if drop_diag:
@@ -281,8 +316,11 @@ def matrix(
     lo_at = np.unravel_index(int(np.nanargmin(body)), grid.shape)
     facts = [f"highest: {_cell_text(hi_at)}", f"lowest: {_cell_text(lo_at)}"]
     if drop_diag:
-        one = _formatter([float(diag[0])], fmt, unit=unit)(float(diag[0]))
-        facts.append(f"diagonal is {_with_unit(one, unit)} throughout (excluded)")
+        if mask_diagonal:
+            facts.append("diagonal masked from colour scale and extrema")
+        else:
+            one = _formatter([float(diag[0])], fmt, unit=unit)(float(diag[0]))
+            facts.append(f"diagonal is {_with_unit(one, unit)} throughout (excluded)")
     with np.errstate(all="ignore"):
         row_means = np.array(
             [float(np.mean(r[np.isfinite(r)])) if np.isfinite(r).any() else np.nan for r in body]
@@ -370,9 +408,10 @@ def matrix(
         if square:
             col[c] = np.nan
         _strongest(col, f"{col_names[c]} column", lambda k, c=c: (k, c))
-    empty = int((~np.isfinite(grid)).sum())
+    empty = int((active_mask & ~np.isfinite(grid)).sum())
     if empty:
-        facts.append(f"{empty} of {grid.size} cells empty (no value)")
+        active_total = int(active_mask.sum())
+        facts.append(f"{empty} of {active_total} cells empty (no value)")
     longest = max(len(fmt_fn(float(v))) for v in finite)
 
     def _draw(ctx: _Ctx, ax: Axes) -> None:
@@ -381,18 +420,19 @@ def matrix(
         n_rows, n_cols = grid.shape
         if diverging:
             reach = max(hi - center, center - lo) or 1.0
-            t = (grid - center) / reach  # -1 .. 1
+            t = (visible_grid - center) / reach  # -1 .. 1
             rgb = np.where(
                 (t < 0)[..., None],
                 _ramp((*theme.div_low, theme.div_mid), 1.0 + np.nan_to_num(t)),
                 _ramp((theme.div_mid, *theme.div_high), np.nan_to_num(t)),
             )
         else:
-            t = (grid - lo) / ((hi - lo) or 1.0)
+            t = (visible_grid - lo) / ((hi - lo) or 1.0)
             rgb = _ramp(theme.seq_stops, np.nan_to_num(t))
         bg_rgb = np.array(to_rgb(theme.background))
         empty_rgb = 0.85 * bg_rgb + 0.15 * np.array(to_rgb(theme.context_fill))
-        rgb = np.where(np.isfinite(grid)[..., None], rgb, empty_rgb)
+        rgb = np.where(np.isfinite(visible_grid)[..., None], rgb, empty_rgb)
+        rgb = np.where(hidden_mask[..., None], bg_rgb, rgb)
 
         _bare_axes(ax)
         ax.imshow(
@@ -404,25 +444,29 @@ def matrix(
         )
         divider_col = theme.ink if theme.sketch is not None else theme.background
         divider_lw = 0.8 if theme.sketch is not None else 1.6
-        ax.hlines(
-            np.arange(n_rows + 1) - 0.5,
-            -0.5,
-            n_cols - 0.5,
-            color=divider_col,
-            linewidth=divider_lw,
-            zorder=2,
-        )
-        ax.vlines(
-            np.arange(n_cols + 1) - 0.5,
-            -0.5,
-            n_rows - 0.5,
-            color=divider_col,
-            linewidth=divider_lw,
-            zorder=2,
-        )
+        if triangle is None or theme.sketch is None:
+            ax.hlines(
+                np.arange(n_rows + 1) - 0.5,
+                -0.5,
+                n_cols - 0.5,
+                color=divider_col,
+                linewidth=divider_lw,
+                zorder=2,
+            )
+            ax.vlines(
+                np.arange(n_cols + 1) - 0.5,
+                -0.5,
+                n_rows - 0.5,
+                color=divider_col,
+                linewidth=divider_lw,
+                zorder=2,
+            )
         ax.set_xlim(-0.5, n_cols - 0.5)
         ax.set_ylim(n_rows - 0.5, -0.5)
-        ax.xaxis.tick_top()
+        if triangle == "lower":
+            ax.xaxis.tick_bottom()
+        else:
+            ax.xaxis.tick_top()
         ax.set_xticks(range(n_cols), [_plain(c, theme) for c in col_names])
         ax.set_yticks(range(n_rows), [_plain(r, theme) for r in row_names])
         ax.tick_params(length=0, labelsize=sz.small, labelcolor=theme.ink, pad=3)
@@ -430,7 +474,9 @@ def matrix(
         light_fg = "#FFFFFF" if light_ground else theme.ink
         dark_fg = theme.ink if light_ground else theme.background
         for (i, j), cell_val in np.ndenumerate(grid):
-            if not math.isfinite(cell_val):
+            if hidden_mask[i, j]:
+                continue
+            if diag_mask[i, j] or not math.isfinite(cell_val):
                 note = ax.text(
                     j,
                     i,
@@ -559,6 +605,8 @@ def matrix(
             cols=col_names,
             diverging=diverging or None,
             center=center if diverging else None,
+            triangle=triangle,
+            mask_diagonal=mask_diagonal or None,
             highlight=_jsonable(highlight) if highlight is not None else None,
             fmt=fmt,
         ),

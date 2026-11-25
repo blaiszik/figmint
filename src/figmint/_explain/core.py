@@ -102,6 +102,9 @@ KINDS: tuple[str, ...] = (
     "share",
     "matrix",
     "table",
+    "waterfall",
+    "timeline",
+    "flow",
 )
 
 
