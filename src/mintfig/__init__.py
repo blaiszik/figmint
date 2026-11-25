@@ -67,7 +67,7 @@ from .style import apply, rc_params, resolved_font_name, use
 from .terminal import render_terminal, show_in_terminal
 from .themes import EXPLAIN_PALETTES, THEMES, ExplainPalette, Theme, get_explain_palette, get_theme
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 __all__ = [
     "BANNED_COLORMAPS",

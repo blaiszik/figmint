@@ -5,7 +5,7 @@ description: Explain data to a user with a message-first chat figure or table (o
 
 # mintfig — Figures That Say One Thing
 
-> **Install:** `pip install git+https://github.com/blaiszik/mintfig` (or `uv pip install ...`).
+> **Install:** `pip install mintfig` (or `uv pip install mintfig`).
 
 **Chat figures: read down to "Publication Figures" and stop.** Deep recipes & sizing: `references/scientific_and_recipes.md`; manuscripts: `references/publication.md`.
 
