@@ -308,30 +308,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Treat warnings as failures (exit code 1 on any warning or error).",
     )
 
-    # `mintfig check plot.py [--claim "..."] [--width chat] [--json]`  (any Matplotlib script)
+    # `mintfig check plot.py [--claim "..."] [--width chat] [--python ...] [--json]`  (script/notebook)
     # `mintfig check <pdf_path> --journal nature [--json] [--strict]`  (journal preflight)
     check_parser = subparsers.add_parser(
         "check",
         help=(
-            "Check a Matplotlib script's figures against their own data at reading size "
-            "(plot.py), or run journal preflight on an exported PDF (figure.pdf)."
+            "Check a Matplotlib script (.py) or notebook (.ipynb) against its own data "
+            "at reading size, or run journal preflight on an exported PDF (figure.pdf)."
         ),
     )
     check_parser.add_argument(
         "pdf_path",
         type=Path,
         metavar="path",
-        help="A plotting script (.py) to run and check, or a PDF figure to preflight.",
+        help="A plotting script (.py), Jupyter notebook (.ipynb), or PDF figure (.pdf) to check.",
     )
     check_parser.add_argument(
         "--claim",
         default=None,
-        help="Script only: the sentence to check against the data (default: each figure's headline).",
+        help="Script/notebook only: the sentence to check against the data (default: each figure's headline).",
     )
     check_parser.add_argument(
         "--width",
         default="chat",
-        help="Script only: narrow (450 px), chat (700 px, default), slide (1280 px) or pixels.",
+        help="Script/notebook only: narrow (450 px), chat (700 px, default), slide (1280 px) or pixels.",
+    )
+    check_parser.add_argument(
+        "--python",
+        default=None,
+        help="Script/notebook only: Python interpreter to run with (default: auto-detect project .venv).",
     )
     check_parser.add_argument(
         "--journal",
@@ -1315,9 +1320,9 @@ def _rerun_with_fixed_hash_seed() -> int | None:
 
 
 def _run_figure_check(args: argparse.Namespace) -> int:
-    """`mintfig check plot.py`: exit 0 when every figure ships, 1 when one needs a fix,
-    2 when the script fails or draws no figure."""
-    from .figcheck import WIDTHS, check_script, format_report
+    """`mintfig check plot.py` / `analysis.ipynb`: exit 0 when every figure ships, 1 when one
+    needs a fix, 2 when the script/notebook fails or draws no figure."""
+    from .figcheck import WIDTHS, check_notebook, check_script, format_report
 
     width: str | int = args.width
     if width not in WIDTHS:
@@ -1326,8 +1331,9 @@ def _run_figure_check(args: argparse.Namespace) -> int:
         except ValueError:
             print(f"Error: --width must be one of {sorted(WIDTHS)} or pixels, not {args.width!r}", file=sys.stderr)
             return 2
+    runner = check_notebook if args.pdf_path.suffix.lower() == ".ipynb" else check_script
     try:
-        reports = check_script(args.pdf_path, claim=args.claim, width=width)
+        reports = runner(args.pdf_path, claim=args.claim, width=width, python=getattr(args, "python", None))
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
@@ -1378,7 +1384,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(_format_all_specs())
         return 0
 
-    if args.command == "check" and args.pdf_path.suffix.lower() == ".py":
+    if args.command == "check" and args.pdf_path.suffix.lower() in {".py", ".ipynb"}:
         return _run_figure_check(args)
 
     if args.command == "check":
