@@ -27,43 +27,44 @@ PT30_DIR = (
 
 
 def render_arms_overview(out_path: Path) -> None:
-    """Plot the measured v0.1-initial-15 arm comparison with mintfig."""
-    # Exact final/first-try percentages from evals/figure_bench/runs/compare_r6_b1_u1.md
+    """Plot the measured full 60-task v0.1 arm comparison with mintfig."""
+    # Exact 60-task results from evals/figure_bench/leaderboard/submissions/v01_all60_*_sonnet55.json
+    # and evals/figure_bench/runs/v01_sonnet55_compare.md
     metrics = {
-        "First-try clean": {
-            "mintfig (r6)": round(14 / 15 * 100, 1),
-            "Matplotlib, told (b1)": round(12 / 15 * 100, 1),
-            "Matplotlib, default (u1)": round(2 / 15 * 100, 1),
+        "Zero-defect figure": {
+            "mintfig": round(57 / 60 * 100, 1),
+            "Matplotlib + hook": round(48 / 60 * 100, 1),
+            "Matplotlib, default": round(21 / 60 * 100, 1),
         },
-        "Final clean": {
-            "mintfig (r6)": 100.0,
-            "Matplotlib, told (b1)": 100.0,
-            "Matplotlib, default (u1)": round(2 / 15 * 100, 1),
+        "Text >= 11 px (saved)": {
+            "mintfig": 100.0,
+            "Matplotlib + hook": round(56 / 57 * 100, 1),
+            "Matplotlib, default": round(28 / 60 * 100, 1),
         },
         "Right headline #": {
-            "mintfig (r6)": 100.0,
-            "Matplotlib, told (b1)": round(4 / 15 * 100, 1),
-            "Matplotlib, default (u1)": round(4 / 15 * 100, 1),
+            "mintfig": round(53 / 60 * 100, 1),
+            "Matplotlib + hook": round(39 / 60 * 100, 1),
+            "Matplotlib, default": round(36 / 60 * 100, 1),
         },
         "Uncertainty named": {
-            "mintfig (r6)": 100.0,
-            "Matplotlib, told (b1)": 75.0,
-            "Matplotlib, default (u1)": 75.0,
+            "mintfig": round(29 / 33 * 100, 1),
+            "Matplotlib + hook": round(20 / 31 * 100, 1),
+            "Matplotlib, default": round(24 / 33 * 100, 1),
         },
     }
     fig = mint.explain(
-        "mintfig ships 93% clean on try 1 and 100% right headlines vs 13% and 27% for default Matplotlib",
+        "Across 60 tasks, mintfig ships 95% zero-defect figures and 88% right headlines vs 35% and 60% for default Matplotlib",
         mint.compare(
             metrics,
             title="Share of tasks passing each neutral audit check (%)",
             label="Pass rate",
             unit="%",
-            baseline="Matplotlib, default (u1)",
-            highlight=["mintfig (r6)", "Matplotlib, told (b1)"],
+            baseline="Matplotlib, default",
+            highlight=["mintfig", "Matplotlib + hook"],
             sort=False,
         ),
-        subtitle="figure-bench v0.1 initial-15 baseline (10 dev + 5 held-out tasks, fresh Sonnet 5.5 agent per task)",
-        source="evals/figure_bench/runs/compare_r6_b1_u1.md",
+        subtitle="figure-bench v0.1 full 60-task sweep (15 dev + 30 public-test + 15 heldout, fresh Sonnet 5.5 per task)",
+        source="evals/figure_bench/leaderboard/submissions/v01_all60_*_sonnet55.json",
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     summary = fig.save(out_path)

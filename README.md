@@ -4,7 +4,7 @@
 
 Working with Claude Code, Codex, Cursor, or Antigravity shouldn't end in 16 numbers buried in prose or a cramped default Matplotlib chart with tiny text, truncated axes, and unnamed error bars. `mintfig` upgrades your agentic coding interface into a visual briefing loop: agents turn raw results into beautiful, publication-grade graphics whose headlines are checked against the plotted data — or automatically audit and upgrade the Matplotlib you already write (`mint.check`, `mint.style`, `mintfig hook --install`).
 
-In [figure-bench v0.1](docs/figure-bench.md) (60 tasks across science, SWE, and epistemic traps; initial 15-task agent baseline), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15** — while `mintfig` shipped **14/15** clean on try 1 (**15/15** final) with **15/15** accurate headlines. Watch an agent's wall of 32 numbers turn into inline `mintchip` sparklines & intervals, a forest-plot table, and an interactive `mintfig` figure you can hover and click to cite back:
+In [figure-bench v0.1](docs/figure-bench.md) (**60 tasks** across science, SWE, epistemic traps, multi-surface delivery, and BYO repair; fresh Claude Sonnet 5.5 agent per task), agents writing default Matplotlib shipped a layout or text defect in **39 of 60** figures (**65%**, with median smallest text shrinking to `10.9 px` at reading width) and put the right number in the headline in **36 of 60** — while adding the `mint.check` hook cut defects to **9 of 57** (**80%** clean overall, composite **89.2**), and `mintfig` shipped **0 defects across all 57 saved figures** (**57/60** clean, **53/60** accurate headlines, composite **93.5**, fastest median time **13.4 s**). Watch an agent's wall of 32 numbers turn into inline `mintchip` sparklines & intervals, a forest-plot table, and an interactive `mintfig` figure you can hover and click to cite back:
 
 ![Wall of 32 agent numbers transformed into mintchip inline chips, a forest-plot table, and an interactive mintfig figure](gallery/output/readme_comparison/opener.gif)
 
@@ -61,7 +61,7 @@ mintfig hook --install
 
 ### Already have Matplotlib? Check it (`mint.check`)
 
-Most figures an agent ships are plain Matplotlib, and in [figure-bench v0.1](docs/figure-bench.md) (initial 15-task baseline) agents writing it without guardrails shipped a layout or text defect in **13 of 15** figures and stated the right number in the headline in only **4 of 15**. Watch `mintfig check plot.py` catch a wrong claim (`12 points` vs `8 points`), truncated bar axis, and `8.1 px` text — and verify the fix with zero rewrite:
+Most figures an agent ships are plain Matplotlib, and in our full 60-task [figure-bench v0.1](docs/figure-bench.md) sweep, agents writing it without guardrails shipped a layout or text defect in **39 of 60** figures (only **28/60** legible at display width). Adding the `mint.check` feedback hook jumped clean figures from **21/60 → 48/60** and text legibility to **98.2%** with zero library rewrite. Watch `mintfig check plot.py` catch a wrong claim (`12 points` vs `8 points`), truncated bar axis, and `8.1 px` text — and verify the fix:
 
 ![mintfig check auditing a broken Matplotlib figure, catching a wrong headline claim and unreadable text, and verifying the fix](gallery/output/readme_comparison/mintcheck.gif)
 

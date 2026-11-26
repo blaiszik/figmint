@@ -490,7 +490,7 @@ def render_html(
 
   <div class="section-head">
     <h2>Open Leaderboard</h2>
-    <span class="hint" id="leaderboard-note">Initial seed rows reflect real measured 15-task runs (v0.1-initial-15). Click any column header to sort; click a row for provenance.</span>
+    <span class="hint" id="leaderboard-note">Includes full 60-task v0.1 runs across 3 arms (Claude Sonnet 5.5) plus initial 15-task baseline seeds. Click any column header to sort; click a row for provenance.</span>
   </div>
 
   <div class="filters">

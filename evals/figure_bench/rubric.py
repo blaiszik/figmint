@@ -801,8 +801,10 @@ def _score_delivery(
         wanted: set[str] = set()
         if png_path is not None:
             wanted.add(png_path.name)
+            wanted.add("figure.png")
         if svg_path is not None:
             wanted.add(svg_path.name)
+            wanted.add("figure.svg")
         for got in images:
             if not wanted or Path(got).name in wanted or got in wanted:
                 shown = f"image {got}"

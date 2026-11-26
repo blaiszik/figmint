@@ -52,9 +52,10 @@ async function renderComp(compId, outDir) {
   });
 }
 
+const only = process.argv[6] || "both";
 try {
-  await renderComp("ReadmeOpener", openerOut);
-  await renderComp("ReadmeCheck", checkOut);
+  if (only === "both" || only === "opener") await renderComp("ReadmeOpener", openerOut);
+  if (only === "both" || only === "check") await renderComp("ReadmeCheck", checkOut);
 } finally {
   await browser.close({ silent: true });
 }

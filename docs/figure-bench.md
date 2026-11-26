@@ -1,6 +1,6 @@
 # figure-bench v0.1 — Results & Failure Anatomy
 
-> **Work in progress (`v0.1`):** `figure-bench` now includes **60 deterministic tasks** across 3 splits (`15 dev`, `30 public-test`, `15 heldout`) and 6 tracks, with a library-agnostic SVG + pixel + rubric scorer and an open PR leaderboard. The measured agent comparison below reflects our **initial 15-task baseline (`v0.1-initial-15`)** while full 60-task runs across models and plotting libraries (`matplotlib`, `seaborn`, `altair`, `plotly`, `ggplot2`, `mintfig`, custom skills/hooks) are collected.
+> **Work in progress (`v0.1`):** `figure-bench` includes **60 deterministic tasks** across 3 splits (`15 dev`, `30 public-test`, `15 heldout`) and 6 tracks, with a library-agnostic SVG + pixel + rubric scorer and an open PR leaderboard. Below are the full **60-task × 3-arm** measured results on Claude Sonnet 5.5 (180 fresh isolated runs); additional models (`GPT`, `Gemini`, open-weights), plotting libraries (`seaborn`, `altair`, `plotly`, `ggplot2`), and human blind reader studies are welcome via PR.
 
 **Why `figure-bench` exists:** AI coding agents already know how to call `matplotlib.pyplot`. The hard part is turning raw data into a figure that stays legible at actual chat/phone reading width (`700 px` / `450 px`), names its uncertainty honestly, refuses to overclaim noisy results, and states a headline number that actually matches the plotted data.
 
@@ -13,30 +13,40 @@
 
 ## 1. Results at a Glance
 
-### Agent comparison (`v0.1-initial-15`, measured 2026-11-25)
+### Full 60-task agent sweep (`v0.1`, measured 2026-11-26)
 
-![Comparison of mintfig, prompted Matplotlib, and default Matplotlib on figure-bench v0.1-initial-15](assets/figure_bench/arms_overview.png)
+![Comparison of mintfig, Matplotlib with mint.check hook, and default Matplotlib across all 60 figure-bench v0.1 tasks](assets/figure_bench/arms_overview.png)
 
-*Full raw breakdown and methodology: [`evals/figure_bench/runs/compare_r6_b1_u1.md`](../evals/figure_bench/runs/compare_r6_b1_u1.md) (10 `dev` + 5 `heldout` tasks, one fresh Claude Sonnet 5.5 agent per task and arm, audited neutrally via `Figure.savefig` without importing `mintfig`).*
+*180 fresh isolated Claude Code (`claude-sonnet-5-5`) runs — 60 tasks × 3 arms (`15 dev` + `30 public-test` + `15 heldout`), global hooks and MCP servers disabled for clean arm separation, audited neutrally via `Figure.savefig` (`neutral.py`) and the 4-dimension rubric (`rubric.py`). Verified leaderboard submissions: [`evals/figure_bench/leaderboard/submissions/`](../evals/figure_bench/leaderboard/submissions/).*
 
-| Arm (`v0.1-initial-15`) | First-Try Clean | Final Clean | Text >= 11 px at 700 px | Right Headline # | Uncertainty Named | Median Time | Composite |
+| Arm (60 tasks, Sonnet 5.5) | Saved | Zero-Defect (Final) | Text >= 11 px | Right Headline # | Uncertainty Named | Median Time | Composite |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **`mintfig` (`r6`)** | **93.3%** (14/15) | **100.0%** (15/15) | **100%** (15/15) | **100.0%** (15/15) | **100%** (4/4) | 16.6 s | **100.0** |
-| **Matplotlib, told rules (`b1`)** | 80.0% (12/15) | 100.0% (15/15) | 100% (15/15) | 26.7% (4/15) | 75% (3/4) | 19.5 s | **68.4** |
-| **Matplotlib, default (`u1`)** | **13.3%** (2/15) | **13.3%** (2/15) | **40%** (6/15) | **26.7%** (4/15) | 75% (3/4) | 14.8 s | **33.4** |
+| **`mintfig` (`SKILL.md` + `mint.explain`)** | 57/60 | **57/60 (95.0%)** *(0/57 saved defects)* | **57/57 (100%)** | **53/60 (88.3%)** *(93.0% of saved)* | **29/33 (87.9%)** | **13.4 s** | **93.5** |
+| **Plain Matplotlib + `mint.check` hook** | 57/60 | **48/60 (80.0%)** | **56/57 (98.2%)** | 39/60 (65.0%) *(68.4% of saved)* | 20/31 (64.5%) | 17.4 s | **89.2** |
+| **Plain Matplotlib, default (no hook)** | 60/60 | **21/60 (35.0%)** *(39/60 defective)* | **28/60 (46.7%)** *(median 10.9 px)* | 36/60 (60.0%) | 24/33 (72.7%) | 15.4 s | **81.6** |
+
+#### Breakdown by split (`Composite / 100` and `Visual Quality / 100`)
+
+| Split (Tasks) | `mintfig` | Matplotlib + `mint.check` hook | Matplotlib, default |
+| :--- | ---: | ---: | ---: |
+| **`dev`** (15) | **97.7** (`VQ 93.3`) | 96.0 (`VQ 96.0`) | 82.3 (`VQ 72.3`) |
+| **`public-test`** (30, frozen) | **89.7** (`VQ 93.3`) | 88.9 (`VQ 92.3`) | 81.0 (`VQ 77.0`) |
+| **`heldout`** (15, never tuned on) | **97.0** (`VQ 100.0`) | 83.1 (`VQ 85.7`) | 82.2 (`VQ 85.3`) |
 
 ### Supporting automated evaluations
 
 | Evaluation | Dataset | Key Measured Result | Report |
 | :--- | :--- | :--- | :--- |
+| **Initial 15-Task Seed Run** | 10 `dev` + 5 `heldout` (`r6` vs `b1` vs `u1`) | `mintfig` **15/15** clean & accurate headlines vs **2/15** clean / **4/15** headlines for default Matplotlib | [`evals/figure_bench/runs/compare_r6_b1_u1.md`](../evals/figure_bench/runs/compare_r6_b1_u1.md) |
 | **Wild-50 `mint.check` Audit** | 50 realistic Matplotlib & Seaborn-idiom scripts (25 clean, 25 defective) | **0/25 (0.0%) false positives**, **25/25 (100%) defect catch**, **25/25 (100%) exact-rule recall** (down from 36% pre-hardening FP) | [`evals/check_bench/REPORT.md`](../evals/check_bench/REPORT.md) |
 | **40-Prompt Skill Trigger Eval** | 20 quantitative/plotting prompts + 20 routine coding prompts (zero mentions of `mintfig`) | **100.0% recall (20/20)**, **0.0% false triggers (0/20)** (offline rubric; `--live` CLI adapter included) | [`evals/trigger_eval/REPORT.md`](../evals/trigger_eval/REPORT.md) |
 
-### What these results do — and do not — prove yet
+### What these 60-task results show — and where room remains
 
-- **Unguided Matplotlib fails layout at reading width almost every time (`13/15` defective in `u1`).** Agents default to wide `12×5 in` canvases, small tick/axis fonts, rotated labels, and annotations placed right over data lines.
-- **Even when told the display width and layout checks (`b1`), plain Matplotlib still misses the message.** `b1` fixed final layout defects (`15/15`), yet put the verified quantitative answer in the headline in only **4 of 15** figures (vs. **15 of 15** for `mintfig`) and missed naming uncertainty on 1 of 4 replicate/seed tasks.
-- **Caveat on reader comprehension:** In that early 15-task run, blind VLM readers given full-resolution PNGs extracted the single primary number across all three arms (`15/15` after correcting one swapped folder ID). That is why `figure-bench v0.1` adds **display-width-locked (`700 px` / `450 px`) 3-question blind reader studies** (primary value + uncertainty judgment + caveat) and a dedicated **Epistemic Traps** track (`no_effect_trap` overlapping CIs, Simpson's paradox, outliers, truncated-bar bait).
+- **Default Matplotlib fails reading-width layout on 65% of tasks (`39/60` defective).** More than half of default Matplotlib figures (`32/60`) had text smaller than `11 px` at display width (median smallest text `10.9 px`), `11/60` had text crossed by lines, and `11/60` had malformed text (`ASCII minus`, `%%`, etc.).
+- **The `mint.check` hook lifts plain Matplotlib from `35% → 80%` clean with zero library rewrite.** Giving the agent `mint.check` feedback on submit pushed text legibility from `46.7% → 98.2%`, eliminated all malformed text (`57/57`), and raised composite score from `81.6 → 89.2`.
+- **`mintfig` ships zero layout/text defects on every saved figure (`57/57` = 100%) and generalizes to `heldout` (`97.0` composite, `100.0` visual quality).** It also placed the verified quantitative answer in the headline on `53/57` saved figures (`93.0%`) and finished fastest (`13.4 s` median).
+- **Transparent failure notes (3 unsaved `mintfig` tasks):** On 3 of 60 tasks (`09_eval_matrix`, `pt19_k6_latency_deploy`, `pt22_signup_funnel`), `mintfig`'s strict pre-save layout/API guards raised an `ExplainError` (e.g., wide matrix column headers or a tuple argument mistake on `trend(reference=...)`) and the agent exhausted its 3-attempt cap without saving. Hardening `SKILL.md` examples and error recovery for those 3 patterns is tracked for v0.2, alongside display-width-locked human blind reader scores (`human_study/index.html`).
 
 ---
 

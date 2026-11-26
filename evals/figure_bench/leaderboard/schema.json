@@ -63,7 +63,7 @@
     },
     "split": {
       "type": "string",
-      "enum": ["dev", "public-test", "heldout", "v0.1-initial-15"]
+      "enum": ["all", "dev", "public-test", "heldout", "v0.1-initial-15"]
     },
     "work_in_progress": {
       "type": "boolean",

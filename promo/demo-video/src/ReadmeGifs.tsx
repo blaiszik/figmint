@@ -1235,16 +1235,16 @@ const CheckSceneExplain: React.FC<{ frame: number }> = ({ frame }) => {
 
 const StatBlock: React.FC<{
   label: string;
-  rows: { name: string; n: number; color: string }[];
+  rows: { name: string; n: number; denom: number; color: string }[];
   startFrame: number;
 }> = ({ label, rows, startFrame }) => {
   const frame = useCurrentFrame();
 
   return (
-    <div style={{ width: 980, fontFamily: SANS }}>
-      <div style={{ color: C.ink, fontSize: 27, fontWeight: 750, marginBottom: 14 }}>{label}</div>
+    <div style={{ width: 1020, fontFamily: SANS }}>
+      <div style={{ color: C.ink, fontSize: 25, fontWeight: 750, marginBottom: 12 }}>{label}</div>
       {rows.map((r, i) => {
-        const p = ramp(frame, startFrame + i * 4, startFrame + i * 4 + 14);
+        const p = ramp(frame, startFrame + i * 3, startFrame + i * 3 + 14);
         const shown = Math.round(r.n * p);
         return (
           <div
@@ -1252,15 +1252,15 @@ const StatBlock: React.FC<{
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 18,
-              marginBottom: 12,
+              gap: 16,
+              marginBottom: 9,
             }}
           >
             <div
               style={{
-                width: 210,
+                width: 245,
                 color: C.muted,
-                fontSize: 21,
+                fontSize: 19,
                 fontWeight: 600,
                 textAlign: "right",
               }}
@@ -1270,31 +1270,31 @@ const StatBlock: React.FC<{
             <div
               style={{
                 flex: 1,
-                height: 36,
+                height: 30,
                 background: "#16213B",
-                borderRadius: 8,
+                borderRadius: 7,
                 overflow: "hidden",
               }}
             >
               <div
                 style={{
-                  width: `${Math.max(r.n === 0 ? 0 : 2, (r.n / 15) * 100 * p)}%`,
+                  width: `${Math.max(r.n === 0 ? 0 : 2, (r.n / r.denom) * 100 * p)}%`,
                   height: "100%",
                   background: r.color,
-                  borderRadius: 8,
+                  borderRadius: 7,
                 }}
               />
             </div>
             <div
               style={{
-                width: 96,
+                width: 106,
                 color: r.color,
-                fontSize: 30,
+                fontSize: 26,
                 fontWeight: 800,
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              {shown}/15
+              {shown}/{r.denom}
             </div>
           </div>
         );
@@ -1312,31 +1312,33 @@ const CheckSceneStats: React.FC<{ frame: number }> = ({ frame }) => {
       style={{
         alignItems: "center",
         justifyContent: "center",
-        gap: 30,
-        padding: "28px 44px",
+        gap: 24,
+        padding: "24px 44px",
         opacity: fadeIn,
         fontFamily: SANS,
       }}
     >
-      <BadgePill color={C.mint}>figure-bench v0.1 · initial-15 · same data, same prompt</BadgePill>
+      <BadgePill color={C.mint}>figure-bench v0.1 · 60 tasks · fresh Sonnet 5.5 per task</BadgePill>
       <StatBlock
-        label="Figures shipped with a text or layout defect"
+        label="Zero-defect figures at reading width (all 5 layout & text checks)"
         startFrame={CS.stats[0] + 4}
         rows={[
-          { name: "plain Matplotlib", n: 13, color: C.red },
-          { name: "mintfig", n: 0, color: C.mint },
+          { name: "plain Matplotlib", n: 21, denom: 60, color: C.red },
+          { name: "+ mint.check hook", n: 48, denom: 60, color: C.blue },
+          { name: "mintfig", n: 57, denom: 60, color: C.mint },
         ]}
       />
       <StatBlock
-        label="Headline states the correct number"
-        startFrame={CS.stats[0] + 14}
+        label="Headline states the verified quantitative answer"
+        startFrame={CS.stats[0] + 13}
         rows={[
-          { name: "plain Matplotlib", n: 4, color: C.red },
-          { name: "mintfig", n: 15, color: C.mint },
+          { name: "plain Matplotlib", n: 36, denom: 60, color: C.red },
+          { name: "+ mint.check hook", n: 39, denom: 60, color: C.blue },
+          { name: "mintfig", n: 53, denom: 60, color: C.mint },
         ]}
       />
-      <div style={{ fontFamily: MONO, fontSize: 16.5, color: C.muted, marginTop: 4 }}>
-        pip install mintfig · mintfig hook --install · 60-task open benchmark
+      <div style={{ fontFamily: MONO, fontSize: 16, color: C.muted, marginTop: 2 }}>
+        composite: 93.5 mintfig · 89.2 + hook · 81.6 plain Matplotlib · pip install mintfig
       </div>
     </AbsoluteFill>
   );

@@ -1,10 +1,9 @@
 # figure-bench v0.1 (work in progress)
 
-> **Status:** `figure-bench v0.1` is an active work in progress. The 60-task v0.1 suite,
-> library-agnostic scoring engine, open leaderboard, and display-width-locked human reader
-> study are live; initial leaderboard seed rows currently reflect our measured 15-task
-> baseline (`v0.1-initial-15`) while full 60-task runs across models and plotting libraries
-> are collected.
+> **Status:** `figure-bench v0.1` is live with **60 deterministic tasks**, library-agnostic
+> scoring, verified **full 60-task × 3-arm** Claude Sonnet 5.5 leaderboard entries, and a
+> display-width-locked human reader study app. Community runs across additional models and
+> plotting libraries are welcome via PR.
 
 **Can an AI agent turn a real conversation and dataset into a legible, truthful,
 uncertainty-aware figure — fast, and at the exact width a human will actually read it?**
@@ -77,7 +76,29 @@ dimensions plus optional blinded reader evaluation:
 
 ---
 
-## Initial Seed Results (`v0.1-initial-15`, Work in Progress)
+## Full 60-Task Sweep Results (`v0.1`, 2026-11-26)
+
+180 fresh isolated Claude Sonnet 5.5 runs (`15 dev` + `30 public-test` + `15 heldout`; global hooks/MCP disabled):
+
+| Submission (`all`, 60 tasks) | Library | Hook | Zero-Defect (Final) | Text >= 11 px | Right Headline # | Visual Quality | Claim Accuracy | Median Time | Composite |
+| :--- | :--- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `v01-all60-mintfig-sonnet55` | `mintfig` | ON | **57/60 (95.0%)** | **57/57 (100%)** | **53/60 (88.3%)** | **95.0** | **96.1** | **13.4 s** | **93.5** |
+| `v01-all60-matplotlib-hook-sonnet55` | `matplotlib` | ON | **48/60 (80.0%)** | **56/57 (98.2%)** | 39/60 (65.0%) | 91.6 | 87.6 | 17.4 s | **89.2** |
+| `v01-all60-matplotlib-plain-sonnet55` | `matplotlib` | OFF | **21/60 (35.0%)** | **28/60 (46.7%)** | 36/60 (60.0%) | 77.9 | 76.2 | 15.4 s | **81.6** |
+
+Reproduce the full 60-task sweep and leaderboard export:
+
+```bash
+python evals/figure_bench/run_sweep.py --arms mintfig,matplotlib-plain,matplotlib-hook \
+    --run-prefix evals/figure_bench/runs/v01_sonnet55 --split all --model sonnet --workers 8
+python evals/figure_bench/bench.py export-submission --run evals/figure_bench/runs/v01_sonnet55_mintfig \
+    --out evals/figure_bench/leaderboard/submissions/my_run.json \
+    --submission-id my-run --model "Claude Sonnet 5.5" --split all
+```
+
+---
+
+## Initial Seed Results (`v0.1-initial-15`, Historical Baseline)
 
 ![Progress across three fix cycles](progress.png)
 

@@ -58,11 +58,22 @@ def _load_seed(name: str) -> dict:
 
 def test_all_three_seed_submissions_pass_verification() -> None:
     seed_files = sorted(SUBMISSIONS_DIR.glob("*.json"))
-    assert len(seed_files) == 3
+    assert len(seed_files) >= 6
 
     for path in seed_files:
         errors = verify_submission.verify_submission_file(path)
         assert errors == [], f"{path.name} failed verification: {errors}"
+
+    # Verify full 60-task v0.1 sweep entries exist and pass invariants
+    for name in (
+        "v01_all60_mintfig_sonnet55.json",
+        "v01_all60_matplotlib_hook_sonnet55.json",
+        "v01_all60_matplotlib_plain_sonnet55.json",
+    ):
+        sub = _load_seed(name)
+        assert sub["split"] == "all"
+        assert sub["task_count"] == 60
+        assert len(sub["per_task"]) == 60
 
     # CLI exit code 0 on submissions directory
     assert verify_submission.main([str(SUBMISSIONS_DIR)]) == 0
