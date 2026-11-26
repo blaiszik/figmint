@@ -1,0 +1,49 @@
+variant,substrate_um,replicate,velocity_um_min
+wild-type,0.5,1,5.792
+wild-type,0.5,2,4.458
+wild-type,0.5,3,3.367
+wild-type,1.0,1,5.82
+wild-type,1.0,2,6.493
+wild-type,1.0,3,8.107
+wild-type,2.0,1,12.632
+wild-type,2.0,2,10.874
+wild-type,2.0,3,11.711
+wild-type,5.0,1,23.9
+wild-type,5.0,2,23.102
+wild-type,5.0,3,22.392
+wild-type,10.0,1,28.944
+wild-type,10.0,2,30.599
+wild-type,10.0,3,29.853
+wild-type,25.0,1,40.249
+wild-type,25.0,2,38.595
+wild-type,25.0,3,42.337
+wild-type,50.0,1,44.108
+wild-type,50.0,2,43.324
+wild-type,50.0,3,42.6
+wild-type,100.0,1,46.288
+wild-type,100.0,2,45.087
+wild-type,100.0,3,44.561
+E142A mutant,0.5,1,3.037
+E142A mutant,0.5,2,0.2
+E142A mutant,0.5,3,2.048
+E142A mutant,1.0,1,3.102
+E142A mutant,1.0,2,2.292
+E142A mutant,1.0,3,1.144
+E142A mutant,2.0,1,3.228
+E142A mutant,2.0,2,1.826
+E142A mutant,2.0,3,4.007
+E142A mutant,5.0,1,9.694
+E142A mutant,5.0,2,8.912
+E142A mutant,5.0,3,7.389
+E142A mutant,10.0,1,15.633
+E142A mutant,10.0,2,13.85
+E142A mutant,10.0,3,14.629
+E142A mutant,25.0,1,24.099
+E142A mutant,25.0,2,25.314
+E142A mutant,25.0,3,23.207
+E142A mutant,50.0,1,30.544
+E142A mutant,50.0,2,32.745
+E142A mutant,50.0,3,32.511
+E142A mutant,100.0,1,37.068
+E142A mutant,100.0,2,36.883
+E142A mutant,100.0,3,37.465

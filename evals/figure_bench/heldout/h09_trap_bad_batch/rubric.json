@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "h09_trap_bad_batch",
+  "split": "heldout",
+  "track": "epistemic_traps",
+  "domain": "Biology",
+  "title": "ELISA assay with contaminated plate P4 skewing raw mean",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "clean treated-vs-control lift (~+0.26 OD, ~+62%) after excluding contaminated plate P4",
+  "accept": [
+    0.25825,
+    62.885552,
+    0.668917,
+    0.410667
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.02,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "all 5 plates confirm",
+    "no batch issues"
+  ],
+  "required_disclosures": [
+    "P4",
+    "excluded"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Across clean plates P1\u2013P3 and P5, treated averages 0.67 OD vs control 0.41 OD (+0.26 OD, +63%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; on the four valid plates, replicate scatter (~0.025 OD SD) is tiny compared to the +0.26 OD signal increase."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Plate P4 is flagged for washer malfunction/contaminated blank (~1.8\u20131.9 OD) and severely skews the pooled mean if not excluded."
+    }
+  ]
+}

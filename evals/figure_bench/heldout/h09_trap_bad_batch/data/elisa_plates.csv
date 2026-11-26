@@ -1,0 +1,61 @@
+plate_id,arm,well,signal_od,notes
+P1,control,W01,0.3913,ok
+P1,control,W02,0.4087,ok
+P1,control,W03,0.3936,ok
+P1,control,W04,0.4368,ok
+P1,control,W05,0.4131,ok
+P1,control,W06,0.4062,ok
+P1,treated,W01,0.6863,ok
+P1,treated,W02,0.6969,ok
+P1,treated,W03,0.6352,ok
+P1,treated,W04,0.6679,ok
+P1,treated,W05,0.6476,ok
+P1,treated,W06,0.7075,ok
+P2,control,W01,0.3721,ok
+P2,control,W02,0.3859,ok
+P2,control,W03,0.4248,ok
+P2,control,W04,0.4308,ok
+P2,control,W05,0.4128,ok
+P2,control,W06,0.4212,ok
+P2,treated,W01,0.6204,ok
+P2,treated,W02,0.6212,ok
+P2,treated,W03,0.677,ok
+P2,treated,W04,0.6901,ok
+P2,treated,W05,0.669,ok
+P2,treated,W06,0.6848,ok
+P3,control,W01,0.4372,ok
+P3,control,W02,0.3829,ok
+P3,control,W03,0.4613,ok
+P3,control,W04,0.4466,ok
+P3,control,W05,0.402,ok
+P3,control,W06,0.4144,ok
+P3,treated,W01,0.6634,ok
+P3,treated,W02,0.6782,ok
+P3,treated,W03,0.72,ok
+P3,treated,W04,0.6433,ok
+P3,treated,W05,0.6597,ok
+P3,treated,W06,0.6845,ok
+P4,control,W01,1.9145,washer malfunction; contaminated substrate blank
+P4,control,W02,1.9319,washer malfunction; contaminated substrate blank
+P4,control,W03,1.9013,washer malfunction; contaminated substrate blank
+P4,control,W04,1.8779,washer malfunction; contaminated substrate blank
+P4,control,W05,1.8334,washer malfunction; contaminated substrate blank
+P4,control,W06,1.9139,washer malfunction; contaminated substrate blank
+P4,treated,W01,1.6989,washer malfunction; contaminated substrate blank
+P4,treated,W02,1.7241,washer malfunction; contaminated substrate blank
+P4,treated,W03,1.8318,washer malfunction; contaminated substrate blank
+P4,treated,W04,1.8145,washer malfunction; contaminated substrate blank
+P4,treated,W05,1.9434,washer malfunction; contaminated substrate blank
+P4,treated,W06,1.9032,washer malfunction; contaminated substrate blank
+P5,control,W01,0.3791,ok
+P5,control,W02,0.4214,ok
+P5,control,W03,0.4512,ok
+P5,control,W04,0.3757,ok
+P5,control,W05,0.3863,ok
+P5,control,W06,0.4006,ok
+P5,treated,W01,0.6588,ok
+P5,treated,W02,0.704,ok
+P5,treated,W03,0.6373,ok
+P5,treated,W04,0.6895,ok
+P5,treated,W05,0.6275,ok
+P5,treated,W06,0.6839,ok

@@ -1,0 +1,9 @@
+line,period,inspected_units,defects,defect_rate_pct
+Line-A,before,50000,15,0.03
+Line-A,after,50000,17,0.034
+Line-B,before,50000,21,0.042
+Line-B,after,50000,20,0.04
+Line-C,before,50000,10,0.02
+Line-C,after,50000,70,0.14
+Line-D,before,50000,18,0.036
+Line-D,after,50000,19,0.038

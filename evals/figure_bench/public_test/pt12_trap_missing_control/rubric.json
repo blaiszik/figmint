@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "pt12_trap_missing_control",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Clinical",
+  "title": "Treated improvement matched by placebo control arm",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "net treatment advantage over placebo (~0.6 pts or ~1.0 pp), inside 95% CI noise",
+  "accept": [
+    0.628,
+    1.044804
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 0.8,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "clearly works",
+    "strong 15% effect",
+    "proves efficacy",
+    "significantly outperforms placebo"
+  ],
+  "required_disclosures": [
+    "placebo",
+    "95% CI"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Net effect over placebo is only +0.6 pts (+1.0 pp): treated improves 15.0% while placebo improves 14.0%."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "No; the treated and placebo trajectories and 95% CIs overlap throughout all 8 weeks."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Looking at treated.csv alone falsely suggests a ~15% drug effect that is almost entirely placebo/time response."
+    }
+  ]
+}

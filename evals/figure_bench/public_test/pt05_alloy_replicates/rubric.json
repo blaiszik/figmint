@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt05_alloy_replicates",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Materials",
+  "title": "Alloy heat-treatment coupon strength vs 420 MPa spec",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "T6 mean UTS (~452 MPa), margin above 420 MPa spec (~32 MPa), or T6 vs T6-aged gap",
+  "accept": [
+    451.0375,
+    31.0375,
+    15.9125
+  ],
+  "rel_tol": 0.04,
+  "abs_tol": 5.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "420 MPa",
+    "replicates"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "T6 averages 451.0 MPa (+31.0 MPa above the 420 MPa spec) and passes 8/8 coupons."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; T6 sits well above the 420 MPa threshold across all 8 replicate coupons."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Although T6-aged averages 435.1 MPa (above 420), 2 of its 8 individual coupons fail the 420 MPa spec."
+    }
+  ]
+}

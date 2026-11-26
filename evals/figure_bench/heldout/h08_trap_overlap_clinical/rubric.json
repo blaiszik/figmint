@@ -1,0 +1,48 @@
+{
+  "schema_version": "0.1",
+  "id": "h08_trap_overlap_clinical",
+  "split": "heldout",
+  "track": "epistemic_traps",
+  "domain": "Clinical",
+  "title": "Biomarker delta across two dose arms with overlapping 95% CIs",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "small ~2.7 pg/mL mean difference between 150 mg (-21.1) and 50 mg (-18.4), inside overlapping 95% CIs",
+  "accept": [
+    2.711111,
+    -2.711111,
+    -21.111111,
+    -18.4
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "high dose clearly beats",
+    "significantly greater reduction",
+    "proves dose superiority",
+    "outside noise"
+  ],
+  "required_disclosures": [
+    "95% CI",
+    "overlap"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "150 mg averages -21.1 pg/mL vs 50 mg -18.4 pg/mL (a 2.7 pg/mL difference, no clear dose advantage)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "No; the 95% CIs (-28.6 to -13.6 vs -25.5 to -11.3 pg/mL) overlap extensively."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Both arms clearly reduce the biomarker below zero from baseline, but higher dose does not reliably add benefit over 50 mg."
+    }
+  ]
+}

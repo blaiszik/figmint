@@ -1,0 +1,5 @@
+board,idle_mw,load_mw
+Board-A,640.0,3120.0
+Board-B,520.0,2460.0
+Board-C,490.0,1840.0
+Board-D,380.0,1490.0

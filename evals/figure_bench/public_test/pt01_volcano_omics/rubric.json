@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt01_volcano_omics",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Bioinformatics",
+  "title": "Volcano plot of 120 genes with three standout hits",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "top hit CXCL10 log2 fold change (~3.42), linear fold (~10.7x), or -log10(p) (~9.15)",
+  "accept": [
+    3.42,
+    10.70342,
+    9.15
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.15,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "threshold",
+    "p"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "CXCL10 is the strongest hit (log2 FC = +3.42, ~10.7x, -log10 p = 9.15), alongside ISG15 and COL1A1."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; all three hits sit far above the adjusted p < 0.01 (-log10 p >= 2.0) and |log2 FC| >= 1.5 thresholds."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Two interferon genes (CXCL10, ISG15) are strongly upregulated while matrix gene COL1A1 is downregulated (log2 FC = -2.61)."
+    }
+  ]
+}

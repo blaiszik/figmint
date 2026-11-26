@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "h10_edit_highlight_subset",
+  "split": "heldout",
+  "track": "multiturn_edit",
+  "domain": "Materials",
+  "title": "Highlight only failing coatings above 5.0% drift spec line",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "failing coatings TiN-3 (7.8%) and BN-6 (6.4%) exceeding the 5.0% drift spec",
+  "accept": [
+    7.8,
+    6.4,
+    2.8,
+    1.4
+  ],
+  "rel_tol": 0.04,
+  "abs_tol": 0.2,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "5.0%",
+    "SD"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Only two coatings fail the 5.0% drift limit: TiN-3 (7.8%, +2.8 pp over) and BN-6 (6.4%, +1.4 pp over)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; both TiN-3 (7.8 \u00b1 0.5%) and BN-6 (6.4 \u00b1 0.5%) sit well above 5.0% outside \u00b11 SD."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "The five other coatings (ZrO-4 through HfO-5) all remain below 4.0% drift, comfortably passing qualification."
+    }
+  ]
+}

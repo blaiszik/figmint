@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1",
+  "id": "pt08_trap_simpson",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Clinical",
+  "title": "Simpson's paradox in clinical recovery stratified by severity",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "stratified treatment advantage (+12.0 pp in severe, +5.0 pp in mild; 52% vs 40% severe, 95% vs 90% mild)",
+  "accept": [
+    12.0,
+    5.0,
+    52.0,
+    95.0
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 1.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "treatment is worse",
+    "treatment harms",
+    "22 pp worse"
+  ],
+  "required_disclosures": [
+    "severity",
+    "Simpson"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Treatment outperforms control in BOTH strata: +12 pp in severe (52% vs 40%) and +5 pp in mild (95% vs 90%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "In the severe stratum (n=250 vs 50) the +12 pp lift is meaningful; in the mild stratum (n=40 treatment) the +5 pp edge has wider uncertainty."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Classic Simpson's paradox: pooled treatment looks worse (57.9% vs 80.0%) only because 86% of treated patients were severe vs 20% of controls."
+    }
+  ]
+}

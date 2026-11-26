@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt06_ocean_ph_trend",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Oceanography",
+  "title": "20-year monthly ocean pH observations and secular decline",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Southern Ocean secular decline per decade (~-0.027 pH/decade), 20-yr drop (~0.054), or all-station mean rate",
+  "accept": [
+    -0.0257,
+    0.0257,
+    0.051401,
+    0.022292,
+    0.00257
+  ],
+  "rel_tol": 0.12,
+  "abs_tol": 0.002,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "seasonal",
+    "decade"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Southern Ocean declines fastest at -0.026 pH/decade (~0.051 pH over 20 years)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; despite the \u00b10.02 seasonal oscillation, the 20-year secular downward trend is clear at all three stations."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Seasonal amplitude (~\u00b10.024 pH in the Southern Ocean) is comparable to a full decade of secular acidification."
+    }
+  ]
+}

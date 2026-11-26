@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt13_edit_log_scale",
+  "split": "public-test",
+  "track": "multiturn_edit",
+  "domain": "Chemistry",
+  "title": "Switch PK curves to log scale and highlight active compound",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "CMP-C 24-hour plasma concentration (~185 ng/mL) or its ratio over the next-highest compound",
+  "accept": [
+    180.82,
+    15.805944
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 5.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "all four candidates clear rapidly"
+  ],
+  "required_disclosures": [
+    "log",
+    "50 ng/mL"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "CMP-C retains 181 ng/mL at 24 h (~16x higher than the next compound, 11.4 ng/mL)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; on a log scale the exponential elimination slopes separate cleanly across three decades."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Only CMP-C stays above the 50 ng/mL therapeutic floor at 24 h; CMP-A, CMP-B, and CMP-D fall below 15 ng/mL."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "h07_cohort_attrition",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "Clinical",
+  "title": "Six-stage clinical screening and retention funnel",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "overall 12-week completion rate (22.5%, 540/2400) or largest single exclusion drop (720, 30%)",
+  "accept": [
+    22.5,
+    540.0,
+    720.0,
+    30.0
+  ],
+  "rel_tol": 0.02,
+  "abs_tol": 1.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "exclusion",
+    "22.5%"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "540 of 2,400 screened records (22.5%) completed the 12-week endpoint."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "These are exact cohort enrollment counts from a single study registry (no sampling error bars)."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "The biggest attrition occurs at eligibility (720 excluded, 30% of screened) and lab/imaging clearance (560 excluded)."
+    }
+  ]
+}
