@@ -1,0 +1,1779 @@
+{
+  "git_sha": "bd4ed55",
+  "total_cases": 50,
+  "elapsed_seconds": 2.54,
+  "summary": {
+    "clean_total": 25,
+    "clean_passed": 16,
+    "false_positives": 9,
+    "false_positive_rate": 0.36,
+    "clean_with_nonblocking_warnings": 0,
+    "defective_total": 25,
+    "defective_caught": 25,
+    "defect_catch_rate": 1.0,
+    "defective_exact_rule_match": 25,
+    "exact_rule_recall": 1.0,
+    "targets": {
+      "max_fp_rate": 0.02,
+      "min_catch_rate": 0.9,
+      "fp_target_met": false,
+      "catch_target_met": true,
+      "exact_rule_target_met": true
+    }
+  },
+  "by_artist_category": {
+    "bars_grouped": {
+      "total": 8,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 7,
+      "defective_caught": 7,
+      "defective_exact_rule": 7
+    },
+    "bars_horizontal": {
+      "total": 3,
+      "clean_total": 2,
+      "clean_pass": 2,
+      "clean_fp": 0,
+      "defective_total": 1,
+      "defective_caught": 1,
+      "defective_exact_rule": 1
+    },
+    "bars_stacked": {
+      "total": 1,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    },
+    "boxplot": {
+      "total": 3,
+      "clean_total": 2,
+      "clean_pass": 2,
+      "clean_fp": 0,
+      "defective_total": 1,
+      "defective_caught": 1,
+      "defective_exact_rule": 1
+    },
+    "ci_band": {
+      "total": 2,
+      "clean_total": 2,
+      "clean_pass": 1,
+      "clean_fp": 1,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    },
+    "dark_theme": {
+      "total": 1,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    },
+    "errorbar": {
+      "total": 1,
+      "clean_total": 1,
+      "clean_pass": 0,
+      "clean_fp": 1,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    },
+    "framed_legend": {
+      "total": 2,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 1,
+      "defective_caught": 1,
+      "defective_exact_rule": 1
+    },
+    "headline_tokens": {
+      "total": 3,
+      "clean_total": 3,
+      "clean_pass": 2,
+      "clean_fp": 1,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    },
+    "histogram": {
+      "total": 3,
+      "clean_total": 2,
+      "clean_pass": 0,
+      "clean_fp": 2,
+      "defective_total": 1,
+      "defective_caught": 1,
+      "defective_exact_rule": 1
+    },
+    "image_imshow": {
+      "total": 2,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 1,
+      "defective_caught": 1,
+      "defective_exact_rule": 1
+    },
+    "lines_dates": {
+      "total": 9,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 8,
+      "defective_caught": 8,
+      "defective_exact_rule": 8
+    },
+    "log_log": {
+      "total": 1,
+      "clean_total": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    },
+    "multi_panel": {
+      "total": 3,
+      "clean_total": 2,
+      "clean_pass": 2,
+      "clean_fp": 0,
+      "defective_total": 1,
+      "defective_caught": 1,
+      "defective_exact_rule": 1
+    },
+    "quadmesh": {
+      "total": 4,
+      "clean_total": 2,
+      "clean_pass": 0,
+      "clean_fp": 2,
+      "defective_total": 2,
+      "defective_caught": 2,
+      "defective_exact_rule": 2
+    },
+    "scatter_ols": {
+      "total": 3,
+      "clean_total": 1,
+      "clean_pass": 0,
+      "clean_fp": 1,
+      "defective_total": 2,
+      "defective_caught": 2,
+      "defective_exact_rule": 2
+    },
+    "violinplot": {
+      "total": 1,
+      "clean_total": 1,
+      "clean_pass": 0,
+      "clean_fp": 1,
+      "defective_total": 0,
+      "defective_caught": 0,
+      "defective_exact_rule": 0
+    }
+  },
+  "by_defect_category": {
+    "bar_baseline_nonzero": {
+      "total": 3,
+      "caught": 3,
+      "exact_rule": 3,
+      "recall": 1.0
+    },
+    "claim_number_mismatch": {
+      "total": 5,
+      "caught": 5,
+      "exact_rule": 5,
+      "recall": 1.0
+    },
+    "rainbow_colormap": {
+      "total": 3,
+      "caught": 3,
+      "exact_rule": 3,
+      "recall": 1.0
+    },
+    "text_clipped": {
+      "total": 1,
+      "caught": 1,
+      "exact_rule": 1,
+      "recall": 1.0
+    },
+    "text_malformed": {
+      "total": 3,
+      "caught": 3,
+      "exact_rule": 3,
+      "recall": 1.0
+    },
+    "text_overlaps": {
+      "total": 3,
+      "caught": 3,
+      "exact_rule": 3,
+      "recall": 1.0
+    },
+    "text_struck_by_line": {
+      "total": 3,
+      "caught": 3,
+      "exact_rule": 3,
+      "recall": 1.0
+    },
+    "text_too_small": {
+      "total": 4,
+      "caught": 4,
+      "exact_rule": 4,
+      "recall": 1.0
+    }
+  },
+  "false_positive_cases": [
+    "clean_01_quadmesh_heatmap_colorbar",
+    "clean_02_quadmesh_diverging_ratio",
+    "clean_04_ci_band_upper_bound",
+    "clean_05_hist_counts",
+    "clean_06_hist_density",
+    "clean_09_violinplot_medians",
+    "clean_15_scatter_ols_regplot",
+    "clean_20_unit_scale_seconds_to_ms",
+    "clean_23_errorbar_categorical"
+  ],
+  "missed_defect_cases": [],
+  "cases": [
+    {
+      "case_id": "clean_01_quadmesh_heatmap_colorbar",
+      "split": "clean",
+      "artist_category": "quadmesh",
+      "defect_category": null,
+      "description": "Seaborn-style QuadMesh heatmap + colorbar + viridis + year token 2026",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 65.8,
+      "panel_kinds": [
+        "empty",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "In 2026, L2–L3 similarity peaks at 0.92",
+      "unmatched_claim_numbers": [
+        {
+          "text": "0.92",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '0.92', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_02_quadmesh_diverging_ratio",
+      "split": "clean",
+      "artist_category": "quadmesh",
+      "defect_category": null,
+      "description": "QuadMesh RdBu_r latency heatmap + colorbar with max/min 4x ratio claim",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 49.6,
+      "panel_kinds": [
+        "empty",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "Peak cell reaches 48 ms, 4x the minimum cell",
+      "unmatched_claim_numbers": [
+        {
+          "text": "4x",
+          "kind": "fold",
+          "nearest": null
+        },
+        {
+          "text": "48",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '4x', '48', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_03_ci_band_fill_between",
+      "split": "clean",
+      "artist_category": "ci_band",
+      "defect_category": null,
+      "description": "Seaborn lineplot + fill_between 95% CI with Llama-3.1 8B & 5 seeds tokens",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 53.6,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Llama-3.1 8B reaches 84% accuracy across 5 seeds (95% CI)",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_04_ci_band_upper_bound",
+      "split": "clean",
+      "artist_category": "ci_band",
+      "defect_category": null,
+      "description": "Dual fill_between uncertainty bands citing upper 1 s.d. envelope peak (94%)",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 51.7,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Upper 1 s.d. envelope reaches 94% on validation",
+      "unmatched_claim_numbers": [
+        {
+          "text": "94%",
+          "kind": "percent",
+          "nearest": "end (Tuned (±1 s.d., n = 8)) = 88"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '94%', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '94%' → end (Tuned (±1 s.d., n = 8)) = 88."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_05_hist_counts",
+      "split": "clean",
+      "artist_category": "histogram",
+      "defect_category": null,
+      "description": "Count histogram (contiguous BarContainer) citing peak bin center & sample count",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 50.9,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Request latency peaks at 40 ms across 200 samples",
+      "unmatched_claim_numbers": [
+        {
+          "text": "40",
+          "kind": "plain",
+          "nearest": "37.5 vs 52.5: 66 − 21 = 45"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '40', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '40' → 37.5 vs 52.5: 66 − 21 = 45."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_06_hist_density",
+      "split": "clean",
+      "artist_category": "histogram",
+      "defect_category": null,
+      "description": "Density histogram + median line with ResNet-50 (FP16) headline",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 54.1,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "ResNet-50 (FP16) median inference time is 18 ms",
+      "unmatched_claim_numbers": [
+        {
+          "text": "18",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '18', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_07_boxplot_patch_artist",
+      "split": "clean",
+      "artist_category": "boxplot",
+      "defect_category": null,
+      "description": "Seaborn-style patch_artist boxplot citing highest group median",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 41.3,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Treat C lifts median yield to 72 g/L",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_08_boxplot_classic_lines",
+      "split": "clean",
+      "artist_category": "boxplot",
+      "defect_category": null,
+      "description": "Classic line-only boxplot with v2.3 token citing 14-point median lead",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 40.7,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Model v2.3 beats baseline median by 14 points",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_09_violinplot_medians",
+      "split": "clean",
+      "artist_category": "violinplot",
+      "defect_category": null,
+      "description": "Violinplot with medians citing 65 ms across 3 replicates",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 37.5,
+      "panel_kinds": [
+        "empty"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Group B median reaches 65 ms across 3 replicates",
+      "unmatched_claim_numbers": [
+        {
+          "text": "65",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '65', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_10_grouped_bars_ml_models",
+      "split": "clean",
+      "artist_category": "bars_grouped",
+      "defect_category": null,
+      "description": "Grouped bars: 'Llama-3.1 8B beats GPT-4 by 6 points across 5 seeds'",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 42.0,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Llama-3.1 8B beats GPT-4 by 6 points across 5 seeds",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_11_horizontal_bars_precision",
+      "split": "clean",
+      "artist_category": "bars_horizontal",
+      "defect_category": null,
+      "description": "Horizontal bars: 'ResNet-50 (FP16) cuts p95 latency 25% in 2026'",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 31.1,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "ResNet-50 (FP16) cuts p95 latency 25% in 2026",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_12_stacked_bars_shares",
+      "split": "clean",
+      "artist_category": "bars_stacked",
+      "defect_category": null,
+      "description": "Stacked bars with non-zero upper bottoms citing 60% share in 2026",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 41.2,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Attention accounts for 60% of Prefill step time in 2026",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_13_multiline_date_series",
+      "split": "clean",
+      "artist_category": "lines_dates",
+      "defect_category": null,
+      "description": "Multi-line datetime.date series with GPT-5 token & 40% drop",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 63.1,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "GPT-5 error rate fell 40% in 2026",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_14_log_log_scaling",
+      "split": "clean",
+      "artist_category": "log_log",
+      "defect_category": null,
+      "description": "Log-log scaling curve with 10k steps descriptor and 4x drop",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 129.2,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Loss drops 4x as compute scales across 10k steps",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_15_scatter_ols_regplot",
+      "split": "clean",
+      "artist_category": "scatter_ols",
+      "defect_category": null,
+      "description": "Seaborn regplot (scatter + OLS + CI band) with slope 2.0 and p < 0.05",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 56.8,
+      "panel_kinds": [
+        "lines+scatter"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Response rises 2.0 units per mg (p < 0.05)",
+      "unmatched_claim_numbers": [
+        {
+          "text": "0.05",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '0.05', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_16_multipanel_2x1",
+      "split": "clean",
+      "artist_category": "multi_panel",
+      "defect_category": null,
+      "description": "1x2 multi-panel subplot with INT4 (Q4_K_M) tokens, 4x & 82% claims",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 63.4,
+      "panel_kinds": [
+        "bars",
+        "bars"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "INT4 (Q4_K_M) cuts memory 4x while keeping 82% accuracy",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_17_multipanel_2x2_grid",
+      "split": "clean",
+      "artist_category": "multi_panel",
+      "defect_category": null,
+      "description": "2x2 subplot grid with v2.3 and top-5 tokens & 15-point gain",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 144.2,
+      "panel_kinds": [
+        "lines",
+        "lines",
+        "lines",
+        "lines"
+      ],
+      "panel_count": 4,
+      "min_text_px": 12.5,
+      "claim_text": "v2.3 beats baseline by 15 points on top-5 recall",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_18_dark_theme_framed_legend",
+      "split": "clean",
+      "artist_category": "dark_theme",
+      "defect_category": null,
+      "description": "Dark theme multi-line plot with opaque framed legend over data lines",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 52.3,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Train loss falls 50% by epoch 20",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_19_framed_legend_over_lines",
+      "split": "clean",
+      "artist_category": "framed_legend",
+      "defect_category": null,
+      "description": "4-line plot with opaque framed legend centered over curves",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 49.5,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Model A leads Model B by 12 points at epoch 50",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_20_unit_scale_seconds_to_ms",
+      "split": "clean",
+      "artist_category": "headline_tokens",
+      "defect_category": null,
+      "description": "Unit scale conversion (0.08 s -> 80 ms) with Llama-3.1 70B & p = 0.01",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 33.4,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Llama-3.1 70B cuts latency to 80 ms (p = 0.01)",
+      "unmatched_claim_numbers": [
+        {
+          "text": "0.01",
+          "kind": "plain",
+          "nearest": "Pruned vs Llama-3.1 70B: 0.12 − 0.08 = 0.04"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '0.01', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '0.01' → Pruned vs Llama-3.1 70B: 0.12 − 0.08 = 0.04."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_21_unit_scale_thousands_k",
+      "split": "clean",
+      "artist_category": "headline_tokens",
+      "defect_category": null,
+      "description": "Unit scale conversion (4500 -> 4.5k) on throughput bar chart",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 34.1,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Batching lifts peak throughput to 4.5k tokens/s",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_22_unit_scale_fraction_to_pct",
+      "split": "clean",
+      "artist_category": "headline_tokens",
+      "defect_category": null,
+      "description": "Fraction-to-percent conversion (0.08 -> 8%, 0.82 -> 82%) + 3 replicates",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 30.2,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Retrieval raises accuracy 8% to 82% across 3 replicates",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_23_errorbar_categorical",
+      "split": "clean",
+      "artist_category": "errorbar",
+      "defect_category": null,
+      "description": "Categorical errorbar point plot with 95% CI, n = 10, and p < 0.05",
+      "expected_ship": true,
+      "actual_ship": false,
+      "expected_rules": [],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": false,
+      "exact_rule_match": false,
+      "elapsed_ms": 36.3,
+      "panel_kinds": [
+        "intervals"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Variant A leads baseline by 15 points (95% CI, p < 0.05)",
+      "unmatched_claim_numbers": [
+        {
+          "text": "0.05",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '0.05', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "clean_24_imshow_cividis_colorbar",
+      "split": "clean",
+      "artist_category": "image_imshow",
+      "defect_category": null,
+      "description": "AxesImage with cividis colormap + colorbar citing max & 3x ratio",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 51.7,
+      "panel_kinds": [
+        "image",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "Peak intensity reaches 96, 3x the minimum cell",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "clean_25_negative_values_unicode_minus",
+      "split": "clean",
+      "artist_category": "bars_horizontal",
+      "defect_category": null,
+      "description": "Diverging horizontal bars with zero baseline and Unicode minus sign",
+      "expected_ship": true,
+      "actual_ship": true,
+      "expected_rules": [],
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 37.5,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "FlashAttn improves throughput by 18%",
+      "unmatched_claim_numbers": [],
+      "issues": []
+    },
+    {
+      "case_id": "defect_01_claim_mismatch_bars",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "claim_number_mismatch",
+      "description": "Hallucinated bar gap (claims 15 points, actual gap is 8 points)",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "claim_number_mismatch"
+      ],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 47.1,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Removing retrieval costs 15 points of accuracy",
+      "unmatched_claim_numbers": [
+        {
+          "text": "15 points",
+          "kind": "points",
+          "nearest": "Full vs No retrieval: 0.82 − 0.74 = 8 points"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '15 points', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '15 points' → Full vs No retrieval: 0.82 − 0.74 = 8 points."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_02_claim_mismatch_lines",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "claim_number_mismatch",
+      "description": "Hallucinated line drop (claims 60% fall, actual fall is 25%)",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "claim_number_mismatch"
+      ],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 43.8,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Daily energy load fell 60% after retrofit",
+      "unmatched_claim_numbers": [
+        {
+          "text": "60%",
+          "kind": "percent",
+          "nearest": "end (Load) = 90"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '60%', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '60%' → end (Load) = 90."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_03_claim_mismatch_quadmesh",
+      "split": "defective",
+      "artist_category": "quadmesh",
+      "defect_category": "claim_number_mismatch",
+      "description": "Hallucinated QuadMesh peak (claims 0.99, actual max cell is 0.85)",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "claim_number_mismatch"
+      ],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 40.3,
+      "panel_kinds": [
+        "empty",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "Peak cell correlation reaches 0.99",
+      "unmatched_claim_numbers": [
+        {
+          "text": "0.99",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '0.99', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_04_claim_mismatch_boxplot",
+      "split": "defective",
+      "artist_category": "boxplot",
+      "defect_category": "claim_number_mismatch",
+      "description": "Hallucinated boxplot median (claims 95 ms, actual max median is 60 ms)",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "claim_number_mismatch"
+      ],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 41.2,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Group C median reaches 95 ms",
+      "unmatched_claim_numbers": [
+        {
+          "text": "95",
+          "kind": "plain",
+          "nearest": "end (line 12) = 65.9"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '95', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '95' → end (line 12) = 65.9."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_05_claim_mismatch_hist",
+      "split": "defective",
+      "artist_category": "histogram",
+      "defect_category": "claim_number_mismatch",
+      "description": "Hallucinated histogram peak (claims 180 ms, data centered at 50 ms)",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "claim_number_mismatch"
+      ],
+      "actual_rules": [
+        "claim_number_mismatch"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 41.3,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Latency peaks at 180 ms",
+      "unmatched_claim_numbers": [
+        {
+          "text": "180",
+          "kind": "plain",
+          "nearest": "total of values = 200"
+        }
+      ],
+      "issues": [
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '180', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '180' → total of values = 200."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_06_truncated_vbar",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "bar_baseline_nonzero",
+      "description": "Truncated vertical bar y-axis starting at 0.70",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "bar_baseline_nonzero"
+      ],
+      "actual_rules": [
+        "bar_baseline_nonzero"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 39.5,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Model A leads Model B by 4 points",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "bar_baseline_nonzero",
+          "severity": "error",
+          "message": "Bars start at zero but the value axis runs 0.7–0.85, so bar lengths overstate the differences."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_07_truncated_hbar",
+      "split": "defective",
+      "artist_category": "bars_horizontal",
+      "defect_category": "bar_baseline_nonzero",
+      "description": "Truncated horizontal bar x-axis starting at 80",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "bar_baseline_nonzero"
+      ],
+      "actual_rules": [
+        "bar_baseline_nonzero"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 30.4,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "New system reaches 91%",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "bar_baseline_nonzero",
+          "severity": "error",
+          "message": "Bars start at zero but the value axis runs 80–95, so bar lengths overstate the differences."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_08_truncated_grouped_bars",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "bar_baseline_nonzero",
+      "description": "Truncated grouped bar y-axis starting at 65",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "bar_baseline_nonzero"
+      ],
+      "actual_rules": [
+        "bar_baseline_nonzero"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 39.3,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "v2 leads Task 2 by 3 points",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "bar_baseline_nonzero",
+          "severity": "error",
+          "message": "Bars start at zero but the value axis runs 65–82, so bar lengths overstate the differences."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_09_tiny_text_wide_chat",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "text_too_small",
+      "description": "14 in wide figure shrunk to 700 px chat column -> text < 6 px",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_too_small"
+      ],
+      "actual_rules": [
+        "text_too_small"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 44.2,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 6.9,
+      "claim_text": "C reaches 30 req/s",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_too_small",
+          "severity": "warning",
+          "message": "12 text(s) under 11 px as read: 'A' 6.9 px, 'B' 6.9 px, 'C' 6.9 px. The 2100 px PNG is shown 700 px wide, so text shrinks to 33% of its saved size."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_10_tiny_text_explicit_small_font",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_too_small",
+      "description": "Explicit 6 pt axis & tick labels at 700 px chat width",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_too_small"
+      ],
+      "actual_rules": [
+        "text_too_small"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 49.5,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 8.3,
+      "claim_text": "Score rises to 30%",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_too_small",
+          "severity": "warning",
+          "message": "18 text(s) under 11 px as read: '0.0' 8.3 px, '0.5' 8.3 px, '1.0' 8.3 px. At dpi=100, text under 7.9 pt is under 11 px."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_11_tiny_text_narrow_450",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_too_small",
+      "description": "7.5 in figure with 10 pt labels read at 450 px narrow width",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_too_small"
+      ],
+      "actual_rules": [
+        "text_too_small"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 41.4,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 8.3,
+      "claim_text": "Active users reach 16",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_too_small",
+          "severity": "warning",
+          "message": "17 text(s) under 11 px as read: '0.0' 8.3 px, '0.5' 8.3 px, '1.0' 8.3 px. The 750 px PNG is shown 450 px wide, so text shrinks to 60% of its saved size."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_12_tiny_text_multipanel_chat",
+      "split": "defective",
+      "artist_category": "multi_panel",
+      "defect_category": "text_too_small",
+      "description": "1x3 13 in wide multi-panel figure shrunk to 700 px chat width",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_too_small"
+      ],
+      "actual_rules": [
+        "text_too_small"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 133.3,
+      "panel_kinds": [
+        "lines",
+        "lines",
+        "lines"
+      ],
+      "panel_count": 3,
+      "min_text_px": 6.7,
+      "claim_text": "Panel 3 reaches 6",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_too_small",
+          "severity": "warning",
+          "message": "59 text(s) under 11 px as read: '0.00' 6.7 px, '0.25' 6.7 px, '0.50' 6.7 px. The 1560 px PNG is shown 700 px wide, so text shrinks to 45% of its saved size."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_13_overlapping_annotations",
+      "split": "defective",
+      "artist_category": "scatter_ols",
+      "defect_category": "text_overlaps",
+      "description": "Colliding direct text annotations on scatter plot",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_overlaps"
+      ],
+      "actual_rules": [
+        "text_overlaps"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 47.0,
+      "panel_kinds": [
+        "scatter"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Top score reaches 40%",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_overlaps",
+          "severity": "warning",
+          "message": "Drawn text overlaps: 'Model Alpha (20)' / 'Model Beta (21)'."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_14_overlapping_xticks",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "text_overlaps",
+      "description": "Ten colliding unrotated horizontal x-tick labels",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_overlaps"
+      ],
+      "actual_rules": [
+        "text_overlaps"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 55.5,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Top configuration reaches 42%",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_overlaps",
+          "severity": "warning",
+          "message": "Drawn text overlaps: 'Configuration_00' / 'Configuration_01'; 'Configuration_00' / 'Configuration_02'; 'Configuration_01' / 'Configuration_02'; 'Configuration_01' / 'Configuration_03'."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_15_overlapping_line_end_labels",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_overlaps",
+      "description": "Colliding line-end direct labels at y=80 vs y=80.5",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_overlaps"
+      ],
+      "actual_rules": [
+        "text_overlaps"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 45.6,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Candidate model reaches 81%",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_overlaps",
+          "severity": "warning",
+          "message": "Drawn text overlaps: 'Baseline model' / 'Candidate model'."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_16_struck_by_data_line",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_struck_by_line",
+      "description": "Unboxed annotation placed directly on top of a data line",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_struck_by_line"
+      ],
+      "actual_rules": [
+        "text_struck_by_line"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 48.1,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Output reaches 40 kW",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_struck_by_line",
+          "severity": "warning",
+          "message": "Drawn text is crossed by a line: 'Linear growth' crossed by a data line."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_17_struck_by_reference_line",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_struck_by_line",
+      "description": "Unboxed annotation crossed by a dashed reference line",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_struck_by_line"
+      ],
+      "actual_rules": [
+        "text_struck_by_line"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 50.1,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Coverage reaches 80%",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_struck_by_line",
+          "severity": "warning",
+          "message": "Drawn text is crossed by a line: 'Target threshold' crossed by a dashed reference line."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_18_struck_frameless_legend",
+      "split": "defective",
+      "artist_category": "framed_legend",
+      "defect_category": "text_struck_by_line",
+      "description": "Frameless legend placed directly over intersecting data lines",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_struck_by_line"
+      ],
+      "actual_rules": [
+        "text_struck_by_line"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 44.6,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Series Alpha reaches 80 mV",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_struck_by_line",
+          "severity": "warning",
+          "message": "Drawn text is crossed by a line: 'Series Alpha' crossed by a data line; 'Series Beta' crossed by a data line; 'Series Alpha' crossed by a data line; 'Series Beta' crossed by a data line."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_19_rainbow_imshow_jet",
+      "split": "defective",
+      "artist_category": "image_imshow",
+      "defect_category": "rainbow_colormap",
+      "description": "AxesImage rendered with banned 'jet' rainbow colormap",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "rainbow_colormap"
+      ],
+      "actual_rules": [
+        "rainbow_colormap"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 51.6,
+      "panel_kinds": [
+        "image",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "Peak cell reaches 75 W",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "rainbow_colormap",
+          "severity": "error",
+          "message": "Rainbow colormap (jet) invents boundaries and fails for colour-blind readers."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_20_rainbow_quadmesh_hsv",
+      "split": "defective",
+      "artist_category": "quadmesh",
+      "defect_category": "rainbow_colormap",
+      "description": "QuadMesh heatmap rendered with banned 'hsv' colormap",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "rainbow_colormap"
+      ],
+      "actual_rules": [
+        "rainbow_colormap",
+        "claim_number_mismatch"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 44.5,
+      "panel_kinds": [
+        "empty",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "Peak cell reaches 90 deg",
+      "unmatched_claim_numbers": [
+        {
+          "text": "90",
+          "kind": "plain",
+          "nearest": null
+        }
+      ],
+      "issues": [
+        {
+          "rule": "rainbow_colormap",
+          "severity": "error",
+          "message": "Rainbow colormap (hsv) invents boundaries and fails for colour-blind readers."
+        },
+        {
+          "rule": "claim_number_mismatch",
+          "severity": "warning",
+          "message": "The claim states '90', which matches no value, difference, ratio, percentage change or share in the plotted data."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_21_rainbow_scatter_rainbow",
+      "split": "defective",
+      "artist_category": "scatter_ols",
+      "defect_category": "rainbow_colormap",
+      "description": "Color-mapped scatter plot using banned 'rainbow' colormap",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "rainbow_colormap"
+      ],
+      "actual_rules": [
+        "rainbow_colormap"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 56.1,
+      "panel_kinds": [
+        "scatter",
+        "empty"
+      ],
+      "panel_count": 2,
+      "min_text_px": 13.9,
+      "claim_text": "Energy reaches 30 J",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "rainbow_colormap",
+          "severity": "error",
+          "message": "Rainbow colormap (rainbow) invents boundaries and fails for colour-blind readers."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_22_malformed_doubled_pct",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "text_malformed",
+      "description": "Annotation containing doubled percent sign ('+12%%')",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_malformed"
+      ],
+      "actual_rules": [
+        "text_malformed"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 36.4,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Pass rate rises 12 points",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_malformed",
+          "severity": "warning",
+          "message": "Malformed drawn text: doubled %: '+12%%'."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_23_malformed_nan_junk",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_malformed",
+      "description": "Annotation containing junk 'nan' string",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_malformed"
+      ],
+      "actual_rules": [
+        "text_malformed"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 44.6,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Latency reaches 40 ms",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_malformed",
+          "severity": "warning",
+          "message": "Malformed drawn text: junk value: 'Mean: nan ms'."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_24_malformed_ascii_minus",
+      "split": "defective",
+      "artist_category": "bars_grouped",
+      "defect_category": "text_malformed",
+      "description": "Negative annotation using ASCII hyphen ('-8') instead of U+2212",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_malformed"
+      ],
+      "actual_rules": [
+        "text_malformed"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 32.7,
+      "panel_kinds": [
+        "bars"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Score falls 8 points",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_malformed",
+          "severity": "warning",
+          "message": "Malformed drawn text: ASCII hyphen as minus sign: 'Delta: -8 pts'."
+        }
+      ]
+    },
+    {
+      "case_id": "defect_25_clipped_right_edge",
+      "split": "defective",
+      "artist_category": "lines_dates",
+      "defect_category": "text_clipped",
+      "description": "Figure text extending past the right edge of the canvas",
+      "expected_ship": false,
+      "actual_ship": false,
+      "expected_rules": [
+        "text_clipped"
+      ],
+      "actual_rules": [
+        "text_clipped"
+      ],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 27.4,
+      "panel_kinds": [
+        "lines"
+      ],
+      "panel_count": 1,
+      "min_text_px": 13.9,
+      "claim_text": "Revenue reaches 35",
+      "unmatched_claim_numbers": [],
+      "issues": [
+        {
+          "rule": "text_clipped",
+          "severity": "warning",
+          "message": "Text runs past the canvas edge: 'Projected trajectory 2026'."
+        }
+      ]
+    }
+  ]
+}
