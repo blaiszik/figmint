@@ -27,14 +27,11 @@ Self-contained: you do not need the previous conversations.
 - Repository: `https://github.com/blaiszik/mintfig`, branch `main`, MIT. The
   owner asked for all three passes to be committed and pushed; ask before committing
   or pushing in a later pass unless told.
-- Package `mintfig` 0.3.0 (uncommitted at the end of section 4l; 0.2.1 is the last
-  commit), Python >= 3.10, `uv`-managed `.venv`.
-- **The name `mintfig` is taken on PyPI.** The owner will choose a distribution
-  name; nothing is renamed yet. Free on 2026-11-24 (checked against the PyPI
-  JSON API): `mintfig`, `plotmint`, `figsay`, `figtell`, `figwise`, `figproof`,
-  `figbrief`, `clearfig`, `plainfig`, `tellfig`, `sayplot`, `figclaim`,
-  `figstory`, `pymintfig`, `mintfig-py`. The import name can stay `mintfig`
-  whatever the distribution is called.
+- Package `mintfig` 0.3.0 (committed in `6a020e4`, plus `mint.check` in section 4m;
+  not yet released), Python >= 3.10, `uv`-managed `.venv`.
+- **PyPI name: `mintfig`, secured by the owner (settled 2026-11-26).** The latest
+  release on PyPI is 0.2.0; 0.2.1 and 0.3.0 are unreleased. `pip install mintfig`
+  is correct everywhere.
 - Tests and lint: see section 5 for the numbers at the end of this pass.
 
 ```bash
@@ -705,6 +702,48 @@ Not done:
   SKILL.md; `bench.py` runs a copy of the script from `.bench/`, so `__file__`-relative
   paths break.
 
+- Fixed in `6a020e4` (2026-11-26): all four of the above.
+
+## 4m. `mint.check`: audit a plain Matplotlib figure (2026-11-26)
+
+ADOPTION_PLAN workstream B, first piece: mintfig as a layer over Matplotlib people
+already have, not a library to switch to.
+
+- `src/mintfig/figcheck.py`: `mint.check(fig_or_ax=None, claim=None, *, width="chat",
+  dpi=None, bbox_inches=None) -> FigureCheck` (a dict: `ship`, `claim`, `issues`,
+  `advisories`, `panels`, `display`; `print()` is compact JSON). `check_script()` and
+  `format_report()` back the CLI.
+  - Reads the data back from artists: `BarContainer` (names from category ticks,
+    series from labels), `ErrorbarContainer` (intervals by position), `Line2D`
+    (converted, so dates work; `axhline`/`axvline` become references), `PathCollection`
+    (r, slope, group means), `AxesImage`. Facts per axes in the same style as
+    `explain`'s.
+  - Claim check: `epistemic.claim_numbers` on the headline (largest figure-level text
+    or title) or `claim=`; each number is matched against levels, pairwise differences,
+    points, ratios, relative changes, shares, totals, x positions and crossings of a
+    series with a reference line or with another number in the claim. A match within
+    the stated rounding or 2 %. Matches naming the claim's words win; a miss reports the
+    nearest derivation (`nearest`). Hedged claims are not flagged.
+  - Layout: the same five text checks as `evals/figure_bench/neutral.py` at display
+    width (`narrow` 450, `chat` 700, `slide` 1280 or pixels), with concrete `fix_hint`s
+    (figsize/dpi or point size). Plus `bar_baseline_nonzero` and `rainbow_colormap`
+    (errors), `interval_unlabelled` and `axis_unlabelled` (warnings, not blocking),
+    `dual_axis`, `no_headline`, `headline_states_no_number` (advisories).
+  - `ship` = no error, none of the five text defects, and no `claim_number_mismatch`.
+    Legends are counted, never flagged.
+  - GUI canvases are swapped to Agg for the audit and restored.
+- `mintfig check plot.py [--claim] [--width] [--json] [--strict]`: runs the script
+  (Agg, its own folder, `plt.show` no-op), checks each figure once as saved (prefers the
+  PNG save), and figures left open; exit 0/1/2. `mintfig check x.pdf` is still preflight.
+- Docs: SKILL.md subsection "Already drawn with Matplotlib" (chat part 11.65 kB of the
+  12 kB budget) and the description; AGENTS_SNIPPET bullet; README section and list item.
+- Verified: `tests/test_figcheck.py` (21 tests, including parity with the bench audit);
+  run over every attempt-1 script in runs u1 and b1 (29 that run here), the five text
+  checks agree with `neutral.py` on every figure.
+- Not done: `mint.explain(takeaway, fig)` (B2) and `mint.style()` (B1); checking a PNG
+  without its Figure; reading `hist` bins, `fill_between` bounds or `boxplot` stats as
+  values (bands are only counted, for `interval_unlabelled`).
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
@@ -806,7 +845,6 @@ Settled (do not reopen without asking the owner):
 
 Open, for the owner:
 
-- The PyPI distribution name (section 2).
 - Seven built-in forms, now with scientific arguments, go further into an
   earlier "defer large plotting-recipe suites" decision. The set is still one
   form per question; confirm the scope.

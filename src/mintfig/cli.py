@@ -308,21 +308,36 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Treat warnings as failures (exit code 1 on any warning or error).",
     )
 
-    # `mintfig check <pdf_path> --journal nature [--json] [--strict]`
+    # `mintfig check plot.py [--claim "..."] [--width chat] [--json]`  (any Matplotlib script)
+    # `mintfig check <pdf_path> --journal nature [--json] [--strict]`  (journal preflight)
     check_parser = subparsers.add_parser(
         "check",
-        help="Run automated journal preflight checks on an exported PDF figure.",
+        help=(
+            "Check a Matplotlib script's figures against their own data at reading size "
+            "(plot.py), or run journal preflight on an exported PDF (figure.pdf)."
+        ),
     )
     check_parser.add_argument(
         "pdf_path",
         type=Path,
-        help="Path to the PDF figure to verify.",
+        metavar="path",
+        help="A plotting script (.py) to run and check, or a PDF figure to preflight.",
+    )
+    check_parser.add_argument(
+        "--claim",
+        default=None,
+        help="Script only: the sentence to check against the data (default: each figure's headline).",
+    )
+    check_parser.add_argument(
+        "--width",
+        default="chat",
+        help="Script only: narrow (450 px), chat (700 px, default), slide (1280 px) or pixels.",
     )
     check_parser.add_argument(
         "--journal",
         "-j",
         default="nature",
-        help="Target journal preset name (default: nature).",
+        help="PDF only: target journal preset name (default: nature).",
     )
     check_parser.add_argument(
         "--json",
@@ -1298,6 +1313,40 @@ def _rerun_with_fixed_hash_seed() -> int | None:
     return subprocess.call([sys.executable, "-m", "mintfig.cli", *sys.argv[1:]], env=env)
 
 
+
+def _run_figure_check(args: argparse.Namespace) -> int:
+    """`mintfig check plot.py`: exit 0 when every figure ships, 1 when one needs a fix,
+    2 when the script fails or draws no figure."""
+    from .figcheck import WIDTHS, check_script, format_report
+
+    width: str | int = args.width
+    if width not in WIDTHS:
+        try:
+            width = int(str(width).removesuffix("px"))
+        except ValueError:
+            print(f"Error: --width must be one of {sorted(WIDTHS)} or pixels, not {args.width!r}", file=sys.stderr)
+            return 2
+    try:
+        reports = check_script(args.pdf_path, claim=args.claim, width=width)
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
+    except Exception as exc:  # noqa: BLE001 - the script's own failure, reported as exit 2
+        print(f"[SCRIPT ERROR] {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if not reports:
+        print("Error: the script drew no figure.", file=sys.stderr)
+        return 2
+    if args.as_json:
+        print(json.dumps({"schema_version": "0.2", "figures": reports}, indent=2, ensure_ascii=False,
+                         default=str))
+    else:
+        print("\n\n".join(format_report(r) for r in reports))
+    blocked = [r for r in reports if not r["ship"]]
+    if args.strict:
+        blocked += [r for r in reports if r["ship"] and (r["issues"] or r["advisories"])]
+    return 1 if blocked else 0
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point for `mintfig`."""
     parser = _build_parser()
@@ -1328,6 +1377,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             else:
                 print(_format_all_specs())
         return 0
+
+    if args.command == "check" and args.pdf_path.suffix.lower() == ".py":
+        return _run_figure_check(args)
 
     if args.command == "check":
         try:

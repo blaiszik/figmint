@@ -55,6 +55,11 @@ a library they switch to:
 Done when: a gallery of five ugly agent-written Matplotlib scripts each becomes
 a shippable figure with facts by adding 1–2 lines.
 
+**Shipped 2026-11-26: `mint.check(fig, claim)` and `mintfig check plot.py`** (item 3
+plus the audit half of item 2: facts from artists, the claim checked against them,
+the bench's text audit at reading width, a `ship` gate with concrete fix hints).
+Still open: B1 `mint.style()` and B2 `mint.explain(takeaway, fig)`.
+
 ## C. Prove it, against Matplotlib rather than against text
 
 The README compares mintfig only to a text answer. The objection people actually
@@ -71,8 +76,7 @@ raise is "my agent already makes plots."
 
 ## D. Distribution
 
-- Settle the PyPI name. HANDOFF §2 says `mintfig` is taken but also lists it as
-  free, while the README says `pip install mintfig`.
+- ~~Settle the PyPI name.~~ Settled 2026-11-26: `mintfig`, secured by the owner.
 - Package the skill as a Claude Code plugin and submit it to the plugin, skill
   and Codex/Cursor directories. This is packaging only; CLI + SKILL.md stays the
   interface, not MCP (a settled decision).

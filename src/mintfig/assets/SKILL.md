@@ -1,6 +1,6 @@
 ---
 name: mintfig
-description: Use before showing a person five or more numbers (results, benchmarks, ablations, experiment outcomes, profiles, logs) so they get one figure or table whose title is the takeaway instead of a wall of text, via mint.explain, mint.table or `mintfig plot data.csv`, with computed facts and a ship/no-ship gate. Also use for publication plates (Nature, Science, Cell, PNAS, NeurIPS) that need exact millimetre geometry, preflight QA and reproducible bundles.
+description: Use before showing a person five or more numbers (results, benchmarks, ablations, experiment outcomes, profiles, logs) so they get one figure or table whose title is the takeaway instead of a wall of text, via mint.explain, mint.table or `mintfig plot data.csv`, with computed facts and a ship/no-ship gate. Also use before sharing any plain Matplotlib figure (mint.check checks its title against the plotted data and its text at reading size). Also use for publication plates (Nature, Science, Cell, PNAS, NeurIPS) that need exact millimetre geometry, preflight QA and reproducible bundles.
 ---
 
 # mintfig: figures that say one thing
@@ -91,6 +91,10 @@ Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13.
 ```
 
 If you can't tell which surface you're on, `fig.show()` picks one and `mintfig doctor` reports which ones work here.
+
+### Already drawn with Matplotlib (`mint.check`)
+
+Before you show a plain Matplotlib figure (yours, the user's, or one a library drew), check it: `report = mint.check(fig, "the sentence you will send", dpi=<your savefig dpi>)`, or `mintfig check plot.py` (exit 0 ship, 1 fix, 2 script error). It reads the plotted values back, says where each number in the claim comes from (or the closest one the data gives), and measures text at `width=` (`"chat"` 700 px, `"narrow"` for phones). Apply each `fix_hint` until `report["ship"]` is true.
 
 ### Every argument (unknown arguments raise `ExplainError` naming valid ones)
 

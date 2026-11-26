@@ -39,6 +39,7 @@ from .explainer import (
     trend,
     waterfall,
 )
+from .figcheck import check
 from .inline import InlineGraphic
 from .inspect_data import auto_panel, inspect_data, load_table_file
 from .plate import Plate, figure
@@ -57,6 +58,7 @@ __all__ = [
     "auto_panel",
     "brief",
     "change",
+    "check",
     "compare",
     "custom",
     "distribution",

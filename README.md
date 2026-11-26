@@ -11,7 +11,8 @@ AI agents are great at running analyses and terrible at showing what they found.
 The reply is one sentence, the figure and one caption; `fig.save()` hands the agent the image line and the caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
 
 1. **Explain results in a conversation (`mint.explain`, `mintfig plot`)** — lead with a takeaway sentence and compose panels by question (comparisons, trends, distributions, attribution bridges, timelines, attrition flows, scorecards). Layout, direct labels, named uncertainty, colorblind-safe themes, drawn-text auditing (`ship`), and computed `facts` are built in — delivered as PNGs, interactive HTML, terminal graphics, or multi-figure briefings (`mint.brief`).
-2. **Ship journal-ready manuscript plates (`mint.Plate`, `mintfig run`)** — exact millimeter column geometry, unified sans-serif typography and math, automated preflight QA, colorblind/grayscale proof sheets, and reproducible submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
+2. **Check the Matplotlib you already have (`mint.check`, `mintfig check plot.py`)** — one call reads the plotted values back out of any Matplotlib figure, checks every number in the title (or your reply) against them, and measures the text at the width it will be read. No rewrite.
+3. **Ship journal-ready manuscript plates (`mint.Plate`, `mintfig run`)** — exact millimeter column geometry, unified sans-serif typography and math, automated preflight QA, colorblind/grayscale proof sheets, and reproducible submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
 
 [Quickstart](#quickstart) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill) · [Upgrading from 0.2](#upgrading-from-02)
 
@@ -87,6 +88,51 @@ fig.save("ablation.html")  # one self-contained page
 ```
 
 `mintfig doctor` reports which of these work where it runs (inline-image protocol, resolved font, notebook) and renders a sample. The HTML page embeds the figure laid out for 360 px, 450 px and its own width and picks one with a container query, so text stays at 11 px or more; it follows the reader's light or dark setting; hovering or focusing a mark shows its value, interval and n, and clicking copies a citation (`ablation.png · b · no retrieval @ 500 = 0.52`) to paste back to the agent. Under the figure there is one quiet line: `data · svg · spec`.
+
+### Already have Matplotlib? Check it (`mint.check`)
+
+Most figures an agent ships are plain Matplotlib, and in [figure-bench](evals/figure_bench/README.md) agents writing it the way they do today shipped a layout or text defect in 13 of 15 figures and put the answer in the headline in 4. `mint.check` audits any Matplotlib figure without a rewrite:
+
+```python
+import matplotlib.pyplot as plt
+import mintfig as mint
+
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.bar(["full model", "no retrieval", "no fine-tuning"], [0.82, 0.74, 0.69], yerr=[0.02, 0.03, 0.03])
+ax.set_ylim(0.6, 0.85)
+ax.set_title("Removing retrieval costs 12 points of accuracy")
+
+report = mint.check(fig, dpi=150)   # or mint.check(fig, "the sentence you will send")
+print(report)
+```
+
+```text
+{
+  "ship": false,
+  "claim": "Removing retrieval costs 12 points of accuracy",
+  "numbers": ["12 points: NOT FOUND in the data; closest: full model vs no retrieval: 0.82 − 0.74 = 8 points"],
+  "issues": [
+    "bar_baseline_nonzero: Bars start at zero but the value axis runs 0.6–0.85, so bar lengths overstate the differences.",
+    "claim_number_mismatch: The claim states '12 points', which matches no value, difference, ratio, ...",
+    "text_too_small: 10 text(s) under 11 px as read: 'full model' 8.1 px, ... The 1800 px PNG is shown 700 px wide, ...",
+    "interval_unlabelled: The figure draws error bars or bands but never says what they are.",
+    "axis_unlabelled: Axes 0 has numbers on its y axis but no label saying what they measure."
+  ],
+  "facts": [
+    "highest full model 0.82, 0.08 above no retrieval (0.74), 1.11×; lowest no fine-tuning 0.69",
+    "intervals of full model (0.8–0.84) and no retrieval (0.71–0.77) do not overlap"
+  ],
+  "display": {"png_px": [1800, 750], "shown_px": [700, 292], "min_text_px": 8.1}
+}
+```
+
+(Abridged. Each entry in `report["issues"]` also carries a `fix_hint`, here "figsize width ≈ 4.7 in at dpi=150 … or set text to at least 14 pt".)
+
+- **The claim, against the data.** Bars, lines, error bars, scatter points and images are read back from the drawn artists. Each number the headline (or `claim=`) states is looked up among the values and their differences, ratios, percentage changes, shares and crossings; the report says where it came from, or the closest number the data does give.
+- **At reading size.** Text is measured after the PNG is scaled to `width="chat"` (700 px), `"narrow"` (450 px, phones) or `"slide"` (1280 px), together with overlaps, text struck by lines, malformed text, clipping, truncated bar baselines and rainbow colormaps. These are the same checks figure-bench scores every arm with.
+- **A gate, not a style.** `report["ship"]` is true with no error, no text defect and every stated number found; each issue carries a `fix_hint` with concrete values. Legends, colours and fonts stay yours.
+
+From a shell or an agent loop, `mintfig check plot.py` runs the script (Agg backend, from its own folder), checks every figure it saves as it was saved, and exits `0` (ship), `1` (fix first) or `2` (the script failed); add `--claim "..."`, `--width narrow` or `--json`.
 
 ### Words on the marks, tables with graphics, briefings
 
@@ -270,6 +316,9 @@ mintfig edit fig.png --drop "no augmentation" --no-color-names --out fig2.png
 # Publication scripts: execute, preflight (14 rules), and export reproducible bundle
 mintfig run plot.py --journal nature --bundle out/ --json
 mintfig run plot.py --journal science --width full --bundle out_sci/ --strict
+
+# Check any Matplotlib script's figures against their data, at reading size (exit 0 ship / 1 fix / 2 error)
+mintfig check plot.py --claim "Removing retrieval costs 8 points" --width chat --json
 
 # Audit existing PDFs & inspect specs
 mintfig check figure2.pdf --journal nature --json

@@ -14,7 +14,7 @@ TOP_LEVEL = {
     "matrix", "table", "waterfall", "timeline", "flow", "custom", "Explanation", "Panel",
     "ExplainError", "lenient", "load", "edit", "Session", "brief", "Brief", "inspect_data",
     "auto_panel", "load_table_file", "Plate", "figure", "__version__",
-    "inline", "InlineGraphic",
+    "inline", "InlineGraphic", "check",
 }  # fmt: skip
 
 PUB = [
