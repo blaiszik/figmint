@@ -1,20 +1,22 @@
 # mintfig
 
-**Mint-condition figures for AI agents and scientists.**
+**Figures whose claims are checked against the data — and that look good by default.**
 
-AI agents are great at running analyses and terrible at showing what they found. `mintfig` turns raw data into clear, self-auditing visual explanations — as a Python library (`import mintfig as mint`), zero-script CLI, and coding-agent skill built on Matplotlib.
+AI agents are great at running analyses and terrible at showing what they found. In [figure-bench](evals/figure_bench/README.md), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15**. `mintfig` audits any Matplotlib figure you already have (`mint.check`, `mintfig hook --install`) and draws self-auditing, message-first figures (`mint.explain`, `mint.Plate`) as a Python library, zero-script CLI, and coding-agent skill.
 
-| An agent's text-only answer | The same answer as a mintfig reply |
-| :--- | :--- |
-| I ran the ablation with five variants and five seeds each. The full model reaches 0.82 test accuracy (95% CI 0.80–0.84). Removing augmentation gives 0.80 (0.78–0.82) and a smaller encoder 0.78 (0.75–0.81), both within seed noise of the full model. Removing retrieval drops accuracy to 0.74 (0.71–0.77), a loss of 8 points, and removing fine-tuning drops it to 0.69 (0.66–0.72), a loss of 13 points; neither interval overlaps the full model's. On the validation curves the three main variants start together, but by step 500 the full model is at 0.66, no retrieval at 0.60 and no fine-tuning at 0.48, and the order holds through step 2,000, where they end at 0.82, 0.74 and 0.68. | Retrieval and fine-tuning are the two components worth keeping; the other two are within seed noise.<br><br>![Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/explain_science/ablation.png)<br><br>*No retrieval 0.74 and no fine-tuning 0.69 against 0.82 for the full model; neither 95% CI (5 seeds) overlaps it.* |
+| Agent text-only | Default agent Matplotlib (13/15 defective, 4/15 accurate headline) | `mintfig` reply |
+| :--- | :--- | :--- |
+| I ran the ablation with five variants and five seeds each. The full model reaches 0.82 test accuracy (95% CI 0.80–0.84). Removing augmentation gives 0.80 (0.78–0.82) and a smaller encoder 0.78 (0.75–0.81), both within seed noise of the full model. Removing retrieval drops accuracy to 0.74 (0.71–0.77), a loss of 8 points, and removing fine-tuning drops it to 0.69 (0.66–0.72), a loss of 13 points; neither interval overlaps the full model's. On the validation curves the three main variants start together, but by step 500 the full model is at 0.66, no retrieval at 0.60 and no fine-tuning at 0.48, and the order holds through step 2,000, where they end at 0.82, 0.74 and 0.68. | ![Default agent Matplotlib render of the ablation](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/readme_comparison/matplotlib_default.png)<br><br>`mint.check` -> **`ship: false`**: text shrinks to **8.1 px** at 700 px chat width, bar axis starts at 0.55 (`bar_baseline_nonzero`), error bars and bands are unlabelled (`interval_unlabelled`), rotated labels crowd, boxed legend, and a topic-only title ("Ablation Results") with no takeaway number. | Retrieval and fine-tuning are the two components worth keeping; the other two are within seed noise.<br><br>![Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/readme_comparison/mintfig_reply.png)<br><br>*No retrieval 0.74 and no fine-tuning 0.69 against 0.82 for the full model; neither 95% CI (5 seeds) overlaps it.* (`ship: true`) |
 
-The reply is one sentence, the figure and one caption; `fig.save()` hands the agent the image line and the caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
+Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](https://github.com/blaiszik/mintfig/blob/main/gallery/make_readme_comparison.py). The reply is one sentence, the figure, and one caption; `fig.save()` hands the agent the image line and caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
 
-1. **Explain results in a conversation (`mint.explain`, `mintfig plot`)** — lead with a takeaway sentence and compose panels by question (comparisons, trends, distributions, attribution bridges, timelines, attrition flows, scorecards). Layout, direct labels, named uncertainty, colorblind-safe themes, drawn-text auditing (`ship`), and computed `facts` are built in — delivered as PNGs, interactive HTML, terminal graphics, or multi-figure briefings (`mint.brief`).
-2. **Check the Matplotlib you already have (`mint.check`, `mintfig check plot.py`)** — one call reads the plotted values back out of any Matplotlib figure, checks every number in the title (or your reply) against them, and measures the text at the width it will be read. No rewrite.
-3. **Ship journal-ready manuscript plates (`mint.Plate`, `mintfig run`)** — exact millimeter column geometry, unified sans-serif typography and math, automated preflight QA, colorblind/grayscale proof sheets, and reproducible submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
+### Three steps to adopt
 
-[Quickstart](#quickstart) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill) · [Upgrading from 0.2](#upgrading-from-02)
+1. **Check the Matplotlib you already have (`mint.check`, `mintfig check plot.py` / `analysis.ipynb`) — zero rewrite.** One call reads plotted values back from bars, lines, scatter, heatmaps, histograms, CI bands, and boxplots, verifies every number in your title or claim against the data, and measures text at reading width (`chat`, `narrow`, `slide`).
+2. **Add an automatic agent guardrail (`mintfig hook --install`, `mintfig skill --install --global`).** Install the skill globally for Claude Code, Codex, Cursor, and Antigravity, and wire a silent `PostToolUse` hook that checks agent-written Matplotlib scripts automatically and only speaks up when a figure fails `ship`.
+3. **Explain results in one call (`mint.explain`, `mintfig plot`) & ship journal plates (`mint.Plate`, `mintfig run`).** Lead with a takeaway sentence and compose panels by question with direct labels, named uncertainty, colorblind-safe themes, HTML/terminal delivery, and exact-mm submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
+
+[Quickstart](#quickstart) · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
 
 ---
 
@@ -28,70 +30,20 @@ The reply is one sentence, the figure and one caption; `fig.save()` hands the ag
 pip install mintfig
 # or with uv
 uv add mintfig
+# or zero-install check on any existing plotting script
+uvx mintfig check plot.py
 ```
 
-Give your coding agent the bundled skill (Claude Code, Antigravity, Cursor, Codex, `AGENTS.md`):
+Give your coding agents the bundled skill globally (auto-detects Claude Code, Codex, Cursor, Antigravity) and enable the automatic Matplotlib audit hook:
 
 ```bash
-mintfig skill --install
+mintfig skill --install --global
+mintfig hook --install
 ```
-
-### Explain a result (`mint.explain`)
-
-Write the conclusion first, then pick each panel by the question it answers. `fig.save()` returns a JSON summary containing computed `facts` per panel, any `issues` with a `fix_hint`, `alt_text`, and measured legibility at chat width:
-
-```python
-import mintfig as mint
-
-fig = mint.explain(
-    "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",
-    mint.compare(
-        {"full model": 0.82, "no retrieval": 0.74, "no fine-tuning": 0.69},
-        error={"full model": (0.80, 0.84), "no retrieval": (0.71, 0.77),
-               "no fine-tuning": (0.66, 0.72)},
-        error_label="95% CI, 5 seeds",
-        title="Both losses are outside seed noise",
-        label="Test accuracy",
-        highlight=["no retrieval", "no fine-tuning"],
-    ),
-    mint.trend(
-        [0, 500, 1000, 1500, 2000],
-        {"full model": [0.02, 0.61, 0.76, 0.80, 0.82],
-         "no retrieval": [0.02, 0.52, 0.67, 0.72, 0.74],
-         "no fine-tuning": [0.01, 0.44, 0.60, 0.66, 0.69]},
-        title="The gap opens in the first 500 steps",
-        label="Validation accuracy",
-        x_label="Training step",
-    ),
-    source="runs/ablation_2026-11 (5 seeds per variant)",
-)
-print(fig.save("ablation.png"))
-```
-
-No Python script needed? Render directly from JSON or stdin with `mintfig explain`:
-
-```bash
-mintfig explain --example | mintfig explain - --style editorial --palette okabe_ito --out fig.png
-```
-
-### Put it in front of the reader
-
-A figure only helps once it is in the reply. `summary["deliver"]` says how: `markdown` (the image line), `caption` (one sentence taken from the facts that back the takeaway), `text` (a plain rendering for a code block where images do not show) and `html` (once saved as `.html`).
-
-```python
-summary = fig.save("ablation.png")
-deliver = summary["deliver"]
-reply = f"Retrieval and fine-tuning both matter.\n\n{deliver['markdown']}\n\n*{deliver['caption']}*"
-fig.show()                 # notebook: rich display; Kitty, iTerm2, WezTerm, Ghostty: inline PNG; else text
-text = fig.to_text()       # plain text, at most 72 columns, for a code block
-fig.save("ablation.html")  # one self-contained page
-```
-
-`mintfig doctor` reports which of these work where it runs (inline-image protocol, resolved font, notebook) and renders a sample. The HTML page embeds the figure laid out for 360 px, 450 px and its own width and picks one with a container query, so text stays at 11 px or more; it follows the reader's light or dark setting; hovering or focusing a mark shows its value, interval and n, and clicking copies a citation (`ablation.png · b · no retrieval @ 500 = 0.52`) to paste back to the agent. Under the figure there is one quiet line: `data · svg · spec`.
 
 ### Already have Matplotlib? Check it (`mint.check`)
 
-Most figures an agent ships are plain Matplotlib, and in [figure-bench](evals/figure_bench/README.md) agents writing it the way they do today shipped a layout or text defect in 13 of 15 figures and stated the correct number in the headline in 4 of 15. `mint.check` audits any Matplotlib figure without a rewrite:
+Most figures an agent ships are plain Matplotlib, and in [figure-bench](evals/figure_bench/README.md) agents writing it without guardrails shipped a layout or text defect in 13 of 15 figures and stated the correct number in the headline in only 4 of 15. `mint.check` audits any Matplotlib or Seaborn figure without rewriting it:
 
 ```python
 import matplotlib.pyplot as plt
@@ -128,11 +80,63 @@ print(report)
 
 (Abridged. Each entry in `report["issues"]` also carries a `fix_hint`, here "figsize width ≈ 4.7 in at dpi=150 … or set text to at least 14 pt".)
 
-- **The claim, against the data.** Bars, lines, error bars, scatter points and images are read back from the drawn artists. Each number the headline (or `claim=`) states is looked up among the values and their differences, ratios, percentage changes, shares and crossings; the report says where it came from, or the closest number the data does give.
-- **At reading size.** Text is measured after the PNG is scaled to `width="chat"` (700 px), `"narrow"` (450 px, phones) or `"slide"` (1280 px), together with overlaps, text struck by lines, malformed text, clipping, truncated bar baselines and rainbow colormaps. These are the same checks figure-bench scores every arm with.
-- **A gate, not a style.** `report["ship"]` is true with no error, no text defect and every stated number found; each issue carries a `fix_hint` with concrete values. Legends, colours and fonts stay yours.
+- **The claim, against the data.** Bars, lines, error bars, scatter points, heatmaps (`QuadMesh`), histograms, `fill_between` CI bands, boxplots, and images are read back from the drawn artists. Each number the headline (or `claim=`) states is checked against values, differences, ratios, percentage changes, shares, and crossings (ignoring model IDs like `Llama-3.1`/`8B` and sample counts like `5 seeds`).
+- **At reading size.** Text is measured after scaling the PNG to `width="chat"` (700 px), `"narrow"` (450 px, phones), or `"slide"` (1280 px), alongside overlaps, text struck by lines, malformed text, clipping, truncated bar baselines, and rainbow colormaps.
+- **Zero-rewrite CLI, notebooks, and hooks.** Run `mintfig check plot.py` (auto-detects your project `.venv`, or pass `--python /path/to/python`), `mintfig check analysis.ipynb` (zero extra deps), or `mintfig hook --install` so agent-written Matplotlib scripts are checked automatically with exit `0` (ship), `1` (fix first), or `2` (script error).
 
-From a shell or an agent loop, `mintfig check plot.py` runs the script (Agg backend, from its own folder), checks every figure it saves as it was saved, and exits `0` (ship), `1` (fix first) or `2` (the script failed); add `--claim "..."`, `--width narrow` or `--json`.
+### Explain a result (`mint.explain`)
+
+Write the conclusion first, then pick each panel by the question it answers. `fig.save()` returns a JSON summary containing computed `facts` per panel, any `issues` with a `fix_hint`, `alt_text`, and measured legibility at chat width:
+
+```python
+import mintfig as mint
+
+fig = mint.explain(
+    "Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13",
+    mint.compare(
+        {"full model": 0.82, "no retrieval": 0.74, "no fine-tuning": 0.69},
+        error={"full model": (0.80, 0.84), "no retrieval": (0.71, 0.77),
+               "no fine-tuning": (0.66, 0.72)},
+        error_label="95% CI, 5 seeds",
+        title="Both losses are outside seed noise",
+        label="Test accuracy",
+        highlight=["no retrieval", "no fine-tuning"],
+    ),
+    mint.trend(
+        [0, 500, 1000, 1500, 2000],
+        {"full model": [0.02, 0.61, 0.76, 0.80, 0.82],
+         "no retrieval": [0.02, 0.52, 0.67, 0.72, 0.74],
+         "no fine-tuning": [0.01, 0.44, 0.60, 0.66, 0.69]},
+        title="The gap opens in the first 500 steps",
+        label="Validation accuracy",
+        x_label="Training step",
+    ),
+    source="runs/ablation_2026-11 (5 seeds per variant)",
+)
+print(fig.save("ablation.png"))
+```
+
+No Python script needed? Render directly from CSV or JSON/stdin:
+
+```bash
+mintfig plot data.csv --kind auto --takeaway "Checkout p99 is 4x slower" --out fig.png
+mintfig explain --example | mintfig explain - --style editorial --palette okabe_ito --out fig.png
+```
+
+### Put it in front of the reader
+
+A figure only helps once it is in the reply. `summary["deliver"]` says how: `markdown` (the image line), `caption` (one sentence taken from the facts that back the takeaway), `text` (a plain rendering for a code block where images do not show), and `html` (once saved as `.html`).
+
+```python
+summary = fig.save("ablation.png")
+deliver = summary["deliver"]
+reply = f"Retrieval and fine-tuning both matter.\n\n{deliver['markdown']}\n\n*{deliver['caption']}*"
+fig.show()                 # notebook: rich display; Kitty, iTerm2, WezTerm, Ghostty: inline PNG; else text
+text = fig.to_text()       # plain text, at most 72 columns, for a code block
+fig.save("ablation.html")  # one self-contained page
+```
+
+`mintfig doctor` reports which of these work where it runs (inline-image protocol, resolved font, notebook) and renders a sample. The HTML page embeds the figure laid out for 360 px, 450 px, and its own width and picks one with a container query, so text stays at 11 px or more; it follows the reader's light or dark setting; hovering or focusing a mark shows its value, interval, and n, and clicking copies a citation (`ablation.png · b · no retrieval @ 500 = 0.52`) to paste back to the agent. Under the figure there is one quiet line: `data · svg · spec`.
 
 ### Words on the marks, tables with graphics, briefings
 
@@ -147,7 +151,7 @@ fig = mint.explain(
 )
 ```
 
-`mint.table` draws a bar, whisker or sparkline in the cell beside each number, on one scale per column, so a scorecard no longer needs a bar panel beside it:
+`mint.table` draws a bar, whisker, or sparkline in the cell beside each number, on one scale per column, so a scorecard no longer needs a bar panel beside it:
 
 ```python
 rows = [
@@ -207,7 +211,7 @@ Every form enforces its own perceptual rules (zero baselines, direct labels, no 
 - **Uncertainty is first class and must be named.** Raw observations (`distribution`, `histogram`, `trend(points=)`), intervals (`compare(error=, error_label=)`), and bands (`trend(band=, band_label=)`); an unlabelled interval triggers a warning.
 - **Numbers keep their magnitude.** Values format to ~3 significant figures (`1.3×10⁻⁷` when tiny or huge, never silently rounded to zero) with log axes on `compare`, `trend`, `distribution`, `histogram`, and `relate`.
 - **One colour per entity.** A name keeps its colour across every panel of a figure, and `mint.Session` / `colors=` pin hues across turns in a conversation.
-- **Facts & one-shot shipping (`summary["ship"]`, `mint.lenient()`).** `fig.save()` returns computed `facts` per panel plus a `"ship"` verdict that separates real visual defects from minor advisory warnings so agents don't burn extra turns re-rendering good-enough figures. Advisories include `low_density` (a figure taller than 320 px for fewer than eight values: use `density="compact"`, `mint.table` or one sentence) and `scales_differ` (two panels with the same label and unit on different ranges); `print(summary)` shows a compact view, `json.dumps(summary)` the full one. For rapid ad-hoc charts, `with mint.lenient():` / `mint.explain(..., strict=False)` / `mintfig explain --lenient` auto-adjusts soft limits (auto-faceting >4 series, auto-stacking cramped panels, trimming oversized lists) instead of rejecting.
+- **Facts & one-shot shipping (`summary["ship"]`, `mint.lenient()`).** `fig.save()` returns computed `facts` per panel plus a `"ship"` verdict that separates real visual defects from minor advisory warnings so agents don't burn extra turns re-rendering good-enough figures. Advisories include `low_density` (a figure taller than 320 px for fewer than eight values: use `density="compact"`, `mint.table`, or one sentence) and `scales_differ` (two panels with the same label and unit on different ranges); `print(summary)` shows a compact view, `json.dumps(summary)` the full one. For rapid ad-hoc charts, `with mint.lenient():` / `mint.explain(..., strict=False)` / `mintfig explain --lenient` auto-adjusts soft limits (auto-faceting >4 series, auto-stacking cramped panels, trimming oversized lists) instead of rejecting.
 - **Errors that teach & figures that come back.** Invalid arguments raise `ExplainError` with the exact fix; every PNG embeds its spec so `mint.edit("fig.png", ...)` / `mint.load("fig.png")` rebuilds and refines returned figures without redrawing from memory.
 - **Native data inputs & Unicode.** Dicts, lists, CSV/TSV/JSON/JSONL files (`mint.load_table_file`, `mintfig plot --kind auto`), NumPy arrays, pandas Series and DataFrames, plus direct Unicode symbols (`µm`, `cm⁻³`, `°C`, `χ²`). Full argument reference: [src/mintfig/assets/SKILL.md](https://github.com/blaiszik/mintfig/blob/main/src/mintfig/assets/SKILL.md) (verified by tests against the live API).
 
@@ -303,30 +307,33 @@ def build(journal: str = "nature") -> mint.Plate:
 ## CLI & Agent Skill
 
 ```bash
-# Chat figures from JSON or an embedded-spec PNG
-mintfig explain spec.json --out fig.png --write-spec
-mintfig explain fig.png --style dark --palette okabe_ito --out fig_dark.png
-mintfig explain --show-spec fig.png
-mintfig doctor                       # which delivery surfaces work here; renders a sample
+# Check any Matplotlib script, notebook, or PDF against its data at reading size (exit 0 ship / 1 fix / 2 error)
+mintfig check plot.py --claim "Removing retrieval costs 8 points" --width chat --json
+mintfig check plot.py --python .venv/bin/python   # auto-detects project .venv when omitted
+mintfig check analysis.ipynb --width chat --json
+mintfig check figure2.pdf --journal nature --json
+
+# Install bundled agent skill globally (or per project) & wire automatic PostToolUse hooks
+mintfig skill --install --global                  # auto-detects ~/.claude, ~/.codex, ~/.gemini, ~/.cursor
+mintfig skill --install --target all --root .
+mintfig skill --print --all                       # print SKILL.md + all references/*.md
+mintfig hook --install                            # auto-audit agent Matplotlib writes (silent on pass)
+mintfig hook --status
 
 # Zero-script: plot a data file, then refine the saved figure
 mintfig plot data.csv --kind auto --takeaway "..." --density compact --out fig.png
 mintfig edit fig.png --drop "no augmentation" --no-color-names --out fig2.png
 
+# Chat figures from JSON or an embedded-spec PNG
+mintfig explain spec.json --out fig.png --write-spec
+mintfig explain fig.png --style dark --palette okabe_ito --out fig_dark.png
+mintfig explain --show-spec fig.png
+mintfig doctor                                    # which delivery surfaces work here; renders a sample
+
 # Publication scripts: execute, preflight (14 rules), and export reproducible bundle
 mintfig run plot.py --journal nature --bundle out/ --json
 mintfig run plot.py --journal science --width full --bundle out_sci/ --strict
-
-# Check any Matplotlib script's figures against their data, at reading size (exit 0 ship / 1 fix / 2 error)
-mintfig check plot.py --claim "Removing retrieval costs 8 points" --width chat --json
-
-# Audit existing PDFs & inspect specs
-mintfig check figure2.pdf --journal nature --json
 mintfig specs --journal nature --json
-
-# Install bundled agent skill (Claude Code, Antigravity, Cursor, Codex, AGENTS.md, CLAUDE.md)
-mintfig skill --install
-mintfig skill --install --target claude,antigravity,cursor,codex,agents-md,claude-md --root .
 ```
 
 Exit codes: `0` clean pass · `1` error-level issue (or warning under `--strict`) · `2` invalid spec, script contract violation, or runtime error.
@@ -348,7 +355,8 @@ Exit codes: `0` clean pass · `1` error-level issue (or warning under `--strict`
 
 ## Benchmarks & Development
 
-- **Chat figure benchmark (`evals/figure_bench/`)**: timed end-to-end benchmark of fresh agents reading only `SKILL.md` across 10 core tasks and 5 held-out tasks with an independent drawn-text layout audit and a delivery check on the agent's reply (the figure in a deliverable form, at most 60 words of prose) ([evals/figure_bench/README.md](https://github.com/blaiszik/mintfig/blob/main/evals/figure_bench/README.md)). Whether readers do better with the figure reply than with text has not been measured yet.
+- **Chat figure benchmark (`evals/figure_bench/`)**: timed end-to-end benchmark of fresh agents reading only `SKILL.md` across 10 core tasks and 5 held-out tasks with an independent drawn-text layout audit, plain-Matplotlib baseline arms, and a delivery check on the agent's reply ([evals/figure_bench/README.md](https://github.com/blaiszik/mintfig/blob/main/evals/figure_bench/README.md)). Whether readers do better with the figure reply than with text has not been measured yet.
+- **Skill trigger evaluation (`evals/trigger_eval/`)**: 40 realistic developer and scientist prompts (20 positive, 20 negative, zero mentions of `mintfig`) testing skill recall (>= 85%) and false-trigger rate (<= 5%) with both a deterministic offline rubric and a `--live` CLI adapter ([evals/trigger_eval/README.md](https://github.com/blaiszik/mintfig/blob/main/evals/trigger_eval/README.md)).
 - **Publication repair eval (`evals/`)**: 10 clean control scripts and 25 messy agent-written scripts testing `mintfig run --json` + `fix_hint` repair loops ([evals/eval_report.md](https://github.com/blaiszik/mintfig/blob/main/evals/eval_report.md)).
 
 ```bash
