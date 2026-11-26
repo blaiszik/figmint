@@ -24,6 +24,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Claude Code plugin package (`plugins/claude-code/`):** ready-to-install plugin bundle with synced `SKILL.md` + `references/`, `PostToolUse` hook config, and `/mintfig:check` command.
 - **40-prompt skill trigger evaluation (`evals/trigger_eval/`):** 20 positive and 20 negative realistic prompts (none mentioning `mintfig`) with deterministic offline rubric scoring, `--live` CLI adapter (`claude`, `codex`, `gemini`), and pytest suite (`tests/test_trigger_eval.py`).
 - **3-column README opener & comparison generator (`gallery/make_readme_comparison.py`):** side-by-side comparison of agent text-only, default agent Matplotlib (`ship: false`), and `mintfig` (`ship: true`) on identical ablation data, plus wedge-first adoption ordering (`mint.check` + `mintfig hook` alongside `mint.explain`).
+- **Zero-rewrite Matplotlib upgrades (`src/mintfig/byo.py`, `gallery/byo_matplotlib_examples.py`):**
+  - `mint.style(style="mintfig", *, palette=None, width="chat", accent=None)` leak-free context manager applying chat-readable sizing (>=11 px display text), CVD-safe palette cycles, despining, and `viridis` default cmap.
+  - `mint.explain(takeaway, fig_or_ax, ...)` accepting plain Matplotlib/Seaborn `Figure`, `Axes`, or `SubFigure` objects directly as panels with `mint.check` facts, `ship` propagation, HTML, terminal, and `mint.brief` support.
+  - Zero-dependency IPython/Jupyter magic (`%load_ext mintfig`, `%mintfig_check on|off|status`, `mint.byo.auto_check()`).
+- **Opt-in legends & pie/donut charts (Workstream A):**
+  - `mint.share(..., kind="bars" | "pie" | "donut")` (sorted bars remain default; pie/donut opt-in for <=5 parts with non-blocking `pie_close_slices` advisory when adjacent slices are within 5 pp).
+  - Opt-in `legend=True` on `mint.trend`, `mint.relate`, and grouped `mint.compare` with frameless top legends (direct labels remain default).
+- **SWE dev-tool ingestors, `mintfig diff`, and terminal/Markdown-first CLI (`src/mintfig/ingest.py`, `src/mintfig/diff.py`):**
+  - Zero-dep parsers wired into `load_table_file`/`inspect_data`/`mintfig plot`: `hyperfine` JSON, `pytest-benchmark` JSON, `go test -bench` & `cargo bench` logs, GitHub Actions CI timings, Chrome Trace/OTEL spans, `k6` summaries, `esbuild`/`vite` metafiles, and LLM eval tables.
+  - `mintfig diff base head` (`--out`, `--text`, `--markdown`, `--json`, `--fail-on-regression PCT`) with interval-overlap noise suppression (`within_noise`).
+  - `--text` and `--markdown` stdout flags on `mintfig plot` (no PNG file needed).
+- **GitHub PR cards, reusable GitHub Action, & 1.0 Stability Policy (`src/mintfig/pr_card.py`, `.github/actions/mintfig-check/`, `docs/STABILITY_POLICY.md`):**
+  - `save_pr_card()` emitting light+dark PNGs with native GitHub `<picture>` markup and collapsible `<details>` facts/reproduce block, plus `format_check_pr_comment()`.
+  - Reusable composite GitHub Action at `.github/actions/mintfig-check/action.yml` + manual example workflow.
+  - SemVer & deprecation contract documented in `docs/STABILITY_POLICY.md`.
 
 ### Changed
 - **False-positive hardening in `mint.check` / `epistemic.py`:** ignores non-metric model/precision tokens (`GPT-5`, `Llama-3.1`, `8B`, `FP16`, `INT4`, `v2.3`, `ResNet-50`), sample/design counts (`5 seeds`, `3 replicates`, `top-5`, `p < 0.05`, `95% CI`), and calendar years (`1990`–`2035`), while supporting common unit-scale conversions (`0.08` <-> `8%` <-> `8 points`, `0.08 s` <-> `80 ms`, `1500` <-> `1.5k`).

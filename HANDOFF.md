@@ -779,6 +779,38 @@ Implemented via a 4-worker swarm on branch `mintfig-neon`:
      wedge-first Quickstart (`mint.check` + `mintfig hook --install` + `mint.explain`), plus
      `CHANGELOG.md`.
 
+## 4o. Phase 3 on `mintfig-neon`: BYO Matplotlib, opt-in rules, SWE workflows & PR/CI (2026-11-26)
+
+Implemented via a second 4-worker swarm on branch `mintfig-neon`:
+
+1. **Zero-rewrite Matplotlib upgrade path (`src/mintfig/byo.py`, `src/mintfig/_explain/layout.py`, `gallery/byo_matplotlib_examples.py`, `tests/test_byo_matplotlib.py`):**
+   - `mint.style(style="mintfig", *, palette=None, width="chat", accent=None)` leak-free
+     context manager (`.rc_params()`, `.apply()`) ensuring >=11 px display text and CVD-safe
+     cycles. Exported at top level (`mint.__all__`).
+   - `mint.explain(takeaway, fig_or_ax, ...)` accepting plain Matplotlib `Figure`/`Axes`/
+     `SubFigure` directly (standalone or mixed with built-in panels), extracting `mint.check`
+     facts and propagating blocking issues into `ship`, `deliver`, HTML, text, and `mint.brief`.
+   - Zero-dep IPython/Jupyter magic (`%load_ext mintfig`, `%mintfig_check`, `auto_check()`).
+   - 5-example BYO gallery (`gallery/output/byo_matplotlib/`): all 5 BEFORE fail `mint.check`,
+     all 5 AFTER pass `mint.explain` with `ship: True`.
+2. **Opt-in defaults (`src/mintfig/_explain/{core,compare,compare_grouped,trend,relate}.py`, `tests/test_optin_rules.py`):**
+   - `mint.share(..., kind="bars" | "pie" | "donut")` (<=5 parts; non-blocking
+     `pie_close_slices` advisory within 5 pp; serializes via `share_kind` alias so top-level
+     `{"kind": "pie"}` stays rejected and `mint.load()` round-trips cleanly).
+   - Opt-in `legend=True` on `trend`, `relate`, and grouped `compare` (frameless top legend;
+     direct labels remain default). Synced into `SKILL.md` and `plugins/claude-code/`.
+3. **SWE tool ingestors & `mintfig diff` (`src/mintfig/ingest.py`, `src/mintfig/diff.py`, `src/mintfig/inspect_data.py`, `src/mintfig/cli.py`, `tests/test_swe_ingest_and_diff.py`):**
+   - Zero-dep auto-detection for `hyperfine`, `pytest-benchmark`, `go test -bench`,
+     `cargo bench`, GitHub Actions CI timings, Chrome Trace/OTEL, `k6`, `esbuild`/`vite`
+     metafiles, and LLM eval tables.
+   - `mintfig diff base head` (`--out`, `--text`, `--markdown`, `--json`, `--fail-on-regression`)
+     with interval-overlap noise suppression, plus `--text` / `--markdown` flags on `mintfig plot`.
+4. **GitHub PR cards, composite Action & 1.0 policy (`src/mintfig/pr_card.py`, `.github/actions/mintfig-check/`, `docs/STABILITY_POLICY.md`, `tests/test_pr_card_and_action.py`):**
+   - `save_pr_card()` emitting light+dark PNGs + `<picture>` Markdown + `<details>` facts,
+     and `format_check_pr_comment()`.
+   - Reusable `.github/actions/mintfig-check/action.yml` + manual example workflow + 1.0
+     SemVer & deprecation policy (`docs/STABILITY_POLICY.md`).
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:

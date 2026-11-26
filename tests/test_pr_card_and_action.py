@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib
+import pytest
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -19,6 +20,16 @@ from PIL import Image
 import mintfig as mint
 from mintfig.explainer import read_png_text
 from mintfig.pr_card import format_check_pr_comment, save_pr_card
+
+
+@pytest.fixture(autouse=True)
+def _defaults_and_close():
+    """Reset Matplotlib rcParams so earlier journal-plate tests do not leak tiny ticks."""
+    with matplotlib.rc_context():
+        matplotlib.rcdefaults()
+        matplotlib.use("Agg")
+        yield
+    plt.close("all")
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTION_YML = REPO_ROOT / ".github" / "actions" / "mintfig-check" / "action.yml"

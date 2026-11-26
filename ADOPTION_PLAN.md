@@ -44,10 +44,13 @@ Most people, and most agents, already have Matplotlib code. Today the only way i
 is to rewrite it into one of the eleven forms. Make mintfig a layer they add, not
 a library they switch to:
 
-- [ ] **B1 `mint.style()`:** one call that gives any Matplotlib figure the house look at
-  chat width. It's a thin wrapper over the existing `mint.pub.use`.
-- [ ] **B2 `mint.explain(takeaway, fig_or_ax)`:** accept an existing Figure/Axes as a panel,
-  and run the layout audit, `ship`, `deliver`, and HTML/terminal output on it.
+- [x] **B1 `mint.style()` (shipped 2026-11-26):** leak-free context manager in `src/mintfig/byo.py`
+  giving any Matplotlib/Seaborn plot chat-readable sizing (>=11 px), CVD-safe palettes, despining,
+  and `viridis` default cmap.
+- [x] **B2 `mint.explain(takeaway, fig_or_ax)` (shipped 2026-11-26):** accepts any existing
+  Matplotlib `Figure`, `Axes`, or `SubFigure` as a panel, runs `mint.check` facts & audit, and
+  wires `ship`, `deliver`, HTML, terminal, and `mint.brief` (`gallery/byo_matplotlib_examples.py`
+  upgrades 5 ugly scripts to `ship: True` in 1–2 lines).
 - [x] **B3 Facts from artists & zero-rewrite audit (`mint.check`, `mintfig check`):**
   - Shipped 2026-11-26: `mint.check(fig, claim)` and `mintfig check plot.py` (facts from
     `Line2D`, `BarContainer`, `PathCollection`, error bars, plus Phase 1 hardening for
@@ -117,8 +120,8 @@ searchable gallery site organized by question and by field.
 | :--- | :--- | :---: | :--- |
 | 1 | C1 Matplotlib arm, C2 3-col README opener, B3 `mint.check` wild hardening (`--python`, `.ipynb`, Wild-50), settle PyPI name | **Done** (except A rule relaxation) | The objection gets a measured answer & zero-rewrite wedge |
 | 2 | D global skill install, PostToolUse hooks, Claude Code plugin, 40-prompt trigger eval | **Done** | Zero-friction install, auto-audit, reliable triggering |
-| 3 | A relax opt-in rules (`legend=`, `pie`), B1 `mint.style()`, B2 `mint.explain(takeaway, fig)`, D directory listings, C3 human reader study | Open | Adopting costs one line, people find it, human evidence |
-| 4 | E domain forms, F 1.0 API freeze + gallery site | Open | Depth in science, and long-term trust |
+| 3 | A relax opt-in rules (`legend=`, `pie`/`donut`), B1 `mint.style()`, B2 `mint.explain(takeaway, fig)`, notebook magic, SWE ingestors + `mintfig diff`, PR cards + GitHub Action, 1.0 stability policy | **Done** | Adopting costs 1–2 lines; strong SWE & CI/PR utility |
+| 4 | D public directory listings, C3 human reader study, E domain forms, F 1.0 API freeze + interactive gallery site | Open | Public proof, discoverability, and 1.0 trust |
 
 ## Decided (owner, 2026-11-25)
 

@@ -1,7 +1,7 @@
 {
-  "git_sha": "06bea62",
+  "git_sha": "9bb0f89",
   "total_cases": 50,
-  "elapsed_seconds": 2.48,
+  "elapsed_seconds": 2.43,
   "summary": {
     "clean_total": 25,
     "clean_passed": 25,
@@ -241,7 +241,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 78.6,
+      "elapsed_ms": 67.9,
       "panel_kinds": [
         "heatmap"
       ],
@@ -263,7 +263,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 52.3,
+      "elapsed_ms": 48.7,
       "panel_kinds": [
         "heatmap"
       ],
@@ -285,7 +285,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 51.5,
+      "elapsed_ms": 52.6,
       "panel_kinds": [
         "lines"
       ],
@@ -307,7 +307,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 50.3,
+      "elapsed_ms": 50.5,
       "panel_kinds": [
         "lines"
       ],
@@ -329,7 +329,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 58.1,
+      "elapsed_ms": 50.6,
       "panel_kinds": [
         "histogram"
       ],
@@ -351,7 +351,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 50.3,
+      "elapsed_ms": 52.1,
       "panel_kinds": [
         "histogram"
       ],
@@ -373,7 +373,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 40.0,
+      "elapsed_ms": 38.9,
       "panel_kinds": [
         "boxplot"
       ],
@@ -395,7 +395,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 35.2,
+      "elapsed_ms": 38.5,
       "panel_kinds": [
         "boxplot"
       ],
@@ -417,7 +417,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 35.7,
+      "elapsed_ms": 37.8,
       "panel_kinds": [
         "violin"
       ],
@@ -439,7 +439,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 38.6,
+      "elapsed_ms": 39.8,
       "panel_kinds": [
         "bars"
       ],
@@ -461,7 +461,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 29.2,
+      "elapsed_ms": 29.9,
       "panel_kinds": [
         "bars"
       ],
@@ -483,7 +483,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.1,
+      "elapsed_ms": 40.2,
       "panel_kinds": [
         "bars"
       ],
@@ -505,7 +505,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 59.6,
+      "elapsed_ms": 59.9,
       "panel_kinds": [
         "lines"
       ],
@@ -527,7 +527,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 131.9,
+      "elapsed_ms": 126.2,
       "panel_kinds": [
         "lines"
       ],
@@ -549,7 +549,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 55.0,
+      "elapsed_ms": 54.3,
       "panel_kinds": [
         "lines+scatter"
       ],
@@ -571,7 +571,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 63.5,
+      "elapsed_ms": 61.9,
       "panel_kinds": [
         "bars",
         "bars"
@@ -594,7 +594,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 141.7,
+      "elapsed_ms": 135.8,
       "panel_kinds": [
         "lines",
         "lines",
@@ -619,7 +619,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 52.9,
+      "elapsed_ms": 52.1,
       "panel_kinds": [
         "lines"
       ],
@@ -641,7 +641,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 50.7,
+      "elapsed_ms": 47.3,
       "panel_kinds": [
         "lines"
       ],
@@ -663,7 +663,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 33.0,
+      "elapsed_ms": 31.7,
       "panel_kinds": [
         "bars"
       ],
@@ -685,7 +685,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 33.1,
+      "elapsed_ms": 32.8,
       "panel_kinds": [
         "bars"
       ],
@@ -707,7 +707,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 30.0,
+      "elapsed_ms": 29.0,
       "panel_kinds": [
         "bars"
       ],
@@ -729,7 +729,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 35.0,
+      "elapsed_ms": 35.5,
       "panel_kinds": [
         "intervals"
       ],
@@ -751,7 +751,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 51.9,
+      "elapsed_ms": 48.8,
       "panel_kinds": [
         "image"
       ],
@@ -773,7 +773,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 43.8,
+      "elapsed_ms": 35.7,
       "panel_kinds": [
         "bars"
       ],
@@ -799,7 +799,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 42.4,
+      "elapsed_ms": 44.4,
       "panel_kinds": [
         "bars"
       ],
@@ -837,7 +837,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 55.6,
+      "elapsed_ms": 43.0,
       "panel_kinds": [
         "lines"
       ],
@@ -875,7 +875,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 40.2,
+      "elapsed_ms": 38.9,
       "panel_kinds": [
         "heatmap"
       ],
@@ -913,7 +913,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 37.3,
+      "elapsed_ms": 37.2,
       "panel_kinds": [
         "boxplot"
       ],
@@ -951,7 +951,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 40.6,
+      "elapsed_ms": 39.9,
       "panel_kinds": [
         "histogram"
       ],
@@ -989,7 +989,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 37.2,
+      "elapsed_ms": 37.5,
       "panel_kinds": [
         "bars"
       ],
@@ -1021,7 +1021,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 28.8,
+      "elapsed_ms": 29.1,
       "panel_kinds": [
         "bars"
       ],
@@ -1053,7 +1053,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 37.4,
+      "elapsed_ms": 37.2,
       "panel_kinds": [
         "bars"
       ],
@@ -1085,7 +1085,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 42.5,
+      "elapsed_ms": 41.6,
       "panel_kinds": [
         "bars"
       ],
@@ -1117,7 +1117,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 44.8,
+      "elapsed_ms": 44.0,
       "panel_kinds": [
         "lines"
       ],
@@ -1149,7 +1149,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 39.5,
+      "elapsed_ms": 38.7,
       "panel_kinds": [
         "lines"
       ],
@@ -1181,7 +1181,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 125.4,
+      "elapsed_ms": 124.5,
       "panel_kinds": [
         "lines",
         "lines",
@@ -1215,7 +1215,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 45.7,
+      "elapsed_ms": 45.5,
       "panel_kinds": [
         "scatter"
       ],
@@ -1247,7 +1247,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 53.5,
+      "elapsed_ms": 53.4,
       "panel_kinds": [
         "bars"
       ],
@@ -1279,7 +1279,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 44.0,
+      "elapsed_ms": 44.1,
       "panel_kinds": [
         "lines"
       ],
@@ -1311,7 +1311,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 45.7,
+      "elapsed_ms": 46.3,
       "panel_kinds": [
         "lines"
       ],
@@ -1343,7 +1343,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 45.3,
+      "elapsed_ms": 45.7,
       "panel_kinds": [
         "lines"
       ],
@@ -1375,7 +1375,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 42.8,
+      "elapsed_ms": 43.6,
       "panel_kinds": [
         "lines"
       ],
@@ -1407,7 +1407,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 46.7,
+      "elapsed_ms": 48.4,
       "panel_kinds": [
         "image"
       ],
@@ -1439,7 +1439,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.0,
+      "elapsed_ms": 43.1,
       "panel_kinds": [
         "heatmap"
       ],
@@ -1471,7 +1471,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 54.2,
+      "elapsed_ms": 55.5,
       "panel_kinds": [
         "scatter"
       ],
@@ -1503,7 +1503,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 34.5,
+      "elapsed_ms": 35.1,
       "panel_kinds": [
         "bars"
       ],
@@ -1535,7 +1535,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 40.1,
+      "elapsed_ms": 41.5,
       "panel_kinds": [
         "lines"
       ],
@@ -1567,7 +1567,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 29.2,
+      "elapsed_ms": 29.0,
       "panel_kinds": [
         "bars"
       ],
@@ -1599,7 +1599,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 24.5,
+      "elapsed_ms": 25.1,
       "panel_kinds": [
         "lines"
       ],

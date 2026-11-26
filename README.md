@@ -82,7 +82,8 @@ print(report)
 
 - **The claim, against the data.** Bars, lines, error bars, scatter points, heatmaps (`QuadMesh`), histograms, `fill_between` CI bands, boxplots, and images are read back from the drawn artists. Each number the headline (or `claim=`) states is checked against values, differences, ratios, percentage changes, shares, and crossings (ignoring model IDs like `Llama-3.1`/`8B` and sample counts like `5 seeds`).
 - **At reading size.** Text is measured after scaling the PNG to `width="chat"` (700 px), `"narrow"` (450 px, phones), or `"slide"` (1280 px), alongside overlaps, text struck by lines, malformed text, clipping, truncated bar baselines, and rainbow colormaps.
-- **Zero-rewrite CLI, notebooks, and hooks.** Run `mintfig check plot.py` (auto-detects your project `.venv`, or pass `--python /path/to/python`), `mintfig check analysis.ipynb` (zero extra deps), or `mintfig hook --install` so agent-written Matplotlib scripts are checked automatically with exit `0` (ship), `1` (fix first), or `2` (script error).
+- **Zero-rewrite CLI, notebooks, and hooks.** Run `mintfig check plot.py` (auto-detects your project `.venv`, or pass `--python /path/to/python`), `mintfig check analysis.ipynb` (zero extra deps), `%load_ext mintfig` in Jupyter/marimo, or `mintfig hook --install` so agent-written Matplotlib scripts are checked automatically with exit `0` (ship), `1` (fix first), or `2` (script error).
+- **Upgrade existing Matplotlib in 1–2 lines (`mint.style()`, `mint.explain(takeaway, fig)`).** Wrap existing plotting code in `with mint.style(width="chat"):` for chat-readable sizing, despining, and CVD-safe palettes without leaking global `rcParams`, or pass any existing Matplotlib/Seaborn `Figure` or `Axes` straight into `mint.explain(takeaway, fig)` to get the takeaway frame, `mint.check` facts, interactive HTML, and `deliver` ([gallery/byo_matplotlib_examples.py](https://github.com/blaiszik/mintfig/blob/main/gallery/byo_matplotlib_examples.py)).
 
 ### Explain a result (`mint.explain`)
 
@@ -320,8 +321,11 @@ mintfig skill --print --all                       # print SKILL.md + all referen
 mintfig hook --install                            # auto-audit agent Matplotlib writes (silent on pass)
 mintfig hook --status
 
-# Zero-script: plot a data file, then refine the saved figure
+# Zero-script: plot CSV/JSON or SWE tool outputs (hyperfine, pytest-benchmark, go/cargo bench, CI timings, k6, esbuild)
 mintfig plot data.csv --kind auto --takeaway "..." --density compact --out fig.png
+mintfig plot hyperfine.json --kind auto --text               # <=72-col Unicode terminal summary (no PNG)
+mintfig plot bench.json --kind auto --markdown               # GitHub-flavored Markdown summary
+mintfig diff main_bench.json pr_bench.json --markdown --fail-on-regression 5
 mintfig edit fig.png --drop "no augmentation" --no-color-names --out fig2.png
 
 # Chat figures from JSON or an embedded-spec PNG
