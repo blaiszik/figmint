@@ -4,9 +4,25 @@
 
 AI agents are great at running analyses and terrible at showing what they found. In [figure-bench](evals/figure_bench/README.md), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15**. `mintfig` audits any Matplotlib figure you already have (`mint.check`, `mintfig hook --install`) and draws self-auditing, message-first figures (`mint.explain`, `mint.Plate`) as a Python library, zero-script CLI, and coding-agent skill.
 
-| Agent text-only | Default agent Matplotlib (13/15 defective, 4/15 accurate headline) | `mintfig` reply |
-| :--- | :--- | :--- |
-| I ran the ablation with five variants and five seeds each. The full model reaches 0.82 test accuracy (95% CI 0.80–0.84). Removing augmentation gives 0.80 (0.78–0.82) and a smaller encoder 0.78 (0.75–0.81), both within seed noise of the full model. Removing retrieval drops accuracy to 0.74 (0.71–0.77), a loss of 8 points, and removing fine-tuning drops it to 0.69 (0.66–0.72), a loss of 13 points; neither interval overlaps the full model's. On the validation curves the three main variants start together, but by step 500 the full model is at 0.66, no retrieval at 0.60 and no fine-tuning at 0.48, and the order holds through step 2,000, where they end at 0.82, 0.74 and 0.68. | <img src="gallery/output/readme_comparison/matplotlib_default.png" width="380" alt="Default agent Matplotlib render of the ablation"><br><br>`mint.check` -> **`ship: false`**: text shrinks to **8.1 px** at 700 px chat width, bar axis starts at 0.55 (`bar_baseline_nonzero`), error bars and bands are unlabelled (`interval_unlabelled`), rotated labels crowd, boxed legend, and a topic-only title ("Ablation Results") with no takeaway number. | Retrieval and fine-tuning are the two components worth keeping; the other two are within seed noise.<br><br><img src="gallery/output/readme_comparison/mintfig_reply.png" width="380" alt="Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13"><br><br>*No retrieval 0.74 and no fine-tuning 0.69 against 0.82 for the full model; neither 95% CI (5 seeds) overlaps it.* (`ship: true`) |
+![Comparison of an agent's text-only reply, default agent Matplotlib (ship: false), and mintfig reply (ship: true)](gallery/output/readme_comparison/opener.gif)
+
+<details>
+<summary>Inspect all three replies as static frames</summary>
+
+1. **Agent text-only:**
+   > I ran the ablation with five variants and five seeds each. The full model reaches 0.82 test accuracy (95% CI 0.80–0.84). Removing augmentation gives 0.80 (0.78–0.82) and a smaller encoder 0.78 (0.75–0.81), both within seed noise of the full model. Removing retrieval drops accuracy to 0.74 (0.71–0.77), a loss of 8 points, and removing fine-tuning drops it to 0.69 (0.66–0.72), a loss of 13 points; neither interval overlaps the full model's. On the validation curves the three main variants start together, but by step 500 the full model is at 0.66, no retrieval at 0.60 and no fine-tuning at 0.48, and the order holds through step 2,000, where they end at 0.82, 0.74 and 0.68.
+
+2. **Default agent Matplotlib (`mint.check` → `ship: false`):** text shrinks to **8.1 px** at 700 px chat width, bar axis starts at 0.55 (`bar_baseline_nonzero`), error bars and bands are unlabelled (`interval_unlabelled`), rotated labels crowd, boxed legend, and a topic-only title ("Ablation Results") with no takeaway number.
+
+   ![Default agent Matplotlib render of the ablation](gallery/output/readme_comparison/matplotlib_default.png)
+
+3. **`mintfig` reply (`mint.check` → `ship: true`):** *"Retrieval and fine-tuning are the two components worth keeping; the other two are within seed noise."*
+
+   ![Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13](gallery/output/readme_comparison/mintfig_reply.png)
+
+   *No retrieval 0.74 and no fine-tuning 0.69 against 0.82 for the full model; neither 95% CI (5 seeds) overlaps it.*
+
+</details>
 
 Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](gallery/make_readme_comparison.py). The reply is one sentence, the figure, and one caption; `fig.save()` hands the agent the image line and caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
 
