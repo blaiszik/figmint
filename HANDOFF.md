@@ -811,6 +811,31 @@ Implemented via a second 4-worker swarm on branch `mintfig-neon`:
    - Reusable `.github/actions/mintfig-check/action.yml` + manual example workflow + 1.0
      SemVer & deprecation policy (`docs/STABILITY_POLICY.md`).
 
+## 4p. `figure-bench` v0.1 on `mintfig-neon`: 60 tasks, universal grader & open leaderboard (2026-11-26)
+
+Implemented via a third 4-worker swarm on branch `mintfig-neon`:
+
+1. **Library-agnostic v0.1 scoring engine (`evals/figure_bench/{svg_audit,pixel_audit,rubric,bench}.py`, `tests/test_figure_bench_v01.py`):**
+   - `svg_audit.py` (stdlib XML): display-scaled font sizes, bbox overlaps, line/path crossings,
+     clipping, malformed text, and uncertainty terms for Altair/Plotly/D3/ggplot2/Matplotlib SVGs.
+   - `pixel_audit.py` (Pillow/NumPy, zero `mintfig` import): display-width downscaling,
+     calibrated HSV rainbow/jet detector (0% FP on discrete categorical palettes), Machado
+     deuteranopia + grayscale contrast check, empty-canvas and edge-clip checks.
+   - `rubric.py` + `bench.py` (`BENCH_VERSION = "0.1"`): canonical `rubric.json` v0.1 with
+     `no_effect_trap` overclaim detection, `grade-dir` (Bring-Your-Own-Output for any library/
+     language), `validate-tasks`, `new-task` scaffolder, `matplotlib-hook` & `custom` arms,
+     `--split`/`--track` filters, and display-width `readers-prepare`.
+2. **60-task expansion (`make_tasks_sci.py`, `make_tasks_swe.py`):**
+   - Scaled from 15 → **60 deterministic tasks** across 3 splits (15 `dev`, 30 frozen
+     `public-test`, 15 `heldout`) and 6 tracks (`science_uncertainty`, `swe_coding`,
+     `epistemic_traps`, `multiturn_edit`, `multi_surface`, `byo_repair`). All 60 pass
+     `bench.py validate-tasks` and re-run byte-identically.
+3. **Open leaderboard, PR verification CI & human reader study (`evals/figure_bench/{leaderboard,site,human_study}/`, `.github/workflows/figure-bench-verify.yml`, `CONTRIBUTING.md`, `tests/test_figure_bench_leaderboard.py`):**
+   - Anti-tamper `verify_submission.py` + 3 honest seed submissions from `compare_r6_b1_u1.md`
+     (`split: "v0.1-initial-15"`).
+   - Zero-CDN interactive Leaderboard & Side-by-Side Explorer (`site/index.html`) and
+     display-width-locked Human Blind Reader Study app (`human_study/index.html`).
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
