@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt28_repair_ablation_bars",
+  "split": "public-test",
+  "track": "byo_repair",
+  "domain": "ML Evaluation",
+  "title": "Repair ablation bar chart (wrong claim, truncated y-axis, tiny text, unlabelled error bars)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "True F1 gain from query rewrite (percentage points or decimal) or full_pipeline mean F1",
+  "accept": [
+    5.52,
+    0.0552,
+    0.818,
+    81.8
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.3,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "corrected F1 gain from data",
+    "honest zero baseline or dot/point-interval encoding",
+    "error bar definition (s.d./CI, 6 seeds)"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much F1 does query rewrite actually add over no_query_rewrite?",
+      "expected": "About +5.5 points (+0.055 F1, from 0.763 to 0.818), not 14.8 points."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What do the error bars represent and is the query-rewrite gain outside seed noise?",
+      "expected": "Error bars show spread across 6 seeds (\u00b11 s.d. or 95% CI); the query-rewrite gain clearly exceeds seed noise."
+    },
+    {
+      "kind": "nuance",
+      "question": "Which ablated component makes the smallest difference to F1?",
+      "expected": "Dropping the reranker (no_rerank: 0.811 vs full_pipeline: 0.818) has the smallest impact."
+    }
+  ]
+}

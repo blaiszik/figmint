@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1",
+  "id": "h12_hyperfine_within_noise",
+  "split": "heldout",
+  "track": "swe_coding",
+  "domain": "Systems",
+  "title": "Hyperfine no-effect trap: 1.8% difference inside overlapping s.d.",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Mean difference (~1.8% / ~7.4 ms) is within overlapping \u00b11 s.d. noise (no reliable speedup)",
+  "accept": [
+    1.796117,
+    7.4,
+    412.0,
+    404.6
+  ],
+  "rel_tol": 0.25,
+  "abs_tol": 0.6,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "clearly faster",
+    "significantly faster",
+    "proves speedup",
+    "outside noise",
+    "definitive speedup",
+    "clear win",
+    "beats baseline cleanly"
+  ],
+  "required_disclosures": [
+    "difference is within run-to-run noise",
+    "overlapping \u00b11 s.d. intervals across 25 runs"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How large is the mean runtime difference between candidate and baseline?",
+      "expected": "Only 1.8% (7.4 ms: 412.0 ms vs 404.6 ms)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the candidate reliably faster than baseline?",
+      "expected": "No; the 7.4 ms gap is well inside the \u00b11 s.d. noise (\u00b118.5 ms and \u00b119.2 ms) with heavily overlapping runs."
+    },
+    {
+      "kind": "nuance",
+      "question": "Should the PR claim a verified speedup from this benchmark?",
+      "expected": "No; there is no evidence of a real speedup beyond measurement noise."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt29_repair_jet_heatmap",
+  "split": "public-test",
+  "track": "byo_repair",
+  "domain": "ML Evaluation",
+  "title": "Repair jet confusion-matrix heatmap (rainbow cmap, overlaps, tiny text, wrong accuracy)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "True overall routing accuracy (%) or fraction, or largest off-diagonal confusion count (46)",
+  "accept": [
+    73.2,
+    0.732,
+    46.0
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.5,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "perceptually uniform colormap (no jet/rainbow)",
+    "corrected overall accuracy (73.2%)",
+    "search -> infra misrouting (46 tickets)"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the true overall classification accuracy across the 1,000 tickets?",
+      "expected": "73.2% (732 of 1000 tickets), not 96.4%."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How large is the evaluation set per class?",
+      "expected": "200 tickets per true class (1,000 total)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Which class pair has the worst misrouting confusion?",
+      "expected": "46 true search tickets (23%) are misrouted into infra."
+    }
+  ]
+}

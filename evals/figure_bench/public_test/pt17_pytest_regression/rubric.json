@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt17_pytest_regression",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Backend",
+  "title": "Pytest-benchmark endpoint latency regression",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "test_search_query mean latency regression (%) or ms increase on PR vs base",
+  "accept": [
+    42.007039,
+    7.842,
+    26.5103
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "40 benchmark rounds with spread (s.d. or IQR)",
+    "other 5 endpoints unchanged within noise"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which endpoint regressed and by how much?",
+      "expected": "test_search_query regressed by +42.0% (+7.8 ms, to 26.5 ms mean)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the regression clearly outside benchmark noise, and what about the other five endpoints?",
+      "expected": "Yes, test_search_query shifts well beyond \u00b11 s.d.; all five other endpoints overlap within \u00b11 s.d."
+    },
+    {
+      "kind": "nuance",
+      "question": "Did any other endpoint show a meaningful speedup or slowdown?",
+      "expected": "No; the remaining five endpoints stayed within roughly \u00b12% of base."
+    }
+  ]
+}

@@ -1,0 +1,313 @@
+{
+  "workflow_run_id": 9482710,
+  "workflow_name": "ci-main-pipeline",
+  "run_started_at": "2026-10-18T16:00:00Z",
+  "run_completed_at": "2026-10-18T16:14:00Z",
+  "total_wall_seconds": 840,
+  "jobs": [
+    {
+      "id": 101,
+      "name": "checkout-and-build",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [],
+      "started_at": "2026-10-18T16:00:00Z",
+      "completed_at": "2026-10-18T16:02:30Z",
+      "duration_s": 150,
+      "steps": [
+        {
+          "number": 1,
+          "name": "checkout",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:00:00Z",
+          "completed_at": "2026-10-18T16:00:18Z",
+          "duration_s": 18
+        },
+        {
+          "number": 2,
+          "name": "restore-cache",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:00:18Z",
+          "completed_at": "2026-10-18T16:00:52Z",
+          "duration_s": 34
+        },
+        {
+          "number": 3,
+          "name": "compile-service",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:00:52Z",
+          "completed_at": "2026-10-18T16:02:30Z",
+          "duration_s": 98
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "name": "lint-and-typecheck",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "checkout-and-build"
+      ],
+      "started_at": "2026-10-18T16:02:30Z",
+      "completed_at": "2026-10-18T16:04:25Z",
+      "duration_s": 115,
+      "steps": [
+        {
+          "number": 1,
+          "name": "ruff-lint",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:30Z",
+          "completed_at": "2026-10-18T16:03:08Z",
+          "duration_s": 38
+        },
+        {
+          "number": 2,
+          "name": "typecheck",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:08Z",
+          "completed_at": "2026-10-18T16:04:25Z",
+          "duration_s": 77
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "name": "unit-tests",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "checkout-and-build"
+      ],
+      "started_at": "2026-10-18T16:02:30Z",
+      "completed_at": "2026-10-18T16:05:40Z",
+      "duration_s": 190,
+      "steps": [
+        {
+          "number": 1,
+          "name": "setup-env",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:30Z",
+          "completed_at": "2026-10-18T16:02:54Z",
+          "duration_s": 24
+        },
+        {
+          "number": 2,
+          "name": "pytest-unit",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:54Z",
+          "completed_at": "2026-10-18T16:05:40Z",
+          "duration_s": 166
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "name": "integration-shard-1",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "checkout-and-build"
+      ],
+      "started_at": "2026-10-18T16:02:30Z",
+      "completed_at": "2026-10-18T16:06:35Z",
+      "duration_s": 245,
+      "steps": [
+        {
+          "number": 1,
+          "name": "boot-db",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:30Z",
+          "completed_at": "2026-10-18T16:03:05Z",
+          "duration_s": 35
+        },
+        {
+          "number": 2,
+          "name": "seed-fixtures",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:05Z",
+          "completed_at": "2026-10-18T16:03:45Z",
+          "duration_s": 40
+        },
+        {
+          "number": 3,
+          "name": "run-shard-1",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:45Z",
+          "completed_at": "2026-10-18T16:06:35Z",
+          "duration_s": 170
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "name": "integration-shard-2",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "checkout-and-build"
+      ],
+      "started_at": "2026-10-18T16:02:30Z",
+      "completed_at": "2026-10-18T16:06:50Z",
+      "duration_s": 260,
+      "steps": [
+        {
+          "number": 1,
+          "name": "boot-db",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:30Z",
+          "completed_at": "2026-10-18T16:03:04Z",
+          "duration_s": 34
+        },
+        {
+          "number": 2,
+          "name": "seed-fixtures",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:04Z",
+          "completed_at": "2026-10-18T16:03:46Z",
+          "duration_s": 42
+        },
+        {
+          "number": 3,
+          "name": "run-shard-2",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:46Z",
+          "completed_at": "2026-10-18T16:06:50Z",
+          "duration_s": 184
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "name": "integration-shard-3",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "checkout-and-build"
+      ],
+      "started_at": "2026-10-18T16:02:30Z",
+      "completed_at": "2026-10-18T16:12:15Z",
+      "duration_s": 585,
+      "steps": [
+        {
+          "number": 1,
+          "name": "boot-db",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:30Z",
+          "completed_at": "2026-10-18T16:03:06Z",
+          "duration_s": 36
+        },
+        {
+          "number": 2,
+          "name": "seed-billing-fixtures",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:06Z",
+          "completed_at": "2026-10-18T16:05:28Z",
+          "duration_s": 142
+        },
+        {
+          "number": 3,
+          "name": "run-billing-e2e",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:05:28Z",
+          "completed_at": "2026-10-18T16:12:15Z",
+          "duration_s": 407
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "name": "integration-shard-4",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "checkout-and-build"
+      ],
+      "started_at": "2026-10-18T16:02:30Z",
+      "completed_at": "2026-10-18T16:06:20Z",
+      "duration_s": 230,
+      "steps": [
+        {
+          "number": 1,
+          "name": "boot-db",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:02:30Z",
+          "completed_at": "2026-10-18T16:03:03Z",
+          "duration_s": 33
+        },
+        {
+          "number": 2,
+          "name": "seed-fixtures",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:03Z",
+          "completed_at": "2026-10-18T16:03:41Z",
+          "duration_s": 38
+        },
+        {
+          "number": 3,
+          "name": "run-shard-4",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:03:41Z",
+          "completed_at": "2026-10-18T16:06:20Z",
+          "duration_s": 159
+        }
+      ]
+    },
+    {
+      "id": 108,
+      "name": "package-artifacts",
+      "status": "completed",
+      "conclusion": "success",
+      "depends_on": [
+        "lint-and-typecheck",
+        "unit-tests",
+        "integration-shard-1",
+        "integration-shard-2",
+        "integration-shard-3",
+        "integration-shard-4"
+      ],
+      "started_at": "2026-10-18T16:12:15Z",
+      "completed_at": "2026-10-18T16:14:00Z",
+      "duration_s": 105,
+      "steps": [
+        {
+          "number": 1,
+          "name": "build-wheel",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:12:15Z",
+          "completed_at": "2026-10-18T16:13:09Z",
+          "duration_s": 54
+        },
+        {
+          "number": 2,
+          "name": "sign-and-upload",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-18T16:13:09Z",
+          "completed_at": "2026-10-18T16:14:00Z",
+          "duration_s": 51
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt23_memory_soak_leak",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Systems",
+  "title": "48-hour soak test linear memory leak in worker-ingest",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "worker-ingest linear memory leak rate (MB/h), projected hour to 2048 MB OOM cap, or 48h RSS (MB)",
+  "accept": [
+    18.027342,
+    90.324865,
+    1286.4
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.8,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "2048 MB (2 GB) OOM limit",
+    "other 3 workers stay flat"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which worker is leaking memory and at what rate?",
+      "expected": "worker-ingest leaks linearly at ~+18.0 MB/h, climbing to ~1286 MB by hour 48."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the growth clearly a trend rather than normal GC fluctuation?",
+      "expected": "Yes; it climbs monotonically over 48 hours while the other three workers fluctuate flat around 300\u2013490 MB."
+    },
+    {
+      "kind": "nuance",
+      "question": "When is worker-ingest projected to hit the 2,048 MB OOM limit?",
+      "expected": "Around hour 90 (about 42 hours after the 48-hour soak ends)."
+    }
+  ]
+}

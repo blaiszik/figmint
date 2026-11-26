@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "h13_narrow_ide_sidebar",
+  "split": "heldout",
+  "track": "multi_surface",
+  "domain": "DevOps",
+  "title": "IDE sidebar (450 px) test-suite parallelization distribution",
+  "display_width_px": 450,
+  "surface": "narrow",
+  "what": "Median test duration reduction (% or s) or the serial/parallel_8w medians (s)",
+  "accept": [
+    58.620323,
+    110.385,
+    77.92,
+    188.305
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 1.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "distribution spread (IQR/points across 80 runs)",
+    "slow tail runs in parallel_8w",
+    "legible at 450 px width"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much faster is the median test-suite run with 8 parallel workers?",
+      "expected": "Median dropped 58.6% (110 s faster, from 188 s to 78 s)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Do the bulk distributions of serial and parallel_8w overlap?",
+      "expected": "Hardly at all; the IQRs are cleanly separated across the 80 runs per mode."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat appears in the upper tail of parallel_8w?",
+      "expected": "A few slow tail runs reach ~140\u2013158 s (p95 \u2248 134 s), nearly double the parallel median."
+    }
+  ]
+}
