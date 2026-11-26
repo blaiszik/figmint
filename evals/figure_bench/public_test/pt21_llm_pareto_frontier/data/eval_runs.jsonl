@@ -1,0 +1,10 @@
+{"config_id": "cfg-mini-int4", "model_tier": "small", "quantization": "INT4", "accuracy_pct": 74.2, "accuracy_sd": 1.1, "p50_latency_ms": 140, "cost_per_1k_usd": 0.18, "eval_examples": 500}
+{"config_id": "cfg-mini-fp16", "model_tier": "small", "quantization": "FP16", "accuracy_pct": 73.6, "accuracy_sd": 1.2, "p50_latency_ms": 195, "cost_per_1k_usd": 0.29, "eval_examples": 500}
+{"config_id": "cfg-small-fp16", "model_tier": "small-plus", "quantization": "FP16", "accuracy_pct": 72.8, "accuracy_sd": 1.1, "p50_latency_ms": 225, "cost_per_1k_usd": 0.36, "eval_examples": 500}
+{"config_id": "cfg-mid-fp8", "model_tier": "medium", "quantization": "FP8", "accuracy_pct": 85.4, "accuracy_sd": 0.9, "p50_latency_ms": 315, "cost_per_1k_usd": 0.64, "eval_examples": 500}
+{"config_id": "cfg-mid-int4-v1", "model_tier": "medium", "quantization": "INT4", "accuracy_pct": 78.5, "accuracy_sd": 1.0, "p50_latency_ms": 380, "cost_per_1k_usd": 0.82, "eval_examples": 500}
+{"config_id": "cfg-mid-bf16", "model_tier": "medium", "quantization": "BF16", "accuracy_pct": 84.1, "accuracy_sd": 0.9, "p50_latency_ms": 540, "cost_per_1k_usd": 1.35, "eval_examples": 500}
+{"config_id": "cfg-large-prune", "model_tier": "large", "quantization": "INT4", "accuracy_pct": 82.0, "accuracy_sd": 1.0, "p50_latency_ms": 470, "cost_per_1k_usd": 1.1, "eval_examples": 500}
+{"config_id": "cfg-large-int8", "model_tier": "large", "quantization": "INT8", "accuracy_pct": 84.6, "accuracy_sd": 0.8, "p50_latency_ms": 620, "cost_per_1k_usd": 1.72, "eval_examples": 500}
+{"config_id": "cfg-large-bf16", "model_tier": "large", "quantization": "BF16", "accuracy_pct": 90.8, "accuracy_sd": 0.8, "p50_latency_ms": 790, "cost_per_1k_usd": 2.4, "eval_examples": 500}
+{"config_id": "cfg-xl-bf16", "model_tier": "xl", "quantization": "BF16", "accuracy_pct": 89.4, "accuracy_sd": 0.9, "p50_latency_ms": 1180, "cost_per_1k_usd": 3.9, "eval_examples": 500}

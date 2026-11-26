@@ -1,0 +1,7 @@
+stage_order,stage,users_entered,users_completed,drop_count,stage_drop_pct,top_drop_reason
+1,landing,24000,18480,5520,23.0,bounced_before_cta
+2,account_form,18480,15340,3140,16.99,password_rules_exit
+3,email_verify,15340,8284,7056,46.0,verification_email_delayed
+4,profile_setup,8284,7207,1077,13.0,org_fields_skipped
+5,api_key_created,7207,6414,793,11.0,scope_config_exit
+6,first_request,6414,5644,770,12.0,sdk_auth_401

@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1",
+  "id": "pt20_bundle_waterfall",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Frontend",
+  "title": "JS bundle growth driven by transitive date-locale package",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Total bundle growth (kB), date-locale-pack contribution (kB), or its share of net growth (%)",
+  "accept": [
+    240.4,
+    214.2,
+    89.101498
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 2.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much did the bundle grow overall, and which single package drove most of it?",
+      "expected": "Net bundle grew +240.4 kB (482.0 to 722.4 kB), driven by date-locale-pack (+214.2 kB, 89% of net growth)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Are these measured exact build sizes or estimates?",
+      "expected": "Exact deterministic byte counts from the bundler metafiles."
+    },
+    {
+      "kind": "nuance",
+      "question": "Did any module shrink in the same release?",
+      "expected": "Yes, src/legacy/polyfill-grid.ts shrank by 11.4 kB, partially offsetting small feature additions."
+    }
+  ]
+}

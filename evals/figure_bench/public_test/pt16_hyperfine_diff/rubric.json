@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt16_hyperfine_diff",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Systems",
+  "title": "Hyperfine parser speedup vs noise",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "JSON parser mean runtime speedup (%) or ms saved on branch vs main",
+  "accept": [
+    30.840817,
+    56.835,
+    127.45
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "run-to-run s.d. or spread across 20 runs",
+    "YAML parser change is within noise"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much faster is the JSON parser on the refactor branch compared to main?",
+      "expected": "About 30.8% faster (56.8 ms saved, from 184.3 ms to 127.5 ms)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Are the JSON and YAML differences outside run-to-run noise?",
+      "expected": "JSON speedup is well outside \u00b11 s.d. (3.8 and 3.8 ms); YAML (0.1%) is within overlapping \u00b11 s.d."
+    },
+    {
+      "kind": "nuance",
+      "question": "What happened to the YAML parser on the branch?",
+      "expected": "YAML parser showed no real speedup (239.3 ms vs 239.1 ms, overlapping s.d.)."
+    }
+  ]
+}

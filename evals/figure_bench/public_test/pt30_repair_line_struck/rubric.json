@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt30_repair_line_struck",
+  "split": "public-test",
+  "track": "byo_repair",
+  "domain": "Systems",
+  "title": "Repair throughput line chart (line-struck, malformed, and clipped text)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "v2.0 peak throughput (req/s), its gain over v1.0 at c=64 (%), or v1.1 regression at c=128 (%)",
+  "accept": [
+    4820.0,
+    47.852761,
+    -19.230769,
+    19.230769
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 1.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "no line-struck labels",
+    "no %% typo or ASCII hyphen minus",
+    "no right-edge clipping"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Where does v2.0 peak and how much faster is it than v1.0 there?",
+      "expected": "v2.0 peaks at 4,820 req/s at concurrency 64 (+47.9% over v1.0's 3,260 req/s)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Are these single benchmark sweeps per concurrency level?",
+      "expected": "Yes, one throughput measurement per (release, concurrency) point."
+    },
+    {
+      "kind": "nuance",
+      "question": "What happens to v1.1 and v2.0 at concurrency 128?",
+      "expected": "Both drop past concurrency 64; v1.1 falls to 2,520 req/s (-19.2% below v1.0)."
+    }
+  ]
+}

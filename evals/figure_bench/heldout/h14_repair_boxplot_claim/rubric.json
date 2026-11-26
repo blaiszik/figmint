@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "h14_repair_boxplot_claim",
+  "split": "heldout",
+  "track": "byo_repair",
+  "domain": "Backend",
+  "title": "Repair regional latency boxplot (wrong median claim, tiny text, unlabelled y-axis)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "True ap-northeast median latency (ms), ratio to us-east, or difference vs us-east (ms)",
+  "accept": [
+    141.45,
+    2.961683,
+    93.69
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "corrected ap-northeast median",
+    "y-axis labelled with ms",
+    "spread across 60 requests/region"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the true median latency in ap-northeast?",
+      "expected": "About 141 ms (roughly 3.0\u00d7 us-east's 48 ms), not 312 ms."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is ap-northeast's latency distribution cleanly above us-east?",
+      "expected": "Yes; the IQR boxes for ap-northeast and us-east are completely separated across 60 requests each."
+    },
+    {
+      "kind": "nuance",
+      "question": "How do the four regions rank from fastest to slowest median latency?",
+      "expected": "us-east (48 ms) < us-west (64 ms) < eu-central (91 ms) < ap-northeast (141 ms)."
+    }
+  ]
+}

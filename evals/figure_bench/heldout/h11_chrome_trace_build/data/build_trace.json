@@ -1,0 +1,86 @@
+{
+  "displayTimeUnit": "ms",
+  "traceEvents": [
+    {
+      "name": "parse_ast",
+      "cat": "frontend",
+      "ph": "X",
+      "ts": 0,
+      "dur": 8199999,
+      "pid": 1,
+      "tid": 1
+    },
+    {
+      "name": "typecheck",
+      "cat": "frontend",
+      "ph": "X",
+      "ts": 8199999,
+      "dur": 13400000,
+      "pid": 1,
+      "tid": 1
+    },
+    {
+      "name": "ir_optimize",
+      "cat": "middle",
+      "ph": "X",
+      "ts": 21600000,
+      "dur": 10800000,
+      "pid": 1,
+      "tid": 1
+    },
+    {
+      "name": "codegen_shard_0",
+      "cat": "codegen",
+      "ph": "X",
+      "ts": 32400000,
+      "dur": 24100000,
+      "pid": 1,
+      "tid": 1
+    },
+    {
+      "name": "codegen_shard_1",
+      "cat": "codegen",
+      "ph": "X",
+      "ts": 32400000,
+      "dur": 26800000,
+      "pid": 1,
+      "tid": 2
+    },
+    {
+      "name": "codegen_shard_2",
+      "cat": "codegen",
+      "ph": "X",
+      "ts": 32400000,
+      "dur": 29500000,
+      "pid": 1,
+      "tid": 3
+    },
+    {
+      "name": "codegen_shard_3",
+      "cat": "codegen",
+      "ph": "X",
+      "ts": 32400000,
+      "dur": 22900000,
+      "pid": 1,
+      "tid": 4
+    },
+    {
+      "name": "lto_link",
+      "cat": "linker",
+      "ph": "X",
+      "ts": 61900000,
+      "dur": 51800000,
+      "pid": 1,
+      "tid": 1
+    },
+    {
+      "name": "strip_and_sign",
+      "cat": "package",
+      "ph": "X",
+      "ts": 113700000,
+      "dur": 4700000,
+      "pid": 1,
+      "tid": 1
+    }
+  ]
+}

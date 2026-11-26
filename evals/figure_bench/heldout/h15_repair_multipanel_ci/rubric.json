@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "h15_repair_multipanel_ci",
+  "split": "heldout",
+  "track": "byo_repair",
+  "domain": "ML Systems",
+  "title": "Repair 2-panel training curves (unlabelled CI band, text overlap, wrong crossing epoch)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "True crossover epoch (6), final cosine_warmup accuracy (%), or final accuracy gain (pts)",
+  "accept": [
+    6.0,
+    89.01,
+    5.36
+  ],
+  "rel_tol": 0.12,
+  "abs_tol": 1.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "shaded band labelled as \u00b11 s.d.",
+    "corrected crossover epoch",
+    "no overlapping legend/annotations"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "At which epoch does cosine_warmup overtake baseline_sgd?",
+      "expected": "At epoch 6 (well before epoch 25, not epoch 42)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What do the shaded bands show and are the final curves separated beyond spread?",
+      "expected": "Bands show \u00b11 s.d.; by epoch 25 cosine_warmup leads by +5.4 pts (89.0% vs 83.7%), cleanly outside \u00b10.6 pt s.d."
+    },
+    {
+      "kind": "nuance",
+      "question": "How does cosine_warmup behave during the earliest epochs?",
+      "expected": "It starts with higher loss / lower accuracy during early warmup (epochs 1\u20135) before overtaking and finishing clearly ahead."
+    }
+  ]
+}
