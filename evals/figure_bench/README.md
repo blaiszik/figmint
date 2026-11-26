@@ -1,156 +1,154 @@
-# figure-bench
+# figure-bench v0.1 (work in progress)
+
+> **Status:** `figure-bench v0.1` is an active work in progress. The 60-task v0.1 suite,
+> library-agnostic scoring engine, open leaderboard, and display-width-locked human reader
+> study are live; initial leaderboard seed rows currently reflect our measured 15-task
+> baseline (`v0.1-initial-15`) while full 60-task runs across models and plotting libraries
+> are collected.
+
+**Can an AI agent turn a real conversation and dataset into a legible, truthful,
+uncertainty-aware figure — fast, and at the exact width a human will actually read it?**
+
+`figure-bench` is an open, library-agnostic benchmark. Bring any model (`Claude`, `GPT`,
+`Gemini`, open-weights) and any plotting stack (`matplotlib`, `seaborn`, `altair`, `plotly`,
+`plotnine`, `ggplot2`, `d3`, `mintfig`, or your own skills and verifier hooks).
+
+- **Open Leaderboard & Visual Explorer:** [`site/index.html`](site/index.html) (zero-CDN static page)
+- **Human Blind Reader Study App:** [`human_study/index.html`](human_study/index.html) (exact `700 px` / `450 px` display-width lock)
+- **5-Minute Contributor Guide:** [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+---
+
+## Benchmark Architecture: 60 Tasks · 3 Splits · 6 Tracks
+
+Every task is a realistic conversation (`context.md`), compact deterministic dataset(s) in
+`data/`, and a canonical `rubric.json` (`schema_version: "0.1"`). Prompts never mention
+`mintfig` or any specific library.
+
+### Splits
+
+| Split | Directory | Tasks | Purpose |
+| :--- | :--- | ---: | :--- |
+| **`dev`** | `tasks/` | 15 | Open development & iteration (original 10 + 5 scientific/trap/edit tasks) |
+| **`public-test`** | `public_test/` | 30 | Frozen public evaluation suite for open leaderboard comparisons |
+| **`heldout`** | `heldout/` | 15 | Held-out generalization split (never used to tune `mintfig` or `SKILL.md`) |
+| **Total** | | **60** | |
+
+### Tracks
+
+| Track | ID | Tasks | What It Evaluates |
+| :--- | :--- | ---: | :--- |
+| **Science & Uncertainty** | `science_uncertainty` | 19 | Multi-seed ablations, dose-response, meta-analysis forests, survival curves, volcano plots, Raman spectra, Arrhenius kinetics, RL seed bands, alloy replicates, ocean pH, enzyme kinetics, clinical funnels |
+| **SWE & Quantitative Coding** | `swe_coding` | 13 | Latency tails, eval matrices, incidents, `hyperfine` & `pytest-benchmark` diffs, CI timelines, `k6` p99 deploy regressions, `esbuild` bundle waterfalls, LLM Pareto frontiers, signup funnels, soak memory leaks, Chrome traces |
+| **Epistemic Traps & Refusals** | `epistemic_traps` | 12 | Overlapping CIs, no-effect traps (must not overclaim speedup/improvement), Simpson's paradox, `n=3` small samples, near-zero `%` traps, truncated-bar bait, missing controls, defective cells & contaminated plates |
+| **Multi-Turn Figure Editing** | `multiturn_edit` | 6 | Targeted revisions to a prior figure: fixing definitions/units, switching baselines, linear-to-log conversion, adding hidden replicates, highlighting failing subsets |
+| **Multi-Surface Delivery** | `multi_surface` | 5 | Legibility across `450 px` narrow phone/IDE sidebars, `1280 px` presentation slides, dark dashboard cards, and 72-column SSH terminal sessions |
+| **BYO-Matplotlib Repair** | `byo_repair` | 5 | Repairing broken existing Matplotlib scripts with wrong headline numbers, `jet` colormaps, truncated bars, struck labels, and unlabelled CI bands |
+
+---
+
+## Library-Agnostic Scoring
+
+Every submission — regardless of plotting library — is graded across four automated
+dimensions plus optional blinded reader evaluation:
+
+1. **Visual Quality (`visual_quality`, 0–100):**
+   - For Matplotlib-backed runs, `neutral.py` hooks `Figure.savefig` without importing
+     `mintfig` and checks text legibility (`>= 11 px` at target display width), text overlap,
+     text crossed by lines, malformed text (`%%`, doubled words, ASCII hyphen minus,
+     `nan`/`None`), and canvas-edge clipping.
+   - For any non-Matplotlib stack (`altair`, `plotly`, `ggplot2`, `d3`, etc.), `svg_audit.py`
+     audits exported `figure.svg` vector geometry and `pixel_audit.py` inspects `figure.png`
+     for display-width scaling, rainbow/jet hue sweeps, CVD/grayscale luminance contrast, and
+     blank/clipped canvases.
+2. **Claim Accuracy (`claim_accuracy`, 0–100):** Whether the headline/takeaway (or reply prose)
+   states the key quantitative finding within each task's `rel_tol`/`abs_tol`.
+3. **Uncertainty Calibration (`uncertainty_calibration`, 0–100):** Whether uncertainty
+   (CI, s.d., seeds, replicates, `n`) is named when required, AND on `no_effect_trap` tasks
+   whether the figure avoids overclaiming noise (`"clearly beats"`, `"proves"`, `"significantly
+   outperforms"`, etc.).
+4. **Delivery (`delivery_rate`, 0–100):** Concise reply (`<= 60` prose words) delivering the
+   figure image (or `<= 72`-col text block for `surface="terminal"`).
+5. **Blind Reader Comprehension (`reader_score`, 0–100):** Blinded human or VLM readers viewing
+   each PNG **locked to its exact display width (`700 px` or `450 px`)** answer three
+   structured questions (`primary`, `uncertainty`, `nuance`) while timed with
+   `performance.now()`.
+
+---
+
+## Initial Seed Results (`v0.1-initial-15`, Work in Progress)
 
 ![Progress across three fix cycles](progress.png)
 
-`make_progress.py` draws this with mintfig from `runs/r2`–`r5/results.json`. Run 1 used an earlier, easier task set.
+Full comparison table and notes: [`runs/compare_r6_b1_u1.md`](runs/compare_r6_b1_u1.md).
+These three initial leaderboard seeds (`split: "v0.1-initial-15"`) come from a real 15-task run
+(10 `dev` + 5 `heldout`, one fresh Claude Sonnet 5.5 agent per task and arm, 2026-11-25):
 
-Ten tasks that mimic a real agent thread: a short conversation (`context.md`)
-in which a person shares data and asks for one figure, plus the data
-(`data/*.csv`). The agent under test sees only its task folder and mintfig's
-`SKILL.md`, writes a script that calls `mint.explain(...).save("figure.png")`,
-and submits it.
+| Submission (`v0.1-initial-15`) | Library | Hook | First-Submit Clean | Final Visual | Claim Accuracy | Uncertainty | Reader* | Delivery | Median Time | Composite |
+| :--- | :--- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `r6` (`mintfig`) | `mintfig` | ON | **93.3%** (14/15) | **100.0** | **100.0** | **100.0** (4/4) | 100.0 | 100.0 | 16.6 s | **100.0** |
+| `b1` (`matplotlib`, told rules) | `matplotlib` | ON | 80.0% (12/15) | 100.0 | 26.7 | 75.0 (3/4) | 93.3 | 100.0 | 19.5 s | **68.4** |
+| `u1` (`matplotlib-plain`, untaught) | `matplotlib` | OFF | **13.3%** (2/15) | **13.3** | 26.7 | 75.0 (3/4) | 93.3 | 100.0 | 14.8 s | **33.4** |
 
-| Task | Domain | What the figure must show |
-| :--- | :--- | :--- |
-| `01_ablation` | ML | Accuracy of two components against seed noise, weighed against a second table of latency cost |
-| `02_ab_latency` | Product | Two latency distributions, medians and tail |
-| `03_dose_response` | Pharmacology | Four dose–response curves (one inactive), where each crosses 50% |
-| `04_battery_fade` | Batteries | Capacity fade to 80%, with a defective cell to exclude and say so |
-| `05_retrofit` | Energy | Daily use before/after a retrofit, with a control building and a gap |
-| `06_energy_mix` | Policy | **Edit a returned figure** (`data/sent_figure.png`): fix a wrong definition, keep the rest |
-| `07_gene_change` | Genomics | Fold changes of 24 genes read by group, housekeeping flat |
-| `08_hall_petch` | Materials | Yield strength vs grain size, per-alloy fits |
-| `09_eval_matrix` | ML | Language × task grid against a previous checkpoint: did the gap close? |
-| `10_incident` | Ops | Five services' error rates on a log axis, one spike |
+\* Blind VLM readers scored 15/15 (`r6`), 14/15 (`b1`), and 14/15 (`u1`) raw (one reader
+swapped folder IDs `u1/07` and `b1/08`, making the corrected score 15/15 in all three arms).
+Readers in that early run viewed full-resolution PNGs rather than display-width-locked images.
 
-Five more **held-out** tasks live in `heldout/` (survey shares, spectra, wait times,
-scaling exponents, a signed budget change). They were added after the first fix cycle
-and are never used to tune mintfig or SKILL.md; `grade` reports them separately.
+### What this does and does not show
 
-## Scoring
+- **Without guardrails**, a strong model writing plain Matplotlib shipped a layout or text
+  defect on 13 of 15 figures (`text < 11 px` at `700 px`, labels crossed by lines, overlapping
+  text). Told the constraints with feedback (`b1`), it fixed layout defects by the final
+  attempt — `mintfig` (`r6`) avoided them upfront (14/15 clean on the first try).
+- **Message-first headlines:** `mintfig` stated the verified quantitative answer in the figure
+  headline on 15/15 tasks vs 4/15 for both Matplotlib arms.
+- **What we still need to measure:** Full 60-task runs across multiple models, plotting
+  libraries (`seaborn`, `altair`, `plotly`, `ggplot2`, `matplotlib-hook`), and **display-width-locked
+  human blind reader studies** via [`human_study/index.html`](human_study/index.html).
 
-- **Time:** from `start` to the end of the first passing `submit`; it
-  includes the agent's reading and thinking.
-- **Checks** (all must pass): the script runs; exactly one `mint.explain` figure
-  saved as `figure.png`; no error-level issue; **no warnings**; smallest text
-  >= 11 px at the 700 px chat width; chat width (700 px, or 450 px `narrow` for phones,
-  accepted since r6); a number in the takeaway;
-  every panel titled; built-in forms only (no `mint.custom`); the PNG's embedded
-  spec rebuilds; a `source=`; alt text. At most 3 submissions.
-- **Independent layout audit** (does not trust mintfig's own issues): the figure
-  is rebuilt from its embedded spec and every text matplotlib actually draws is
-  checked: no two texts overlap, no text is crossed by a line, and no malformed
-  text ("%%", repeated words such as "Share of Share of", an ASCII hyphen used
-  as a minus sign, "nan"/"None").
-- **Local renders:** agents are told not to render outside `submit`; images in
-  the work folder that `submit` did not make are counted and reported.
-- **Answer key** (reported by `grade` only, never by `submit`): a number in
-  the takeaway matches the task's key quantity within tolerance
-  (`answers.json`). Agents must not read it.
-- **Delivery** (`reply_delivers_figure`): the agent hands in the reply it would
-  send the person (`submit ... --reply reply.md`). It passes when the reply shows
-  the figure, either as the image in `deliver.markdown` (`![...](figure.png)`) or
-  as `deliver.text` inside a fenced block, with at most 60 words of prose outside
-  the image line and code fences. It is reported beside the checks and in
-  `grade`'s Delivery column; it does not decide the pass, so times stay comparable
-  across runs. Runs r1–r5 predate it and read "not provided".
+---
 
-## The Matplotlib arm (baseline)
+## Quick Start: Run, Grade & Compete
 
-`start --arm matplotlib` runs the same task as a baseline. The agent gets no
-SKILL.md and writes plain Matplotlib (numpy and pandas allowed; importing mintfig
-fails the `no_mintfig` check). It is told the figure is shown at most 700 px wide
-and which defects are checked. It passes on the arm-neutral defect checks only, so
-its gate is looser than the mintfig arm's (which also needs no mintfig warnings,
-titled panels, a source and so on).
-
-**Neutral audit** (`neutral.py`, both arms, every submission): a hook on
-`Figure.savefig` measures the figure that was written to `figure.png`, at the
-moment it was saved, without importing mintfig.
-
-- Smallest text as displayed. The PNG is shown at min(700 px, its own width), so a
-  point of text is `dpi / 72 * shown / png_width` px. The floor is 11 px.
-- Overlapping texts, text crossed by a line (texts on an opaque legend frame or box
-  are skipped), malformed text, and text past the canvas edge (skipped for
-  `bbox_inches="tight"`).
-- Whether the headline (suptitle, figure texts, axes titles) states a number, and
-  whether a number in the headline or in the reply's prose matches the answer key.
-- On tasks whose data carries seed, replicate or sampling error (`01`, `03`, `07`,
-  `h1`): whether any drawn text names the uncertainty (CI, s.d., seeds, replicates,
-  n = ...).
-- For information only: legends, panels, rainbow colormaps.
-
-The audit is conservative: it does not flag labels on top of markers, colour
-mismatches across panels, or a missing control, so it understates what plain
-Matplotlib gets wrong rather than overstating it. `grade` reports it for the first
-and the final submission; `compare` puts graded runs side by side:
+### 1. List and validate tasks
 
 ```bash
-python evals/figure_bench/bench.py start 01_ablation --run runs/b1 --arm matplotlib --python <python>
-python evals/figure_bench/bench.py compare runs/r6 runs/b1 --out runs/compare_r6_b1.md
+python evals/figure_bench/bench.py list --split public-test
+python evals/figure_bench/bench.py validate-tasks
 ```
 
-### Results: r6 vs b1 vs u1 (2026-11-25)
-
-Full table and notes: `runs/compare_r6_b1_u1.md`. 15 tasks, one fresh Sonnet 5.5 agent
-per task and arm. `b1` was told the display width and the checks; `u1` was told neither.
-
-| First submission | mintfig (r6) | Matplotlib, told (b1) | Matplotlib, not told (u1) |
-| :--- | ---: | ---: | ---: |
-| No layout or text defect | 14/15 | 12/15 | **2/15** |
-| Smallest text >= 11 px at 700 px | 14/14 | 15/15 | 6/14 |
-| Headline number matches the answer key | **13/14** | 4/15 | 4/14 |
-| Blind reader answers from the figure alone* | 15/15 | 15/15 | 15/15 |
-
-\* After correcting one reader that swapped two folder ids (both Matplotlib figures).
-
-What this does and does not show:
-
-- Not told the constraints, an agent writing Matplotlib ships a layout or text defect
-  in 13 of 15 figures: labels drawn over lines, and text at 9–11 px in a 700 px column.
-  Told them, it fixes nearly all of them. mintfig needs no telling.
-- mintfig figures state the answer in the headline; Matplotlib figures put it in a
-  legend, a bar label or nowhere (4 of 15 headlines carry the key number).
-- Blind VLM readers found the key number in every arm. At full resolution, with a
-  question that names what to look for, plain Matplotlib from a strong model
-  communicates the number as well. This is not yet evidence that mintfig figures are
-  read faster or more correctly by people; that needs display-size images and human
-  readers (ADOPTION_PLAN C3).
-- mintfig's own failures here (fixed after the run): `low_density` is reported as a warning (one task used
-  all 3 attempts on it), agents choose `width="narrow"` for phone readers and fail the
-  700 px check, and the `trend(points=)` format is only in `references/science.md`.
-
-`evals/figure_bench/.venv` (git-ignored) is the bench's own environment: mintfig
-(editable), pandas and Matplotlib.
-
-## Running
+### 2. Grade any output directory (Bring Your Own Library/Model)
 
 ```bash
-python evals/figure_bench/make_data.py            # (re)writes data and answers.json, deterministic
-python evals/figure_bench/bench.py list
-python evals/figure_bench/bench.py start 01_ablation --run runs/r1 --python <python with mintfig+pandas>
-# the agent works in runs/r1/01_ablation/ and submits its script and its reply:
-python evals/figure_bench/bench.py submit 01_ablation --run runs/r1 runs/r1/01_ablation/figure_script.py \
-    --reply runs/r1/01_ablation/reply.md
-python evals/figure_bench/bench.py grade --run runs/r1   # writes results.json and results.md
+python evals/figure_bench/bench.py grade-dir my_outputs/ \
+    --split public-test \
+    --out evals/figure_bench/leaderboard/submissions/my_run.json
 ```
 
-Every attempt is kept in `<run>/<task>/.bench/` (script, PNG, summary, reply, checks).
-`bench.py recheck --run <run>` re-applies the current checks to a finished run's
-figures without re-running the scripts (for calibrating new checks).
+### 3. Run built-in agent arms (`mintfig`, `matplotlib`, `matplotlib-hook`, `matplotlib-plain`, `custom`)
 
-Runs live under `runs/` (git-ignored except each run's `results.md`).
+```bash
+python evals/figure_bench/bench.py start 01_ablation --run runs/exp1 --arm mintfig
+python evals/figure_bench/bench.py submit 01_ablation --run runs/exp1 runs/exp1/01_ablation/figure.py \
+    --reply runs/exp1/01_ablation/reply.md
+python evals/figure_bench/bench.py grade --run runs/exp1
+python evals/figure_bench/bench.py compare runs/r6 runs/b1 runs/u1
+```
 
-### Agent prompt used for runs
+### 4. Verify a leaderboard submission & rebuild the static site
 
-> You are an assistant in the middle of a conversation with a person. Run
-> `<python> bench.py start <task> --run <run> --python <python>` and follow the
-> rules it prints: read `context.md` and `data/` in the work folder and
-> mintfig's `SKILL.md` (nothing else in the repository), write one script that
-> answers the last request with one `mint.explain` figure saved as `figure.png`,
-> write the reply you would send the person to `reply.md` (one sentence, the
-> figure, one caption), and submit both with the printed command. Stop at the
-> first passing submission (max 3).
+```bash
+python evals/figure_bench/leaderboard/verify_submission.py evals/figure_bench/leaderboard/submissions
+python evals/figure_bench/leaderboard/build_site.py
+```
 
-Runs r1–r5 used an earlier prompt that ended "Then reply with the takeaway and
-the one or two sentences you would send the person", with no `--reply`.
+### 5. Run a display-width-locked human blind reader study
+
+```bash
+python evals/figure_bench/bench.py readers-prepare runs/r6 runs/b1 --out readers/study01 --display-width 700
+# Open evals/figure_bench/human_study/index.html in any browser (zero-CDN, works over file://)
+python evals/figure_bench/bench.py readers-score readers/study01
+```
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the 5-minute guide to submitting leaderboard
+entries, real-world failure tasks (`bench.py new-task`), and skill/library improvements.
