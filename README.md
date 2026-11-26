@@ -1,8 +1,10 @@
 # mintfig
 
-**Figures whose claims are checked against the data — and that look good by default.**
+**Give your coding agent visual taste — and a fact-checker.**
 
-AI agents are great at running analyses and terrible at showing what they found. In [figure-bench](evals/figure_bench/README.md), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15**. `mintfig` audits any Matplotlib figure you already have (`mint.check`, `mintfig hook --install`) and draws self-auditing, message-first figures (`mint.explain`, `mint.Plate`) as a Python library, zero-script CLI, and coding-agent skill.
+Working with Claude Code, Codex, Cursor, or Antigravity shouldn't end in 16 numbers buried in prose or a cramped default Matplotlib chart with tiny text, truncated axes, and unnamed error bars. `mintfig` upgrades your agentic coding interface into a visual briefing loop: agents turn raw results into beautiful, publication-grade graphics whose headlines are checked against the plotted data — or automatically audit and upgrade the Matplotlib you already write (`mint.check`, `mint.style`, `mintfig hook --install`).
+
+In [figure-bench](evals/figure_bench/README.md), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15**. Watch the exact same 5-seed ablation reply move from a text wall, to default agent Matplotlib, to `mintfig`:
 
 ![Comparison of an agent's text-only reply, default agent Matplotlib (ship: false), and mintfig reply (ship: true)](gallery/output/readme_comparison/opener.gif)
 
