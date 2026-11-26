@@ -513,6 +513,16 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_parser.add_argument("--out", "-o", type=Path, default=None, help="Output path (.png, .svg, .pdf, or .html).")
     plot_parser.add_argument("--show", action="store_true", help="Display the figure in the terminal.")
     plot_parser.add_argument(
+        "--text",
+        action="store_true",
+        help="Print a compact Unicode terminal rendering to stdout (no --out required).",
+    )
+    plot_parser.add_argument(
+        "--markdown",
+        action="store_true",
+        help="Print bold takeaway, Markdown table, and top facts to stdout (no --out required).",
+    )
+    plot_parser.add_argument(
         "--show-mode",
         choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
         default="auto",
@@ -571,6 +581,57 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_parser.add_argument("--write-spec", action="store_true", help="Also write <out>.json spec.")
     _add_density_args(plot_parser)
     _add_summary_arg(plot_parser)
+
+    # `mintfig diff base head [--out diff.png|diff.html] [--text] [--markdown] [--fail-on-regression PCT] [--json]`
+    diff_parser = subparsers.add_parser(
+        "diff",
+        help="Compare two benchmark or evaluation runs (base vs head) with noise-aware regression checks.",
+    )
+    diff_parser.add_argument("base", type=Path, help="Base run file (hyperfine, pytest-benchmark, go/cargo bench, CSV/JSON/JSONL).")
+    diff_parser.add_argument("head", type=Path, help="Head run file to compare against base.")
+    diff_parser.add_argument("--out", "-o", type=Path, default=None, help="Optional figure output path (.png, .svg, .pdf, or .html).")
+    diff_parser.add_argument(
+        "--text",
+        action="store_true",
+        help="Print a compact <=72-col Unicode terminal diff summary to stdout (no PNG required).",
+    )
+    diff_parser.add_argument(
+        "--markdown",
+        action="store_true",
+        help="Print bold takeaway + GitHub-Flavored Markdown delta table + top facts to stdout.",
+    )
+    diff_parser.add_argument("--takeaway", "-t", default=None, help="Optional override takeaway title.")
+    diff_parser.add_argument("--metric", default=None, help="Explicit metric column name to compare.")
+    diff_parser.add_argument("--name", default=None, help="Explicit item name column to align on.")
+    dir_group = diff_parser.add_mutually_exclusive_group()
+    dir_group.add_argument(
+        "--higher-is-better",
+        action="store_true",
+        default=False,
+        help="Treat increases from base to head as improvements (e.g. accuracy, throughput).",
+    )
+    dir_group.add_argument(
+        "--lower-is-better",
+        action="store_true",
+        default=False,
+        help="Treat decreases from base to head as improvements (e.g. latency, bundle size).",
+    )
+    diff_parser.add_argument(
+        "--fail-on-regression",
+        type=float,
+        default=None,
+        metavar="PCT",
+        help="Exit 1 if any non-noise regression exceeds PCT%% (else 0).",
+    )
+    diff_parser.add_argument("--source", default=None, help="Optional figure source line.")
+    diff_parser.add_argument("--style", default="mintfig", help="Visual theme name (default: mintfig).")
+    diff_parser.add_argument("--width", default="chat", help="Target width preset ('narrow', 'chat', 'slide') or mm.")
+    diff_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Output structured diff result as JSON.",
+    )
 
     # `mintfig brief <fig1.png|spec1.json> [<fig2.png> ...] --title "..." --out report.html|report.md`
     brief_parser = subparsers.add_parser(
@@ -932,6 +993,61 @@ def _run_inspect(args: argparse.Namespace) -> int:
     return 0
 
 
+def _format_plot_markdown(explanation: Any, rows: Sequence[dict[str, Any]]) -> str:
+    """Format a rendered plot as bold takeaway + Markdown table + top facts."""
+    lines = [f"**{explanation.takeaway}**"]
+    deliver = explanation.summary().get("deliver") or {}
+    if deliver.get("markdown"):
+        lines.extend(["", deliver["markdown"]])
+
+    if rows:
+        cols = list(dict.fromkeys(str(k) for r in rows for k in r))
+        shown = list(rows[:20])
+        is_num_col = [
+            all(
+                r.get(c) is None or (isinstance(r.get(c), (int, float)) and not isinstance(r.get(c), bool))
+                for r in shown
+            )
+            for c in cols
+        ]
+        str_rows = [
+            ["" if r.get(c) is None else str(r.get(c)) for c in cols]
+            for r in shown
+        ]
+        widths = [
+            max(len(cols[i]), *(len(sr[i]) for sr in str_rows), 3)
+            for i in range(len(cols))
+        ]
+
+        def _pad(val: str, w: int, right: bool) -> str:
+            return val.rjust(w) if right else val.ljust(w)
+
+        def _sep(w: int, right: bool) -> str:
+            return ("-" * (w - 1) + ":") if right else (":" + "-" * (w - 1))
+
+        lines.append("")
+        lines.append(
+            "| " + " | ".join(_pad(cols[i], widths[i], is_num_col[i]) for i in range(len(cols))) + " |"
+        )
+        lines.append(
+            "| " + " | ".join(_sep(widths[i], is_num_col[i]) for i in range(len(cols))) + " |"
+        )
+        for sr in str_rows:
+            lines.append(
+                "| " + " | ".join(_pad(sr[i], widths[i], is_num_col[i]) for i in range(len(cols))) + " |"
+            )
+        if len(rows) > len(shown):
+            lines.append(f"\n*Showing first {len(shown)} of {len(rows)} rows.*")
+
+    facts: list[str] = []
+    for panel in explanation.panels.values():
+        facts.extend(panel.facts[:3])
+    if facts:
+        lines.append("")
+        lines.extend(f"- {f}" for f in facts[:6])
+    return "\n".join(lines)
+
+
 def _run_plot(args: argparse.Namespace) -> int:
     """Build and render a figure directly from a CSV/TSV/JSON/JSONL file."""
     from . import explainer as fm_exp
@@ -951,10 +1067,10 @@ def _run_plot(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 2
 
-    if args.out is None and not args.show:
+    if args.out is None and not args.show and not args.text and not args.markdown:
         return _reject(
-            "mintfig plot needs --out <path> or --show.",
-            "Pass --out fig.png (or fig.html) to write a file, or --show for terminal display.",
+            "mintfig plot needs --out <path>, --show, --text, or --markdown.",
+            "Pass --out fig.png (or fig.html), --show, --text (terminal), or --markdown.",
         )
 
     try:
@@ -980,7 +1096,7 @@ def _run_plot(args: argparse.Namespace) -> int:
                 from .inspect_data import auto_panel
 
                 panel = auto_panel(
-                    rows,
+                    args.data_path,
                     title=args.title,
                     label=args.label,
                     unit=args.unit,
@@ -1180,6 +1296,15 @@ def _run_plot(args: argparse.Namespace) -> int:
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return _reject(str(exc), "Check column names with `mintfig inspect <file>` and re-run.")
 
+    if args.text or args.markdown:
+        if args.out is not None:
+            explanation.save(args.out, write_spec=args.write_spec)
+        if args.markdown:
+            print(_format_plot_markdown(explanation, rows))
+        else:
+            print(explanation.to_text())
+        return 0 if explanation.ok else 1
+
     return _emit_explanation(
         explanation,
         out=args.out,
@@ -1189,6 +1314,67 @@ def _run_plot(args: argparse.Namespace) -> int:
         show_width=args.show_width,
         summary_view=args.summary_view,
     )
+
+
+def _run_diff(args: argparse.Namespace) -> int:
+    """Compare two benchmark or evaluation runs (base vs head)."""
+    from .diff import diff_runs
+    from .explainer import ExplainError
+
+    higher_is_better: bool | None = None
+    if args.higher_is_better:
+        higher_is_better = True
+    elif args.lower_is_better:
+        higher_is_better = False
+
+    try:
+        result = diff_runs(
+            args.base,
+            args.head,
+            metric=args.metric,
+            name=args.name,
+            higher_is_better=higher_is_better,
+            takeaway=args.takeaway,
+            source=args.source,
+            style=args.style,
+            width=_parse_width_arg(args.width) or "chat",
+        )
+    except (ExplainError, OSError, ValueError, TypeError, KeyError) as exc:
+        if args.as_json:
+            payload = {
+                "schema_version": "0.2",
+                "ok": False,
+                "error": exc.message if isinstance(exc, ExplainError) else str(exc),
+                "fix_hint": exc.fix_hint if isinstance(exc, ExplainError) else "Check both input paths and formats.",
+            }
+            print(json.dumps(payload, indent=2, ensure_ascii=False))
+        else:
+            print(f"Error: {exc}", file=sys.stderr)
+        return 2
+
+    saved_path: str | None = None
+    summary = None
+    if args.out is not None:
+        summary = result.explanation.save(args.out)
+        saved_path = str(args.out)
+
+    if args.as_json:
+        print(json.dumps(result.to_json_dict(path=saved_path), indent=2, ensure_ascii=False))
+    elif args.markdown:
+        print(result.markdown)
+    elif args.text:
+        print(result.text)
+    elif summary is not None:
+        _print_summary(summary)
+    else:
+        print(result.text)
+
+    if args.fail_on_regression is not None:
+        threshold = float(args.fail_on_regression)
+        if result.regressions and result.max_regression_pct > threshold:
+            return 1
+        return 0
+    return 0 if result.explanation.ok else 1
 
 
 def _run_edit(args: argparse.Namespace) -> int:
@@ -1528,6 +1714,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "plot":
         return _run_plot(args)
+
+    if args.command == "diff":
+        return _run_diff(args)
 
     if args.command == "edit":
         return _run_edit(args)
