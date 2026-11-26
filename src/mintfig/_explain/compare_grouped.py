@@ -3,16 +3,17 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import numpy as np
 from matplotlib.axes import Axes
-from matplotlib.patches import Rectangle
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch, Rectangle
 from matplotlib.ticker import FuncFormatter, MaxNLocator
 from matplotlib.transforms import Bbox
 
-from ..themes import Theme
+from ..themes import Theme, contrast_ratio
 from .core import (
     MAX_COLORED_SERIES,
     MAX_FACETS,
@@ -25,6 +26,7 @@ from .core import (
     _cover_with_ticks,
     _Ctx,
     _diff_with_unit,
+    _draw_top_legend,
     _facet_cross_fact,
     _facet_shape,
     _FacetGrid,
@@ -36,6 +38,7 @@ from .core import (
     _is_number,
     _is_strict,
     _jsonable,
+    _legend_extra_mm,
     _Measure,
     _names,
     _narrow_log_ticks,
@@ -110,6 +113,7 @@ def build_grouped_compare(
     reference: float | tuple[float, str] | None = None,
     log: bool = False,
     fmt: str | None = None,
+    legend: bool = False,
 ) -> Panel:
     """Multi-benchmark / multi-series grouped comparison (horizontal bars or Cleveland dots)."""
     categories, series_names, grid = _nested_grid(nested)
@@ -257,16 +261,27 @@ def build_grouped_compare(
             return _min_height_mm(cell_w_mm, measure, sizes, theme)
         bar_pitch = (3.7 if n_ser >= 3 else 4.3) * sizes.scale
         cluster_gap = 4.2 * sizes.scale
-        header_mm = 7.0 * sizes.scale
+        if legend:
+            header_mm = _legend_extra_mm(
+                ordered_series, cell_w_mm, measure, sizes, gutter_mm=18.0
+            ) * sizes.scale + (4.0 * sizes.scale if (ref and ref[1]) else 0.0)
+        else:
+            header_mm = 7.0 * sizes.scale
         axis_mm = 5.5 * sizes.scale if (dots or log) else 1.5 * sizes.scale
         return header_mm + n_cats * (n_ser * bar_pitch + cluster_gap) + axis_mm
 
     def _min_height_mm(cell_w_mm: float, measure: _Measure, sizes: _Sizes, theme: Theme) -> float:
         bar_pitch = 3.2 * sizes.scale
         cluster_gap = 3.2 * sizes.scale
-        return 6.0 * sizes.scale + n_cats * (n_ser * bar_pitch + cluster_gap) + 2.0 * sizes.scale
+        if legend:
+            header_mm = _legend_extra_mm(
+                ordered_series, cell_w_mm, measure, sizes, gutter_mm=18.0
+            ) * sizes.scale + (3.5 * sizes.scale if (ref and ref[1]) else 0.0)
+        else:
+            header_mm = 6.0 * sizes.scale
+        return header_mm + n_cats * (n_ser * bar_pitch + cluster_gap) + 2.0 * sizes.scale
 
-    def _draw(ctx: _Ctx, ax: Axes) -> None:
+    def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
         sz = ctx.sizes
         theme = ctx.theme
         accent = {s: col for s, col in ctx.colors.items() if s in ordered_series and s != base}
@@ -288,7 +303,7 @@ def build_grouped_compare(
         offsets = (np.arange(n_ser, dtype=float) - (n_ser - 1) / 2.0) * 0.96
 
         _bare_axes(ax)
-        top_y = -0.5 * n_ser - 1.35  # room at top for inline series key strip
+        top_y = -0.5 * n_ser - (0.45 if legend else 1.35)  # room at top for inline series key strip
         bot_y = (n_cats - 1) * cluster_step + 0.5 * n_ser + 0.45
         ax.set_ylim(bot_y, top_y)
 
@@ -371,6 +386,7 @@ def build_grouped_compare(
 
         # Direct value labels at the end of every bar / dot
         first_val_done = False
+        value_notes: list[tuple[Any, float, str]] = []
         for c_idx, cat in enumerate(categories):
             for s_idx, s in enumerate(ordered_series):
                 v = grid[cat].get(s)
@@ -383,7 +399,7 @@ def build_grouped_compare(
                     first_val_done = True
                 is_hl_s = s in hl
                 anchor_x = v if (dots or v >= 0) else 0.0
-                ax.annotate(
+                vnote = ax.annotate(
                     _plain(txt, theme),
                     (anchor_x, yi),
                     xytext=(4.5, 0.0),
@@ -395,6 +411,7 @@ def build_grouped_compare(
                     color=theme.ink if (is_hl_s or not hl or s == base) else theme.muted,
                     annotation_clip=False,
                 )
+                value_notes.append((vnote, float(v), scolors[s]))
 
         # Subtle horizontal separator between benchmark clusters (LineCollection -> never trips struck check)
         if n_cats > 1:
@@ -422,46 +439,119 @@ def build_grouped_compare(
         ax.set_yticks(centers, [_plain(c, theme) for c in categories])
         ax.tick_params(axis="y", length=0, labelsize=sz.body, labelcolor=theme.ink, pad=6)
 
-        # Inline colour-coded series strip at top of axes (no boxed legend!)
-        key_y = top_y + 0.48
-        x0, x1 = ax.get_xlim()
-        # Use axes-fraction x coordinates so linear & log x axes work identically!
-        cell_w_pt = max(ctx.cell_width_mm * 0.65 / PT_TO_MM, 80.0)
-        cursor_frac = 0.0
-        swatch_w = 0.024
-        gap_frac = 0.045
-        for s in ordered_series:
-            is_focus = (not hl) or (s in hl) or (s == base)
-            weight = "bold" if s in hl else "normal"
-            label_w_pt = ctx.measure.width_pt(_plain(s, theme), sz.small, weight)
-            label_frac = label_w_pt / cell_w_pt
-            # Small colour swatch rectangle in axes-x / data-y transform
-            ax.add_patch(
-                Rectangle(
-                    (cursor_frac, key_y - 0.24),
-                    swatch_w,
-                    0.48,
+        if legend:
+            handles: list[Any] = []
+            weights: list[str] = []
+            text_colors: list[str] = []
+            for s in ordered_series:
+                is_focus = (not hl) or (s in hl) or (s == base)
+                if dots:
+                    handles.append(
+                        Line2D(
+                            [],
+                            [],
+                            marker="o",
+                            linestyle="none",
+                            markersize=5.0 * sz.scale,
+                            markerfacecolor=scolors[s],
+                            markeredgecolor=theme.background,
+                            markeredgewidth=0.5,
+                            label=_plain(s, theme),
+                        )
+                    )
+                else:
+                    handles.append(
+                        Patch(facecolor=scolors[s], edgecolor="none", label=_plain(s, theme))
+                    )
+                weights.append("bold" if s in hl else "normal")
+                text_colors.append(theme.ink if is_focus else theme.muted)
+            y_anchor = 1.12 if (ref is not None and ref[1]) else 1.02
+            _draw_top_legend(
+                ctx,
+                ax,
+                handles,
+                weights=weights,
+                text_colors=text_colors,
+                y_anchor=y_anchor,
+                gutter_mm=18.0,
+            )
+        else:
+            # Inline colour-coded series strip at top of axes (no boxed legend!)
+            key_y = top_y + 0.48
+            # Use axes-fraction x coordinates so linear & log x axes work identically!
+            cell_w_pt = max(ctx.cell_width_mm * 0.65 / PT_TO_MM, 80.0)
+            cursor_frac = 0.0
+            swatch_w = 0.024
+            gap_frac = 0.045
+            for s in ordered_series:
+                is_focus = (not hl) or (s in hl) or (s == base)
+                weight = "bold" if s in hl else "normal"
+                label_w_pt = ctx.measure.width_pt(_plain(s, theme), sz.small, weight)
+                label_frac = label_w_pt / cell_w_pt
+                # Small colour swatch rectangle in axes-x / data-y transform
+                ax.add_patch(
+                    Rectangle(
+                        (cursor_frac, key_y - 0.24),
+                        swatch_w,
+                        0.48,
+                        transform=ax.get_yaxis_transform(),
+                        facecolor=scolors[s],
+                        edgecolor="none",
+                        zorder=5,
+                        clip_on=False,
+                    )
+                )
+                ax.text(
+                    cursor_frac + swatch_w + 0.012,
+                    key_y,
+                    _plain(s, theme),
                     transform=ax.get_yaxis_transform(),
-                    facecolor=scolors[s],
-                    edgecolor="none",
+                    ha="left",
+                    va="center",
+                    fontsize=sz.small,
+                    fontweight=weight,
+                    color=theme.ink if is_focus else theme.muted,
                     zorder=5,
                     clip_on=False,
                 )
-            )
-            ax.text(
-                cursor_frac + swatch_w + 0.012,
-                key_y,
-                _plain(s, theme),
-                transform=ax.get_yaxis_transform(),
-                ha="left",
-                va="center",
-                fontsize=sz.small,
-                fontweight=weight,
-                color=theme.ink if is_focus else theme.muted,
-                zorder=5,
-                clip_on=False,
-            )
-            cursor_frac += swatch_w + 0.012 + label_frac + gap_frac
+                cursor_frac += swatch_w + 0.012 + label_frac + gap_frac
+
+        if ref is None:
+            return None
+        ref_x = ref[0]
+
+        def _clear_reference() -> None:
+            renderer = ctx.fig.canvas.get_renderer()
+            k = ctx.pt_per_px
+            frame = ax.get_window_extent(renderer)
+            cell = ax.get_tightbbox(renderer)
+            right_limit = max(frame.x1, cell.x1 if cell is not None else frame.x1)
+            line_px = float(ax.transData.transform((ref_x, 0.0))[0])
+            gap = 3.0 / k
+            for note, val, col in value_notes:
+                box = note.get_window_extent(renderer)
+                if not (box.x0 - 1 <= line_px <= box.x1 + 1):
+                    continue
+                dx, dy = note.xyann
+                shift = (line_px + gap - box.x0) * k
+                note.set_position((dx + shift, dy))
+                moved = note.get_window_extent(renderer)
+                if moved.x1 <= right_limit + 1:
+                    continue
+                note.xy = (val, note.xy[1])
+                note.set_horizontalalignment("right")
+                if dots:
+                    note.set_position((-5.0, dy))
+                else:
+                    note.set_position((-3.0, dy))
+                    paper = theme.background
+                    note.set_color(
+                        paper if contrast_ratio(paper, col) >= contrast_ratio(theme.ink, col)
+                        else theme.ink
+                    )
+                    note._mintfig_heatmap_text = True  # type: ignore[attr-defined]
+
+        return _clear_reference
 
     spec = _base_spec(
         title,
@@ -475,6 +565,7 @@ def build_grouped_compare(
         reference=list(ref) if ref else None,
         log=log or None,
         fmt=fmt,
+        legend=legend or None,
     )
     describe = (
         f"Grouped {'dot plot' if dots else 'bar chart'} of {label or 'values'}"

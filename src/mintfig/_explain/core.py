@@ -684,7 +684,15 @@ def _specific_hint(kind: str, name: str, valid: Sequence[str]) -> str | None:
             'mint.explain(..., colors={"name": "red"}) (slots: blue, red, green, amber).'
         )
     if name in {"legend", "show_legend", "legend_loc"}:
-        return "There are no legends: names are written on the data."
+        if "legend" in valid:
+            return (
+                "Direct labels are the default; pass legend=True to draw a frameless legend "
+                "instead."
+            )
+        return (
+            "Direct labels are the default; opt-in legend=True is supported on trend(), "
+            "relate(), and grouped compare()."
+        )
     if name in _LOG_X_WORDS:
         if "log_x" in valid:
             return "Use log_x=True for a logarithmic x axis."
@@ -746,8 +754,11 @@ def _unknown_argument(kind: str, name: str, valid: Sequence[str]) -> ExplainErro
     )
 
 
-def _guarded(kind: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def _guarded(
+    kind: str, *, aliases: Mapping[str, str] | None = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Turn unknown or mis-passed arguments into an ExplainError naming the valid ones."""
+    alias_map = dict(aliases or {})
 
     def deco(fn: Callable[..., Any]) -> Callable[..., Any]:
         sig = inspect.signature(fn)
@@ -765,6 +776,18 @@ def _guarded(kind: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
+            if alias_map:
+                rewritten: dict[str, Any] = {}
+                for name, val in kwargs.items():
+                    target = alias_map.get(name, name)
+                    if target in rewritten:
+                        raise ExplainError(
+                            f"{kind}() received both {name!r} and {target!r}.",
+                            fix_hint=f"Pass only {target}=.",
+                            rule="unknown_argument",
+                        )
+                    rewritten[target] = val
+                kwargs = rewritten
             for name in kwargs:
                 if name not in valid:
                     raise _unknown_argument(kind, name, valid)
@@ -2163,3 +2186,84 @@ def _tick_label_boxes(axis: Any, renderer: Any) -> list[tuple[float, Bbox]]:
 def _labels_collide(boxes: list[tuple[float, Bbox]], horizontal: bool, gap: float) -> bool:
     spans = sorted(((b.x0, b.x1) if horizontal else (b.y0, b.y1)) for _, b in boxes)
     return any(nxt[0] - cur[1] < gap for cur, nxt in itertools.pairwise(spans))
+
+
+def _legend_ncol(
+    labels: Sequence[str],
+    cell_width_mm: float,
+    measure: _Measure,
+    sizes: _Sizes,
+    *,
+    handle_pt: float = 16.0,
+    gap_pt: float = 10.0,
+    gutter_mm: float = 10.0,
+) -> int:
+    """How many legend columns fit on one row within ``cell_width_mm``."""
+    if not labels:
+        return 1
+    avail_pt = max((cell_width_mm - gutter_mm) * sizes.scale / PT_TO_MM, 50.0)
+    widths = [measure.width_pt(lbl, sizes.small, "bold") + handle_pt for lbl in labels]
+    # Try every candidate column count from all-on-one-row down to 1, using exact column widths.
+    for ncol in range(len(labels), 0, -1):
+        col_widths = [max(widths[c::ncol]) for c in range(ncol)]
+        total_pt = sum(col_widths) + gap_pt * (ncol - 1)
+        if total_pt <= avail_pt:
+            return ncol
+    return 1
+
+
+def _legend_extra_mm(
+    labels: Sequence[str],
+    cell_width_mm: float,
+    measure: _Measure,
+    sizes: _Sizes,
+    *,
+    gutter_mm: float = 12.0,
+) -> float:
+    """Extra vertical height (mm at scale 1) needed for a top frameless legend."""
+    if not labels:
+        return 0.0
+    ncol = _legend_ncol(labels, cell_width_mm, measure, sizes, gutter_mm=gutter_mm)
+    nrows = math.ceil(len(labels) / ncol)
+    return nrows * (sizes.small * 1.45 * PT_TO_MM / sizes.scale) + 2.5
+
+
+def _draw_top_legend(
+    ctx: _Ctx,
+    ax: Axes,
+    handles: Sequence[Any],
+    *,
+    weights: Sequence[str] | None = None,
+    text_colors: Sequence[str] | None = None,
+    y_anchor: float = 1.02,
+    gutter_mm: float = 12.0,
+) -> Any:
+    """Draw a frameless horizontal legend above ``ax`` with automatic row wrapping."""
+    if not handles:
+        return None
+    sz = ctx.sizes
+    theme = ctx.theme
+    labels = [str(h.get_label()) for h in handles]
+    ncol = _legend_ncol(labels, ctx.cell_width_mm, ctx.measure, sz, gutter_mm=gutter_mm)
+    leg = ax.legend(
+        handles=list(handles),
+        loc="lower left",
+        bbox_to_anchor=(0.0, y_anchor),
+        ncol=ncol,
+        frameon=False,
+        fontsize=sz.small,
+        borderaxespad=0.0,
+        borderpad=0.0,
+        handlelength=1.4,
+        handletextpad=0.45,
+        columnspacing=1.1,
+        labelspacing=0.35,
+    )
+    for idx, txt in enumerate(leg.get_texts()):
+        if weights is not None and idx < len(weights):
+            txt.set_fontweight(weights[idx])
+        if text_colors is not None and idx < len(text_colors):
+            txt.set_color(text_colors[idx])
+        else:
+            txt.set_color(theme.ink)
+    return leg

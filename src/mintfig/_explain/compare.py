@@ -9,11 +9,14 @@ from typing import Any
 
 import numpy as np
 from matplotlib.axes import Axes
+from matplotlib.patches import PathPatch, Wedge
+from matplotlib.path import Path as MplPath
 from matplotlib.ticker import (
     FuncFormatter,
     MaxNLocator,
 )
 
+from ..annotations import _relax_positions_pt
 from ..themes import (
     MINTFIG_THEME,
     Theme,
@@ -882,6 +885,7 @@ def compare(
     n: Mapping[str, int] | Sequence[int] | str | None = None,
     show_delta: bool | str = "auto",
     facet: bool = False,
+    legend: bool = False,
 ) -> Panel:
     """How do items differ in size? Sorted horizontal bars, grouped bars, or dot-interval marks.
 
@@ -914,6 +918,11 @@ def compare(
     )
     from .compare_grouped import build_grouped_compare, is_nested_compare
 
+    if not isinstance(legend, bool):
+        raise ExplainError(
+            f"compare(legend={legend!r}) must be True or False.",
+            fix_hint="Pass legend=True on grouped compare() for a frameless legend, or legend=False (default).",
+        )
     if not (show_delta is True or show_delta is False or show_delta == "auto"):
         raise ExplainError(
             f"compare(show_delta={show_delta!r}) is not a delta mode.",
@@ -971,6 +980,7 @@ def compare(
             reference=reference,
             log=log,
             fmt=fmt,
+            legend=legend,
         )
 
     if is_nested_compare(values):
@@ -997,6 +1007,7 @@ def compare(
             reference=reference,
             log=log,
             fmt=fmt,
+            legend=legend,
         )
 
     raw_values_obj = values
@@ -1475,7 +1486,277 @@ def compare(
     return panel
 
 
-@_guarded("share")
+MAX_PIE_PARTS = 5
+
+
+def _pie_panel(
+    *,
+    donut: bool,
+    names: list[str],
+    values: list[float],
+    highlight: list[str],
+    labels: list[str],
+    total: float,
+    total_text: str,
+    title: str | None,
+    label: str | None,
+    unit: str | None,
+    spec: dict[str, Any],
+    facts: list[str],
+    describe: str,
+    muted_names: Sequence[str] = (),
+    issues: list[dict[str, Any]] | None = None,
+) -> Panel:
+    """Opt-in pie or donut panel for ``share(kind='pie' | 'donut')`` (at most 5 parts)."""
+    inner_r = 0.60 if donut else 0.0
+    ring_w = (1.0 - inner_r) if donut else None
+    non_muted = [nm for nm in names if nm not in muted_names]
+
+    def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None]:
+        sz = ctx.sizes
+        theme = ctx.theme
+        accent = {nm: col for nm, col in ctx.colors.items() if nm in names}
+        emphasis = set(highlight)
+
+        def _slice_color(nm: str) -> str:
+            if nm in muted_names:
+                return theme.context_fill
+            if highlight:
+                return accent.get(nm, theme.context_fill)
+            return ctx.colors.get(nm, theme.context_fill)
+
+        colors = [_slice_color(nm) for nm in names]
+        _bare_axes(ax)
+        ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+        ax.set_aspect("auto")
+        ax.set_ylim(-1.30, 1.30)
+        ax.set_xlim(-2.20, 2.20)
+
+        val_sum = sum(values) or 1.0
+        angle = 90.0
+        slices: list[tuple[str, float, str, float, str]] = []
+        wedges: list[Any] = []
+        records: list[dict[str, Any]] = []
+        for nm, pct_v, pct_lbl, col in zip(names, values, labels, colors, strict=True):
+            sweep = 360.0 * pct_v / val_sum
+            t2 = angle
+            t1 = angle - sweep
+            mid = 0.5 * (t1 + t2)
+            angle = t1
+            if sweep > 0:
+                wedge = Wedge(
+                    (0.0, 0.0),
+                    1.0,
+                    t1,
+                    t2,
+                    width=ring_w,
+                    facecolor=col,
+                    edgecolor=theme.background,
+                    linewidth=1.2 * sz.scale,
+                    zorder=2,
+                )
+                ax.add_patch(wedge)
+                wedges.append(wedge)
+                records.append({"name": nm, "value": pct_v, "unit": "%"})
+            slices.append((nm, pct_v, pct_lbl, mid, col))
+        tag_each(ctx, wedges, records)
+
+        def _format_slice_label(nm: str, pct_lbl: str, max_pt: float, weight: str) -> str:
+            single = f"{nm}  {pct_lbl}"
+            if ctx.measure.width_pt(single, sz.small, weight) <= max_pt:
+                return single
+            wrapped = ctx.measure.wrap(nm, max_pt, sz.small, weight)
+            if len(wrapped) == 1:
+                return f"{wrapped[0]}\n{pct_lbl}"
+            head = wrapped[0]
+            tail = " ".join(wrapped[1:])
+            ell = theme.ellipsis
+            while (
+                len(tail) > 4
+                and ctx.measure.width_pt(f"{tail}  {pct_lbl}", sz.small, weight) > max_pt
+            ):
+                tail = tail[:-2].rstrip() + ell if len(ell) == 1 else tail.removesuffix(ell)[:-1].rstrip() + ell
+            return f"{head}\n{tail}  {pct_lbl}"
+
+        def _finish() -> None:
+            renderer = ctx.fig.canvas.get_renderer()
+            box = ax.get_window_extent(renderer)
+            k = ctx.pt_per_px
+            w_px, h_px = float(box.width), float(box.height)
+            if w_px <= 1.0 or h_px <= 1.0:
+                return
+            w_pt = w_px * k
+            max_label_pt = max(44.0, 0.28 * w_pt)
+
+            # Split slices into right (cos >= 0) and left (cos < 0) label columns.
+            sides: dict[str, list[tuple[str, str, float, str, str, str]]] = {"right": [], "left": []}
+            for nm, _pct_v, pct_lbl, mid_deg, col in slices:
+                rad = math.radians(mid_deg)
+                side = "right" if math.cos(rad) >= -1e-6 else "left"
+                is_emph = nm in emphasis
+                is_muted = nm in muted_names or (bool(highlight) and nm not in accent)
+                weight = "bold" if is_emph else "normal"
+                tcol = theme.muted if is_muted else ctx.text_color(col)
+                text = _format_slice_label(nm, pct_lbl, max_label_pt, weight)
+                sides[side].append((nm, text, rad, col, weight, tcol))
+
+            widest_pt = max(
+                (
+                    max(ctx.measure.width_pt(line, sz.small, wt) for line in txt.splitlines())
+                    for items in sides.values()
+                    for _, txt, _, _, wt, _ in items
+                ),
+                default=0.0,
+            )
+            max_side_px = widest_pt / k
+            r_px_max_h = h_px / 2.35
+            r_px_max_w = max(18.0 / k, (w_px / 2.0 - max_side_px - 8.0) / 1.24)
+            r_px = min(r_px_max_h, r_px_max_w)
+            half_y = h_px / (2.0 * r_px)
+            half_x = w_px / (2.0 * r_px)
+            ax.set_ylim(-half_y, half_y)
+            ax.set_xlim(-half_x, half_x)
+
+            cy_px = 0.5 * (float(box.y0) + float(box.y1))
+            y_lo_pt = float(box.y0) * k + sz.small * 0.8
+            y_hi_pt = float(box.y1) * k - sz.small * 0.8
+
+            for side, items in sides.items():
+                if not items:
+                    continue
+                sign = 1.0 if side == "right" else -1.0
+                ha = "left" if side == "right" else "right"
+                ys_nat = np.array(
+                    [cy_px * k + (1.12 * math.sin(rad)) * r_px * k for _, _, rad, _, _, _ in items],
+                    dtype=float,
+                )
+                max_lines = max(txt.count("\n") + 1 for _, txt, _, _, _, _ in items)
+                min_gap = (max_lines * sz.small * 1.25) + 3.0
+                placed = _relax_positions_pt(ys_nat, min_gap, y_lo_pt, y_hi_pt)
+                x_text = sign * 1.22
+                x_end = sign * 1.17
+                for (_nm, txt, rad, col, weight, tcol), y_pt in zip(items, placed, strict=True):
+                    y_data = (float(y_pt) / k - cy_px) / r_px
+                    p0 = (1.02 * math.cos(rad), 1.02 * math.sin(rad))
+                    elbow_x = 1.11 * math.cos(rad)
+                    if sign * elbow_x < 1.04:
+                        elbow_x = sign * 1.11
+                    elif sign * elbow_x > 1.14:
+                        elbow_x = sign * 1.14
+                    p1 = (elbow_x, y_data)
+                    p2 = (x_end, y_data)
+                    leader = PathPatch(
+                        MplPath([p0, p1, p2], [MplPath.MOVETO, MplPath.LINETO, MplPath.LINETO]),
+                        facecolor="none",
+                        edgecolor=theme.axis if col == theme.context_fill else col,
+                        linewidth=0.75 * sz.scale,
+                        alpha=0.75,
+                        zorder=3,
+                    )
+                    ax.add_patch(leader)
+                    ax.text(
+                        x_text,
+                        y_data,
+                        _plain(txt, theme),
+                        ha=ha,
+                        va="center",
+                        fontsize=sz.small,
+                        fontweight=weight,
+                        color=tcol,
+                        linespacing=1.1,
+                        zorder=5,
+                    )
+
+            if donut:
+                hole_pt = 2.0 * inner_r * r_px * k
+                max_center_pt = 0.84 * hole_pt
+                if unit is not None or abs(total - 100.0) > 1e-6:
+                    main_txt = total_text
+                    sub_txt = "total"
+                    main_col = theme.ink
+                elif len(highlight) == 1:
+                    h_name = highlight[0]
+                    main_txt = labels[names.index(h_name)]
+                    sub_txt = h_name
+                    main_col = ctx.text_color(accent.get(h_name, theme.ink))
+                else:
+                    main_txt = labels[0]
+                    sub_txt = names[0]
+                    main_col = theme.ink
+
+                ell = theme.ellipsis
+                while (
+                    len(sub_txt) > 3
+                    and ctx.measure.width_pt(sub_txt, sz.small, "normal") > max_center_pt
+                ):
+                    sub_txt = (
+                        sub_txt[:-2].rstrip() + ell
+                        if len(ell) == 1
+                        else sub_txt.removesuffix(ell)[:-1].rstrip() + ell
+                    )
+                main_size = sz.body if ctx.measure.width_pt(main_txt, sz.body, "bold") <= max_center_pt else sz.small
+                if hole_pt >= (main_size + sz.small) * 1.55 and sub_txt:
+                    ax.annotate(
+                        _plain(main_txt, theme),
+                        (0.0, 0.0),
+                        xytext=(0.0, 2.0),
+                        textcoords="offset points",
+                        ha="center",
+                        va="bottom",
+                        fontsize=main_size,
+                        fontweight="bold",
+                        color=main_col,
+                        zorder=5,
+                    )
+                    ax.annotate(
+                        _plain(sub_txt, theme),
+                        (0.0, 0.0),
+                        xytext=(0.0, -2.0),
+                        textcoords="offset points",
+                        ha="center",
+                        va="top",
+                        fontsize=sz.small,
+                        color=theme.muted,
+                        zorder=5,
+                    )
+                elif hole_pt >= main_size * 1.4:
+                    ax.text(
+                        0.0,
+                        0.0,
+                        _plain(main_txt, theme),
+                        ha="center",
+                        va="center",
+                        fontsize=main_size,
+                        fontweight="bold",
+                        color=main_col,
+                        zorder=5,
+                    )
+
+        return _finish
+
+    return Panel(
+        kind="share",
+        title=title,
+        label=label,
+        unit=None,
+        spec=spec,
+        facts=facts,
+        describe=describe,
+        issues=list(issues or []),
+        _height_mm=lambda w, _m, sz, _t: (
+            44.0 if sz.compact else min(60.0, max(48.0, 0.42 * w))
+        ),
+        _min_height_mm=lambda _w, _m, _sz, _t: 42.0,
+        _draw=_draw,
+        color_items=tuple(non_muted),
+        color_focus=tuple(highlight) if highlight else tuple(non_muted[:4]),
+        color_mode="highlight" if highlight else "series",
+        uses_default=False,
+    )
+
+
+@_guarded("share", aliases={"share_kind": "kind"})
 def share(
     parts: Mapping[str, float] | Sequence[tuple[str, float]] | Sequence[Mapping[str, Any]],
     *,
@@ -1487,14 +1768,24 @@ def share(
     highlight: str | Sequence[str] | None = None,
     top: int = 7,
     fmt: str | None = None,
+    kind: str = "bars",
 ) -> Panel:
-    """What makes up the total? Sorted bars of each part's percentage (never a pie).
+    """What makes up the total? Sorted horizontal bars by default; opt-in pie or donut.
 
-    Parts beyond the ``top`` largest are folded into one muted "Other" bar.
-    ``label`` and ``unit`` describe the total, which is stated above the bars.
-    Accepts dicts, Series, or row-shaped data with ``name=`` and ``value=``.
+    Parts beyond the ``top`` largest are folded into one muted "Other" item.
+    ``label`` and ``unit`` describe the total, which is stated above the panel.
+    Pass ``kind="pie"`` or ``kind="donut"`` for a part-of-whole ring/pie (at most
+    5 parts; use ``top=4`` to fold the rest into Other). Accepts dicts, Series,
+    or row-shaped data with ``name=`` and ``value=``.
     """
     from .._tabular import resolve_named_table
+
+    share_kind = kind.strip().lower() if isinstance(kind, str) else None
+    if share_kind not in {"bars", "pie", "donut"}:
+        raise ExplainError(
+            f"share(kind={kind!r}) must be 'bars', 'pie', or 'donut'.",
+            fix_hint="Use kind='bars' (default), kind='pie', or kind='donut'.",
+        )
 
     tabular = resolve_named_table(
         parts,
@@ -1544,6 +1835,13 @@ def share(
     if rest:
         names.append(other_name)
         pct.append(100.0 * sum(data[nm] for nm in rest) / total)
+    if share_kind in {"pie", "donut"} and len(names) > MAX_PIE_PARTS:
+        raise ExplainError(
+            f"share(kind={share_kind!r}) got {len(names)} parts; pie and donut charts allow at most "
+            f"{MAX_PIE_PARTS} parts.",
+            fix_hint="Use kind='bars' for more than 5 parts, or set top=4 to fold the rest into Other.",
+            rule="too_many_items",
+        )
     if fmt is not None:
         pct_fmt = _formatter(pct, fmt, unit="%")
     else:
@@ -1578,6 +1876,58 @@ def share(
         facts.append(
             f"{_and_list(hl)} together: {pct_fmt(100.0 * together / total)}% "
             f"({_with_unit(_formatter([together], unit=unit)(together), unit)})"
+        )
+
+    if share_kind in {"pie", "donut"}:
+        pie_issues: list[dict[str, Any]] = []
+        if len(pct) >= 2:
+            adj_pairs = [(i, i + 1) for i in range(len(pct) - 1)]
+            if len(pct) > 2:
+                adj_pairs.append((len(pct) - 1, 0))
+            close = [
+                (abs(pct[i] - pct[j]), i, j)
+                for i, j in adj_pairs
+                if abs(pct[i] - pct[j]) <= 5.0 + 1e-9
+            ]
+            if close:
+                diff, i, j = min(close, key=lambda item: item[0])
+                pie_issues.append(
+                    _issue(
+                        "pie_close_slices",
+                        "warning",
+                        f"Adjacent slices {names[i]!r} ({labels[i]}) and {names[j]!r} ({labels[j]}) "
+                        f"are within {diff:.1f} percentage points; bars compare close values more accurately.",
+                        "Use kind='bars' (the default) when comparing similar-sized shares.",
+                    )
+                )
+        noun = "Donut chart" if share_kind == "donut" else "Pie chart"
+        return _pie_panel(
+            donut=(share_kind == "donut"),
+            names=names,
+            values=pct,
+            highlight=hl,
+            labels=labels,
+            total=total,
+            total_text=total_text,
+            title=title,
+            label=measure,
+            unit=unit,
+            spec=_base_spec(
+                title,
+                label,
+                unit,
+                parts=dict(data),
+                highlight=hl or None,
+                top=top,
+                fmt=fmt,
+                share_kind=share_kind,
+            ),
+            facts=facts,
+            describe=f"{noun} of each part's share of {label or 'the total'} ({len(data)} parts)"
+            if whole.startswith("Share of")
+            else f"{noun} of {label} by part ({len(data)} parts)",
+            muted_names=(other_name,) if rest else (),
+            issues=pie_issues,
         )
 
     return _bar_panel(

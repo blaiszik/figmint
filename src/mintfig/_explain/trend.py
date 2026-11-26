@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 from matplotlib import dates as mdates
 from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
 from matplotlib.ticker import (
     FixedLocator,
     FuncFormatter,
@@ -43,6 +44,7 @@ from .core import (
     _data_paths,
     _date_formatter,
     _diff_with_unit,
+    _draw_top_legend,
     _facet_shape,
     _FacetGrid,
     _formatter,
@@ -56,6 +58,7 @@ from .core import (
     _is_strict,
     _issue,
     _jsonable,
+    _legend_extra_mm,
     _Measure,
     _names,
     _narrow_log_ticks,
@@ -853,8 +856,12 @@ def trend(
     fmt: str | None = None,
     callouts: Sequence[tuple[Any, float, str]] | None = None,
     regions: Sequence[tuple[Any, Any, str]] | None = None,
+    legend: bool = False,
 ) -> Panel:
-    """How does it change over time or order? Lines labelled at their ends (no legend).
+    """How does it change over time or order? Lines labelled at their ends by default.
+
+    Pass ``legend=True`` to omit direct end-of-line labels and draw a frameless
+    horizontal legend above the plot area instead.
 
     ``x`` is numbers, ISO dates or ordered labels (numeric and date x are sorted
     with their series; repeated x values are refused). ``series`` maps name to
@@ -873,6 +880,12 @@ def trend(
     with every highlighted (or every other) series stated against it in the facts.
     """
     from .._tabular import is_tabular, resolve_trend_table
+
+    if not isinstance(legend, bool):
+        raise ExplainError(
+            f"trend(legend={legend!r}) must be True or False.",
+            fix_hint="Pass legend=True for a frameless legend, or legend=False (default) for direct end labels.",
+        )
 
     if data is not None:
         if points is not None:
@@ -1077,6 +1090,15 @@ def trend(
     # Coloured series other than the baseline (which is drawn in ink, not a palette colour).
     focus = [nm for nm in colored if nm != base]
     drawn = [base, *focus] if (base is not None and not facet) else colored
+    use_legend = bool(legend and not facet)
+    legend_labels: list[str] = []
+    if use_legend:
+        legend_context = [nm for nm in names if nm not in drawn]
+        legend_labels = [nm or (label or "value") for nm in drawn]
+        if legend_context and len(names) <= 8:
+            legend_labels.extend(legend_context)
+        elif legend_context:
+            legend_labels.append(f"{len(legend_context)} others")
     issues: list[dict[str, Any]] = []
     if bands and not band_label:
         issues.append(_interval_issue("trend", "band", "band_label"))
@@ -1534,59 +1556,116 @@ def trend(
 
         label_context = bool(context) and len(names) <= 8
         entries: list[tuple[str, float, float, str, str, str]] = []
-        for name in series_drawn:
-            i1, v1 = _last(data[name])
-            if not name:
-                if not end_values:
-                    continue
-                text = _with_unit(fmt_fn(v1), unit)
-            else:
-                text = f"{name}  {fmt_fn(v1)}" if end_values else name
-            weight = "normal" if (name == base or name in kept) else "bold"
-            entries.append(
-                (text, float(xpos[i1]), v1, ctx.text_color(color_of[name]), weight, color_of[name])
+        annotations: list[Any] = []
+        leg: Any = None
+        if use_legend:
+            handles: list[Any] = []
+            weights: list[str] = []
+            text_colors: list[str] = []
+            for name in series_drawn:
+                lbl = name or (label or "value")
+                lw = (theme.line_lw if name not in kept else 0.75 * theme.line_lw) * sz.scale
+                handles.append(
+                    Line2D(
+                        [],
+                        [],
+                        color=color_of[name],
+                        linewidth=lw,
+                        solid_capstyle=theme.line_capstyle,
+                        label=_plain(lbl, theme),
+                    )
+                )
+                weights.append("normal" if (name == base or name in kept) else "bold")
+                text_colors.append(ctx.text_color(color_of[name]))
+            if label_context:
+                for name in context:
+                    handles.append(
+                        Line2D(
+                            [],
+                            [],
+                            color=theme.context_line,
+                            linewidth=theme.context_line_lw * sz.scale,
+                            label=_plain(name, theme),
+                        )
+                    )
+                    weights.append("normal")
+                    text_colors.append(theme.muted)
+            elif context:
+                handles.append(
+                    Line2D(
+                        [],
+                        [],
+                        color=theme.context_line,
+                        linewidth=theme.context_line_lw * sz.scale,
+                        label=_plain(f"{len(context)} others", theme),
+                    )
+                )
+                weights.append("normal")
+                text_colors.append(theme.muted)
+            leg = _draw_top_legend(
+                ctx,
+                ax,
+                handles,
+                weights=weights,
+                text_colors=text_colors,
+                y_anchor=1.03,
+                gutter_mm=12.0,
             )
-        if label_context:
-            for name in context:
+        else:
+            for name in series_drawn:
                 i1, v1 = _last(data[name])
+                if not name:
+                    if not end_values:
+                        continue
+                    text = _with_unit(fmt_fn(v1), unit)
+                else:
+                    text = f"{name}  {fmt_fn(v1)}" if end_values else name
+                weight = "normal" if (name == base or name in kept) else "bold"
                 entries.append(
-                    (name, float(xpos[i1]), v1, theme.muted, "normal", theme.context_line)
+                    (text, float(xpos[i1]), v1, ctx.text_color(color_of[name]), weight, color_of[name])
                 )
-        elif context:
-            mid = sorted(context, key=lambda nm: _last(data[nm])[1])[len(context) // 2]
-            i1, v1 = _last(data[mid])
-            entries.append(
-                (
-                    f"{len(context)} others",
-                    float(xpos[i1]),
-                    v1,
-                    theme.muted,
-                    "normal",
-                    theme.context_line,
+            if label_context:
+                for name in context:
+                    i1, v1 = _last(data[name])
+                    entries.append(
+                        (name, float(xpos[i1]), v1, theme.muted, "normal", theme.context_line)
+                    )
+            elif context:
+                mid = sorted(context, key=lambda nm: _last(data[nm])[1])[len(context) // 2]
+                i1, v1 = _last(data[mid])
+                entries.append(
+                    (
+                        f"{len(context)} others",
+                        float(xpos[i1]),
+                        v1,
+                        theme.muted,
+                        "normal",
+                        theme.context_line,
+                    )
                 )
-            )
 
-        annotations = [
-            ax.annotate(
-                _plain(text, theme),
-                (px, py),
-                xytext=(6.0, 0.0),
-                textcoords="offset points",
-                ha="left",
-                va="center",
-                fontsize=sz.small,
-                color=text_color,
-                fontweight=weight,
-                annotation_clip=False,
-            )
-            for text, px, py, text_color, weight, _ in entries
-        ]
+            annotations = [
+                ax.annotate(
+                    _plain(text, theme),
+                    (px, py),
+                    xytext=(6.0, 0.0),
+                    textcoords="offset points",
+                    ha="left",
+                    va="center",
+                    fontsize=sz.small,
+                    color=text_color,
+                    fontweight=weight,
+                    annotation_clip=False,
+                )
+                for text, px, py, text_color, weight, _ in entries
+            ]
 
         def _finish() -> None:
             _relax_end_labels()
             _clear_inline_ticks(ctx, ax)
-            _place_reference_label(ctx, ax, ref_drawn, annotations)
-            _place_event_labels(ctx, ax, events_drawn, [*annotations, *other_notes])
+            leg_texts = list(leg.get_texts()) if leg is not None else []
+            _place_reference_label(ctx, ax, ref_drawn, [*annotations, *leg_texts])
+            _place_event_labels(ctx, ax, events_drawn, [*annotations, *other_notes, *leg_texts])
             if region_items:
                 _place_region_labels(ctx, ax, region_items, log_x=log_x)
             if callout_items:
@@ -1784,6 +1863,7 @@ def trend(
         fit=fit if fit else None,
         end_values=None if end_values else False,
         fmt=fmt,
+        legend=legend or None,
     )
     dot_label = (points_label or "").strip() or "replicates"
     fit_note = (
@@ -1838,6 +1918,8 @@ def trend(
     def _plot_width(cell_mm: float, measure: _Measure, sizes: _Sizes) -> float:
         """The data area of a single trend: the cell less its y tick labels (about 9 mm)
         and the widest end label."""
+        if use_legend:
+            return cell_mm - 9.0
         last = float(all_values.max())
         end_pt = max(
             measure.width_pt(f"{nm}  {fmt_fn(last)}" if end_values else nm, sizes.small, "bold")
@@ -1886,8 +1968,11 @@ def trend(
         _height_mm=lambda w, m, sz, _t: _banked(
             min(54.0, max(36.0, 0.40 * w)), _plot_width(w, m, sz), compact=sz.compact
         )
-        + (4.0 if x_label else 0.0),
-        _min_height_mm=lambda _w, _m, _s, _t: 30.0 + (4.0 if x_label else 0.0),
+        + (4.0 if x_label else 0.0)
+        + (_legend_extra_mm(legend_labels, w, m, sz) if use_legend else 0.0),
+        _min_height_mm=lambda w, m, sz, _t: 30.0
+        + (4.0 if x_label else 0.0)
+        + (_legend_extra_mm(legend_labels, w, m, sz) if use_legend else 0.0),
         stretch=True,
         _draw=_draw,
         measure_note="; ".join(notes) or None,

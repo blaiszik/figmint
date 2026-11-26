@@ -117,7 +117,7 @@ mint.compare(values,          # {name: num}, {cat: {s: num}}, Series, or rows
     name=None, group=None, value=None, sort=True, zero=True, log=False,
     error=None, inner_error=None, error_label=None,  # inner_error= inner CI inside error=
     boost=None, boost_label=None, show_delta="auto",  # auto: bracket a gap the takeaway states
-    n=None, reference=None, facet=False)
+    n=None, reference=None, facet=False, legend=False)
 
 mint.trend(x, series=None,    # wide (x, {s: [nums]}) or tidy ("x", "s", y="y", data=rows)
     y=None, data=None, x_label=None, x_unit=None, log=False, log_x=False, zero=False,
@@ -125,7 +125,7 @@ mint.trend(x, series=None,    # wide (x, {s: [nums]}) or tidy ("x", "s", y="y", 
     band=None, band_label=None,  # band={s: (lo, hi)}, each a list along x
     points=None, points_label=None,  # raw replicates: points={s: [[reps at x0], [reps at x1], ...]}
     events=None, regions=None, callouts=None,  # regions=[(x0, x1, txt)], callouts=[(x, y, txt)]
-    reference=None, end_values=True, facet=False)
+    reference=None, end_values=True, facet=False, legend=False)
 
 mint.change(before, after, data=None, name=None, labels=("Before", "After"))
 
@@ -138,9 +138,10 @@ mint.histogram(values, group=None, value=None, bins="auto", stat="median", log=F
 
 mint.relate(x, y, x_label=, y_label=, data=None, x_unit=None, names=None, groups=None,
     fit=False, frontier=False, label_all=False, connect_groups=False,
-    regions=None, callouts=None, log_x=False, log_y=False, reference=None, facet=False)
+    regions=None, callouts=None, log_x=False, log_y=False, reference=None, facet=False,
+    legend=False)
 
-mint.share(parts, name=None, value=None, top=7)
+mint.share(parts, name=None, value=None, top=7, kind="bars")  # "bars" | "pie" | "donut" (<=5)
 
 mint.matrix(values, rows=None, cols=None, value=None, diverging=False, center=0.0,
     triangle=None, mask_diagonal=False, highlight=None)  # triangle="lower"|"upper" for symmetric
