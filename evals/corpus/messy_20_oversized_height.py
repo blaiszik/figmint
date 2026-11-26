@@ -17,7 +17,7 @@ def build() -> mint.Plate:
         gap_mm=9.0,
     )
     x = np.linspace(0, 10, 80)
-    colors = mint.get_palette("nature")
+    colors = mint.pub.get_palette("nature")
     for idx, key in enumerate(["a", "b", "c", "d"]):
         plate[key].plot(x, np.sin(x + idx * 0.7), color=colors[idx])
         plate[key].set_xlabel("Time (s)")

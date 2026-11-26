@@ -1,28 +1,23 @@
-"""mintfig — Nature- and Science-ready scientific figure library."""
+"""mintfig — message-first figures for agents explaining results.
+
+The top level holds what an agent calls to explain a result. Journal plates,
+styling, annotation, export and preflight live in :mod:`mintfig.pub`; themes and
+palettes in :mod:`mintfig.themes`; audits in :mod:`mintfig.audit`; skill install
+in :mod:`mintfig.skill`.
+"""
 
 from __future__ import annotations
 
-from .annotations import (
-    despine,
-    direct_labels,
-    emphasize,
-    ghost_context,
-    range_frame,
-    scalebar,
-    sig_bracket,
-    slopegraph,
-    sparkline,
-    style_colorbar,
-    style_heatmap,
-    subtle_grid,
-    tufte_boxplot,
-    zoom_inset,
-)
-from .audit import audit_figure, audit_layout
+# Submodule homes for names that left the top level in 0.3.0 (reachable as mint.pub, ...).
+from . import audit as audit
+from . import inline
+from . import interactive as interactive
+from . import pub as pub
+from . import skill as skill
+from . import terminal as terminal
+from . import themes as themes
 from .brief import Brief, Session, brief
-from .bundle import BundleResult, bundle_figure
 from .edit import edit
-from .epistemic import audit_epistemic, build_narrative
 from .explainer import (
     ExplainError,
     Explanation,
@@ -32,13 +27,11 @@ from .explainer import (
     custom,
     distribution,
     explain,
-    explain_from_spec,
     flow,
     histogram,
     lenient,
     load,
     matrix,
-    panel_from_spec,
     relate,
     share,
     table,
@@ -46,117 +39,84 @@ from .explainer import (
     trend,
     waterfall,
 )
-from .export import rasterize_heavy, save_figure
+from .inline import InlineGraphic
 from .inspect_data import auto_panel, inspect_data, load_table_file
-from .interactive import render_html
-from .palettes import (
-    BANNED_COLORMAPS,
-    EDITORIAL_COLORMAPS,
-    PALETTES,
-    get_palette,
-    register_colormaps,
-    simulate_cvd,
-)
 from .plate import Plate, figure
-from .preflight import CheckResult, PreflightReport, preflight_figure, preflight_pdf
-from .proof import render_proof_sheet
-from .runner import RunResult, run_script
-from .skill import VALID_TARGETS, get_agents_snippet, get_skill_markdown, install_skill
-from .specs import JOURNALS, MM_PER_INCH, JournalSpec, get_spec, in_to_mm, mm_to_in
-from .style import apply, rc_params, resolved_font_name, use
-from .terminal import render_terminal, show_in_terminal
-from .themes import EXPLAIN_PALETTES, THEMES, ExplainPalette, Theme, get_explain_palette, get_theme
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 __all__ = [
-    "BANNED_COLORMAPS",
-    "EDITORIAL_COLORMAPS",
-    "EXPLAIN_PALETTES",
-    "JOURNALS",
-    "MM_PER_INCH",
-    "PALETTES",
-    "THEMES",
-    "VALID_TARGETS",
     "Brief",
-    "BundleResult",
-    "CheckResult",
     "ExplainError",
-    "ExplainPalette",
     "Explanation",
-    "JournalSpec",
+    "InlineGraphic",
     "Panel",
     "Plate",
-    "PreflightReport",
-    "RunResult",
     "Session",
-    "Theme",
     "__version__",
-    "apply",
-    "audit_epistemic",
-    "audit_figure",
-    "audit_layout",
     "auto_panel",
     "brief",
-    "build_narrative",
-    "bundle_figure",
     "change",
     "compare",
     "custom",
-    "despine",
-    "direct_labels",
     "distribution",
     "edit",
-    "emphasize",
     "explain",
-    "explain_from_spec",
     "figure",
     "flow",
-    "get_agents_snippet",
-    "get_explain_palette",
-    "get_palette",
-    "get_skill_markdown",
-    "get_spec",
-    "get_theme",
-    "ghost_context",
     "histogram",
-    "in_to_mm",
+    "inline",
     "inspect_data",
-    "install_skill",
     "lenient",
     "load",
     "load_table_file",
     "matrix",
-    "mm_to_in",
-    "panel_from_spec",
-    "preflight_figure",
-    "preflight_pdf",
-    "range_frame",
-    "rasterize_heavy",
-    "rc_params",
-    "register_colormaps",
     "relate",
-    "render_html",
-    "render_proof_sheet",
-    "render_terminal",
-    "resolved_font_name",
-    "run_script",
-    "save_figure",
-    "scalebar",
     "share",
-    "show_in_terminal",
-    "sig_bracket",
-    "simulate_cvd",
-    "slopegraph",
-    "sparkline",
-    "style_colorbar",
-    "style_heatmap",
-    "subtle_grid",
     "table",
     "timeline",
     "trend",
-    "tufte_boxplot",
-    "use",
     "waterfall",
-    "zoom_inset",
 ]
+
+# Names removed from the top level in 0.3.0 (clean break, no aliases) -> new home.
+_MOVED: dict[str, str] = {
+    **{name: f"mintfig.pub.{name}" for name in pub.__all__ if name not in {"Plate", "figure"}},
+    **{
+        name: f"mintfig.themes.{name}"
+        for name in (
+            "THEMES",
+            "Theme",
+            "get_theme",
+            "EXPLAIN_PALETTES",
+            "ExplainPalette",
+            "get_explain_palette",
+        )
+    },
+    **{name: f"mintfig.audit.{name}" for name in audit.__all__},
+    **{
+        name: f"mintfig.skill.{name}"
+        for name in ("install_skill", "get_skill_markdown", "get_agents_snippet", "VALID_TARGETS")
+    },
+    "render_html": "mintfig.interactive.render_html",
+    "render_terminal": "mintfig.terminal.render_terminal",
+    "show_in_terminal": "mintfig.terminal.show_in_terminal",
+    "explain_from_spec": "mintfig.load",
+    "panel_from_spec": "mintfig.explainer.panel_from_spec",
+}
+
+_HINTS: dict[str, str] = {
+    "render_html": "; or call fig.to_html()",
+    "render_terminal": "; or call fig.to_text()",
+    "show_in_terminal": "; or call fig.show()",
+    "explain_from_spec": " (pass the spec dict: mintfig.load(spec))",
+}
+
+
+def __getattr__(name: str) -> object:
+    new_home = _MOVED.get(name)
+    if new_home is not None:
+        raise AttributeError(
+            f"mintfig.{name} moved to {new_home} in 0.3.0{_HINTS.get(name, '')}"
+        )
+    raise AttributeError(f"module 'mintfig' has no attribute {name!r}")

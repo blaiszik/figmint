@@ -71,8 +71,8 @@ All runs executed the real CLI subprocess (`.venv/bin/mintfig run <script> --jou
 
 ## 4. Edge Cases Discovered & Honest Findings
 
-1. **`with mint.use(...)` scoping warning (`messy_11_bar_clipped_xlabel.py`, marked `1W*` above):**
-   - `messy_11` creates its figure inside `with mint.use("nature"):` and returns `fig` after exiting the context manager. Because `preflight_figure` checks live `plt.rcParams["pdf.fonttype"]`, it emits a benign `vector_fonts` warning once `mint.use()` exits — even though `bundle_figure` / `save_figure` still exports `figure.pdf` with `pdf.fonttype = 42` and **0 Type 3 fonts**. Using `mint.Plate(...)` or `mint.apply(journal)` avoids this completely.
+1. **`with mint.pub.use(...)` scoping warning (`messy_11_bar_clipped_xlabel.py`, marked `1W*` above):**
+   - `messy_11` creates its figure inside `with mint.pub.use("nature"):` and returns `fig` after exiting the context manager. Because `preflight_figure` checks live `plt.rcParams["pdf.fonttype"]`, it emits a benign `vector_fonts` warning once `mint.pub.use()` exits — even though `bundle_figure` / `save_figure` still exports `figure.pdf` with `pdf.fonttype = 42` and **0 Type 3 fonts**. Using `mint.Plate(...)` or `mint.pub.apply(journal)` avoids this completely.
 2. **Axis-aligned bounding boxes for tilted ticks on narrow 55 mm Science 1-col figures (`messy_15`):**
    - Rotating 6 long category labels (`Condition_01`..`Condition_06`) by 40° on a 55 mm wide plot still triggered `text_overlaps` at Loop 1 because Matplotlib's `get_window_extent()` returns axis-aligned rectangles. Escalating to vertical `rotation=90, ha="center"` on Loop 2 eliminated all overlaps cleanly and produced a crisp, legible narrow-column bar chart.
 3. **High-precision severity split validated:**

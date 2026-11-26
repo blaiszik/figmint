@@ -75,6 +75,43 @@ def _prune_refs(pspec: dict[str, Any], valid: set[str]) -> None:
                 pspec.pop(aux, None)
 
 
+def _prune_table_graphics(
+    pspec: dict[str, Any],
+    *,
+    removed: frozenset[str] | set[str] = frozenset(),
+    rows: set[str] | None = None,
+) -> None:
+    """Drop ``bars=`` / ``interval=`` / ``spark=`` entries that name a ``removed`` column,
+    and per-row entries for rows not in ``rows``, so the table rebuilds."""
+    bars = pspec.get("bars")
+    if isinstance(bars, list):
+        pspec["bars"] = [b for b in bars if str(b) not in removed] or None
+    interval = pspec.get("interval")
+    if isinstance(interval, dict):
+        kept: dict[str, Any] = {}
+        for col, how in interval.items():
+            if str(col) in removed:
+                continue
+            if isinstance(how, (list, tuple)):
+                if not any(str(b) in removed for b in how):
+                    kept[col] = how
+            elif isinstance(how, dict):
+                per_row = {r: v for r, v in how.items() if rows is None or str(r) in rows}
+                if per_row:
+                    kept[col] = per_row
+        pspec["interval"] = kept or None
+        if not kept:
+            pspec.pop("interval_label", None)
+    spark = pspec.get("spark")
+    if isinstance(spark, dict):
+        kept_spark = {
+            title: {r: v for r, v in per_row.items() if rows is None or str(r) in rows}
+            for title, per_row in spark.items()
+            if str(title) not in removed and isinstance(per_row, dict)
+        }
+        pspec["spark"] = {t: v for t, v in kept_spark.items() if v} or None
+
+
 def _filter_panel_items(
     pspec: dict[str, Any],
     *,
@@ -189,15 +226,32 @@ def _filter_panel_items(
         rows = pspec.get("rows") or []
         targets = drop | keep
         if targets & set(cols) and not (targets & {str(r[0]) for r in rows if r}):
-            col_idxs = [j for j, c in enumerate(cols) if _keep_key(str(c))]
+            # An interval's two bound columns are not drawn: they stay while its column
+            # stays and go with it (or with either bound dropped by name).
+            pairs = {
+                str(c): {str(b) for b in how}
+                for c, how in (pspec.get("interval") or {}).items()
+                if isinstance(how, (list, tuple))
+            }
+            bound_cols: set[str] = set().union(*pairs.values())
+            kept_bounds = {
+                b for c, bs in pairs.items() if _keep_key(c) and not bs & drop for b in bs
+            }
+            col_idxs = [
+                j for j, c in enumerate(cols)
+                if str(c) in kept_bounds or (str(c) not in bound_cols and _keep_key(str(c)))
+            ]
             pspec["columns"] = [cols[j] for j in col_idxs]
             pspec["rows"] = [[r[j] for j in col_idxs] for r in rows]
             for map_k in ("units", "align", "fmt", "bold_best"):
                 if isinstance(pspec.get(map_k), dict):
                     pspec[map_k] = {k: v for k, v in pspec[map_k].items() if k in pspec["columns"]}
+            _prune_table_graphics(pspec, removed={str(c) for c in cols} - set(pspec["columns"]))
         else:
             pspec["rows"] = [r for r in rows if r and _keep_key(str(r[0]))]
-            _prune_refs(pspec, {str(r[0]) for r in pspec["rows"] if r})
+            valid_rows = {str(r[0]) for r in pspec["rows"] if r}
+            _prune_refs(pspec, valid_rows)
+            _prune_table_graphics(pspec, rows=valid_rows)
         return
 
     if kind == "waterfall":
@@ -237,6 +291,8 @@ def edit(
     width: str | float | None = None,
     layout: Any = _UNSET,
     colors: Any = _UNSET,
+    density: str | None = None,
+    color_names: bool | None = None,
     panel: str | int = "a",
     title: Any = _UNSET,
     label: Any = _UNSET,
@@ -256,7 +312,8 @@ def edit(
     """Apply surgical edits to an existing mintfig figure (PNG, JSON spec, or ``Explanation``).
 
     Returns the freshly rendered and audited :class:`Explanation`. Pass ``out=``
-    to save directly to PNG, SVG, PDF, or interactive HTML.
+    to save directly to PNG, SVG, PDF, or interactive HTML. ``density=`` ("regular" or
+    "compact") and ``color_names=`` set the same-named :func:`explain` arguments.
     """
     if isinstance(figure, Explanation):
         spec = copy.deepcopy(figure.to_spec())
@@ -292,6 +349,10 @@ def edit(
         spec["style"] = style
     if width is not None:
         spec["width"] = width
+    if density is not None:
+        spec["density"] = density
+    if color_names is not None:
+        spec["color_names"] = bool(color_names)
 
     panels = spec.get("panels")
     if not isinstance(panels, list) or not panels:

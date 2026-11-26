@@ -169,7 +169,7 @@ def _render_palette_overview(out_path: Path) -> None:
             y -= 0.072
 
         # Right column: publication PALETTES
-        ax.text(0.55, 0.855, "Publication palettes (mint.get_palette)", fontsize=9.5, fontweight="bold", color=ink)
+        ax.text(0.55, 0.855, "Publication palettes (mint.pub.get_palette)", fontsize=9.5, fontweight="bold", color=ink)
         y = 0.805
         for name, cols in PALETTES.items():
             ax.text(0.55, y, name, fontsize=8.5, fontweight="bold", color=ink, va="center")

@@ -86,8 +86,9 @@ def test_an_entity_keeps_one_colour_in_every_panel(style: str) -> None:
     ref = c["ref"]
     assert ref not in {new, theme.context_line.upper(), theme.default_color.upper()}
     assert d["ref"] == b["ref"] == ref
-    # highlighted panel: everything else is context grey; unhighlighted panel: non-entities grey
-    assert a["ref"] == a["blank"] == theme.context_fill.upper()
+    # highlighted panel: an entity coloured elsewhere keeps its colour, the rest is context
+    # grey; unhighlighted panel: non-entities grey
+    assert a["ref"] == ref and a["blank"] == theme.context_fill.upper()
     assert b["blank"] != ref and b["blank"] != new
     # the uniform default colour stays the theme default and is not an entity colour
     assert set(_bar_colours(result, "e").values()) == {theme.default_color.upper()}
@@ -160,7 +161,7 @@ def test_pinned_colours_follow_the_theme_palette_and_round_trip() -> None:
         assert lines["full model"] == theme.series_colors[3].upper()
     spec = result.to_spec()
     assert spec["colors"] == {"no retrieval": "green", "full model": "amber"}
-    again = mint.explain_from_spec(json.loads(json.dumps(spec)))
+    again = mint.load(json.loads(json.dumps(spec)))
     assert _line_colours(again, "a") == lines
 
 
@@ -534,7 +535,8 @@ def test_a_short_bar_panel_grows_beside_a_taller_trend() -> None:
     renderer = result.fig.canvas.get_renderer()
     bars = result["a"].get_window_extent(renderer).height
     lines = result["b"].get_window_extent(renderer).height
-    assert bars >= 0.6 * lines  # grows up to 1.3x its natural pitch; tops aligned
+    # grows up to 1.3x its natural pitch (the trend is banked up to 1.15x); tops aligned
+    assert bars >= 0.5 * lines
 
 
 def test_narrow_trend_cell_is_refused_with_a_useful_hint() -> None:

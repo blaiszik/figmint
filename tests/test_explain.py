@@ -100,7 +100,9 @@ def _all_forms() -> dict[str, mint.Panel]:
 def test_every_form_renders_clean_at_chat_size(name: str) -> None:
     result = mint.explain(TAKEAWAY, _all_forms()[name], source="synthetic")
     summary = result.summary()
+    # a three-item slopegraph (6 values) at its natural height is flagged as sparse
     assert summary["issues"] == []
+    assert [i["rule"] for i in summary.get("advisories", [])] == (["low_density"] if name == "change" else [])
     assert summary["ok"] is True
     assert result.width_mm == pytest.approx(140.0, abs=0.01)
     assert summary["display"]["min_text_px"] >= explainer.MIN_TEXT_PX
@@ -372,19 +374,19 @@ def test_spec_round_trip_reproduces_the_same_pixels(tmp_path: Path) -> None:
     original.save(tmp_path / "one.png", write_spec=True)
     spec = json.loads((tmp_path / "one.json").read_text("utf-8"))
     assert spec["takeaway"] == TAKEAWAY and len(spec["panels"]) == 4
-    mint.explain_from_spec(spec, out=tmp_path / "two.png")
+    mint.load(spec, out=tmp_path / "two.png")
     assert (tmp_path / "one.png").read_bytes() == (tmp_path / "two.png").read_bytes()
 
 
 def test_spec_errors_name_the_valid_choices() -> None:
     with pytest.raises(mint.ExplainError, match="compare, trend, change"):
-        mint.explain_from_spec({"takeaway": TAKEAWAY, "panels": [{"kind": "pie"}]})
+        mint.load({"takeaway": TAKEAWAY, "panels": [{"kind": "pie"}]})
     with pytest.raises(mint.ExplainError, match="'values'"):
-        mint.explain_from_spec({"takeaway": TAKEAWAY, "panels": [{"kind": "compare"}]})
+        mint.load({"takeaway": TAKEAWAY, "panels": [{"kind": "compare"}]})
     with pytest.raises(mint.ExplainError, match="unexpected keyword"):
-        mint.panel_from_spec({"kind": "compare", "values": {"a": 1}, "colour": "red"})
+        mint.explainer.panel_from_spec({"kind": "compare", "values": {"a": 1}, "colour": "red"})
     with pytest.raises(mint.ExplainError, match="Unknown top-level"):
-        mint.explain_from_spec(
+        mint.load(
             {
                 "takeaway": TAKEAWAY,
                 "panels": [{"kind": "compare", "values": {"a": 1}}],
@@ -429,7 +431,7 @@ def test_mintfig_run_accepts_a_script_that_returns_an_explanation(tmp_path: Path
     )
     # The runner restores the backend name with different capitalisation; compare the rest.
     before = {k: v for k, v in mpl.rcParams.items() if k != "backend"}
-    result = mint.run_script(script, journal="screen", bundle_dir=tmp_path / "out")
+    result = mint.pub.run_script(script, journal="screen", bundle_dir=tmp_path / "out")
     assert {k: v for k, v in mpl.rcParams.items() if k != "backend"} == before
     assert result.ok and result.exit_code == 0
     assert result.report is not None and not result.report.issues
@@ -441,7 +443,7 @@ def test_hidden_axis_is_not_reported_as_an_unlabeled_scale() -> None:
     fig, ax = mint.figure("screen", width="chat", height_mm=50)
     ax.barh(["a", "b"], [3, 1])
     ax.xaxis.set_visible(False)
-    report = mint.preflight_figure(fig, "screen")
+    report = mint.pub.preflight_figure(fig, "screen")
     assert "clarity_metadata" not in {issue.rule for issue in report.issues}
 
 

@@ -1,14 +1,28 @@
-"""Self-contained interactive HTML delivery ("Martini-glass" view) for mintfig figures.
+"""Self-contained HTML delivery for mintfig figures.
 
-Emits a zero-dependency, zero-CDN HTML5 document (or embeddable fragment for
-Jupyter ``_repr_html_()``) with:
+Emits a zero-dependency, zero-request HTML5 document (or an embeddable fragment for
+Jupyter ``_repr_html_()`` and briefings) that earns being HTML:
 
-* Crisp inline SVG rendered directly from ``Explanation.fig`` under its theme.
-* Automatic light/dark surface theming matching ``Explanation.theme``.
-* Interactive toolbar, toggleable Facts & Data drawer (computed panel facts +
-  raw spec data tables), Download SVG, Copy Spec JSON, and a "Critique / Ask
-  Agent" panel that generates structured feedback JSON and ``mint.edit(...)``
-  snippets.
+* **Responsive.** The figure is laid out for small containers (360 px, panels
+  stacked), at ``narrow`` (450 px) and at its own width (plus ``chat`` for a slide);
+  a container query on the fragment root shows the layout that fits, so text stays
+  at or above the 11 px floor wherever the reader's column is at least 360 px wide.
+  A figure that cannot be laid out cleanly that small keeps the narrow layout below
+  450 px; ``data-mf-layouts`` on the root lists the widths embedded.
+* **Light and dark from one file.** For the default style, every colour that changes
+  between the light render and a dark twin render becomes
+  ``var(--mf-<token>, <light hex>)``; the dark values apply under
+  ``prefers-color-scheme: dark`` or a ``data-mf-scheme="dark"`` attribute on the root
+  or an ancestor (``"light"`` pins light). When the two renders differ in more than
+  colour, the dark render is embedded and switched instead. An explicit style
+  (``dark``, ``paper``, ``mono``, ...) keeps its own colours.
+* **Details on demand.** Every data mark carries ``data-mf``; one JSON map gives its
+  panel, name, x, value, interval and n. Hover or focus shows them; a click copies a
+  one-line citation (``ablation.png · b · no retrieval @ 500 = 0.52``).
+* **No chrome.** One quiet line under the figure: ``data · svg · spec``.
+
+``render_html_fragment`` also serves pages that hold several figures (``mint.brief``):
+``facts=False``, ``caption=`` and, for a static thumbnail, ``responsive=False``.
 """
 
 from __future__ import annotations
@@ -20,16 +34,42 @@ import json
 import math
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import Any
 
-from ._explain.core import Panel, _GlyphCapture
+import matplotlib as mpl
+
+from ._explain.core import ExplainError, Panel, _GlyphCapture
 from ._explain.layout import Explanation, explain_from_spec
-from .themes import Theme, relative_luminance
+from ._explain.marks import BOX_ATTR, GID_PREFIX, MARKS_ATTR, QUIET_ATTR, tagged
+from .themes import THEMES, Theme, relative_luminance
 
 __all__ = ["render_html", "render_html_fragment"]
 
 _XML_DECL_RE = re.compile(r"^\s*<\?xml[^>]*\?>\s*", re.IGNORECASE)
 _DOCTYPE_RE = re.compile(r"^\s*<!DOCTYPE[^>]*>\s*", re.IGNORECASE)
+_METADATA_RE = re.compile(r"\s*<metadata>.*?</metadata>", re.DOTALL)
+_COLOR_RE = re.compile(r"(?<=: )(#[0-9a-fA-F]{6})\b")
+_ID_RE = re.compile(r' id="([^"]+)"')
+_REF_RE = re.compile(r'(href="#|url\(#)([^")]+)')
+_GLOBAL_STYLE = '<style type="text/css">*{'
+_MARK_G_RE = re.compile(r'<g id="' + re.escape(GID_PREFIX) + r'([^"]+)"')
+#: Fixed salt so clip-path ids are stable: the light and dark renders must match.
+_SVG_RC = {"svg.hashsalt": "mintfig"}
+#: Colour fields a dark twin takes from the ``dark`` style (fonts and strokes stay).
+_COLOUR_FIELDS = (
+    "background", "ink", "muted", "axis", "grid", "context_line", "context_fill",
+    "zero_line", "series_colors", "accent_colors", "seq_stops", "div_low", "div_high",
+    "div_mid", "panel_tag_color",
+)
+_LAYOUT_PX = {"narrow": 450, "chat": 700, "slide": 1280}
+#: The small-container layout: shown at 360 px, 78 mm wide keeps 7 pt text at 11.4 px.
+_SMALL_PX = 360
+_SMALL_MM = 78.0
+_MIN_TEXT_PX = 11.0
+#: A relate panel with more points than this gets one mark per group, not one per point.
+_MAX_POINT_MARKS = 300
+_seen_roots: dict[str, int] = {}
 
 
 def _ensure_explanation(exp_or_spec: Explanation | Mapping[str, Any]) -> Explanation:
@@ -45,25 +85,83 @@ def _ensure_explanation(exp_or_spec: Explanation | Mapping[str, Any]) -> Explana
 
 
 def _safe_json_for_script(obj: Any) -> str:
-    """Serialize ``obj`` to JSON safe for embedding inside an HTML ``<script>`` tag.
+    """Serialize ``obj`` to compact JSON safe for embedding inside an HTML ``<script>`` tag.
 
     Replaces ``<``, ``>``, ``&``, and Unicode line separators so untrusted data
     can never terminate a ``<script>`` block or inject HTML comments.
     """
-    raw = json.dumps(obj, ensure_ascii=False, indent=2)
+    raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
     return (
         raw.replace("&", "\\u0026")
         .replace("<", "\\u003c")
         .replace(">", "\\u003e")
-        .replace("\u2028", "\\u2028")
-        .replace("\u2029", "\\u2029")
+        .replace(" ", "\\u2028")
+        .replace(" ", "\\u2029")
     )
 
 
-def _render_inline_svg(exp: Explanation) -> str:
-    """Export ``exp.fig`` to a clean, embeddable inline ``<svg>`` string."""
+def _num(v: float) -> str:
+    return f"{v:.2f}".rstrip("0").rstrip(".")
+
+
+def _js_num(v: Any) -> str:
+    """``String(+v.toPrecision(6))`` as the page script writes a value."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return str(v)
+    x = float(f"{float(v):.6g}")
+    if x == int(x) and abs(x) < 1e21:
+        return str(int(x))
+    if 1e-6 <= abs(x) < 1e21:
+        import numpy as np
+
+        return str(np.format_float_positional(x, trim="-"))
+    mant, _, exp = repr(x).partition("e")
+    return f"{mant}e{int(exp):+d}".replace("e+-", "e-")
+
+
+def _mark_text(rec: Mapping[str, Any]) -> str:
+    """The tooltip of a mark, which is also its accessible name."""
+    head = "" if rec.get("name") is None else str(rec["name"])
+    if rec.get("x") is not None:
+        head += f" @ {rec['x']}"
+    unit = rec.get("unit")
+    sep = "" if not unit or re.match(r"^[%\N{DEGREE SIGN}]", str(unit)) else " "
+    text = f"{head} = {_js_num(rec.get('value'))}" + (f"{sep}{unit}" if unit else "")
+    if rec.get("lo") is not None and rec.get("hi") is not None:
+        text += f"  [{_js_num(rec['lo'])}, {_js_num(rec['hi'])}]"
+    if rec.get("n") is not None:
+        text += f"  n={rec['n']}"
+    return text
+
+
+def _label_attrs(rec: Mapping[str, Any]) -> str:
+    return f' role="img" aria-label="{html.escape(_mark_text(rec), quote=True)}"'
+
+
+def _group_summary(records: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """One mark for a group of points: median and range of its values, and its size."""
+    vals = sorted(float(r["value"]) for r in records if _is_numeric_cell(r.get("value")))
+    names = {r.get("name") for r in records}
+    name = next(iter(names)) if len(names) == 1 and None not in names else "points"
+    out: dict[str, Any] = {"name": name, "x": "median, range", "n": len(records)}
+    if vals:
+        mid = len(vals) // 2
+        med = vals[mid] if len(vals) % 2 else 0.5 * (vals[mid - 1] + vals[mid])
+        out.update(value=med, lo=vals[0], hi=vals[-1])
+    if records and records[0].get("unit"):
+        out["unit"] = records[0]["unit"]
+    return out
+
+
+def _render_svg(exp: Explanation, *, interactive: bool = True) -> tuple[str, dict[str, Any]]:
+    """Export ``exp.fig`` as inline ``<svg>`` plus the data of each tagged mark.
+
+    Element marks (a bar, a cell, a span) get ``data-mf="<key>"``; marks that share
+    one artist (line vertices, scatter dots, heat-table cells) get a transparent,
+    focusable hit target. ``interactive=False`` drops the tags and returns no data.
+    """
     buf = io.BytesIO()
-    with exp.theme.rc_context(exp.spec), _GlyphCapture():
+    with exp.theme.rc_context(exp.spec), mpl.rc_context(_SVG_RC), _GlyphCapture():
         exp.fig.savefig(
             buf,
             format="svg",
@@ -71,9 +169,259 @@ def _render_inline_svg(exp: Explanation) -> str:
             edgecolor=exp.theme.background,
         )
     svg = buf.getvalue().decode("utf-8")
-    svg = _XML_DECL_RE.sub("", svg)
-    svg = _DOCTYPE_RE.sub("", svg)
-    return svg.strip()
+    svg = _METADATA_RE.sub("", _DOCTYPE_RE.sub("", _XML_DECL_RE.sub("", svg))).strip()
+    if not interactive:
+        return svg, {}
+    marks: dict[str, Any] = {}
+    hits: list[str] = []
+    fig = exp.fig
+    k = 72.0 / float(fig.dpi)
+    w_pt, h_pt = float(fig.get_figwidth()) * 72.0, float(fig.get_figheight()) * 72.0
+    artists = tagged(fig)
+    # A dense scatter gets one mark per group (its artist), not a hit target per point.
+    points: dict[str, int] = {}
+    for artist in artists:
+        items = getattr(artist, MARKS_ATTR)
+        if items[0][0] is not None and getattr(artist, BOX_ATTR, None) is None:
+            panel = str(artist.get_gid())[len(GID_PREFIX):].rsplit("-", 1)[0]
+            points[panel] = points.get(panel, 0) + len(items)
+    dense = {
+        p for p, n in points.items()
+        if n > _MAX_POINT_MARKS and p in exp.panels and exp.panels[p].kind == "relate"
+    }
+    quiet: set[str] = set()
+    for artist in artists:
+        key = str(artist.get_gid())[len(GID_PREFIX):]
+        panel = key.rsplit("-", 1)[0]
+        items = getattr(artist, MARKS_ATTR)
+        if getattr(artist, QUIET_ATTR, False):
+            quiet.add(key)
+        if items[0][0] is None or (panel in dense and getattr(artist, BOX_ATTR, None) is None):
+            if f'<g id="{GID_PREFIX}{key}"' in svg:
+                rec = items[0][1] if items[0][0] is None else _group_summary([r for _, r in items])
+                marks[key] = {"panel": panel, **rec}
+            continue
+        if not artist.get_visible():
+            continue
+        get_offsets = getattr(artist, "get_offset_transform", None)
+        tr = get_offsets() if get_offsets is not None else artist.get_transform()
+        box = getattr(artist, BOX_ATTR, None)
+        for i, (xy, rec) in enumerate(items):
+            x, y = tr.transform(xy)
+            cx, cy = x * k, h_pt - y * k
+            if not (-1 <= cx <= w_pt + 1 and -1 <= cy <= h_pt + 1):
+                continue
+            mk = f"{key}.{i}"
+            marks[mk] = {"panel": panel, **rec}
+            if box is None:
+                hits.append(
+                    f'<circle cx="{_num(cx)}" cy="{_num(cy)}" r="6" data-mf="{mk}" tabindex="0"'
+                    f"{_label_attrs(rec)}/>"
+                )
+                continue
+            (x0, y0), (x1, y1) = tr.transform([(xy[0] - box[0], xy[1] - box[1]),
+                                               (xy[0] + box[0], xy[1] + box[1])])
+            rx, ry = min(x0, x1) * k, h_pt - max(y0, y1) * k
+            hits.append(
+                f'<rect x="{_num(rx)}" y="{_num(ry)}" width="{_num(abs(x1 - x0) * k)}" '
+                f'height="{_num(abs(y1 - y0) * k)}" data-mf="{mk}" tabindex="0"'
+                f"{_label_attrs(rec)}/>"
+            )
+    def _open_g(m: re.Match[str]) -> str:
+        key = m.group(1)
+        if key not in marks:
+            return "<g"
+        if key in quiet:  # same data as a focusable mark beside it: hover only
+            return f'<g data-mf="{key}"'
+        return f'<g data-mf="{key}" tabindex="0"{_label_attrs(marks[key])}'
+
+    svg = _MARK_G_RE.sub(_open_g, svg)
+    if hits:
+        layer = '<g class="mf-hits" fill="none" pointer-events="all">' + "".join(hits) + "</g>"
+        cut = svg.rstrip().rfind("</svg>")
+        svg = svg[:cut] + layer + svg[cut:]
+    return svg, marks
+
+
+def _scope_ids(svg: str, prefix: str) -> str:
+    """Renumber the ids other elements reference as ``<prefix><n>``; drop the rest.
+
+    Ids stay unique when several SVGs share a page, and two renders that differ only
+    in colour get identical ids (Matplotlib hashes marker style into its ids).
+    """
+    refs = {m.group(2) for m in _REF_RE.finditer(svg)}
+    names: dict[str, str] = {}
+
+    def _rename(m: re.Match[str]) -> str:
+        if m.group(1) not in refs:
+            return ""
+        names[m.group(1)] = f"{prefix}{len(names)}"
+        return f' id="{names[m.group(1)]}"'
+
+    svg = _ID_RE.sub(_rename, svg)
+    svg = _REF_RE.sub(lambda m: m.group(1) + names.get(m.group(2), m.group(2)), svg)
+    # Matplotlib's global "*{stroke-linejoin...}" rule would restyle the host page:
+    # scope it to this SVG (which keeps it when the SVG is saved on its own).
+    if _GLOBAL_STYLE in svg:
+        svg = svg.replace("<svg ", f'<svg id="{prefix}svg" ', 1)
+        svg = svg.replace(_GLOBAL_STYLE, _GLOBAL_STYLE.replace("*{", f"#{prefix}svg *{{"), 1)
+    return svg
+
+
+def _theme_tokens(theme: Theme) -> list[tuple[str, str]]:
+    """``(token, hex)`` for every colour a theme defines, in naming priority."""
+    out = [
+        ("bg", theme.background), ("ink", theme.ink), ("muted", theme.muted),
+        ("axis", theme.axis), ("grid", theme.grid), ("context", theme.context_line),
+        ("context-fill", theme.context_fill), ("zero", theme.zero_line),
+        ("tag", theme.resolved_panel_tag_color), ("div-mid", theme.div_mid),
+    ]
+    for prefix, seq in (("s", theme.series_colors), ("a", theme.accent_colors),
+                        ("seq", theme.seq_stops), ("div-lo", theme.div_low),
+                        ("div-hi", theme.div_high)):
+        out.extend((f"{prefix}{i}", c) for i, c in enumerate(seq))
+    return [(name, c.lower()) for name, c in out]
+
+
+class _Palette:
+    """CSS custom properties shared by every layout of one fragment."""
+
+    def __init__(self, light: Theme, dark: Theme) -> None:
+        self.by_pair: dict[tuple[str, str], str] = {}
+        for (name, lo), (_, dk) in zip(_theme_tokens(light), _theme_tokens(dark), strict=True):
+            self.by_pair.setdefault((lo, dk), name)
+        self.used: dict[str, tuple[str, str]] = {}
+
+    def themed(self, light_svg: str, dark_svg: str) -> str | None:
+        """``light_svg`` with each colour that changes in ``dark_svg`` as a CSS variable.
+
+        Returns None when the renders differ in anything but colour.
+        """
+        lp, dp = _COLOR_RE.split(light_svg), _COLOR_RE.split(dark_svg)
+        if len(lp) != len(dp) or lp[::2] != dp[::2]:
+            return None
+        out = lp[:]
+        derived = sum(1 for n in self.used if n.startswith("c") and n[1:].isdigit())
+        for i in range(1, len(lp), 2):
+            lo, dk = lp[i].lower(), dp[i].lower()
+            if lo == dk:
+                continue
+            name = self.by_pair.get((lo, dk))
+            if name is None:
+                name = f"c{derived}"
+                derived += 1
+                self.by_pair[(lo, dk)] = name
+            self.used[name] = (lo, dk)
+            out[i] = f"var(--mf-{name}, {lp[i]})"
+        return "".join(out)
+
+    def css(self, scheme: str) -> str:
+        idx = 1 if scheme == "dark" else 0
+        return "".join(f"--mf-{n}:{pair[idx]};" for n, pair in self.used.items())
+
+
+def _dark_twin_style() -> Theme:
+    """The default style with the ``dark`` style's colours (and nothing else) swapped in."""
+    dark = THEMES["dark"]
+    return replace(
+        THEMES["mintfig"],
+        **{f: getattr(dark, f) for f in _COLOUR_FIELDS},
+        extra_rc={"xtick.color": dark.axis, "ytick.color": dark.axis},
+    )
+
+
+def _rebuild(exp: Explanation, **changes: Any) -> Explanation | None:
+    """The same figure with ``changes`` applied to its spec, or None if it cannot be rebuilt.
+
+    A new width first keeps the figure's panel layout, then lets ``explain`` choose
+    one (two side-by-side panels stack at ``narrow``).
+    """
+    spec = {**exp.to_spec(), **changes}
+    tries = [spec, {k: v for k, v in spec.items() if k != "layout"}] if "width" in changes else [spec]
+    for attempt in tries:
+        try:
+            return explain_from_spec(attempt, strict=exp.strict)
+        except (ExplainError, TypeError, ValueError, KeyError):
+            continue
+    return None
+
+
+#: Layout name of a figure laid out at a width given in mm (``width=110``).
+_OWN = "own"
+
+
+def _own_px(exp: Explanation) -> int:
+    """CSS px the figure's own layout is shown at: its preset's display width, or for a
+    width in mm the same px per mm as ``chat`` (so its text keeps the chat sizes)."""
+    if isinstance(exp.width, str) or exp.spec.name != "screen":
+        return exp.display_width_px
+    chat_mm = float(exp.spec.resolve_width_mm("chat"))
+    return round(float(exp.width) * _LAYOUT_PX["chat"] / chat_mm)
+
+
+def _layout_widths(exp: Explanation) -> list[str]:
+    """The layouts to embed, narrowest first ("small" is the 360 px container layout).
+
+    A figure with a width in mm embeds its own layout (``"own"``) plus every smaller one.
+    """
+    w = exp.width.strip().lower() if isinstance(exp.width, str) else ""
+    if exp.spec.name != "screen":
+        return [w or "chat"]
+    if not isinstance(exp.width, str):
+        own = _own_px(exp)
+        smaller = [name for name in ("narrow", "chat") if _LAYOUT_PX[name] < own]
+        return (["small"] if _SMALL_PX < own else []) + smaller + [_OWN]
+    if w == "narrow":
+        return ["small", "narrow"]
+    if w == "slide":
+        return ["small", "narrow", "chat", "slide"]
+    return ["small", "narrow", w or "chat"]
+
+
+def _small_layout(exp: Explanation) -> Explanation | None:
+    """The figure stacked at 78 mm for 360 px containers, or None when that is not clean.
+
+    Clean means it ships and its smallest text is at least 11 px at 360 px; otherwise
+    the narrow layout is shown below 450 px (``data-mf-layouts`` then omits 360).
+    """
+    from matplotlib.text import Text
+
+    small = _rebuild(exp, width=_SMALL_MM, layout=[[k] for k in exp.panels])
+    if small is None or not small.ship:
+        return None
+    sizes = [
+        float(t.get_fontsize())
+        for t in small.fig.findobj(Text)
+        if t.get_visible() and t.get_text().strip()
+    ]
+    px_per_pt = _SMALL_PX / (float(small.fig.get_figwidth()) * 72.0)
+    return small if min(sizes, default=0.0) * px_per_pt >= _MIN_TEXT_PX else None
+
+
+def _ui_tokens(theme: Theme) -> dict[str, str]:
+    """Colours for the text around the figure (data line, tooltip, data tables)."""
+    return {
+        "bg": theme.background,
+        "ink": theme.ink,
+        "muted": theme.muted,
+        "line": theme.grid if theme.grid.lower() != theme.background.lower() else theme.axis,
+    }
+
+
+def _citation_file(exp: Explanation) -> str:
+    if exp.saved_path is not None:
+        return exp.saved_path.name
+    words = exp.takeaway.split()
+    return " ".join(words[:5]) + ("\N{HORIZONTAL ELLIPSIS}" if len(words) > 5 else "")
+
+
+def _root_id(spec: Mapping[str, Any]) -> str:
+    digest = hashlib.sha256(
+        json.dumps(spec, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+    ).hexdigest()[:10]
+    n = _seen_roots.get(digest, 0)
+    _seen_roots[digest] = n + 1
+    return f"mf-{digest}" if n == 0 else f"mf-{digest}-{n}"
 
 
 def _fmt_cell(val: Any) -> str:
@@ -168,6 +516,19 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
                 for r in raw_rows
                 if isinstance(r, Sequence)
             ]
+            # Intervals given per row ({col: {row: (lo, hi)}}) list their bounds beside the
+            # column; bounds given as two columns of rows are already listed.
+            iv = spec.get("interval") if isinstance(spec.get("interval"), Mapping) else {}
+            for col, per_row in iv.items():
+                if not isinstance(per_row, Mapping) or str(col) not in cols:
+                    continue
+                at = cols.index(str(col)) + 1
+                cols[at:at] = [f"{col} low", f"{col} high"]
+                num_flags[at:at] = [True, True]
+                for out, r in zip(rows, (r for r in raw_rows if isinstance(r, Sequence))):
+                    pair = per_row.get(str(r[0])) if r else None
+                    ok = isinstance(pair, Sequence) and len(pair) == 2
+                    out[at:at] = [_fmt_cell(pair[0]), _fmt_cell(pair[1])] if ok else ["—", "—"]
             return cols, rows, num_flags, None
 
     if kind == "trend":
@@ -268,6 +629,39 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
 
     if kind == "distribution":
         groups = spec.get("groups")
+        nested = (
+            isinstance(groups, Mapping)
+            and spec.get("facet")
+            and spec.get("bins") is None
+            and all(isinstance(v, Mapping) for v in groups.values())
+        )
+        if nested:
+            headers = [
+                "Facet",
+                "Group",
+                "n",
+                f"Min{unit_suffix}",
+                f"Median{unit_suffix}",
+                f"Max{unit_suffix}",
+            ]
+            rows = []
+            for fname, level in groups.items():
+                for gname, vals in level.items():
+                    nums = sorted(float(v) for v in vals if _is_numeric_cell(v))
+                    if nums:
+                        mid = len(nums) // 2
+                        med = nums[mid] if len(nums) % 2 else 0.5 * (nums[mid - 1] + nums[mid])
+                        rows.append(
+                            [
+                                str(fname),
+                                str(gname),
+                                str(len(nums)),
+                                _fmt_cell(nums[0]),
+                                _fmt_cell(med),
+                                _fmt_cell(nums[-1]),
+                            ]
+                        )
+            return headers, rows, [False, False, True, True, True, True], None
         if isinstance(groups, Mapping):
             headers = ["Group", "n", f"Min{unit_suffix}", f"Median{unit_suffix}", f"Max{unit_suffix}"]
             rows = []
@@ -403,23 +797,23 @@ def _render_table_html(
     if not headers or not rows:
         return ""
     th_cells = "".join(
-        ('<th class="fm-num">' if num_flags[i] else "<th>") + f"{html.escape(h, quote=True)}</th>"
+        ('<th class="mf-num">' if num_flags[i] else "<th>") + f"{html.escape(h, quote=True)}</th>"
         for i, h in enumerate(headers)
     )
     body_rows = []
     for row in rows:
         td_cells = "".join(
-            ('<td class="fm-num">' if i < len(num_flags) and num_flags[i] else "<td>")
+            ('<td class="mf-num">' if i < len(num_flags) and num_flags[i] else "<td>")
             + f"{html.escape(cell, quote=True)}</td>"
             for i, cell in enumerate(row)
         )
         body_rows.append(f"<tr>{td_cells}</tr>")
     note_html = (
-        f'<p class="fm-table-note">{html.escape(note, quote=True)}</p>' if note else ""
+        f'<p class="mf-table-note">{html.escape(note, quote=True)}</p>' if note else ""
     )
     return (
-        '<div class="fm-table-wrap">'
-        '<table class="fm-data-table">'
+        '<div class="mf-table-wrap">'
+        '<table class="mf-data-table">'
         f"<thead><tr>{th_cells}</tr></thead>"
         f"<tbody>{''.join(body_rows)}</tbody>"
         "</table>"
@@ -428,575 +822,261 @@ def _render_table_html(
     )
 
 
-def _theme_tokens(theme: Theme) -> dict[str, str]:
-    """Derive light- or dark-aware UI surface tokens from ``theme``."""
-    is_dark = relative_luminance(theme.background) < 0.2
-    accent = theme.accent_colors[0] if theme.accent_colors else "#CD4324"
-    primary = theme.series_colors[0] if theme.series_colors else "#1F5A9D"
-    if is_dark:
-        surface = "#1C222C"
-        surface_alt = "#232A36"
-        border = theme.grid if theme.grid != theme.background else "#2E3746"
-        button_bg = "#252D3A"
-        button_hover = "#303A4B"
-        input_bg = "#11151B"
-        shadow = "0 10px 30px rgba(0, 0, 0, 0.45)"
-        mode = "dark"
-    else:
-        surface = "#F7F8FA" if theme.background.upper() == "#FFFFFF" else theme.background
-        surface_alt = "#EFF2F6" if theme.background.upper() == "#FFFFFF" else "#E9E5DC"
-        border = theme.grid if theme.grid != theme.background else "#D9DFE6"
-        button_bg = "#FFFFFF"
-        button_hover = "#EEF2F6"
-        input_bg = "#FFFFFF"
-        shadow = "0 6px 24px rgba(15, 23, 42, 0.08)"
-        mode = "light"
-    return {
-        "mode": mode,
-        "bg": theme.background,
-        "ink": theme.ink,
-        "muted": theme.muted,
-        "axis": theme.axis,
-        "grid": theme.grid,
-        "accent": accent,
-        "primary": primary,
-        "surface": surface,
-        "surface_alt": surface_alt,
-        "border": border,
-        "button_bg": button_bg,
-        "button_hover": button_hover,
-        "input_bg": input_bg,
-        "shadow": shadow,
-    }
+def _vars(tokens: Mapping[str, str], palette: _Palette | None, scheme: str) -> str:
+    ui = "".join(f"--mf-ui-{k}:{v};" for k, v in tokens.items())
+    return ui + (palette.css(scheme) if palette is not None else "")
 
 
-def _css_block(root_id: str, tokens: dict[str, str], max_width_px: int) -> str:
-    sel = f"#{root_id}"
-    return f"""<style>
-{sel} {{
-  --fm-bg: {tokens['bg']};
-  --fm-ink: {tokens['ink']};
-  --fm-muted: {tokens['muted']};
-  --fm-border: {tokens['border']};
-  --fm-surface: {tokens['surface']};
-  --fm-surface-alt: {tokens['surface_alt']};
-  --fm-accent: {tokens['accent']};
-  --fm-primary: {tokens['primary']};
-  --fm-btn-bg: {tokens['button_bg']};
-  --fm-btn-hover: {tokens['button_hover']};
-  --fm-input-bg: {tokens['input_bg']};
-  --fm-shadow: {tokens['shadow']};
-  color: var(--fm-ink);
-  background: var(--fm-bg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  max-width: {max_width_px}px;
-  margin: 0 auto;
-  border: 1px solid var(--fm-border);
-  border-radius: 10px;
-  box-shadow: var(--fm-shadow);
-  overflow: hidden;
-  box-sizing: border-box;
-}}
-{sel} *, {sel} *::before, {sel} *::after {{ box-sizing: border-box; }}
-{sel} .fm-figure-stage {{
-  background: var(--fm-bg);
-  padding: 12px 12px 8px;
-}}
-{sel} .fm-svg-wrap {{
-  width: 100%;
-  overflow-x: auto;
-}}
-{sel} .fm-svg-wrap svg {{
-  width: 100%;
-  height: auto;
-  display: block;
-}}
-{sel} .fm-toolbar {{
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--fm-surface);
-  border-top: 1px solid var(--fm-border);
-  font-size: 12.5px;
-}}
-{sel} .fm-toolbar-group {{
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}}
-{sel} .fm-btn {{
-  appearance: none;
-  border: 1px solid var(--fm-border);
-  background: var(--fm-btn-bg);
-  color: var(--fm-ink);
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}}
-{sel} .fm-btn:hover {{
-  background: var(--fm-btn-hover);
-  border-color: var(--fm-muted);
-}}
-{sel} .fm-btn[aria-expanded="true"], {sel} .fm-btn-accent {{
-  border-color: var(--fm-accent);
-  color: var(--fm-accent);
-}}
-{sel} .fm-status {{
-  font-size: 11.5px;
-  color: var(--fm-muted);
-  margin-left: 4px;
-}}
-{sel} .fm-drawer {{
-  border-top: 1px solid var(--fm-border);
-  background: var(--fm-surface);
-  padding: 14px 16px;
-  font-size: 13px;
-  line-height: 1.45;
-}}
-{sel} .fm-drawer[hidden] {{ display: none; }}
-{sel} .fm-drawer h3 {{
-  margin: 0 0 10px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--fm-ink);
-}}
-{sel} .fm-panel-card {{
-  background: var(--fm-bg);
-  border: 1px solid var(--fm-border);
-  border-radius: 8px;
-  padding: 10px 12px;
-  margin-bottom: 10px;
-}}
-{sel} .fm-panel-card:last-child {{ margin-bottom: 0; }}
-{sel} .fm-panel-head {{
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 6px;
-}}
-{sel} .fm-badge {{
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--fm-surface-alt);
-  color: var(--fm-accent);
-  border: 1px solid var(--fm-border);
-}}
-{sel} .fm-panel-title {{
-  font-weight: 600;
-  color: var(--fm-ink);
-}}
-{sel} .fm-panel-kind {{
-  font-size: 11.5px;
-  color: var(--fm-muted);
-}}
-{sel} .fm-facts {{
-  margin: 6px 0 8px 18px;
-  padding: 0;
-  color: var(--fm-ink);
-}}
-{sel} .fm-facts li {{ margin-bottom: 3px; }}
-{sel} .fm-table-wrap {{
-  overflow-x: auto;
-  margin-top: 6px;
-}}
-{sel} .fm-data-table {{
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}}
-{sel} .fm-data-table th, {sel} .fm-data-table td {{
-  text-align: left;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--fm-border);
-  color: var(--fm-ink);
-}}
-{sel} .fm-data-table th {{
-  font-weight: 600;
-  color: var(--fm-muted);
-  background: var(--fm-surface);
-}}
-{sel} .fm-data-table th.fm-num, {sel} .fm-data-table td.fm-num {{
-  text-align: right;
-}}
-{sel} .fm-table-note {{
-  margin: 4px 0 0;
-  font-size: 11px;
-  color: var(--fm-muted);
-}}
-{sel} .fm-meta-row {{
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 10px;
-  font-size: 11.5px;
-  color: var(--fm-muted);
-}}
-{sel} .fm-critique-grid {{
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-  margin-bottom: 10px;
-}}
-{sel} .fm-field label {{
-  display: block;
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--fm-muted);
-  margin-bottom: 4px;
-}}
-{sel} .fm-field select, {sel} .fm-field textarea {{
-  width: 100%;
-  background: var(--fm-input-bg);
-  color: var(--fm-ink);
-  border: 1px solid var(--fm-border);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-family: inherit;
-  font-size: 12.5px;
-}}
-{sel} .fm-field textarea {{
-  min-height: 62px;
-  resize: vertical;
-}}
-{sel} .fm-preview {{
-  background: var(--fm-input-bg);
-  border: 1px solid var(--fm-border);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 11.5px;
-  white-space: pre-wrap;
-  word-break: break-word;
-  margin: 8px 0;
-  color: var(--fm-ink);
-}}
-{sel} .fm-sr-only {{
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}}
-</style>"""
+def _css_block(
+    root_id: str,
+    light: Mapping[str, str],
+    dark: Mapping[str, str] | None,
+    palette: _Palette | None,
+    breakpoints: Sequence[int],
+    max_width_px: int,
+    swaps: bool,
+) -> str:
+    r = f"#{root_id}"
+    out = [
+        (
+            f"{r}{{{_vars(light, palette, 'light')}container:{root_id}/inline-size;"
+            f"width:100%;max-width:{max_width_px}px;margin:0 auto;position:relative;"
+            "color:var(--mf-ui-ink);background:var(--mf-ui-bg);"
+            'font:13px/1.45 system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}'
+        ),
+        f"{r} svg{{display:block;width:100%;height:auto}}",
+        f"{r} .mf-v{{display:none}}{r} .mf-v0{{display:block}}",
+        f"{r} .mf-dark{{display:none}}",
+    ]
+    for i, px in enumerate(breakpoints[1:], 1):
+        out.append(
+            f"@container {root_id} (min-width:{px}px){{{r} .mf-v{i - 1}{{display:none}}"
+            f"{r} .mf-v{i}{{display:block}}}}"
+        )
+    if dark is not None:
+        show_dark = f"{r} .mf-light{{display:none}}{r} .mf-dark{{display:block}}" if swaps else ""
+        show_light = f"{r} .mf-light{{display:block}}{r} .mf-dark{{display:none}}" if swaps else ""
+        dark_sel = f'{r}[data-mf-scheme="dark"],[data-mf-scheme="dark"] {r}'
+        light_sel = f'{r}[data-mf-scheme="light"],[data-mf-scheme="light"] {r}'
+        out.append(
+            f"@media (prefers-color-scheme:dark){{{r}{{{_vars(dark, palette, 'dark')}}}"
+            f"{show_dark}}}"
+        )
+        out.append(f"{dark_sel}{{{_vars(dark, palette, 'dark')}}}")
+        out.append(f"{light_sel}{{{_vars(light, palette, 'light')}}}")
+        if swaps:
+            for sel, rule in ((dark_sel, show_dark), (light_sel, show_light)):
+                for part in sel.split(","):
+                    out.append(rule.replace(f"{r} ", f"{part} "))
+    out.append(
+        f"{r} [data-mf]{{cursor:pointer;outline:none}}"
+        f"{r} .mf-hits [data-mf]:hover,{r} .mf-hits [data-mf]:focus-visible"
+        "{stroke:var(--mf-ui-ink);stroke-width:1.2}"
+        f"{r} g[data-mf]:focus-visible{{opacity:.75}}"
+        f"{r} .mf-tip{{position:absolute;z-index:2;pointer-events:none;max-width:90%;"
+        "padding:3px 7px;border-radius:4px;background:var(--mf-ui-ink);color:var(--mf-ui-bg);"
+        "font-size:12px;font-variant-numeric:tabular-nums}"
+        f"{r} .mf-cap{{margin:8px 0 0;font-size:15px;line-height:1.5}}"
+        f"{r} .mf-foot{{margin:4px 0 0;font-size:12px;color:var(--mf-ui-muted)}}"
+        f"{r} .mf-foot button{{all:unset;cursor:pointer;color:inherit;"
+        "text-decoration:underline dotted;text-underline-offset:2px}"
+        f"{r} .mf-foot button:hover,{r} .mf-foot button:focus-visible{{color:var(--mf-ui-ink)}}"
+        f"{r} .mf-note{{margin-left:8px}}"
+        f"{r} .mf-data{{margin-top:8px;font-size:12.5px}}"
+        f"{r} .mf-data h3{{margin:10px 0 2px;font-size:12.5px}}"
+        f"{r} .mf-data ul{{margin:2px 0 6px;padding-left:18px}}"
+        f"{r} .mf-table-wrap{{overflow-x:auto}}"
+        f"{r} .mf-data-table{{border-collapse:collapse;font-size:12px;"
+        "font-variant-numeric:tabular-nums}"
+        f"{r} .mf-data-table th,{r} .mf-data-table td{{text-align:left;padding:2px 10px 2px 0;"
+        "border-bottom:1px solid var(--mf-ui-line)}"
+        f"{r} .mf-data-table th{{color:var(--mf-ui-muted);font-weight:600}}"
+        f"{r} .mf-data-table .mf-num{{text-align:right}}"
+        f"{r} .mf-table-note,{r} .mf-meta{{margin:2px 0;color:var(--mf-ui-muted)}}"
+        f"{r} .mf-sr-only{{position:absolute;width:1px;height:1px;overflow:hidden;"
+        "clip:rect(0,0,0,0);white-space:nowrap}"
+    )
+    return "<style>\n" + "\n".join(out) + "\n</style>"
 
 
-def _js_block(root_id: str, spec_json_safe: str, takeaway_json_safe: str) -> str:
-    return f"""<script>
-(function() {{
-  var root = document.getElementById({json.dumps(root_id)});
-  if (!root) return;
-  var SPEC = {spec_json_safe};
-  var TAKEAWAY = {takeaway_json_safe};
-  var statusEl = root.querySelector('[data-fm-status]');
+_JS = """(function(){
+var R=document.getElementById(%(id)s);if(!R)return;
+var M=%(marks)s,SPEC=%(spec)s,FILE=%(file)s;
+var tip=R.querySelector('.mf-tip'),note=R.querySelector('.mf-note');
+function f(v){return typeof v==='number'?String(+v.toPrecision(6)):String(v);}
+function u(r){return r.unit?(/^[%%\\u00b0]/.test(r.unit)?'':' ')+r.unit:'';}
+function head(r){var h=r.name!=null?String(r.name):'';return r.x!=null?h+' @ '+r.x:h;}
+function line(r){return head(r)+' = '+f(r.value)+u(r);}
+function cite(r){return FILE+' \\u00b7 '+r.panel+' \\u00b7 '+line(r);}
+function mark(t){var el=t&&t.closest?t.closest('[data-mf]'):null;
+  return el&&M[el.getAttribute('data-mf')]?el:null;}
+function say(msg){note.textContent=msg;clearTimeout(say.t);
+  say.t=setTimeout(function(){note.textContent='';},3000);}
+function show(el){var r=M[el.getAttribute('data-mf')],t=el.getAttribute('aria-label');
+  if(!t){t=line(r);if(r.lo!=null&&r.hi!=null)t+='  ['+f(r.lo)+', '+f(r.hi)+']';
+    if(r.n!=null)t+='  n='+r.n;}
+  tip.textContent=t;tip.hidden=false;
+  var b=el.getBoundingClientRect(),o=R.getBoundingClientRect();
+  var x=b.left-o.left+b.width/2-tip.offsetWidth/2,y=b.top-o.top-tip.offsetHeight-6;
+  tip.style.left=Math.max(0,Math.min(x,R.clientWidth-tip.offsetWidth))+'px';
+  tip.style.top=(y<0?b.bottom-o.top+6:y)+'px';}
+function hide(){tip.hidden=true;}
+function copy(text,msg){var done=function(){say(msg);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done,function(){say(text);});}
+  else say(text);}
+function act(el){var r=M[el.getAttribute('data-mf')];copy(cite(r),'copied: '+cite(r));}
+R.addEventListener('pointerover',function(e){var el=mark(e.target);el?show(el):hide();});
+R.addEventListener('pointerleave',hide);
+R.addEventListener('focusin',function(e){var el=mark(e.target);if(el)show(el);});
+R.addEventListener('focusout',hide);
+R.addEventListener('keydown',function(e){var el=mark(e.target);
+  if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();act(el);}});
+R.addEventListener('click',function(e){var el=mark(e.target);if(el)return act(el);
+  var b=e.target.closest('[data-mf-act]');if(!b)return;var a=b.getAttribute('data-mf-act');
+  if(a==='data'){var d=R.querySelector('.mf-data');d.hidden=!d.hidden;
+    b.setAttribute('aria-expanded',String(!d.hidden));}
+  else if(a==='spec')copy(JSON.stringify(SPEC,null,2),'copied spec JSON');
+  else if(a==='svg'){var s=[].filter.call(R.querySelectorAll('.mf-v svg'),
+      function(n){return n.getClientRects().length;})[0];if(!s)return;
+    var url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(s)],
+      {type:'image/svg+xml'}));
+    var l=document.createElement('a');l.href=url;
+    l.download=(/\\.\\w+$/.test(FILE)?FILE.replace(/\\.\\w+$/,''):'figure')+'.svg';
+    document.body.appendChild(l);l.click();l.remove();URL.revokeObjectURL(url);}});
+})();"""
 
-  function setStatus(msg) {{
-    if (!statusEl) return;
-    statusEl.textContent = msg;
-    window.setTimeout(function() {{
-      if (statusEl.textContent === msg) statusEl.textContent = '';
-    }}, 2600);
-  }}
 
-  function copyText(text, label) {{
-    if (navigator.clipboard && navigator.clipboard.writeText) {{
-      navigator.clipboard.writeText(text).then(function() {{
-        setStatus('Copied ' + label);
-      }}, function() {{
-        fallbackCopy(text, label);
-      }});
-    }} else {{
-      fallbackCopy(text, label);
-    }}
-  }}
-
-  function fallbackCopy(text, label) {{
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.setAttribute('readonly', '');
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try {{
-      document.execCommand('copy');
-      setStatus('Copied ' + label);
-    }} catch (e) {{
-      setStatus('Copy failed');
-    }}
-    document.body.removeChild(ta);
-  }}
-
-  function toggleDrawer(btnAttr, drawerAttr) {{
-    var btn = root.querySelector('[' + btnAttr + ']');
-    var drawer = root.querySelector('[' + drawerAttr + ']');
-    if (!btn || !drawer) return;
-    btn.addEventListener('click', function() {{
-      var open = drawer.hasAttribute('hidden');
-      if (open) {{
-        drawer.removeAttribute('hidden');
-        btn.setAttribute('aria-expanded', 'true');
-      }} else {{
-        drawer.setAttribute('hidden', '');
-        btn.setAttribute('aria-expanded', 'false');
-      }}
-    }});
-  }}
-
-  toggleDrawer('data-fm-toggle-facts', 'data-fm-drawer-facts');
-  toggleDrawer('data-fm-toggle-critique', 'data-fm-drawer-critique');
-
-  var dlBtn = root.querySelector('[data-fm-download-svg]');
-  if (dlBtn) {{
-    dlBtn.addEventListener('click', function() {{
-      var svg = root.querySelector('.fm-svg-wrap svg');
-      if (!svg) return;
-      var xml = new XMLSerializer().serializeToString(svg);
-      var blob = new Blob([xml], {{ type: 'image/svg+xml;charset=utf-8' }});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = 'mintfig-figure.svg';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setStatus('Downloaded SVG');
-    }});
-  }}
-
-  var copySpecBtn = root.querySelector('[data-fm-copy-spec]');
-  if (copySpecBtn) {{
-    copySpecBtn.addEventListener('click', function() {{
-      copyText(JSON.stringify(SPEC, null, 2), 'spec JSON');
-    }});
-  }}
-
-  var panelSel = root.querySelector('[data-fm-critique-panel]');
-  var actionSel = root.querySelector('[data-fm-critique-action]');
-  var noteInput = root.querySelector('[data-fm-critique-note]');
-  var previewEl = root.querySelector('[data-fm-critique-preview]');
-  var copyJsonBtn = root.querySelector('[data-fm-copy-feedback]');
-  var copyEditBtn = root.querySelector('[data-fm-copy-edit]');
-
-  function buildCritique() {{
-    var panel = panelSel ? panelSel.value : 'figure';
-    var action = actionSel ? actionSel.value : 'highlight';
-    var note = noteInput ? noteInput.value.trim() : '';
-    var payload = {{
-      target: panel,
-      action: action,
-      note: note,
-      takeaway: TAKEAWAY
-    }};
-    var snippet = 'mint.edit(fig, panel=' + JSON.stringify(panel) +
-      ', action=' + JSON.stringify(action) +
-      ', note=' + JSON.stringify(note) + ')';
-    return {{ payload: payload, snippet: snippet }};
-  }}
-
-  function refreshPreview() {{
-    if (!previewEl) return;
-    var c = buildCritique();
-    previewEl.textContent = c.snippet + '\\n\\n' + JSON.stringify(c.payload, null, 2);
-  }}
-
-  [panelSel, actionSel, noteInput].forEach(function(el) {{
-    if (el) el.addEventListener('input', refreshPreview);
-    if (el) el.addEventListener('change', refreshPreview);
-  }});
-  refreshPreview();
-
-  if (copyJsonBtn) {{
-    copyJsonBtn.addEventListener('click', function() {{
-      copyText(JSON.stringify(buildCritique().payload, null, 2), 'feedback JSON');
-    }});
-  }}
-  if (copyEditBtn) {{
-    copyEditBtn.addEventListener('click', function() {{
-      copyText(buildCritique().snippet, 'mint.edit(...) snippet');
-    }});
-  }}
-}})();
-</script>"""
+def _data_section(exp: Explanation, *, facts: bool = True) -> str:
+    """Facts and the data table of every panel, plus source and note (hidden until asked)."""
+    parts: list[str] = []
+    for key, panel in exp.panels.items():
+        title = html.escape(panel.title or panel.describe, quote=True)
+        parts.append(f"<h3>{html.escape(key, quote=True)} \N{MIDDLE DOT} {title}</h3>")
+        if facts and panel.facts:
+            items = "".join(f"<li>{html.escape(fact, quote=True)}</li>" for fact in panel.facts)
+            parts.append(f'<ul class="mf-facts">{items}</ul>')
+        parts.append(_render_table_html(*_panel_data_table(panel)))
+    for label, value in (("Source", exp.source), ("Note", exp.note)):
+        if value:
+            parts.append(f'<p class="mf-meta">{label}: {html.escape(value, quote=True)}</p>')
+    return '<div class="mf-data" hidden>' + "".join(parts) + "</div>"
 
 
 def render_html_fragment(
     exp_or_spec: Explanation | Mapping[str, Any],
     *,
     interactive: bool = True,
+    facts: bool = True,
+    responsive: bool = True,
+    caption: str | None = None,
 ) -> str:
     """Render a self-contained embeddable HTML fragment (for Jupyter ``_repr_html_()``).
 
-    Contains zero external CDN references; all CSS, SVG, and vanilla JS are
-    inlined and scoped to a unique root container ID.
+    Contains zero external references; all CSS, SVG and vanilla JS are inlined and
+    scoped to a unique root container id, so several fragments can share a page.
+
+    ``facts=False`` leaves the facts out of the data drawer (its data table stays), for a
+    page that lists them elsewhere. ``responsive=False`` embeds only the figure's own
+    layout (still light and dark): a static thumbnail with ``interactive=False``.
+    ``caption`` is shown under the figure, above the ``data · svg · spec`` line.
     """
     exp = _ensure_explanation(exp_or_spec)
-    svg_markup = _render_inline_svg(exp)
     spec_dict = exp.to_spec()
-    tokens = _theme_tokens(exp.theme)
+    root_id = _root_id(spec_dict)
+    auto = exp.theme.name == "mintfig"
+    twin_style = _dark_twin_style() if auto else None
 
-    digest = hashlib.sha256(
-        json.dumps(spec_dict, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    ).hexdigest()[:10]
-    root_id = f"fm-{digest}"
-    max_width_px = max(480, int(exp.display_width_px) + 48)
+    own = _layout_widths(exp) if responsive else [_OWN]
+    own_name = own[-1]
+    variants: list[tuple[int, Explanation, Explanation | None]] = []
+    for name in own:
+        if name == "small":
+            light = _small_layout(exp)
+        else:
+            light = exp if name == own_name else _rebuild(exp, width=name)
+        if light is None:
+            continue
+        dark = _rebuild(light, style=twin_style) if twin_style is not None else None
+        if name == "small":
+            px = _SMALL_PX
+        else:
+            px = _own_px(exp) if light is exp else _LAYOUT_PX.get(name, light.display_width_px)
+        variants.append((px, light, dark))
 
-    css = _css_block(root_id, tokens, max_width_px)
-    escaped_alt = html.escape(exp.alt_text, quote=True)
-    escaped_takeaway = html.escape(exp.takeaway, quote=True)
+    palette = _Palette(exp.theme, variants[0][2].theme) if auto and variants[0][2] else None
+    marks: dict[str, Any] = {}
+    blocks: list[str] = []
+    swaps = False
+    for i, (_, light, dark) in enumerate(variants):
+        light_svg, light_marks = _render_svg(light, interactive=interactive)
+        # A layout that tagged its marks in another order gets its own key namespace.
+        ns = f"{i}/" if any(marks.get(k, v) != v for k, v in light_marks.items()) else ""
+        light_svg = light_svg.replace(' data-mf="', f' data-mf="{ns}')
+        marks.update({f"{ns}{k}": v for k, v in light_marks.items()})
+        body = _scope_ids(light_svg, f"{root_id}-{i}-")
+        if dark is not None and palette is not None:
+            dark_svg = _render_svg(dark, interactive=interactive)[0]
+            dark_svg = dark_svg.replace(' data-mf="', f' data-mf="{ns}')
+            themed = palette.themed(body, _scope_ids(dark_svg, f"{root_id}-{i}-"))
+            if themed is not None:
+                body = themed
+            else:
+                swaps = True
+                body = (
+                    f'<div class="mf-light">{body}</div><div class="mf-dark">'
+                    f'{_scope_ids(dark_svg, f"{root_id}-{i}d-")}</div>'
+                )
+        blocks.append(f'<div class="mf-v mf-v{i}">{body}</div>')
 
-    figure_section = (
-        '<div class="fm-figure-stage">'
-        f'<div class="fm-svg-wrap" role="img" aria-label="{escaped_alt}">{svg_markup}</div>'
-        f'<figcaption class="fm-sr-only">{escaped_takeaway}</figcaption>'
-        "</div>"
-    )
-
-    if not interactive:
-        return (
-            f"{css}\n"
-            f'<figure id="{root_id}" class="fm-root" data-fm-theme="{html.escape(exp.theme.name, quote=True)}" '
-            f'data-fm-mode="{tokens["mode"]}">'
-            f"{figure_section}"
-            "</figure>"
-        )
-
-    # Facts & Data drawer
-    panel_cards: list[str] = []
-    panel_options: list[str] = ['<option value="figure">Whole figure</option>']
-    for key, panel in exp.panels.items():
-        esc_key = html.escape(key, quote=True)
-        esc_kind = html.escape(panel.kind, quote=True)
-        esc_title = html.escape(panel.title or panel.describe, quote=True)
-        opt_label = f"Panel {key}: {panel.title}" if panel.title else f"Panel {key} ({panel.kind})"
-        panel_options.append(
-            f'<option value="{esc_key}">{html.escape(opt_label, quote=True)}</option>'
-        )
-        facts_items = "".join(
-            f"<li>{html.escape(fact, quote=True)}</li>" for fact in panel.facts
-        )
-        facts_html = f'<ul class="fm-facts">{facts_items}</ul>' if facts_items else ""
-        headers, rows, num_flags, t_note = _panel_data_table(panel)
-        table_html = _render_table_html(headers, rows, num_flags, t_note)
-        panel_cards.append(
-            '<div class="fm-panel-card">'
-            '<div class="fm-panel-head">'
-            f'<span class="fm-badge">Panel {esc_key}</span>'
-            f'<span class="fm-panel-title">{esc_title}</span>'
-            f'<span class="fm-panel-kind">({esc_kind})</span>'
-            "</div>"
-            f"{facts_html}"
-            f"{table_html}"
-            "</div>"
-        )
-
-    meta_parts = [
-        f"Style: {exp.theme.name}",
-        f"Palette: {exp.palette or 'default'}",
-        f"Size: {exp.width_mm:.0f} × {exp.height_mm:.0f} mm",
-    ]
-    if exp.source:
-        meta_parts.append(f"Source: {exp.source}")
-    if exp.note:
-        meta_parts.append(f"Note: {exp.note}")
-    meta_html = (
-        '<div class="fm-meta-row">'
-        + "".join(f"<span>{html.escape(part, quote=True)}</span>" for part in meta_parts)
-        + "</div>"
-    )
-
-    facts_drawer = (
-        '<section class="fm-drawer" data-fm-drawer-facts hidden aria-label="Facts and Data">'
-        "<h3>Facts &amp; Underlying Data</h3>"
-        f"{''.join(panel_cards)}"
-        f"{meta_html}"
-        "</section>"
-    )
-
-    critique_actions = [
-        ("highlight", "Highlight item / series"),
-        ("drop", "Drop panel or item"),
-        ("zoom", "Zoom / focus range"),
-        ("style", "Adjust style / palette"),
-        ("re-title", "Re-title takeaway / panel"),
-        ("question", "Ask question about data"),
-    ]
-    action_options = "".join(
-        f'<option value="{val}">{html.escape(lbl, quote=True)}</option>'
-        for val, lbl in critique_actions
-    )
-    critique_drawer = (
-        '<section class="fm-drawer" data-fm-drawer-critique hidden aria-label="Critique or ask agent">'
-        "<h3>Click to Critique / Ask Agent</h3>"
-        '<div class="fm-critique-grid">'
-        '<div class="fm-field">'
-        f'<label for="{root_id}-panel">Panel</label>'
-        f'<select id="{root_id}-panel" data-fm-critique-panel>{"".join(panel_options)}</select>'
-        "</div>"
-        '<div class="fm-field">'
-        f'<label for="{root_id}-action">Action</label>'
-        f'<select id="{root_id}-action" data-fm-critique-action>{action_options}</select>'
-        "</div>"
-        "</div>"
-        '<div class="fm-field">'
-        f'<label for="{root_id}-note">Note / instruction for agent</label>'
-        f'<textarea id="{root_id}-note" data-fm-critique-note '
-        'placeholder="e.g., Highlight checkout vs search and annotate the v2.3 deploy"></textarea>'
-        "</div>"
-        '<pre class="fm-preview" data-fm-critique-preview></pre>'
-        '<div class="fm-toolbar-group">'
-        '<button type="button" class="fm-btn fm-btn-accent" data-fm-copy-edit>Copy mint.edit(...)</button>'
-        '<button type="button" class="fm-btn" data-fm-copy-feedback>Copy Feedback JSON</button>'
-        "</div>"
-        "</section>"
-    )
-
-    toolbar = (
-        '<div class="fm-toolbar">'
-        '<div class="fm-toolbar-group">'
-        '<button type="button" class="fm-btn" data-fm-toggle-facts aria-expanded="false">Facts &amp; Data</button>'
-        '<button type="button" class="fm-btn" data-fm-toggle-critique aria-expanded="false">Critique / Ask Agent</button>'
-        "</div>"
-        '<div class="fm-toolbar-group">'
-        '<button type="button" class="fm-btn" data-fm-download-svg>Download SVG</button>'
-        '<button type="button" class="fm-btn" data-fm-copy-spec>Copy Spec JSON</button>'
-        '<span class="fm-status" data-fm-status role="status" aria-live="polite"></span>'
-        "</div>"
-        "</div>"
-    )
-
-    js = _js_block(
+    light_ui = _ui_tokens(exp.theme)
+    dark_ui = _ui_tokens(variants[0][2].theme) if auto and variants[0][2] else None
+    css = _css_block(
         root_id,
-        _safe_json_for_script(spec_dict),
-        _safe_json_for_script(exp.takeaway),
+        light_ui,
+        dark_ui,
+        palette,
+        [px for px, _, _ in variants],
+        max(px for px, _, _ in variants),
+        swaps,
     )
+    mode = "dark" if relative_luminance(exp.theme.background) < 0.2 else "light"
+    escaped_alt = html.escape(exp.alt_text, quote=True)
+    stage = (
+        f'<div class="mf-stage" role="{"group" if interactive else "img"}" '
+        f'aria-label="{escaped_alt}">{"".join(blocks)}</div>'
+        f'<figcaption class="mf-sr-only">{html.escape(exp.takeaway, quote=True)}</figcaption>'
+    )
+    if caption:
+        stage += f'<p class="mf-cap">{html.escape(caption, quote=True)}</p>'
+    layouts = " ".join(str(px) for px, _, _ in variants)
+    open_tag = (
+        f'<figure id="{root_id}" class="mf-root" '
+        f'data-mf-theme="{html.escape(exp.theme.name, quote=True)}" data-mf-mode="{mode}" '
+        f'data-mf-layouts="{layouts}">'
+    )
+    if not interactive:
+        return f"{css}\n{open_tag}{stage}</figure>"
 
+    foot = (
+        '<p class="mf-foot">'
+        '<button type="button" data-mf-act="data" aria-expanded="false">data</button>'
+        " \N{MIDDLE DOT} "
+        '<button type="button" data-mf-act="svg">svg</button>'
+        " \N{MIDDLE DOT} "
+        '<button type="button" data-mf-act="spec">spec</button>'
+        '<span class="mf-note" role="status" aria-live="polite"></span></p>'
+    )
+    js = _JS % {
+        "id": json.dumps(root_id),
+        "marks": _safe_json_for_script(marks),
+        "spec": _safe_json_for_script(spec_dict),
+        "file": _safe_json_for_script(_citation_file(exp)),
+    }
     return (
-        f"{css}\n"
-        f'<figure id="{root_id}" class="fm-root" data-fm-theme="{html.escape(exp.theme.name, quote=True)}" '
-        f'data-fm-mode="{tokens["mode"]}">'
-        f"{figure_section}"
-        f"{toolbar}"
-        f"{facts_drawer}"
-        f"{critique_drawer}"
-        "</figure>\n"
-        f"{js}"
+        f"{css}\n{open_tag}{stage}"
+        '<div class="mf-tip" role="tooltip" hidden></div>'
+        f"{foot}{_data_section(exp, facts=facts)}</figure>\n<script>\n{js}\n</script>"
     )
 
 
@@ -1008,18 +1088,30 @@ def render_html(
     """Render a standalone, self-contained HTML5 document for an ``Explanation`` or spec dict."""
     exp = _ensure_explanation(exp_or_spec)
     fragment = render_html_fragment(exp, interactive=interactive)
-    tokens = _theme_tokens(exp.theme)
-    page_title = html.escape(exp.takeaway, quote=True)
+    light = _ui_tokens(exp.theme)
+    page = f"html,body{{margin:0;background:{light['bg']};color:{light['ink']}}}"
+    page += "body{padding:16px}@media (max-width:480px){body{padding:8px 4px}}"
+    scheme = "light dark"
+    if exp.theme.name == "mintfig":
+        dark = _ui_tokens(THEMES["dark"])
+        dark_body = f"background:{dark['bg']};color:{dark['ink']}"
+        page += (
+            f"@media (prefers-color-scheme:dark){{html,body{{{dark_body}}}}}"
+            f'html[data-mf-scheme="dark"],html[data-mf-scheme="dark"] body{{{dark_body}}}'
+            f'html[data-mf-scheme="light"],html[data-mf-scheme="light"] body'
+            f"{{background:{light['bg']};color:{light['ink']}}}"
+        )
+    else:
+        scheme = "dark" if relative_luminance(exp.theme.background) < 0.2 else "light"
     return (
         "<!DOCTYPE html>\n"
         '<html lang="en">\n'
         "<head>\n"
         '<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        f"<title>{page_title}</title>\n"
-        "<style>\n"
-        f"html, body {{ margin: 0; padding: 16px; background: {tokens['bg']}; color: {tokens['ink']}; }}\n"
-        "</style>\n"
+        f'<meta name="color-scheme" content="{scheme}">\n'
+        f"<title>{html.escape(exp.takeaway, quote=True)}</title>\n"
+        f"<style>\n{page}\n</style>\n"
         "</head>\n"
         "<body>\n"
         f"{fragment}\n"

@@ -272,13 +272,13 @@ def build() -> mint.Plate:
         )
 
     cbar = plate.fig.colorbar(im, ax=ax_a, fraction=0.044, pad=0.028, shrink=0.92)
-    mint.style_colorbar(cbar, label=r"FTLE, $\lambda$ ($\mathrm{s}^{-1}$)", tick_pt=5.5)
+    mint.pub.style_colorbar(cbar, label=r"FTLE, $\lambda$ ($\mathrm{s}^{-1}$)", tick_pt=5.5)
 
     # ------------------------------------------------------------------
     # Panel b: Phase-Space Portrait (theta_2, d theta_2 / dt)
     # ------------------------------------------------------------------
     ax_b = plate["b"]
-    mint.subtle_grid(ax_b, axis="both")
+    mint.pub.subtle_grid(ax_b, axis="both")
 
     t2_twin_w, w2_twin_w = _wrap_with_breaks(cha_phase["t2_twin"], cha_phase["w2_twin"])
     t2_cha_w, w2_cha_w = _wrap_with_breaks(cha_phase["t2"], cha_phase["w2"])
@@ -311,7 +311,7 @@ def build() -> mint.Plate:
     # Panel c: Log-Scale Trajectory Divergence |Delta theta(t)|
     # ------------------------------------------------------------------
     ax_c = plate["c"]
-    mint.subtle_grid(ax_c, axis="y")
+    mint.pub.subtle_grid(ax_c, axis="y")
 
     t_div = cha_div["t"]
     sep_cha = cha_div["sep"]
@@ -353,14 +353,14 @@ def build() -> mint.Plate:
     ax_c.set_yticks([1e-5, 1e-3, 1e-1, 1e1])
     ax_c.set_xlabel("Time (s)")
     ax_c.set_ylabel(r"$|\Delta\theta(t)|$ (rad)")
-    mint.direct_labels(ax_c, pad_pt=4.2, min_sep_pt=8.5, expand_xlim=0.32)
+    mint.pub.direct_labels(ax_c, pad_pt=4.2, min_sep_pt=8.5, expand_xlim=0.32)
     ax_c.spines["bottom"].set_bounds(0.0, 14.0)
 
     # ------------------------------------------------------------------
     # Panel d (Full-Width Bottom Strip): Synchronized Bifurcation Series
     # ------------------------------------------------------------------
     ax_d = plate["d"]
-    mint.subtle_grid(ax_d, axis="y")
+    mint.pub.subtle_grid(ax_d, axis="y")
 
     # Compute exact Lyapunov horizon t_lambda where |Delta theta| crosses 0.25 rad
     hor_idx = int(np.argmax(sep_cha >= 0.25)) if np.any(sep_cha >= 0.25) else len(t_div) // 2

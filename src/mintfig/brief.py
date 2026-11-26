@@ -4,31 +4,44 @@ Solves two multi-turn agent communication gaps:
 1. ``Session`` maintains a persistent entity-colour ledger across figures with
    smart base-entity prefix matching (so ``"Alpha-3 (int4)"`` inherits
    ``"Alpha-3"``'s hue automatically instead of drifting to a random colour).
-2. ``Brief`` composes 1–12 figures into a single cohesive self-contained HTML
-   briefing or PR-/Artifact-ready Markdown bundle with consistent theme,
-   executive takeaway index, L2/L3 narrative bullets, and exact Markdown tables.
+2. ``Brief`` composes 1–12 figures, with prose paragraphs and ``## `` section
+   headings between them, into one document: a self-contained HTML page or a
+   Markdown file with its PNGs. It opens with the findings at a glance (a row of
+   thumbnails in HTML, a numbered list of takeaways in Markdown); each finding is
+   then the figure and one caption (in Markdown also its takeaway as heading and its
+   source). In HTML the facts sit in a collapsed "Numbers behind this figure" block;
+   Markdown leaves them out.
 """
 
 from __future__ import annotations
 
 import html
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from ._explain.core import ExplainError, Panel
-from ._explain.layout import Explanation, explain, explain_from_spec, load
+from ._explain.layout import (
+    Explanation,
+    _markdown_target,
+    _value_range,
+    explain,
+    explain_from_spec,
+    load,
+)
 from .edit import edit as _edit_figure
-from .epistemic import build_narrative
 from .interactive import render_html_fragment
-from .themes import Theme, get_theme, relative_luminance
+from .themes import THEMES, Theme, get_theme, relative_luminance
 
 __all__ = ["Brief", "Session", "brief"]
 
 _MAX_BRIEF_FIGURES = 12
 _TOKEN_BOUNDARY = re.compile(r"[\s(\[\-/:,_]")
+_FIGURE_SUFFIXES = (".png", ".json")
+_HEADING_PREFIX = "## "
 
 
 def _match_pinned_slot(item: str, ledger: Mapping[str, str]) -> str | None:
@@ -64,6 +77,202 @@ def _resolve_figure(item: Explanation | str | Path | Mapping[str, Any]) -> Expla
         f"brief() items must be Explanation objects, PNG/JSON paths, or spec dicts; got {type(item).__name__}.",
         fix_hint='Pass figures from mint.explain(...) or saved paths like "fig1.png".',
     )
+
+
+def _names_figure(item: str) -> bool:
+    """True when a string is a figure path rather than prose.
+
+    An existing ``.png`` / ``.json`` file is a figure; so is a single token ending in
+    one of those suffixes, so a mistyped path fails loudly instead of becoming a paragraph.
+    """
+    text = item.strip()
+    if not text.lower().endswith(_FIGURE_SUFFIXES):
+        return False
+    return not re.search(r"\s", text) or Path(text).is_file()
+
+
+def _resolve_item(
+    item: Explanation | str | Path | Mapping[str, Any],
+) -> Explanation | str | None:
+    """A figure, a prose block (paragraph or ``## `` heading), or None for an empty string."""
+    if isinstance(item, str) and not _names_figure(item):
+        text = item.strip()
+        return text if text not in {"", _HEADING_PREFIX.strip()} else None
+    return _resolve_figure(item)
+
+
+def _is_heading(block: str) -> bool:
+    return block.startswith(_HEADING_PREFIX)
+
+
+def _heading_text(block: str) -> str:
+    return block[len(_HEADING_PREFIX) :].strip()
+
+
+def _paragraphs(block: str) -> list[str]:
+    return [p.strip() for p in re.split(r"\n\s*\n", block) if p.strip()]
+
+
+def _md_slug(text: str, seen: dict[str, int]) -> str:
+    """A Markdown heading anchor as common renderers build it (lowercase, punctuation
+    dropped, spaces to hyphens), with ``-1``, ``-2`` ... for repeats."""
+    base = re.sub(r"[^\w\- ]", "", text.strip().lower()).replace(" ", "-")
+    n = seen.get(base, 0)
+    seen[base] = n + 1
+    return base if n == 0 else f"{base}-{n}"
+
+
+def _caption(fig: Explanation) -> str | None:
+    deliver = fig.summary().get("deliver") or {}
+    caption = deliver.get("caption")
+    return str(caption) if caption else None
+
+
+def _round(v: float) -> float:
+    return float(f"{v:.4g}")
+
+
+def _span(rng: Sequence[Any]) -> str:
+    """An axis range as text, with a true minus sign and "to" when a bound is negative."""
+    lo, hi = (f"{_round(v):g}".replace("-", "\N{MINUS SIGN}") for v in rng[:2])
+    return f"{lo} to {hi}" if "\N{MINUS SIGN}" in lo + hi else f"{lo}\N{EN DASH}{hi}"
+
+
+def _scales_differ(figures: Sequence[Explanation]) -> list[dict[str, Any]]:
+    """Pairs of panels in different figures with the same value label and unit but
+    different axis ranges (or one log and one linear axis). Advice only.
+
+    Same convention as the within-figure advisory in ``_explain/layout.py``: a panel
+    whose value axis is hidden (labelled bars) is compared only with its own kind."""
+    seen: list[tuple[int, str, Panel, tuple[str, str], tuple[float, float, str, bool]]] = []
+    for fi, fig in enumerate(figures, 1):
+        for key, panel in fig.panels.items():
+            label = (panel.label or "").strip()
+            rng = _value_range(fig, key, panel) if label else None
+            if rng is not None:
+                seen.append((fi, key, panel, (label.casefold(), (panel.unit or "").strip()), rng))
+    out: list[dict[str, Any]] = []
+    for i, (fa, ka, pa, ida, ra) in enumerate(seen):
+        for fb, kb, pb, idb, rb in seen[i + 1 :]:
+            if fa == fb or ida != idb or (not (ra[3] and rb[3]) and pa.kind != pb.kind):
+                continue
+            what = f"{pa.label}" + (f" ({pa.unit})" if pa.unit else "")
+            where = f"figure {fa} panel {ka} and figure {fb} panel {kb}"
+            if ra[2] != rb[2]:
+                issue = "log_vs_linear"
+                hint = (
+                    f"{where.capitalize()} both plot {what}, one on a {ra[2]} axis and one on a "
+                    f"{rb[2]} axis; ranges not compared. Use one scale for both."
+                )
+            else:
+                tol = 0.01 * max(ra[1] - ra[0], rb[1] - rb[0])
+                if all(math.isclose(x, y, abs_tol=tol) for x, y in zip(ra[:2], rb[:2], strict=True)):
+                    continue
+                issue = "range"
+                hint = (
+                    f"{where.capitalize()} both plot {what} but over "
+                    f"{_span(ra)} and {_span(rb)}; "
+                    "readers will compare them by eye, so give them the same range."
+                )
+            out.append(
+                {
+                    "label": pa.label,
+                    "unit": pa.unit,
+                    "issue": issue,
+                    "panels": [
+                        {"figure": f, "panel": k, "range": [_round(r[0]), _round(r[1])], "scale": r[2]}
+                        for f, k, r in ((fa, ka, ra), (fb, kb, rb))
+                    ],
+                    "hint": hint,
+                }
+            )
+    return out
+
+
+def _md_text(text: str) -> str:
+    """Text safe inside Markdown link or image brackets."""
+    return text.replace("\\", "\\\\").replace("]", "\\]")
+
+
+def _page_tokens(theme: Theme) -> dict[str, str]:
+    line = theme.grid if theme.grid.lower() != theme.background.lower() else theme.axis
+    return {"bg": theme.background, "ink": theme.ink, "muted": theme.muted, "line": line}
+
+
+def _token_css(tokens: Mapping[str, str]) -> str:
+    return "".join(f"--mf-page-{k}:{v};" for k, v in tokens.items())
+
+
+def _numbers_html(fig: Explanation) -> str:
+    """Every panel's facts in a collapsed block, or "" when the figure has none."""
+    esc = html.escape
+    body: list[str] = []
+    for key, panel in fig.panels.items():
+        if not panel.facts:
+            continue
+        if len(fig.panels) > 1:
+            body.append(f'<p class="mf-bpanel">{esc(key)} \N{MIDDLE DOT} {esc(panel.title or panel.describe)}</p>')
+        body.append("<ul>" + "".join(f"<li>{esc(fact)}</li>" for fact in panel.facts) + "</ul>")
+    if not body:
+        return ""
+    return f'<details class="mf-bnums"><summary>Numbers behind this figure</summary>{"".join(body)}</details>'
+
+
+def _finding_html(fig: Explanation, n: int, tag: str) -> str:
+    """One finding: the figure with its caption under it, then the numbers behind it.
+
+    The takeaway heading stays in the outline and as the link target but is hidden on
+    screen: the figure draws the same sentence as its title, and its source in its footer.
+    """
+    esc = html.escape
+    heading = f'<{tag} id="fig-{n}-h" class="mf-sr-only">{esc(fig.takeaway)}</{tag}>'
+    figure = render_html_fragment(fig, interactive=True, facts=False, caption=_caption(fig))
+    return (
+        f'<section id="fig-{n}" class="mf-bfind" aria-labelledby="fig-{n}-h">'
+        f"{heading}{figure}{_numbers_html(fig)}</section>"
+    )
+
+
+#: Page CSS after the colour tokens. Thumbnails are each figure's own layout scaled down
+#: (static: no tooltips, no data line); print gives each finding its own page, keeps
+#: figures whole, wraps the thumbnails and omits the collapsed numbers.
+_PAGE_CSS = """*{box-sizing:border-box}
+html,body{margin:0;background:var(--mf-page-bg);color:var(--mf-page-ink)}
+body{padding:32px 20px 64px;font:16px/1.55 system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+.mf-brief{max-width:700px;margin:0 auto}
+.mf-bhead h1{margin:0 0 .3em;font-size:1.75rem;line-height:1.2}
+.mf-bsub{margin:0 0 .8em;color:var(--mf-page-muted)}
+.mf-bsum{margin:0 0 .8em;padding-left:1.2em}
+.mf-bthumbs ol{list-style:none;margin:1.25em 0 2em;padding:0 0 6px;display:grid;grid-auto-flow:column;
+  grid-auto-columns:minmax(150px,1fr);gap:16px;overflow-x:auto}
+.mf-bthumbs a{display:block;color:inherit;text-decoration:none}
+.mf-bthumbs a:hover .mf-tk,.mf-bthumbs a:focus-visible .mf-tk{text-decoration:underline}
+.mf-thumb{margin-bottom:6px;pointer-events:none}
+.mf-thumb svg{max-height:160px}
+.mf-tk{display:block;font-size:.875rem;line-height:1.35}
+.mf-n{margin-right:.4em;color:var(--mf-page-muted);font-variant-numeric:tabular-nums}
+.mf-bprose{margin:0 0 1em}
+.mf-bh{margin:2em 0 .6em;font-size:1.4rem;line-height:1.25}
+.mf-bfind{margin:1.5em 0 2.5em}
+.mf-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.mf-bnums{margin-top:.8em;font-size:.9rem}
+.mf-bnums summary{cursor:pointer;color:var(--mf-page-muted)}
+.mf-bnums ul{margin:.2em 0 .6em;padding-left:1.2em}
+.mf-bpanel{margin:.6em 0 0;font-weight:600}
+.mf-bfoot{margin-top:3em;padding-top:.8em;border-top:1px solid var(--mf-page-line);font-size:.875rem;
+  color:var(--mf-page-muted)}
+@media print{
+  html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body{padding:0}
+  .mf-brief{max-width:none}
+  .mf-bpage{break-before:page}
+  .mf-bpage.mf-bfirst{break-before:auto}
+  .mf-bthumbs ol{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));overflow:visible}
+  .mf-bthumbs li,.mf-bfind .mf-root{break-inside:avoid}
+  .mf-bh{break-after:avoid}
+  .mf-bnums,.mf-foot,.mf-tip,.mf-data{display:none!important}
+}
+"""
 
 
 class Session:
@@ -194,20 +403,26 @@ class Session:
     def brief(
         self,
         title: str,
-        *,
+        *items: Explanation | str | Path | Mapping[str, Any],
         subtitle: str | None = None,
         summary: Sequence[str] | str | None = None,
         source: str | None = None,
     ) -> Brief:
-        """Compose all figures created in this session into a cohesive :class:`Brief`."""
-        if not self.figures:
+        """Compose this session's figures into a cohesive :class:`Brief`.
+
+        With no ``items``, every figure in the session, in order. ``items`` that
+        include figures are the briefing as given (prose and figures in order); items
+        that are only prose come first, followed by every figure in the session.
+        """
+        has_figure = any(not isinstance(it, str) or _names_figure(it) for it in items)
+        if not self.figures and not has_figure:
             raise ExplainError(
                 "Session has no figures yet.",
                 fix_hint="Call session.explain(...) at least once before session.brief(...).",
             )
         return brief(
             title,
-            *self.figures,
+            *(items if has_figure else (*items, *self.figures)),
             subtitle=subtitle,
             summary=summary,
             source=source,
@@ -216,12 +431,16 @@ class Session:
 
 
 class Brief:
-    """A cohesive multi-figure investigation briefing exportable to HTML or Markdown."""
+    """A cohesive multi-figure investigation briefing exportable to HTML or Markdown.
+
+    ``figures`` holds the briefing in reading order: figures, prose paragraphs (other
+    strings) and section headings (strings starting with ``"## "``).
+    """
 
     def __init__(
         self,
         title: str,
-        figures: Sequence[Explanation],
+        figures: Sequence[Explanation | str],
         *,
         subtitle: str | None = None,
         summary: Sequence[str] | str | None = None,
@@ -229,7 +448,12 @@ class Brief:
         style: str | Theme | None = None,
     ) -> None:
         self.title = title
-        self.figures = list(figures)
+        self.blocks: list[Explanation | str] = [
+            b.strip() if isinstance(b, str) else b
+            for b in figures
+            if not isinstance(b, str) or b.strip()
+        ]
+        self.figures = [b for b in self.blocks if isinstance(b, Explanation)]
         self.subtitle = subtitle
         if isinstance(summary, str):
             self.summary_points = [summary]
@@ -244,204 +468,172 @@ class Brief:
     def ship_all(self) -> bool:
         return all(fig.ship for fig in self.figures)
 
+    def _pages(self) -> list[list[Explanation | str]]:
+        """Blocks grouped so each group ends at a figure; trailing prose joins the last group."""
+        pages: list[list[Explanation | str]] = [[]]
+        for block in self.blocks:
+            pages[-1].append(block)
+            if isinstance(block, Explanation):
+                pages.append([])
+        if not pages[-1]:
+            pages.pop()
+        elif len(pages) > 1:
+            pages[-2].extend(pages.pop())
+        return pages
+
+    def _finding_levels(self) -> list[int]:
+        """Heading level of each finding: 2, or 3 once a ``## `` section has begun."""
+        levels: list[int] = []
+        level = 2
+        for block in self.blocks:
+            if isinstance(block, Explanation):
+                levels.append(level)
+            elif _is_heading(block):
+                level = 3
+        return levels
+
     def to_html(self) -> str:
-        """Render a self-contained zero-CDN interactive HTML briefing with jump navigation."""
-        theme = self.theme
-        is_dark = relative_luminance(theme.background) < 0.25
-        page_bg = "#0C0F14" if is_dark else "#F4F5F7"
-        card_bg = theme.background
-        border = "rgba(255,255,255,0.12)" if is_dark else "rgba(26,29,33,0.12)"
-        accent = theme.accent_colors[0] if theme.accent_colors else theme.series_colors[0]
+        """Render a self-contained HTML briefing: the findings at a glance, then each in turn.
+
+        The page follows the reader's light or dark preference when the briefing uses
+        the default style; an explicit style pins page and figures to that style's
+        scheme (``data-mf-scheme`` on the root).
+        """
         esc = html.escape
+        theme = self.theme
+        auto = theme.name == "mintfig"
+        scheme = "dark" if relative_luminance(theme.background) < 0.2 else "light"
+        light = _token_css(_page_tokens(theme))
+        tokens = [f":root{{{light}color-scheme: {'light dark' if auto else scheme}}}"]
+        if auto:
+            dark = _token_css(_page_tokens(THEMES["dark"]))
+            tokens += [
+                f"@media (prefers-color-scheme:dark){{:root{{{dark}}}}}",
+                f':root[data-mf-scheme="dark"]{{{dark}color-scheme: dark}}',
+                f':root[data-mf-scheme="light"]{{{light}color-scheme: light}}',
+            ]
+        root_attr = "" if auto else f' data-mf-scheme="{scheme}"'
 
-        toc_items = "\n".join(
-            f'<li><a href="#fig-{i + 1}"><span class="fm-bnum">{i + 1}</span>'
-            f'<span>{esc(fig.takeaway)}</span></a></li>'
-            for i, fig in enumerate(self.figures)
-        )
-        summary_html = ""
+        head = [f"<h1>{esc(self.title)}</h1>"]
+        if self.subtitle:
+            head.append(f'<p class="mf-bsub">{esc(self.subtitle)}</p>')
         if self.summary_points:
-            bullets = "".join(f"<li>{esc(pt)}</li>" for pt in self.summary_points)
-            summary_html = f'<section class="fm-bsum"><h2>Key findings</h2><ul>{bullets}</ul></section>'
+            head.append('<ul class="mf-bsum">' + "".join(f"<li>{esc(p)}</li>" for p in self.summary_points) + "</ul>")
 
-        sections: list[str] = []
-        for idx, fig in enumerate(self.figures, 1):
-            frag = render_html_fragment(fig, interactive=True)
-            sections.append(
-                f'<section id="fig-{idx}" class="fm-bsec">'
-                f'<div class="fm-bsec-label">Finding {idx} of {len(self.figures)}</div>'
-                f"{frag}"
-                f"</section>"
-            )
+        overview = ""
+        if len(self.figures) > 1:
+            cells = [
+                f'<li><a href="#fig-{i}"><div class="mf-thumb" aria-hidden="true">'
+                f"{render_html_fragment(fig, interactive=False, responsive=False)}</div>"
+                f'<span class="mf-tk"><span class="mf-n">{i}</span>{esc(fig.takeaway)}</span></a></li>'
+                for i, fig in enumerate(self.figures, 1)
+            ]
+            overview = f'<nav class="mf-bthumbs" aria-label="Findings"><ol>{"".join(cells)}</ol></nav>'
 
-        sub_html = f'<p class="fm-bsub">{esc(self.subtitle)}</p>' if self.subtitle else ""
-        src_html = f'<footer class="fm-bfoot">Source: {esc(self.source)}</footer>' if self.source else ""
+        levels = self._finding_levels()
+        pages: list[str] = []
+        n = 0
+        for p, page in enumerate(self._pages()):
+            parts: list[str] = []
+            for block in page:
+                if isinstance(block, str):
+                    if _is_heading(block):
+                        parts.append(f'<h2 class="mf-bh">{esc(_heading_text(block))}</h2>')
+                    else:
+                        parts.extend(f'<p class="mf-bprose">{esc(t)}</p>' for t in _paragraphs(block))
+                    continue
+                n += 1
+                parts.append(_finding_html(block, n, f"h{levels[n - 1]}"))
+            pages.append(f'<div class="mf-bpage{" mf-bfirst" if p == 0 else ""}">{"".join(parts)}</div>')
 
-        return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(self.title)}</title>
-<style>
-  :root {{
-    color-scheme: {"dark" if is_dark else "light"};
-  }}
-  * {{ box-sizing: border-box; }}
-  body {{
-    margin: 0;
-    padding: 32px 20px 64px;
-    background: {page_bg};
-    color: {theme.ink};
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    line-height: 1.5;
-  }}
-  .fm-brief {{
-    max-width: 1080px;
-    margin: 0 auto;
-  }}
-  .fm-bhead {{
-    background: {card_bg};
-    border: 1px solid {border};
-    border-top: 3px solid {accent};
-    border-radius: 10px;
-    padding: 24px 28px;
-    margin-bottom: 24px;
-  }}
-  .fm-bhead h1 {{
-    margin: 0 0 6px;
-    font-size: 1.65rem;
-    line-height: 1.2;
-  }}
-  .fm-bsub {{
-    margin: 0 0 16px;
-    color: {theme.muted};
-    font-size: 0.98rem;
-  }}
-  .fm-bsum {{
-    margin: 14px 0 16px;
-    padding: 12px 16px;
-    border-left: 3px solid {accent};
-    background: {"rgba(255,255,255,0.04)" if is_dark else "rgba(0,0,0,0.03)"};
-    border-radius: 0 6px 6px 0;
-  }}
-  .fm-bsum h2 {{
-    margin: 0 0 6px;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: {theme.muted};
-  }}
-  .fm-bsum ul {{ margin: 0; padding-left: 18px; }}
-  .fm-btoc {{
-    list-style: none;
-    margin: 12px 0 0;
-    padding: 0;
-    display: grid;
-    gap: 6px;
-  }}
-  .fm-btoc a {{
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    text-decoration: none;
-    color: {theme.ink};
-    padding: 6px 8px;
-    border-radius: 6px;
-  }}
-  .fm-btoc a:hover {{
-    background: {"rgba(255,255,255,0.06)" if is_dark else "rgba(0,0,0,0.04)"};
-  }}
-  .fm-bnum {{
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    background: {accent};
-    color: #fff;
-    font-size: 0.78rem;
-    font-weight: 700;
-  }}
-  .fm-bsec {{
-    margin-bottom: 28px;
-  }}
-  .fm-bsec-label {{
-    font-size: 0.78rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: {theme.muted};
-    margin: 0 0 8px 4px;
-  }}
-  .fm-bfoot {{
-    margin-top: 24px;
-    font-size: 0.85rem;
-    color: {theme.muted};
-    text-align: center;
-  }}
-</style>
-</head>
-<body>
-<main class="fm-brief">
-  <header class="fm-bhead">
-    <h1>{esc(self.title)}</h1>
-    {sub_html}
-    {summary_html}
-    <ol class="fm-btoc">{toc_items}</ol>
-  </header>
-  {"".join(sections)}
-  {src_html}
-</main>
-</body>
-</html>
-"""
+        foot = f'<footer class="mf-bfoot">Source: {esc(self.source)}</footer>' if self.source else ""
+        return (
+            "<!DOCTYPE html>\n"
+            f'<html lang="en"{root_attr}>\n'
+            "<head>\n"
+            '<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            f'<meta name="color-scheme" content="{"light dark" if auto else scheme}">\n'
+            f"<title>{esc(self.title)}</title>\n"
+            f"<style>\n{chr(10).join(tokens)}\n{_PAGE_CSS}</style>\n"
+            "</head>\n"
+            "<body>\n"
+            '<main class="mf-brief">\n'
+            f'<header class="mf-bhead">{"".join(head)}</header>\n'
+            f"{overview}\n"
+            f"{chr(10).join(pages)}\n"
+            f"{foot}\n"
+            "</main>\n"
+            "</body>\n"
+            "</html>\n"
+        )
 
     def to_markdown(
         self,
         *,
         image_paths: Sequence[str] | None = None,
     ) -> str:
-        """Render a PR- and Artifact-ready Markdown briefing with L2/L3 facts and tables."""
+        """Render a Markdown briefing: a numbered list of takeaways, then for each finding
+        its takeaway as heading, the image, the caption in italics and the source (plus
+        the table of any ``mint.table`` panel). Prose and ``## `` headings stay in place."""
+        seen: dict[str, int] = {}
+        _md_slug(self.title, seen)
+        slugs: list[str] = []
+        for block in self.blocks:
+            if isinstance(block, Explanation):
+                slugs.append(_md_slug(block.takeaway, seen))
+            elif _is_heading(block):
+                _md_slug(_heading_text(block), seen)
+
         lines: list[str] = [f"# {self.title}"]
         if self.subtitle:
-            lines.append(f"\n*{self.subtitle}*")
+            lines += ["", f"*{self.subtitle}*"]
         if self.summary_points:
-            lines.append("\n## Key findings\n")
-            for pt in self.summary_points:
-                lines.append(f"- {pt}")
+            lines.append("")
+            lines += [f"- {pt}" for pt in self.summary_points]
+        if len(self.figures) > 1:
+            lines.append("")
+            lines += [
+                f"{i}. [{_md_text(fig.takeaway)}](#{slug})"
+                for i, (fig, slug) in enumerate(zip(self.figures, slugs, strict=True), 1)
+            ]
 
-        for idx, fig in enumerate(self.figures, 1):
-            lines.append(f"\n---\n\n## {idx}. {fig.takeaway}")
-            if fig.subtitle:
-                lines.append(f"\n*{fig.subtitle}*")
+        levels = self._finding_levels()
+        idx = 0
+        for block in self.blocks:
+            lines.append("")
+            if isinstance(block, str):
+                lines.append(f"## {_heading_text(block)}" if _is_heading(block) else block)
+                continue
+            idx += 1
+            lines.append(f"{'#' * levels[idx - 1]} {block.takeaway}")
             img_ref = (
                 image_paths[idx - 1]
                 if image_paths is not None and idx - 1 < len(image_paths)
-                else (str(fig.saved_path) if fig.saved_path else None)
+                else (str(block.saved_path) if block.saved_path else None)
             )
             if img_ref:
-                lines.append(f"\n![{fig.takeaway}]({img_ref})")
-            narr = build_narrative(fig.takeaway, fig.panels, subtitle=fig.subtitle, source=fig.source)
-            key_bullets = [*narr["L2"][:3], *narr["L3"][:2]]
-            if key_bullets:
-                lines.append("")
-                for b in key_bullets:
-                    lines.append(f"- {b}")
-            for panel in fig.panels.values():
+                lines += ["", f"![{_md_text(block.takeaway)}]({_markdown_target(img_ref)})"]
+            caption = _caption(block)
+            if caption:
+                lines += ["", f"*{caption}*"]
+            if block.source:
+                lines += ["", f"Source: {block.source}"]
+            for panel in block.panels.values():
                 if panel.kind == "table":
-                    lines.append("")
-                    lines.append(panel.to_markdown())
-            if fig.source:
-                lines.append(f"\n*Source: {fig.source}*")
+                    lines += ["", panel.to_markdown()]
 
         if self.source:
-            lines.append(f"\n---\n\n*Briefing source: {self.source}*")
+            lines += ["", f"Briefing source: {self.source}"]
         return "\n".join(lines) + "\n"
 
     def save(self, path: str | Path, *, scale: float = 2.0) -> dict[str, Any]:
-        """Write the briefing as ``.html`` (self-contained) or ``.md`` (with saved figure PNGs)."""
+        """Write the briefing as ``.html`` (self-contained) or ``.md`` (with saved figure PNGs).
+
+        The returned dict carries ``scales_differ``: pairs of panels in different
+        figures that plot the same label and unit over different axis ranges (or one
+        log, one linear). It is advice; nothing is re-rendered.
+        """
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
         suffix = out.suffix.lower()
@@ -479,35 +671,42 @@ class Brief:
                 for i, f in enumerate(self.figures)
             ],
             "assets": assets,
+            "scales_differ": _scales_differ(self.figures),
         }
 
 
 def brief(
     title: str,
-    *figures: Explanation | str | Path | Mapping[str, Any],
+    *items: Explanation | str | Path | Mapping[str, Any],
     subtitle: str | None = None,
     summary: Sequence[str] | str | None = None,
     source: str | None = None,
     style: str | Theme | None = None,
 ) -> Brief:
-    """Compose 1–12 figures into a single HTML or Markdown investigation briefing."""
+    """Compose 1–12 figures, with prose between them, into one HTML or Markdown briefing.
+
+    ``items`` are read in order. A figure is an ``Explanation``, a spec dict, a
+    ``Path``, or a string naming a ``.png`` / ``.json`` file; any other string is a
+    paragraph, or a section heading when it starts with ``"## "``.
+    """
     if not isinstance(title, str) or not title.strip():
         raise ExplainError(
             "brief() needs a non-empty title.",
             fix_hint='e.g. mint.brief("Q4 latency investigation", fig1, fig2).',
         )
-    if not figures:
+    count = sum(not isinstance(item, str) or _names_figure(item) for item in items)
+    if count == 0:
         raise ExplainError(
             "brief() needs at least one figure.",
-            fix_hint="Pass one or more Explanation objects or saved mintfig PNG/JSON paths.",
+            fix_hint="Pass one or more Explanation objects or saved mintfig PNG/JSON paths; strings are prose.",
         )
-    if len(figures) > _MAX_BRIEF_FIGURES:
+    if count > _MAX_BRIEF_FIGURES:
         raise ExplainError(
-            f"brief() got {len(figures)} figures; at most {_MAX_BRIEF_FIGURES} fit one cohesive briefing.",
+            f"brief() got {count} figures; at most {_MAX_BRIEF_FIGURES} fit one cohesive briefing.",
             fix_hint=f"Keep at most {_MAX_BRIEF_FIGURES} key figures in one brief.",
             rule="too_many_items",
         )
-    resolved = [_resolve_figure(item) for item in figures]
+    resolved = [block for block in (_resolve_item(item) for item in items) if block is not None]
     return Brief(
         title.strip(),
         resolved,

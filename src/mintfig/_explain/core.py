@@ -1239,6 +1239,17 @@ def _diff_with_unit(text: str, unit: str | None) -> str:
     return _with_unit(text, unit)
 
 
+def _delta_label(text: str, unit: str | None, *, with_unit: bool = True) -> str:
+    """A drawn difference: in points for a "%" quantity ("+8.2 pts"), else ``text`` with its
+    unit (``with_unit=False`` leaves other units off, as on labels after the first)."""
+    if unit is not None and unit.strip().startswith("%"):
+        if _has_unit(text, unit):
+            text = text.strip()[: -len(unit.strip())].rstrip()
+        bare = text.lstrip("+\N{MINUS SIGN}")
+        return f"{text} {'pt' if bare == '1' else 'pts'}"
+    return _with_unit(text, unit) if with_unit else text
+
+
 def _relative_text(value: float, base: float, unit: str | None) -> str | None:
     """``value`` relative to ``base``: a ratio for "%" units ("0.58×"), else a percent change.
 
@@ -1366,15 +1377,24 @@ class _Sizes:
     body: float
     small: float
     foot: float
+    #: ``explain(density=)``: "regular", or "compact" (tighter rows and gaps, same type sizes).
+    density: str = "regular"
+
+    @property
+    def compact(self) -> bool:
+        return self.density == "compact"
 
     @classmethod
-    def from_spec(cls, spec: JournalSpec, theme: Theme = MINTFIG_THEME) -> _Sizes:
+    def from_spec(
+        cls, spec: JournalSpec, theme: Theme = MINTFIG_THEME, density: str = "regular"
+    ) -> _Sizes:
         return cls(
             scale=spec.body_pt / 8.5,
             title=min(spec.font_max_pt, round(spec.body_pt * theme.title_scale)),
             body=spec.body_pt,
             small=spec.tick_pt,
             foot=max(spec.font_min_pt, spec.tick_pt - 0.5),
+            density=density,
         )
 
 
@@ -1457,6 +1477,8 @@ class _Ctx:
     colors: dict[str, str] = field(default_factory=dict)
     #: Colour of a panel that colours its items uniformly (None: the theme default).
     uniform_color: str | None = None
+    #: The figure's takeaway, for marks that point at a number it states (compare brackets).
+    takeaway: str | None = None
 
     @property
     def default_color(self) -> str:
@@ -1988,6 +2010,144 @@ def _cover_with_ticks(axis: Any, lo: float, hi: float) -> None:
         axis.axes.set_xlim(v0, v1)
     else:
         axis.axes.set_ylim(v0, v1)
+
+
+def _facet_shape(
+    count: int, cell_width_mm: float, min_mm: float = 30.0, *, balance: bool = False
+) -> tuple[int, int]:
+    """(rows, columns) of a small-multiple grid: up to four columns at least ``min_mm`` wide.
+
+    ``balance=True`` evens the rows out (four facets in 2 x 2, not 3 + 1)."""
+    ncols = max(1, min(count, int(cell_width_mm // min_mm), 4))
+    if balance:
+        ncols = math.ceil(count / math.ceil(count / ncols))
+    return math.ceil(count / ncols), ncols
+
+
+class _FacetGrid:
+    """The small-multiple grid of one panel: it replaces the panel's axes with one child
+    axes per facet (row-major), all sharing the value axis, and evens out their plot areas
+    after layout. ``trend(facet=True)`` and the other ``facet=`` forms draw through it.
+
+    ``share`` names the shared axes ("x", "y" or "xy"); ``rows=True`` also aligns the
+    plot areas of each row (forms whose bottom-row facets carry an axis title).
+    """
+
+    def __init__(
+        self,
+        ctx: _Ctx,
+        ax: Axes,
+        rect: Bbox,
+        count: int,
+        ncols: int,
+        *,
+        share: str = "y",
+        rows: bool = False,
+    ) -> None:
+        ax.remove()
+        self.ctx, self.rect, self.count, self.ncols = ctx, rect, count, ncols
+        self.nrows = math.ceil(count / ncols)
+        self.share, self.rows = share, rows
+        px_per_mm = float(ctx.fig.dpi) / 25.4
+        scale = ctx.sizes.scale
+        self.gap_x, self.gap_y = 4.0 * px_per_mm * scale, 4.5 * px_per_mm * scale
+        self.cell_w = (rect.width - self.gap_x * (ncols - 1)) / ncols
+        self.cell_h = (rect.height - self.gap_y * (self.nrows - 1)) / self.nrows
+        self.frames: list[tuple[Axes, Bbox]] = []
+        self._first: Axes | None = None
+
+    def cell(self, idx: int) -> tuple[Axes, Bbox]:
+        """The child axes of facet ``idx`` and the box it is fitted into."""
+        r, c = divmod(idx, self.ncols)
+        x0 = self.rect.x0 + c * (self.cell_w + self.gap_x)
+        y1 = self.rect.y1 - r * (self.cell_h + self.gap_y)
+        sub = Bbox.from_extents(x0, y1 - self.cell_h, x0 + self.cell_w, y1)
+        shared: dict[str, Any] = {}
+        if "x" in self.share:
+            shared["sharex"] = self._first
+        if "y" in self.share:
+            shared["sharey"] = self._first
+        child = self.ctx.fig.add_axes([0.1, 0.1, 0.5, 0.5], **shared)
+        self._first = self._first or child
+        self.ctx.tag(child)
+        self.ctx.extra_axes.append(child)
+        self.frames.append((child, sub))
+        return child, sub
+
+    def last_in_column(self, idx: int) -> bool:
+        return idx + self.ncols >= self.count
+
+    def equalize(self) -> None:
+        """Give every small multiple the same plot width (only column one has y labels)."""
+        ctx, rect, frames = self.ctx, self.rect, self.frames
+        fig_w = ctx.fig.bbox.width
+        gutter = frames[0][0].get_position().x0 * fig_w - rect.x0
+        plot_w = (rect.width - gutter - self.gap_x * (self.ncols - 1)) / self.ncols
+        for idx, (child, _sub) in enumerate(frames):
+            pos = child.get_position()
+            left = rect.x0 + gutter + (idx % self.ncols) * (plot_w + self.gap_x)
+            child.set_position([left / fig_w, pos.y0, plot_w / fig_w, pos.height])
+        if not self.rows:
+            return
+        for r in range(self.nrows):
+            row = [child for child, _ in frames[r * self.ncols : (r + 1) * self.ncols]]
+            y0 = max(child.get_position().y0 for child in row)
+            y1 = min(child.get_position().y1 for child in row)
+            for child in row:
+                pos = child.get_position()
+                child.set_position([pos.x0, y0, pos.width, max(1e-4, y1 - y0)])
+
+
+def _fit_x_labels(ax: Axes, notes: Sequence[Any], *, log: bool = False, pad_px: float = 2.0) -> None:
+    """Widen the (shared) x range of ``ax`` until every value label right of its mark ends
+    inside the plot: small multiples have a neighbour where a lone panel has margin."""
+    renderer = ax.figure.canvas.get_renderer()
+    box = ax.get_window_extent(renderer)
+    width = float(box.width)
+    lo, hi = ax.get_xlim()
+    to = math.log10 if log else (lambda v: v)
+    back = (lambda v: 10.0**v) if log else (lambda v: v)
+    t_lo, t_hi = to(lo), to(hi)
+    want = t_hi
+    for note in notes:
+        if not note.get_visible() or note.get_horizontalalignment() != "left":
+            continue
+        anchor = float(note.xy[0])
+        if log and anchor <= 0:
+            continue
+        frac = (to(anchor) - t_lo) / ((t_hi - t_lo) or 1.0)
+        start = frac * width
+        nb = note.get_window_extent(renderer)
+        extra = (nb.x1 - box.x0) - start + pad_px  # offset plus text width, in px
+        room = width - extra
+        if extra <= 0 or room < 0.35 * width:
+            continue
+        want = max(want, t_lo + (to(anchor) - t_lo) * width / room)
+    if want > t_hi:
+        ax.set_xlim(lo, back(want))
+
+
+def _facet_cross_fact(
+    rankings: Mapping[str, Sequence[str]], *, what: str = "ranking", word: str = "facets"
+) -> str | None:
+    """One cross-facet line: the ranking every facet shares, or where it differs.
+
+    ``rankings`` maps facet name to its items, best first (only facets with two or more).
+    """
+    ranked = {f: tuple(r) for f, r in rankings.items() if len(r) >= 2}
+    if len(ranked) < 2:
+        return None
+    counts: dict[tuple[str, ...], int] = {}
+    for order in ranked.values():
+        counts[order] = counts.get(order, 0) + 1
+    usual = max(counts, key=lambda o: counts[o])
+    joined = " > ".join(usual)
+    odd = [f for f, order in ranked.items() if order != usual]
+    if not odd:
+        return f"same {what} in all {len(ranked)} {word}: {joined}"
+    listed = "; ".join(f"{f} ({' > '.join(ranked[f])})" for f in odd[:3])
+    more = f" and {len(odd) - 3} more" if len(odd) > 3 else ""
+    return f"{what} differs from the usual ({joined}) in {len(odd)} of {len(ranked)} {word}: {listed}{more}"
 
 
 def _tick_label_boxes(axis: Any, renderer: Any) -> list[tuple[float, Bbox]]:

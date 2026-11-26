@@ -132,17 +132,30 @@ def _label_has_unit(label: str, unit: str) -> bool:
 
 
 def _table_columns(spec: Mapping[str, Any]) -> list[str]:
+    """The columns a table shows: ``interval={col: ("lo", "hi")}`` bound columns are hidden."""
+    hidden: set[str] = set()
+    interval = spec.get("interval")
+    if isinstance(interval, Mapping):
+        for bounds in interval.values():
+            if (
+                isinstance(bounds, Sequence)
+                and not isinstance(bounds, (str, bytes))
+                and len(bounds) == 2
+                and all(isinstance(b, str) for b in bounds)
+            ):
+                hidden.update(bounds)
+    found: list[str] = []
     cols = spec.get("columns")
-    if isinstance(cols, Sequence) and not isinstance(cols, (str, bytes)):
-        return [str(c) for c in cols if str(c).strip()]
     rows = spec.get("rows")
-    if isinstance(rows, Mapping):
-        return [str(k) for k in rows]
-    if isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) and rows:
+    if isinstance(cols, Sequence) and not isinstance(cols, (str, bytes)):
+        found = [str(c) for c in cols if str(c).strip()]
+    elif isinstance(rows, Mapping):
+        found = [str(k) for k in rows]
+    elif isinstance(rows, Sequence) and not isinstance(rows, (str, bytes)) and rows:
         first = rows[0]
         if isinstance(first, Mapping):
-            return [str(k) for k in first]
-    return []
+            found = [str(k) for k in first]
+    return [c for c in found if c not in hidden]
 
 
 def _describe_panel_l1(panel: Any) -> str:
@@ -178,6 +191,8 @@ def _describe_panel_l1(panel: Any) -> str:
             parts.append("log y")
         if spec.get("frontier"):
             parts.append("Pareto frontier")
+        if spec.get("facet"):
+            parts.append("faceted")
     elif kind == "trend":
         if label:
             parts.append(str(label))
@@ -232,6 +247,8 @@ def _describe_panel_l1(panel: Any) -> str:
             parts.append("histogram")
         if spec.get("log"):
             parts.append("log scale")
+        if spec.get("facet"):
+            parts.append("faceted")
     elif kind == "waterfall":
         if label:
             parts.append(str(label))
@@ -274,6 +291,8 @@ def _describe_panel_l1(panel: Any) -> str:
             parts.append(str(unit))
         if spec.get("log"):
             parts.append("log scale")
+        if spec.get("facet"):
+            parts.append("faceted")
 
     if not parts:
         desc = _pget(panel, "describe")
@@ -616,6 +635,14 @@ def _collect_panel_groups(
                 groups.append(flat)
                 # Also collect error bounds
         err = spec.get("error")
+        if isinstance(err, Mapping) and spec.get("facet"):
+            # compare(facet=True): {category: {item: interval}}, one level deeper
+            err = {
+                f"{k}/{sk}": sv
+                for k, v in err.items()
+                if isinstance(v, Mapping)
+                for sk, sv in v.items()
+            }
         if isinstance(err, Mapping):
             for ev in err.values():
                 if _is_finite_number(ev):
@@ -711,6 +738,14 @@ def _collect_panel_groups(
 
     elif kind == "distribution":
         grp_map = spec.get("groups")
+        if isinstance(grp_map, Mapping) and spec.get("facet") and spec.get("bins") is None:
+            # distribution(facet=...): {facet: {group: [obs]}}, one level deeper
+            grp_map = {
+                f"{k}/{g}": obs
+                for k, v in grp_map.items()
+                if isinstance(v, Mapping)
+                for g, obs in v.items()
+            }
         if isinstance(grp_map, Mapping):
             centers: list[float] = []
             for seq in grp_map.values():
@@ -879,6 +914,121 @@ def _collect_panel_groups(
     return direct, groups, ratio_groups, shares
 
 
+def pair_derivations(a: float, b: float, claim_kind: str) -> list[tuple[str, float]]:
+    """What a claim about two values ``a`` and ``b`` may state, as ``(derivation, value)``.
+
+    Always the difference. A percent claim may also be the difference in points
+    (fractions x100: 0.08 -> "8%") or the change relative to either value ("relative:b"
+    is relative to ``b``); any other claim may be the ratio. ``claim_number_mismatch``
+    and the compare brackets share it.
+    """
+    diff = abs(a - b)
+    out = [("difference", diff)]
+    if claim_kind == "percent":
+        if diff <= 1.0:
+            out.append(("points", diff * 100.0))
+        if abs(b) > 0:
+            out.append(("relative:b", 100.0 * diff / abs(b)))
+        if abs(a) > 0:
+            out.append(("relative:a", 100.0 * diff / abs(a)))
+    elif abs(a) > 0 and abs(b) > 0:
+        out.append(("ratio", max(abs(a), abs(b)) / min(abs(a), abs(b))))
+    return out
+
+
+#: A number stated as a difference in points ("8 points", "8.2 pts", "3 pp").
+_POINTS_TAIL_RE = re.compile(r"\s*(?:percentage[- ]points?|points?|pts?|pp)\b", re.IGNORECASE)
+#: Any unsigned number not glued to a word, version, date or range ("GPT-4", "v2.3", "p99").
+_ANY_NUM_RE = re.compile(r"(?<![\w.=/^~≈±])(?<!\w-)(?P<num>\d+(?:,\d{3})*(?:\.\d+)?)(?![\w.]*\d)")
+_PLAIN_END_RE = re.compile(r"\s*(?:[,;:)!?]|\.(?!\d)|$)")
+
+
+def claim_numbers(takeaway: str, unit: str | None = None) -> list[tuple[str, float, str]]:
+    """Numbers the takeaway states, in order, as ``(kind, value, text)``.
+
+    ``kind`` is "percent" ("12%", not "95% CI"), "fold" ("4x", "2.3×"), "points"
+    ("8 points", "3 pp") or "plain": a bare number that ends a clause ("costs 13") or
+    carries ``unit`` ("12 ms"). Counts of things ("5 seeds") and years are left out.
+    """
+    if not isinstance(takeaway, str):
+        return []
+    found: list[tuple[int, str, float, str]] = []
+    taken: list[tuple[int, int]] = []
+    for kind, rx in (("percent", _PCT_CLAIM_RE), ("fold", _FOLD_CLAIM_RE)):
+        for m in rx.finditer(takeaway):
+            val = float(m.group("num").replace(",", ""))
+            if math.isfinite(val) and (kind == "percent" or val > 1.0):
+                found.append((m.start(), kind, val, m.group(0).strip()))
+                taken.append(m.span())
+    for m in _ANY_NUM_RE.finditer(takeaway):
+        if any(s <= m.start() < e for s, e in taken):
+            continue
+        text, rest = m.group("num"), takeaway[m.end() :]
+        if rest[:1] in {"%", "x", "\N{MULTIPLICATION SIGN}"}:
+            continue
+        val = float(text.replace(",", ""))
+        tail = _POINTS_TAIL_RE.match(rest)
+        if tail:
+            found.append((m.start(), "points", val, text + tail.group(0)))
+            continue
+        if re.fullmatch(r"(1[89]|20)\d\d", text):
+            continue  # a year
+        unit_tail = unit and re.match(rf"\s*{re.escape(unit.strip())}(?!\w)", rest)
+        if unit_tail or _PLAIN_END_RE.match(rest):
+            found.append((m.start(), "plain", val, text))
+    return [(kind, val, text) for _, kind, val, text in sorted(found)]
+
+
+def stated_match(claim: float, text: str, candidate: float) -> bool:
+    """True when ``candidate`` rounds to ``claim`` as written ("8" is 7.5..8.5, "8.2" is
+    8.15..8.25): tighter than the mismatch audit, for marks drawn on the strength of it."""
+    digits = re.search(r"\.(\d+)", text)
+    half = 0.5 * 10.0 ** -(len(digits.group(1)) if digits else 0)
+    return math.isfinite(candidate) and abs(abs(candidate) - claim) <= half * (1 + 1e-9)
+
+
+def claimed_pairs(
+    claim: tuple[str, float, str], values: Mapping[str, float], *, percent_unit: bool = False
+) -> list[tuple[str, str, str]]:
+    """Pairs of ``values`` whose difference (or ratio, or change) is the claimed number.
+
+    Returns ``(a, b, derivation)`` for every pair that matches; a claim that equals an
+    item's own value (or that value x100) is a level, not a difference, and matches none.
+    On a "%" quantity (``percent_unit``) a percent claim is read as a difference in
+    points only: a relative change of a percentage would be a second, ambiguous reading.
+    """
+    kind, val, text = claim
+    for v in values.values():
+        if stated_match(val, text, v) or (abs(v) <= 1 and stated_match(val, text, 100 * v)):
+            return []
+    wanted = {
+        "percent": {"difference"} if percent_unit else {"difference", "points", "relative"},
+        "fold": {"ratio"},
+    }.get(kind, {"difference", "points"})
+    names = list(values)
+    out: list[tuple[str, str, str]] = []
+    for i, a in enumerate(names):
+        for b in names[i + 1 :]:
+            derivs = pair_derivations(values[a], values[b], "fold" if kind == "fold" else "percent")
+            for how, v in derivs:
+                if how.split(":")[0] in wanted and stated_match(val, text, v):
+                    out.append((a, b, how))
+                    break
+    return out
+
+
+def fact_states(claim: tuple[str, float, str], fact: str) -> bool:
+    """True when a fact (or fact segment) prints the claimed number, as is or x100
+    (a fraction stated in points or percent)."""
+    kind, val, text = claim
+    for num in _parse_fact_numbers([fact]):
+        if stated_match(val, text, num):
+            return True
+        if kind != "fold" and num <= 1 and stated_match(val, text, 100 * num):
+            return True
+    return False
+
+
 def _approx_match(claim: float, candidate: float) -> bool:
     if not math.isfinite(candidate) or candidate < 0:
         return False
@@ -936,27 +1086,11 @@ def _matches_any_derivation(
         if len(pos) >= 2 and _approx_match(claim, max(pos) / min(pos)):
             return True
         for i in range(len(nums)):
-            a = nums[i]
             for j in range(i + 1, len(nums)):
-                b = nums[j]
-                diff = abs(a - b)
-                if _approx_match(claim, diff):
+                if any(
+                    _approx_match(claim, v) for _, v in pair_derivations(nums[i], nums[j], claim_kind)
+                ):
                     return True
-                if claim_kind == "percent":
-                    # Fraction-to-percent point delta (e.g. 0.08 -> 8%)
-                    if diff <= 1.0 and _approx_match(claim, diff * 100.0):
-                        return True
-                    # Percentage change relative to either endpoint
-                    if abs(b) > 0 and _approx_match(claim, 100.0 * diff / abs(b)):
-                        return True
-                    if abs(a) > 0 and _approx_match(claim, 100.0 * diff / abs(a)):
-                        return True
-                else:
-                    aa, ab = abs(a), abs(b)
-                    if aa > 0 and ab > 0:
-                        ratio = max(aa, ab) / min(aa, ab)
-                        if _approx_match(claim, ratio):
-                            return True
 
     # 4. Auxiliary ratio-only groups (e.g. fitted slopes parsed from facts, log-x doses)
     if claim_kind == "fold":

@@ -511,7 +511,7 @@ def test_cli_reads_a_png_as_spec_and_shows_it(
     assert json.loads(capsys.readouterr().out)["takeaway"] == T
     assert cli_main(["explain", str(tmp_path / "fig.png"), "--out", str(tmp_path / "new.png")]) == 0
     summary = json.loads(capsys.readouterr().out)
-    assert summary["ok"] and summary["rendered"] is True
+    assert summary["ok"] and Path(summary["path"]).exists()
 
 
 def test_to_spec_is_plain_json_for_numpy_dates_and_new_arguments() -> None:
@@ -532,7 +532,7 @@ def test_to_spec_is_plain_json_for_numpy_dates_and_new_arguments() -> None:
         mint.distribution({"g": np.array([1.0, 2.0, 3.0])}, stat="mean"),
     )
     text = json.dumps(result.to_spec(), allow_nan=False)
-    assert mint.explain_from_spec(json.loads(text)).summary()["panels"] == result.summary()["panels"]
+    assert mint.load(json.loads(text)).summary()["panels"] == result.summary()["panels"]
 
 
 # --------------------------------------------------------------------------- #

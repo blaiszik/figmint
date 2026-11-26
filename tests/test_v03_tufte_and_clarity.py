@@ -32,7 +32,7 @@ class TestTuftePrimitives:
         ax.set_xlabel("Time (h)")
         ax.set_ylabel("Signal")
         try:
-            mint.direct_labels(ax, expand_xlim=0.35, trim_spine=True)
+            mint.pub.direct_labels(ax, expand_xlim=0.35, trim_spine=True)
             bounds = ax.spines["bottom"].get_bounds()
             assert bounds is not None
             # Bottom spine must stop at data max (10.0), not stretch into the label gutter
@@ -51,7 +51,7 @@ class TestTuftePrimitives:
         ax.set_xlabel("X")
         ax.set_ylabel("Y")
         try:
-            mint.range_frame(ax, rug=True)
+            mint.pub.range_frame(ax, rug=True)
             bx = ax.spines["bottom"].get_bounds()
             by = ax.spines["left"].get_bounds()
             assert bx is not None and by is not None
@@ -73,7 +73,7 @@ class TestTuftePrimitives:
             (plate["c"], x, x**2.0),
         ]
         try:
-            ghosts = mint.ghost_context(panels)
+            ghosts = mint.pub.ghost_context(panels)
             # Each of 3 panels gets 2 peer ghost lines = 6 total
             assert len(ghosts) == 6
             for ax, px, py in panels:
@@ -98,7 +98,7 @@ class TestTuftePrimitives:
         )
         rng = np.random.default_rng(9)
         try:
-            mint.tufte_boxplot(
+            mint.pub.tufte_boxplot(
                 plate["a"],
                 [rng.normal(0.4, 0.1, 25), rng.normal(0.75, 0.12, 25)],
                 labels=["Base", "RLVR"],
@@ -106,7 +106,7 @@ class TestTuftePrimitives:
             plate["a"].set_xlabel("Stage")
             plate["a"].set_ylabel("Score")
 
-            mint.slopegraph(
+            mint.pub.slopegraph(
                 plate["b"],
                 [40, 62, 74],
                 [88, 81, 85],
@@ -118,7 +118,7 @@ class TestTuftePrimitives:
             )
 
             t = np.linspace(0, 100, 60)
-            mint.sparkline(
+            mint.pub.sparkline(
                 plate["c"],
                 t,
                 2.2 - 0.5 * (1 - np.exp(-t / 30.0)),

@@ -188,9 +188,10 @@ def test_compare_nested_intervals_and_show_delta_roundtrip(tmp_path: Path) -> No
     # Verify inline signed delta text appears on non-baseline labels (with Unicode minus) and not baseline
     ax = exp["a"]
     texts = [t.get_text() for t in ax.texts]
-    assert any("(+9.3)" in t for t in texts)
-    assert any("(\N{MINUS SIGN}1.4)" in t for t in texts)
-    assert any("(\N{MINUS SIGN}6.8)" in t for t in texts)
+    # deltas on a "%" quantity are in points
+    assert any("(+9.3 pts)" in t for t in texts)
+    assert any("(\N{MINUS SIGN}1.4 pts)" in t for t in texts)
+    assert any("(\N{MINUS SIGN}6.8 pts)" in t for t in texts)
     assert any(t.startswith("74.9%") and "(" not in t for t in texts)
 
     # Verify outer + inner interval collections exist with thicker inner linewidth

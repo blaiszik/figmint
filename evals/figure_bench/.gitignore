@@ -1,2 +1,3 @@
 runs/*/*
 !runs/*/results.md
+readers/

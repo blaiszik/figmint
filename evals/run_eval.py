@@ -105,9 +105,9 @@ def _ensure_mintfig_import_and_apply(source: str, journal: str) -> str:
     elif re.search(r"\bimport\s+mintfig\b", source):
         alias = "mintfig"
 
-    # Inject apply(journal) at top of build() if script creates raw plt.subplots/figure without mint.use/Plate
-    apply_call = f'{alias}.apply("{journal}")'
-    if apply_call not in source and f"{alias}.use(" not in source and f"{alias}.Plate(" not in source:
+    # Inject apply(journal) at top of build() if script creates raw plt.subplots/figure without mint.pub.use/Plate
+    apply_call = f'{alias}.pub.apply("{journal}")'
+    if apply_call not in source and f"{alias}.pub.use(" not in source and f"{alias}.Plate(" not in source:
         source = re.sub(
             r"(def\s+build\([^)]*\)\s*(?:->\s*[^:]+)?:\s*\n)",
             rf"\1    {apply_call}\n",

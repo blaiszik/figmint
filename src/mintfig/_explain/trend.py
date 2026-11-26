@@ -30,6 +30,7 @@ from .core import (
     MAX_COLORED_SERIES,
     MAX_FACETS,
     MAX_HIGHLIGHTS,
+    PT_TO_MM,
     ExplainError,
     Panel,
     _and_list,
@@ -42,6 +43,8 @@ from .core import (
     _data_paths,
     _date_formatter,
     _diff_with_unit,
+    _facet_shape,
+    _FacetGrid,
     _formatter,
     _guarded,
     _halfwidth,
@@ -76,6 +79,7 @@ from .core import (
     _vs_text,
     _with_unit,
 )
+from .marks import tag_points
 
 # --------------------------------------------------------------------------- #
 # trend
@@ -1392,6 +1396,15 @@ def trend(
             events_drawn.append((note, rule, pos, text, near_right))
         return events_drawn, others, ref_drawn
 
+    def _vertex_marks(name: str) -> list[dict[str, Any]]:
+        lo, hi = bands.get(name, (None, None))
+        return [
+            {"name": name or label, "x": x_text[i], "value": data[name][i],
+             "lo": None if lo is None else lo[i], "hi": None if hi is None else hi[i],
+             "n": reps[name][i].size if name in reps else None, "unit": unit}
+            for i in range(n)
+        ]
+
     def _measured_points(
         ax: Axes, name: str, col: str, sizes: _Sizes, theme: Theme, *, context: bool = False
     ) -> None:
@@ -1442,6 +1455,11 @@ def trend(
             )
             for i, name in enumerate(drawn)
         }
+        # A series coloured elsewhere in the figure keeps its colour here; only the
+        # highlighted ones carry the emphasis (full-weight line, bold label).
+        kept = [nm for nm in names if nm and nm not in color_of and nm in ctx.colors]
+        color_of.update({nm: ctx.colors[nm] for nm in kept})
+        series_drawn = [*drawn, *kept]
         effects = ctx.line_effects()
         if log:
             ax.set_yscale("log")
@@ -1469,9 +1487,10 @@ def trend(
             }
             if effects is not None:
                 line_kw["path_effects"] = effects
-            ax.plot(xpos, data[name], **line_kw)
+            context_line = ax.plot(xpos, data[name], **line_kw)[0]
+            tag_points(ctx, context_line, xpos, data[name], _vertex_marks(name))
             _measured_points(ax, name, theme.context_line, sz, theme, context=True)
-        for name in drawn:
+        for name in series_drawn:
             col = color_of[name]
             if name in bands:
                 ax.fill_between(
@@ -1485,14 +1504,16 @@ def trend(
                 )
             line_kw = {
                 "color": col,
-                "linewidth": theme.line_lw * sz.scale,
-                "zorder": 4,
+                "linewidth": (theme.line_lw if name not in kept else 0.75 * theme.line_lw)
+                * sz.scale,
+                "zorder": 4 if name not in kept else 3,
                 "label": name or "_single",
                 "solid_capstyle": theme.line_capstyle,
             }
             if effects is not None:
                 line_kw["path_effects"] = effects
-            ax.plot(xpos, data[name], **line_kw)
+            series_line = ax.plot(xpos, data[name], **line_kw)[0]
+            tag_points(ctx, series_line, xpos, data[name], _vertex_marks(name))
             if fit_mode is not None:
                 _draw_fit_curve(ax, xpos, data[name], fit_mode=fit_mode, color=col, scale=sz.scale)
             _measured_points(ax, name, col, sz, theme)
@@ -1513,7 +1534,7 @@ def trend(
 
         label_context = bool(context) and len(names) <= 8
         entries: list[tuple[str, float, float, str, str, str]] = []
-        for name in drawn:
+        for name in series_drawn:
             i1, v1 = _last(data[name])
             if not name:
                 if not end_values:
@@ -1521,7 +1542,7 @@ def trend(
                 text = _with_unit(fmt_fn(v1), unit)
             else:
                 text = f"{name}  {fmt_fn(v1)}" if end_values else name
-            weight = "normal" if name == base else "bold"
+            weight = "normal" if (name == base or name in kept) else "bold"
             entries.append(
                 (text, float(xpos[i1]), v1, ctx.text_color(color_of[name]), weight, color_of[name])
             )
@@ -1604,32 +1625,19 @@ def trend(
 
     # ---- small multiples -------------------------------------------------- #
     def _facet_grid(cell_width_mm: float) -> tuple[int, int]:
-        ncols = max(1, min(len(names), int(cell_width_mm // 30.0), 4))
-        return math.ceil(len(names) / ncols), ncols
+        return _facet_shape(len(names), cell_width_mm)
 
     def _facet_frames(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
         sz = ctx.sizes
         theme = ctx.theme
         effects = ctx.line_effects()
-        ax.remove()
-        nrows, ncols = _facet_grid(ctx.cell_width_mm)
-        px_per_mm = float(ctx.fig.dpi) / 25.4
-        gap_x, gap_y = 4.0 * px_per_mm * sz.scale, 4.5 * px_per_mm * sz.scale
-        cell_w = (rect.width - gap_x * (ncols - 1)) / ncols
-        cell_h = (rect.height - gap_y * (nrows - 1)) / nrows
+        _nrows, ncols = _facet_grid(ctx.cell_width_mm)
+        grid = _FacetGrid(ctx, ax, rect, len(names), ncols)
         ylim = _ylimits()
-        frames: list[tuple[Axes, Bbox]] = []
         facet_events: list[tuple[Axes, list[Any], list[Any]]] = []
-        first: Axes | None = None
         for idx, name in enumerate(names):
-            r, c = divmod(idx, ncols)
-            x0 = rect.x0 + c * (cell_w + gap_x)
-            y1 = rect.y1 - r * (cell_h + gap_y)
-            sub = Bbox.from_extents(x0, y1 - cell_h, x0 + cell_w, y1)
-            child = ctx.fig.add_axes([0.1, 0.1, 0.5, 0.5], sharey=first)
-            first = first or child
-            ctx.tag(child)
-            ctx.extra_axes.append(child)
+            c = idx % ncols
+            child, _sub = grid.cell(idx)
             if log:
                 child.set_yscale("log")
             _value_axis(child, sz, theme, nbins=3)
@@ -1680,7 +1688,8 @@ def trend(
             }
             if effects is not None:
                 line_kw["path_effects"] = effects
-            child.plot(xpos, data[name], **line_kw)
+            series_line = child.plot(xpos, data[name], **line_kw)[0]
+            tag_points(ctx, series_line, xpos, data[name], _vertex_marks(name))
             if fit_mode is not None:
                 _draw_fit_curve(child, xpos, data[name], fit_mode=fit_mode, color=col, scale=sz.scale)
             _measured_points(child, name, col, sz, theme)
@@ -1708,21 +1717,9 @@ def trend(
                 pad=3.0,
             )
             child.tick_params(axis="y", labelleft=(c == 0))
-            last_in_column = idx + ncols >= len(names)
-            child.tick_params(axis="x", labelbottom=last_in_column)
-            frames.append((child, sub))
+            child.tick_params(axis="x", labelbottom=grid.last_in_column(idx))
 
-        def _equalize() -> None:
-            """Give every small multiple the same plot width (only column one has y labels)."""
-            fig_w = ctx.fig.bbox.width
-            gutter = frames[0][0].get_position().x0 * fig_w - rect.x0
-            plot_w = (rect.width - gutter - gap_x * (ncols - 1)) / ncols
-            for idx, (child, _sub) in enumerate(frames):
-                pos = child.get_position()
-                left = rect.x0 + gutter + (idx % ncols) * (plot_w + gap_x)
-                child.set_position([left / fig_w, pos.y0, plot_w / fig_w, pos.height])
-
-        ctx.finishers.append(_equalize)
+        ctx.finishers.append(grid.equalize)
         for idx_f, (child, child_events, child_notes, child_ref) in enumerate(facet_events):
             if child_ref is not None:
                 ctx.finishers.append(
@@ -1750,7 +1747,7 @@ def trend(
                 )
             if idx_f == 0 and callout_items:
                 ctx.finishers.append(functools.partial(_place_callouts, ctx, child, callout_items))
-        return frames
+        return grid.frames
 
     series_spec: Any
     if single:
@@ -1804,13 +1801,59 @@ def trend(
         if nt
     ]
 
+    def _median_slope() -> float | None:
+        """Median |slope| of the line segments in axis fractions (1.0 draws at 45° on a
+        square plot), from every series on the panel's own y range."""
+        y_lo, y_hi = _ylimits()
+        to_y = np.log10 if log else (lambda v: v)
+        x = np.log10(xpos.astype(float)) if log_x else xpos.astype(float)
+        x_span = float(np.nanmax(x) - np.nanmin(x))
+        y_span = float(to_y(y_hi) - to_y(y_lo))
+        if not (x_span > 0 and y_span > 0):
+            return None
+        slopes: list[float] = []
+        for name in names:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                y = to_y(np.asarray(data[name], dtype=float))
+            dx, dy = np.diff(x) / x_span, np.diff(y) / y_span
+            ok = np.isfinite(dx) & np.isfinite(dy) & (dx > 0)
+            slopes.extend(np.abs(dy[ok] / dx[ok]).tolist())
+        median = float(np.median(slopes)) if slopes else 0.0
+        return median if median > 0 else None
+
+    slope = _median_slope()
+
+    def _banked(height_mm: float, plot_width_mm: float, *, compact: bool = False) -> float:
+        """Cleveland's banking to 45°: the plot height at which the median segment is at
+        45° on screen, kept within 0.8–1.15× of ``height_mm`` (figure limits still apply).
+
+        ``density="compact"`` never grows a panel: banking may only shorten it there."""
+        if slope is None:
+            return height_mm
+        # Tick labels take about 6 mm of the height; the rest is the data area.
+        want = max(plot_width_mm, 10.0) / slope + 6.0
+        ceiling = (1.0 if compact else 1.15) * height_mm
+        return min(ceiling, max(0.8 * height_mm, want))
+
+    def _plot_width(cell_mm: float, measure: _Measure, sizes: _Sizes) -> float:
+        """The data area of a single trend: the cell less its y tick labels (about 9 mm)
+        and the widest end label."""
+        last = float(all_values.max())
+        end_pt = max(
+            measure.width_pt(f"{nm}  {fmt_fn(last)}" if end_values else nm, sizes.small, "bold")
+            for nm in names
+        )
+        return cell_mm - 9.0 - (end_pt + 6.0) * PT_TO_MM / sizes.scale
+
     if facet:
 
         def _facet_height(
             cell_width_mm: float, _m: _Measure, _s: _Sizes, _t: Theme = MINTFIG_THEME
         ) -> float:
-            nrows, _ = _facet_grid(cell_width_mm)
-            return nrows * 27.0 + (nrows - 1) * 4.5 + (4.0 if x_label else 0.0)
+            nrows, ncols = _facet_grid(cell_width_mm)
+            # One common height for every facet, banked on all series together.
+            each = _banked(27.0, 0.72 * cell_width_mm / ncols, compact=_s.compact)
+            return nrows * each + (nrows - 1) * 4.5 + (4.0 if x_label else 0.0)
 
         return Panel(
             kind="trend",
@@ -1840,7 +1883,10 @@ def trend(
         facts=facts,
         describe=describe,
         issues=issues,
-        _height_mm=lambda w, _m, _s, _t: min(54.0, max(36.0, 0.40 * w)) + (4.0 if x_label else 0.0),
+        _height_mm=lambda w, m, sz, _t: _banked(
+            min(54.0, max(36.0, 0.40 * w)), _plot_width(w, m, sz), compact=sz.compact
+        )
+        + (4.0 if x_label else 0.0),
         _min_height_mm=lambda _w, _m, _s, _t: 30.0 + (4.0 if x_label else 0.0),
         stretch=True,
         _draw=_draw,

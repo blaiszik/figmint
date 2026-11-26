@@ -130,7 +130,7 @@ def _panel_a_range_scaling(ax) -> None:
     ax.set_yticks([1.7, 2.0, 2.3])
 
     # True Tufte range frame: spines trimmed strictly to actual data domain + checkpoint rug
-    mint.range_frame(
+    mint.pub.range_frame(
         ax,
         xdata=np.array(ckpt_c + all_c),
         ydata=np.array(ckpt_l + all_l),
@@ -158,7 +158,7 @@ def _panel_b_slopegraph(ax) -> None:
     prior = [79, 38, 74, 61, 68, 49, 44, 31]
     frontier = [95, 88, 86, 82, 81, 77, 74, 58]
 
-    mint.slopegraph(
+    mint.pub.slopegraph(
         ax,
         prior,
         frontier,
@@ -198,7 +198,7 @@ def _panel_c_small_multiples(ax) -> None:
         sub_axes.append(sub)
 
     # First draw muted ghost copies of peer domains across all 3 panels ("Compared to what?")
-    mint.ghost_context(
+    mint.pub.ghost_context(
         [(sub_axes[i], budgets, domains[i][1]) for i in range(n)],
         ghost_color="#CFD7E2",
         ghost_lw=0.65,
@@ -300,7 +300,7 @@ def _panel_d_sparklines(ax, rng: np.random.Generator) -> None:
     ]
     for (lbl, vals, band, fmt_s), box in zip(specs, coords, strict=True):
         sub = ax.inset_axes(list(box))
-        mint.sparkline(
+        mint.pub.sparkline(
             sub,
             steps,
             vals,

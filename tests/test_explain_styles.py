@@ -164,7 +164,10 @@ def test_every_form_renders_clean_across_all_styles(style_name: str, form_name: 
     )
     summary = result.summary()
     assert summary["style"] == style_name
+    # a three-item slopegraph (6 values) at its natural height is flagged as sparse
+    sparse = ["low_density"] if form_name == "change" else []
     assert summary["issues"] == []
+    assert [i["rule"] for i in summary.get("advisories", [])] == sparse
     assert summary["ok"] is True
     assert result.width_mm == pytest.approx(140.0, abs=0.01)
     assert summary["display"]["min_text_px"] >= explainer.MIN_TEXT_PX
@@ -201,7 +204,7 @@ def test_multi_panel_spec_round_trip_is_byte_identical_and_rcparams_clean(
         assert "style" not in spec
     else:
         assert spec["style"] == style_name
-    mint.explain_from_spec(spec, out=tmp_path / "two.png")
+    mint.load(spec, out=tmp_path / "two.png")
     assert (tmp_path / "one.png").read_bytes() == (tmp_path / "two.png").read_bytes()
 
 
@@ -281,7 +284,8 @@ def test_cli_explain_style_override(tmp_path: Path, capsys: pytest.CaptureFixtur
 
     out_png = tmp_path / "editorial.png"
     code = cli_main(
-        ["explain", str(spec_path), "--style", "newspaper", "--out", str(out_png), "--write-spec"]
+        ["explain", str(spec_path), "--style", "newspaper", "--out", str(out_png), "--write-spec",
+         "--summary", "full"]
     )
     assert code == 0
     summary = json.loads(capsys.readouterr().out)
@@ -336,7 +340,7 @@ def test_palette_renders_clean_and_roundtrips_via_spec(
         assert "palette" not in spec
     else:
         assert spec["palette"] == palette_name
-    rebuilt = mint.explain_from_spec(spec)
+    rebuilt = mint.load(spec)
     assert rebuilt.summary()["palette"] == palette_name
 
 
@@ -357,6 +361,8 @@ def test_dark_theme_and_palette_override_cli(tmp_path: Path, capsys: pytest.Capt
             "--out",
             str(out_png),
             "--write-spec",
+            "--summary",
+            "full",
         ]
     )
     assert code == 0

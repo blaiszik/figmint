@@ -12,7 +12,7 @@ def build() -> mint.Plate:
     rng = np.random.default_rng(101)
     plate = mint.Plate(journal="nature", width="single", height_mm=64.0, layout=(1, 1))
     ax = plate["a"]
-    colors = mint.get_palette("nature")
+    colors = mint.pub.get_palette("nature")
 
     conc = np.geomspace(1e-3, 1e2, 180)
     pts = np.geomspace(1e-3, 1e2, 8)
@@ -30,6 +30,6 @@ def build() -> mint.Plate:
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.set_xlabel(r"Concentration ($\mu\mathrm{M}$)")
     ax.set_ylabel("Activity (% vehicle)")
-    mint.direct_labels(ax, pad_pt=3.0, min_sep_pt=8.0, expand_xlim=0.34)
+    mint.pub.direct_labels(ax, pad_pt=3.0, min_sep_pt=8.0, expand_xlim=0.34)
     ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
     return plate

@@ -131,7 +131,7 @@ class TestWaterfallForm:
         fig.save(png)
         reloaded = mint.load(png)
         assert reloaded.to_spec() == fig.to_spec()
-        assert mint.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
+        assert mint.load(reloaded.to_spec()).summary()["ship"] is True
 
         html_out = fig.to_html()
         assert "+Retrieval" in html_out
@@ -241,7 +241,7 @@ class TestTimelineForm:
         fig.save(png)
         reloaded = mint.load(png)
         assert reloaded.to_spec() == fig.to_spec()
-        assert mint.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
+        assert mint.load(reloaded.to_spec()).summary()["ship"] is True
 
         html_out = fig.to_html()
         assert "integration" in html_out

@@ -22,6 +22,7 @@ from .core import (
     _bare_axes,
     _base_spec,
     _Ctx,
+    _delta_label,
     _diff_with_unit,
     _formatter,
     _guarded,
@@ -41,6 +42,7 @@ from .core import (
     _to_float,
     _with_unit,
 )
+from .marks import tag as tag_mark
 
 MAX_WATERFALL_STEPS = 14
 COMFORTABLE_WATERFALL_STEPS = 10
@@ -285,7 +287,7 @@ def waterfall(
             width = abs(x1 - x0)
             if width <= 1e-12:
                 # Zero-delta step: crisp vertical tick mark
-                ax.vlines(
+                step_art = ax.vlines(
                     [x0],
                     [idx - bar_h * 0.45],
                     [idx + bar_h * 0.45],
@@ -294,7 +296,7 @@ def waterfall(
                     zorder=3,
                 )
             else:
-                ax.barh(
+                step_art = ax.barh(
                     [idx],
                     [width],
                     left=[left],
@@ -303,7 +305,8 @@ def waterfall(
                     alpha=alpha,
                     edgecolor="none",
                     zorder=2,
-                )
+                ).patches[0]
+            tag_mark(ctx, step_art, name=nm, value=delta, unit=unit)
 
             # Vertical bridge connector from this bar's ending cumulative level to next row
             if idx < n_rows - 1:
@@ -316,8 +319,8 @@ def waterfall(
             if tag in {"start", "total"}:
                 txt = _with_unit(level_fmt(delta), unit) if (idx == 0 or inline_u or tag == "total") else level_fmt(delta)
             else:
-                signed_txt = _signed(delta_fmt(delta))
-                txt = _with_unit(signed_txt, unit) if inline_u else signed_txt
+                # A step on a "%" quantity is a difference in points ("+8.2 pts").
+                txt = _delta_label(_signed(delta_fmt(delta)), unit, with_unit=inline_u)
 
             anchor_x = max(x0, x1)
             is_bold = nm in hl_set or tag == "total"
@@ -447,7 +450,7 @@ def waterfall(
         facts=facts,
         describe=describe,
         issues=issues,
-        _height_mm=lambda w, m, s, t: n_rows * _pitch(_wrapped(w, m, s, t))
+        _height_mm=lambda w, m, s, t: n_rows * _pitch(_wrapped(w, m, s, t), tight=s.compact)
         + (4.5 if ref and ref[1] else 1.5),
         _min_height_mm=lambda w, m, s, t: n_rows * _pitch(_wrapped(w, m, s, t), tight=True)
         + (4.0 if ref and ref[1] else 1.0),

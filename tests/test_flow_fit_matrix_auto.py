@@ -42,7 +42,9 @@ class TestFlowForm:
         s = fig.summary()
         assert s["ok"] is True
         assert s["ship"] is True
+        # four stage counts at full height: flagged as sparse (advisory, ship unaffected)
         assert s["issues"] == []
+        assert [i["rule"] for i in s["advisories"]] == ["low_density"]
         facts = " ".join(s["panels"][0]["facts"])
         assert "57.6% retained" in facts
         assert "largest drop" in facts
@@ -75,7 +77,7 @@ class TestFlowForm:
         fig.save(png)
         reloaded = mint.load(png)
         assert reloaded.to_spec() == fig.to_spec()
-        assert mint.explain_from_spec(reloaded.to_spec()).summary()["ship"] is True
+        assert mint.load(reloaded.to_spec()).summary()["ship"] is True
 
         # Edit drop stage
         edited = mint.edit(fig, drop="Actionable")

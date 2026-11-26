@@ -10,7 +10,7 @@ import mintfig as mint
 rng = np.random.default_rng(110)
 plate = mint.Plate(journal="nature", width="single", height_mm=68.0, layout=(1, 1))
 ax = plate["a"]
-colors = mint.get_palette("nature")
+colors = mint.pub.get_palette("nature")
 
 groups = [
     rng.normal(1.0, 0.14, 24),
@@ -39,5 +39,5 @@ ax.set_xticks(pos)
 ax.set_xticklabels(["Ctrl", "Low", "High"])
 ax.set_ylim(0.0, 1.55)
 ax.set_ylabel("Expression (norm.)")
-mint.sig_bracket(ax, 0, 1, p=0.0042, lw=0.55, fontsize=5.5)
-mint.sig_bracket(ax, 0, 2, p=0.00003, lw=0.55, fontsize=5.5)
+mint.pub.sig_bracket(ax, 0, 1, p=0.0042, lw=0.55, fontsize=5.5)
+mint.pub.sig_bracket(ax, 0, 2, p=0.00003, lw=0.55, fontsize=5.5)

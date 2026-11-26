@@ -4,7 +4,7 @@ Every primary function, visual theme, color palette, and publication plate in `m
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#fmexplain--multi-panel-arguments) · [`mint.compare`](#fmcompare--size-and-intervals) · [`mint.trend`](#fmtrend--change-over-time-dose-or-scale) · [`mint.change`](#fmchange--paired-before-and-after) · [`mint.distribution`](#fmdistribution--raw-observations-and-spread) · [`mint.histogram`](#fmhistogram--binned-distributions) · [`mint.relate`](#fmrelate--two-continuous-measures) · [`mint.share`](#fmshare--part-of-a-whole) · [`mint.matrix`](#fmmatrix--two-categorical-dimensions) · [`mint.table`](#fmtable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#fmexplain--multi-panel-arguments) · [`mint.compare`](#fmcompare--size-and-intervals) · [`mint.trend`](#fmtrend--change-over-time-dose-or-scale) · [`mint.change`](#fmchange--paired-before-and-after) · [`mint.distribution`](#fmdistribution--raw-observations-and-spread) · [`mint.histogram`](#fmhistogram--binned-distributions) · [`mint.relate`](#fmrelate--two-continuous-measures) · [`mint.share`](#fmshare--part-of-a-whole) · [`mint.matrix`](#fmmatrix--two-categorical-dimensions) · [`mint.table`](#fmtable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
 | **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
@@ -347,6 +347,18 @@ Grounded in empirical visual communication research (Kay & Hullman quantile dotp
 
 ---
 
+## New in 0.3: delivery, table-graphics and briefings
+
+These are not rendered in this gallery yet, and the images above were drawn before them (names in titles are not coloured there, and no delta brackets are drawn). Runnable code for each is in the [main README](../README.md#put-it-in-front-of-the-reader); the tests named below build small examples.
+
+- **Delivery:** `summary["deliver"]` (`markdown`, `caption`, `text`, `html`), `fig.show()`, `fig.to_text()` and `mintfig doctor`. Tests: [`test_delivery.py`](../tests/test_delivery.py).
+- **HTML page:** layouts at 360 px, 450 px and the figure's own width, light and dark from one file, values on hover, click to cite. Code: [`interactive.py`](../src/mintfig/interactive.py); tests: [`test_html_surface.py`](../tests/test_html_surface.py).
+- **Words on the marks:** `color_names=`, `compare(show_delta="auto")` brackets, `density="compact"`. Tests: [`test_words_and_marks.py`](../tests/test_words_and_marks.py), [`test_density.py`](../tests/test_density.py).
+- **Table-graphics:** `mint.table(bars=, interval=, interval_label=, spark=)`. Tests: [`test_table_graphics.py`](../tests/test_table_graphics.py).
+- **Briefings with prose:** `mint.brief(title, "paragraph", fig, "## Section", fig, ...)`. Code: [`brief.py`](../src/mintfig/brief.py); tests: [`test_brief_document.py`](../tests/test_brief_document.py).
+
+---
+
 ## Model Release Hero Charts
 
 Combine grouped `mint.compare`, stacked `boost=` extensions, Pareto frontier `mint.relate(frontier=True, label_all=True, connect_groups=True)`, and `mint.table` with `width="slide"` (1280 px display width / 2560 px retina export) and custom `accent="#..."` brand colours.
@@ -410,7 +422,7 @@ spec = mint.load("ablation.png").to_spec()
 spec["style"] = "paper"
 spec["palette"] = "okabe_ito"
 spec["panels"][0]["highlight"] = ["no fine-tuning"]
-print(mint.explain_from_spec(spec).save("ablation_v2.png", write_spec=True))
+print(mint.load(spec).save("ablation_v2.png", write_spec=True))
 ```
 
 Or from the command line with no Python script:

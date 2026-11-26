@@ -16,7 +16,7 @@ def build() -> mint.Plate:
     score = np.abs(fc) * 1.5 + rng.exponential(0.6, 300)
     sc = ax.scatter(fc, score, c=score, cmap="jet", s=10, edgecolors="none")
     cbar = plate.fig.colorbar(sc, ax=ax, fraction=0.05, pad=0.03)
-    mint.style_colorbar(cbar, label="Significance")
+    mint.pub.style_colorbar(cbar, label="Significance")
     ax.set_xlabel(r"$\log_2$ fold change")
     ax.set_ylabel(r"$-\log_{10}(p)$")
     return plate

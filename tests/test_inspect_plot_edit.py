@@ -210,6 +210,33 @@ class TestEditFunction:
         tl2 = mint.edit(tl, drop="cleanup")
         assert len(tl2.to_spec()["panels"][0]["spans"]) == 2
 
+    def test_edit_drop_prunes_table_graphics_and_sets_density(self) -> None:
+        rows = [
+            {"Model": "Alpha", "Acc": 86.0, "Cal": 0.74, "lo": 0.71, "hi": 0.77, "Cost": 2.5},
+            {"Model": "Beta", "Acc": 77.0, "Cal": 0.69, "lo": 0.65, "hi": 0.73, "Cost": 3.0},
+        ]
+        tbl = mint.explain(
+            "Alpha leads Beta by 9 points of accuracy",
+            mint.table(rows, units={"Acc": "%"}, bars=["Acc", "Cost"],
+                       interval={"Cal": ("lo", "hi")}, interval_label="95% CI",
+                       spark={"Trend": {"Alpha": [1, 2, 3], "Beta": [3, 2, 1]}}),
+            source="synthetic",
+        )
+        no_cal = mint.edit(tbl, drop="Cal").to_spec()["panels"][0]
+        assert no_cal["columns"] == ["Model", "Acc", "Cost"]  # its bound columns go with it
+        assert no_cal.get("interval") is None and no_cal.get("interval_label") is None
+        no_cost = mint.edit(tbl, drop="Cost").to_spec()["panels"][0]
+        assert no_cost["bars"] == ["Acc"] and no_cost["interval"] == {"Cal": ["lo", "hi"]}
+        kept = mint.edit(tbl, keep=["Model", "Cal"]).to_spec()["panels"][0]
+        assert kept["columns"] == ["Model", "Cal", "lo", "hi"] and kept.get("bars") is None
+        no_beta = mint.edit(tbl, drop="Beta").to_spec()["panels"][0]
+        assert no_beta["spark"] == {"Trend": {"Alpha": [1.0, 2.0, 3.0]}}
+
+        compact = mint.edit(tbl, density="compact", color_names=False)
+        assert compact.density == "compact" and compact.color_names is False
+        assert compact.to_spec()["density"] == "compact"
+        assert compact.to_spec()["color_names"] is False
+
 
 # --------------------------------------------------------------------------- #
 # 3. CLI: mintfig inspect, mintfig plot, mintfig edit
@@ -304,6 +331,31 @@ class TestZeroScriptCli:
         assert edit_summary["ship"] is True
         assert edited_html.exists()
         assert "<svg" in edited_html.read_text(encoding="utf-8")
+        assert edit_summary["deliver"]["html"].endswith("lat_dark.html")  # written by save()
+
+    def test_cli_density_and_color_name_flags(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        csv_p = tmp_path / "latency.csv"
+        csv_p.write_text("service,p99_ms\ncheckout,1840\nsearch,460\nauth,310\n", encoding="utf-8")
+        png = tmp_path / "lat.png"
+        rc = cli_main(["plot", str(csv_p), "--kind", "compare", "--takeaway",
+                       "Checkout p99 is 4x search", "--density", "compact",
+                       "--no-color-names", "--out", str(png)])
+        assert rc == 0
+        capsys.readouterr()
+        spec = mint.load(png).to_spec()
+        assert spec["density"] == "compact" and spec["color_names"] is False
+
+        regular = tmp_path / "regular.png"
+        assert cli_main(["edit", str(png), "--density", "regular", "--out", str(regular)]) == 0
+        capsys.readouterr()
+        assert "density" not in mint.load(regular).to_spec()
+
+        again = tmp_path / "again.html"
+        assert cli_main(["explain", str(regular), "--density", "compact", "--out", str(again)]) == 0
+        assert json.loads(capsys.readouterr().out)["deliver"]["html"].endswith("again.html")
+        assert '"density":"compact"' in again.read_text(encoding="utf-8")
 
     def test_cli_plot_waterfall_and_timeline(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]

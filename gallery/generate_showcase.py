@@ -21,7 +21,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from pypdf import PdfReader
 
-from mintfig import (
+from mintfig.pub import (
     Plate,
     direct_labels,
     get_palette,

@@ -75,6 +75,7 @@ from .core import (
     _plain,
     _record_adjustment,
     _Sizes,
+    _text_color,
     _tick_label,
     _tick_label_boxes,
     _value_axis,
@@ -107,8 +108,12 @@ def table(
     sort: str | None = None,
     align: Mapping[str, str] | None = None,
     fmt: str | Mapping[str, str] | None = None,
+    bars: str | Sequence[str] | None = None,
+    interval: Mapping[str, Any] | None = None,
+    interval_label: str | None = None,
+    spark: Mapping[str, Mapping[str, Sequence[Any]]] | None = None,
 ) -> Panel:
-    """Exact lookup table or multi-metric scorecard with booktabs rules and aligned figures."""
+    """Exact lookup table or scorecard with booktabs rules, aligned figures and in-cell graphics."""
     from .._table import table as _build_table
 
     return _build_table(
@@ -124,6 +129,10 @@ def table(
         sort=sort,
         align=align,
         fmt=fmt,
+        bars=bars,
+        interval=interval,
+        interval_label=interval_label,
+        spark=spark,
     )
 
 
@@ -219,8 +228,118 @@ def _validate_layout(layout: Sequence[Sequence[str]], keys: list[str]) -> list[l
 COLOR_SLOTS: dict[str, int] = {"blue": 0, "red": 1, "green": 2, "amber": 3}
 
 
+#: Forms that draw every item in its entity colour when the registry names it, even in a
+#: panel with highlight= (waterfall, flow, timeline, table and relate keep their own
+#: encodings for items they do not highlight).
+_ONE_COLOUR_KINDS = frozenset({"compare", "share", "change", "trend", "distribution"})
+
+
 def _entity_key(name: object) -> str:
     return str(name).strip()
+
+
+def _word_colours(panel_colors: Sequence[Mapping[str, str]], theme: Theme) -> dict[str, str]:
+    """Entity name -> its drawn colour, for colouring names in the takeaway and titles.
+
+    Ink (baselines) and colours shared by two names (palette overflow) are left out."""
+    found: dict[str, str] = {}
+    for colours in panel_colors:
+        for name, col in colours.items():
+            key = _entity_key(name)
+            if key and col != theme.ink:
+                found.setdefault(key, col)
+    shared = {c for c in found.values() if list(found.values()).count(c) > 1}
+    return {k: c for k, c in found.items() if c not in shared}
+
+
+#: Group names that are also ordinary words in a sentence ("regressed after v2.3"): a
+#: coloured "after" in the takeaway would point at nothing, so these are never coloured.
+_ORDINARY_WORDS = frozenset(
+    {
+        "after", "all", "before", "both", "each", "high", "low", "mean", "median",
+        "new", "none", "old", "other", "others", "rest", "same", "total",
+    }
+)
+
+
+def _name_runs(text: str, colours: Mapping[str, str]) -> list[tuple[str, str | None]]:
+    """``text`` cut into runs: each whole-word entity name with its colour.
+
+    A name matches as written or with its first letter's case changed ("Checkout" at
+    the start of a sentence); names under three characters ("a", "B2") and the names in
+    ``_ORDINARY_WORDS`` are left alone, since they are also ordinary words."""
+
+    def _norm(word: str) -> str:
+        return word[:1].lower() + word[1:]
+
+    names = sorted(
+        (k for k in colours if len(k) >= 3 and k.lower() not in _ORDINARY_WORDS),
+        key=len,
+        reverse=True,
+    )
+    if not names:
+        return [(text, None)]
+    by_norm = {_norm(k): colours[k] for k in names}
+    alternatives = "|".join(
+        (f"[{k[0].upper()}{k[0].lower()}]" if k[0].isalpha() else re.escape(k[0]))
+        + re.escape(k[1:])
+        for k in names
+    )
+    runs: list[tuple[str, str | None]] = []
+    pos = 0
+    for m in re.finditer(rf"(?<!\w)(?:{alternatives})(?!\w)", text):
+        if m.start() > pos:
+            runs.append((text[pos : m.start()], None))
+        runs.append((m.group(0), by_norm[_norm(m.group(0))]))
+        pos = m.end()
+    if pos < len(text):
+        runs.append((text[pos:], None))
+    return runs or [(text, None)]
+
+
+def _text_line(
+    fig: Figure,
+    x: float,
+    y: float,
+    line: str,
+    theme: Theme,
+    colours: Mapping[str, str],
+    **kw: Any,
+) -> list[Any]:
+    """Draw one wrapped line (va="top" at figure fraction ``x``, ``y``); entity names in it
+    take their contrast-safe text colour. Each later run is anchored to the previous
+    run's right edge, so the line keeps its measured width at any dpi."""
+    from matplotlib.text import Annotation
+
+    runs = _name_runs(line, colours)
+    ink = kw.pop("color")
+    if len(runs) == 1:
+        return [fig.text(x, y, _plain(line, theme), color=ink, **kw)]
+
+    def _col(col: str | None) -> str:
+        if col is None:
+            return ink
+        return _text_color(col, background=theme.background, ink=theme.ink)
+
+    drawn = [fig.text(x, y, _plain(runs[0][0], theme), color=_col(runs[0][1]), **kw)]
+    rest = {k: v for k, v in kw.items() if k not in {"ha", "va"}}
+    for run, col in runs[1:]:
+        art = Annotation(
+            _plain(run, theme),
+            xy=(1.0, 0.0),
+            xycoords=drawn[-1],
+            ha="left",
+            va="bottom",
+            color=_col(col),
+            annotation_clip=False,
+            **rest,
+        )
+        # Kept with the figure's other texts (as fig.text would), not in fig.artists.
+        art.set_figure(fig)
+        fig.texts.append(art)
+        art._remove_method = fig.texts.remove  # type: ignore[attr-defined]
+        drawn.append(art)
+    return drawn
 
 
 def _pinned_colors(colors: object, theme: Theme) -> dict[str, str]:
@@ -353,6 +472,22 @@ def _colour_registry(
                     free = [c for c in base if c not in colours.values()]
                     colours[name] = free[0] if free else base[0]
         per_panel.append(colours)
+
+    # One colour per entity: a name drawn in its colour (or in ink, as a baseline) in any
+    # panel is drawn so in a highlight panel too; only the highlighted names carry the
+    # emphasis there, and names coloured nowhere stay grey context.
+    drawn: dict[str, str] = {}
+    for colours in per_panel:
+        for name, col in colours.items():
+            key = _entity_key(name)
+            if registry.get(key) == col:
+                drawn.setdefault(key, col)
+    for panel, colours in zip(panels, per_panel, strict=True):
+        if panel.color_mode == "highlight" and panel.kind in _ONE_COLOUR_KINDS:
+            for name in panel.color_items:
+                key = _entity_key(name)
+                if name not in colours and key in drawn:
+                    colours[name] = drawn[key]
 
     issues: list[dict[str, Any]] = []
     if overflow:
@@ -582,11 +717,172 @@ class Summary(dict):  # type: ignore[type-arg]
     counting each text at its own size) and ``min_script_px``: the smallest
     mathtext superscript or subscript at that width (drawn at about 70% of its
     label's size, 49% when nested), or ``None`` when the figure has no scripts.
-    The ``min_text_px`` floor does not apply to scripts.
+    The ``min_text_px`` floor does not apply to scripts. ``display.height_px`` is the
+    display height at that width. ``deliver`` says how to put the figure in a reply:
+    ``markdown`` (image link, once a .png/.svg is saved), ``caption`` (one sentence),
+    ``text`` (plain rendering for a code block) and ``html`` (path, once saved as .html).
+
+    ``str(summary)`` (and ``print``) is a compact JSON view: ok, ship, path, takeaway,
+    deliver, issues, and per panel key, kind, title, the first three facts and a
+    ``more_facts`` count. ``json.dumps(summary)`` is the full form.
     """
 
+    def compact(self) -> dict[str, Any]:
+        """The subset an agent reads first; the dict itself keeps every key."""
+        panels = []
+        for panel in self.get("panels") or []:
+            facts = list(panel.get("facts") or [])
+            panels.append(
+                {
+                    "key": panel.get("key"),
+                    "kind": panel.get("kind"),
+                    "title": panel.get("title"),
+                    "facts": facts[:_COMPACT_FACTS],
+                    "more_facts": max(0, len(facts) - _COMPACT_FACTS),
+                }
+            )
+        return {
+            "ok": self.get("ok"),
+            "ship": self.get("ship"),
+            "path": self.get("path"),
+            "takeaway": self.get("takeaway"),
+            "deliver": self.get("deliver"),
+            "issues": self.get("issues", []),
+            "panels": panels,
+        }
+
     def __str__(self) -> str:
-        return json.dumps(self, indent=2, ensure_ascii=False)
+        return json.dumps(self.compact(), indent=2, ensure_ascii=False)
+
+
+#: Facts per panel in the compact summary view.
+_COMPACT_FACTS = 3
+
+#: Facts that describe how numbers were read, not what they show: never a caption.
+_CAPTION_SKIP = (
+    "intervals read as",
+    "from unrounded values",
+    "points missing",
+    " rows \N{MULTIPLICATION SIGN} ",
+)
+_CAPTION_STOPWORDS = {
+    "than", "that", "this", "with", "from", "into", "over", "after", "before", "about",
+    "their", "there", "where", "which", "while", "most", "more", "less", "only", "same",
+    "each", "every", "both", "stays", "still", "when", "what", "were", "have", "been",
+}
+
+
+def _delivery_kind(path: Path) -> str | None:
+    suffix = path.suffix.lower()
+    if suffix in {".png", ".svg"}:
+        return "image"
+    if suffix in {".html", ".htm"}:
+        return "html"
+    return None
+
+
+def _reader_path(path: Path) -> str:
+    """Relative to the working directory when the file is under it, else absolute."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
+def _markdown_target(path: str) -> str:
+    return f"<{path}>" if re.search(r"[\s()]", path) else path
+
+
+def _claimed_caption(takeaway: str, panels: Mapping[str, Panel]) -> str | None:
+    """The fact segments that print the takeaway's numbers (under the derivations the
+    epistemic audit uses: as stated, or a fraction x100), joined into one sentence.
+
+    Facts are split at "; "; a later segment ("−0.08 vs full model (0.82)") is prefixed
+    with its item ("no retrieval: 0.74 ..." -> "no retrieval"). At most two segments, the
+    one covering most claims first; ties go to the earlier panel and fact. None when no
+    fact prints a claimed number.
+    """
+    from ..epistemic import claim_numbers, fact_states
+
+    claims = claim_numbers(takeaway)
+    if not claims:
+        return None
+    candidates: list[tuple[set[int], str, Panel]] = []
+    for panel in panels.values():
+        for fact in panel.facts:
+            if any(skip in fact for skip in _CAPTION_SKIP):
+                continue
+            segments = fact.split("; ")
+            subject = segments[0].split(": ", 1)[0] if ": " in segments[0] else None
+            for k, segment in enumerate(segments):
+                hits = {i for i, claim in enumerate(claims) if fact_states(claim, segment)}
+                if not hits:
+                    continue
+                text = f"{subject} {segment}" if (k and subject) else segment
+                candidates.append((hits, text, panel))
+    chosen: list[tuple[str, Panel]] = []
+    covered: set[int] = set()
+    while candidates and len(chosen) < 2:
+        hits, text, panel = max(candidates, key=lambda c: len(c[0] - covered))
+        if not hits - covered:
+            break
+        covered |= hits
+        chosen.append((text, panel))
+    if not chosen:
+        return None
+    sentence = "; ".join(text for text, _ in chosen)
+    for text, panel in chosen:
+        label = panel.spec.get("error_label") or panel.spec.get("band_label")
+        if label and "\N{EN DASH}" in text and str(label) not in sentence:
+            sentence = f"{sentence} ({label})"
+    return _as_sentence(sentence)
+
+
+def _caption(takeaway: str, panels: Mapping[str, Panel]) -> str | None:
+    """One sentence for under the figure: the facts that print the takeaway's numbers
+    (:func:`_claimed_caption`), else the one fact sharing the most names and numbers
+    with the takeaway.
+
+    Ties go to the earlier panel and the earlier fact. A fact quoting interval bounds
+    names the interval (``error_label=`` / ``band_label=``).
+    """
+    claimed = _claimed_caption(takeaway, panels)
+    if claimed is not None:
+        return claimed
+    words = {
+        w
+        for w in re.findall(r"[a-z][a-z\-]+", takeaway.lower())
+        if len(w) > 3 and w not in _CAPTION_STOPWORDS
+    }
+    numbers = set(re.findall(r"\d+(?:\.\d+)?", takeaway))
+    best: tuple[str, Panel] | None = None
+    best_score = -1
+    for panel in panels.values():
+        for fact in panel.facts:
+            if any(skip in fact for skip in _CAPTION_SKIP):
+                continue
+            low = fact.lower()
+            score = sum(1 for w in words if w in low) + 2 * len(
+                numbers & set(re.findall(r"\d+(?:\.\d+)?", fact))
+            )
+            if score > best_score:
+                best, best_score = (fact, panel), score
+    if best is None:
+        first = next(iter(panels.values()), None)
+        return _as_sentence(first.describe) if first is not None and first.describe else None
+    fact, panel = best
+    label = panel.spec.get("error_label") or panel.spec.get("band_label")
+    if label and "\N{EN DASH}" in fact and str(label) not in fact:
+        fact = f"{fact} ({label})"
+    return _as_sentence(fact)
+
+
+def _as_sentence(text: str) -> str:
+    text = " ".join(str(text).split())
+    if re.match(r"[a-z]+\b", text):
+        text = text[0].upper() + text[1:]
+    return text if text.endswith((".", "!", "?")) else f"{text}."
 
 
 #: Target display width (CSS px) when rendering for a narrow IDE sidebar (Cursor / VS Code).
@@ -616,12 +912,16 @@ class Explanation:
         width: str | float,
         issues: list[dict[str, Any]],
         colors: dict[str, str] | None = None,
+        color_names: bool = True,
+        density: str = "regular",
         strict: bool = True,
         adjustments: Sequence[str] = (),
         advisories: Sequence[dict[str, Any]] = (),
     ) -> None:
         self.fig = fig
         self.colors = colors
+        self.color_names = color_names
+        self.density = density
         #: Colour slot of every named entity in the figure ({"no retrieval": "red"}); pass
         #: it as ``colors=`` to the next figure to keep the same colours.
         self.entity_colors: dict[str, str] = {}
@@ -643,6 +943,8 @@ class Explanation:
         self.advisories = list(advisories)
         self.saved_path: Path | None = None
         self.saved_px: tuple[int, int] | None = None
+        #: Last image (.png/.svg) and .html written, for ``summary()["deliver"]``.
+        self._delivered: dict[str, Path] = {}
 
     @property
     def display_width_px(self) -> int:
@@ -739,6 +1041,10 @@ class Explanation:
             out["width"] = self.width
         if self.colors:
             out["colors"] = dict(self.colors)
+        if not self.color_names:
+            out["color_names"] = False
+        if self.density != "regular":
+            out["density"] = self.density
         out["layout"] = self.layout
         out["panels"] = [panel.to_spec() for panel in self.panels.values()]
         return out
@@ -758,6 +1064,11 @@ class Explanation:
             "size_mm": [round(self.width_mm, 1), round(self.height_mm, 1)],
             "display": {
                 "width_px": self.display_width_px,
+                "height_px": round(
+                    self.display_width_px
+                    * float(self.fig.get_figheight())
+                    / float(self.fig.get_figwidth())
+                ),
                 "min_text_px": self.min_text_px,
                 "min_script_px": self.min_script_px,
             },
@@ -776,12 +1087,58 @@ class Explanation:
             "colors": dict(self.entity_colors),
             "issues": self.issues,
             "rendered": self.saved_path is not None,
+            "deliver": self._deliver(),
         }
         if not self.strict:
             out["strict"] = False
             out["adjustments"] = list(self.adjustments)
+        if not self.strict or self.advisories:
             out["advisories"] = list(self.advisories)
         return Summary(out)
+
+    def _deliver(self) -> dict[str, Any]:
+        """How to put the figure in front of the reader, per surface."""
+        delivered = dict(self._delivered)
+        if self.saved_path is not None:  # also set directly by the CLI's .html path
+            kind = _delivery_kind(self.saved_path)
+            if kind and kind not in delivered:
+                delivered[kind] = self.saved_path
+        image = delivered.get("image")
+        markdown = None
+        if image is not None:
+            alt = self.takeaway.replace("\\", "\\\\").replace("]", "\\]")
+            markdown = f"![{alt}]({_markdown_target(_reader_path(image))})"
+        html = delivered.get("html")
+        return {
+            "markdown": markdown,
+            "caption": _caption(self.takeaway, self.panels),
+            "text": self.to_text(),
+            "html": _reader_path(html) if html is not None else None,
+        }
+
+    def to_text(self, width: int = 72, ascii_only: bool = False) -> str:
+        """Plain rendering (no escape codes, at most ``width`` columns) for a code block."""
+        from ..terminal import render_terminal
+
+        return render_terminal(self, width=width, color=False, ascii_only=ascii_only)
+
+    def show(self) -> None:
+        """Show the figure where it runs: rich display in a notebook, an inline PNG in a
+        terminal with an image protocol (Kitty, iTerm2, WezTerm, Ghostty), else ``to_text()``."""
+        import sys
+
+        from ..terminal import detect_graphics_protocol, in_notebook, show_in_terminal
+
+        if in_notebook():
+            from IPython.display import display
+
+            display(self)
+            return
+        protocol = detect_graphics_protocol()
+        if protocol in {"kitty", "iterm2"} and sys.stdout.isatty():
+            print(show_in_terminal(self, mode=protocol))
+            return
+        print(self.to_text())
 
     def save(
         self,
@@ -809,6 +1166,7 @@ class Explanation:
             out.write_text(self.to_html(interactive=True), encoding="utf-8")
             self.saved_path = out.resolve()
             self.saved_px = None
+            self._delivered["html"] = self.saved_path
             if write_spec:
                 out.with_suffix(".json").write_text(
                     json.dumps(self.to_spec(), indent=2, ensure_ascii=False) + "\n",
@@ -825,6 +1183,8 @@ class Explanation:
         if late and not any(i["rule"] == "glyph_missing" for i in self.issues):
             self.issues.append(_glyph_issue(late))
         self.saved_path = out.resolve()
+        if _delivery_kind(out) == "image":
+            self._delivered["image"] = self.saved_path
         if out.suffix.lower() == ".png":
             self.saved_px = (
                 round(self.fig.get_figwidth() * dpi),
@@ -988,8 +1348,18 @@ def read_png_text(path: str | Path) -> dict[str, str]:
     return {k: v for k, v in out.items() if k.startswith("mintfig:")}
 
 
-def load(path: str | Path) -> Explanation:
-    """Rebuild an :class:`Explanation` from a PNG saved by mintfig or from a ``.json`` spec."""
+def load(
+    path: str | Path | Mapping[str, Any],
+    *,
+    out: str | Path | None = None,
+    strict: bool = True,
+) -> Explanation:
+    """Rebuild an :class:`Explanation` from a mintfig PNG, a ``.json`` spec file, or a spec dict.
+
+    ``out=`` saves the rebuilt figure; ``strict=False`` auto-adjusts soft limits.
+    """
+    if isinstance(path, Mapping):
+        return explain_from_spec(path, out=out, strict=strict)
     source = Path(path)
     if not source.exists():
         raise ExplainError(
@@ -1004,7 +1374,7 @@ def load(path: str | Path) -> Explanation:
                 f"{source} is not valid JSON ({exc}).",
                 fix_hint="Fix the JSON, or pass the PNG the figure was saved as.",
             ) from exc
-        return explain_from_spec(spec)
+        return explain_from_spec(spec, out=out, strict=strict)
     text = read_png_text(source)
     if "mintfig:spec" not in text:
         raise ExplainError(
@@ -1012,7 +1382,7 @@ def load(path: str | Path) -> Explanation:
             fix_hint="Only PNGs written by Explanation.save() (embed=True, the default) carry "
             "their spec; otherwise load the .json written with save(..., write_spec=True).",
         )
-    return explain_from_spec(json.loads(text["mintfig:spec"]))
+    return explain_from_spec(json.loads(text["mintfig:spec"]), out=out, strict=strict)
 
 
 _LATEX_DOLLAR = re.compile(r"\$[^$\n]*(?:\\[A-Za-z]+|[\^_])[^$\n]*\$")
@@ -1062,6 +1432,172 @@ def _takeaway_issues(takeaway: str) -> list[dict[str, Any]]:
             )
         ]
     return []
+
+
+#: ``explain(density=)`` values.
+_DENSITIES = ("regular", "compact")
+#: A figure taller than this (px at display width) should show at least
+#: :data:`_LOW_DENSITY_VALUES` values, or be a sentence or a table.
+_LOW_DENSITY_PX = 320
+_LOW_DENSITY_VALUES = 8
+
+
+def _count_numbers(obj: Any) -> int:
+    """Finite numbers in a (nested) list or mapping from a panel spec."""
+    if isinstance(obj, bool) or obj is None or isinstance(obj, str):
+        return 0
+    if isinstance(obj, Mapping):
+        return sum(_count_numbers(v) for v in obj.values())
+    if isinstance(obj, Sequence):
+        return sum(_count_numbers(v) for v in obj)
+    try:
+        return 1 if math.isfinite(float(obj)) else 0
+    except (TypeError, ValueError):
+        return 0
+
+
+def _plotted_values(panel: Panel) -> int | None:
+    """How many values a panel plots (None: unknown, e.g. a custom panel).
+
+    Each observation of a distribution and each point of a line counts on its own."""
+    spec, kind = panel.spec, panel.kind
+    if kind == "compare":  # an interval draws its two bounds as well
+        bounds = [spec.get("error"), spec.get("inner_error")]
+        values = _count_numbers(spec.get("values"))
+        return values + sum(2 * values for b in bounds if b is not None)
+    if kind == "share":
+        return _count_numbers(spec.get("parts"))
+    if kind == "trend":  # a band draws a low and a high bound at each banded point
+        series = spec.get("series") if isinstance(spec.get("series"), Mapping) else {}
+        band = spec.get("band")
+        banded = (list(band) if isinstance(band, Mapping) else list(series)) if band else []
+        bounds = 2 * sum(_count_numbers(series.get(nm)) for nm in banded)
+        return _count_numbers(series) + _count_numbers(spec.get("points")) + bounds
+    if kind == "change":
+        return _count_numbers(spec.get("before")) + _count_numbers(spec.get("after"))
+    if kind in {"distribution", "histogram"}:
+        return _count_numbers(spec.get("groups", spec.get("values")))
+    if kind == "relate":
+        return _count_numbers(spec.get("y"))
+    if kind == "matrix":
+        return _count_numbers(spec.get("values"))
+    if kind == "table":
+        return _count_numbers(spec.get("rows"))
+    if kind == "waterfall":  # each step shows its delta and the level it reaches
+        steps = _count_numbers(spec.get("steps"))
+        return 2 * steps + (spec.get("start") is not None) + (spec.get("show_total") is not False)
+    if kind in {"timeline", "flow"}:  # a span has a start and an end; a stage one count
+        items = spec.get("spans" if kind == "timeline" else "stages")
+        per = 2 if kind == "timeline" else 1
+        return per * len(items) if isinstance(items, Sequence) else None
+    return None
+
+
+#: Rules that suggest a different form rather than flag a defect. They go to
+#: ``summary["advisories"]``, never ``issues``, so they block neither ``ok`` nor a
+#: no-warnings check.
+_ADVISORY_RULES: frozenset[str] = frozenset({"low_density"})
+
+
+def _low_density_issue(result: Explanation) -> dict[str, Any] | None:
+    """``low_density``: a tall figure that plots fewer values than a sentence could hold."""
+    counts = [_plotted_values(p) for p in result.panels.values()]
+    if any(c is None for c in counts):
+        return None
+    total = sum(c for c in counts if c is not None)
+    width = result.display_width_px
+    height = width * float(result.fig.get_figheight()) / float(result.fig.get_figwidth())
+    if height <= _LOW_DENSITY_PX or total >= _LOW_DENSITY_VALUES:
+        return None
+    return _issue(
+        "low_density",
+        "warning",
+        f"The figure is {height:.0f} px tall at {width} px wide but plots only {total} "
+        f"value{'s' if total != 1 else ''}.",
+        'Use density="compact", a mint.table for the exact numbers, or state them in one '
+        "sentence instead of a figure.",
+    )
+
+
+#: The rendered axis that carries a panel's ``label`` and ``unit``, by kind (the same
+#: convention as the briefing's across-figure ``scales_differ``).
+_VALUE_AXIS = {
+    "compare": "x",
+    "waterfall": "x",
+    "distribution": "x",
+    "trend": "y",
+    "change": "y",
+    "relate": "y",
+}
+
+
+def _value_range(
+    result: Explanation, key: str, panel: Panel
+) -> tuple[float, float, str, bool] | None:
+    """``(low, high, scale, drawn)`` of one panel's rendered value axis, or None;
+    ``drawn`` is False when the axis is hidden (labelled bars)."""
+    axis = _VALUE_AXIS.get(panel.kind)
+    ax = result.axes.get(key)
+    if axis is None or ax is None:
+        return None
+    lo, hi = ax.get_xlim() if axis == "x" else ax.get_ylim()
+    scale = ax.get_xscale() if axis == "x" else ax.get_yscale()
+    drawn = (ax.xaxis if axis == "x" else ax.yaxis).get_visible()
+    lo, hi = sorted((float(lo), float(hi)))
+    if not (math.isfinite(lo) and math.isfinite(hi)):
+        return None
+    return lo, hi, scale, drawn
+
+
+def _scales_differ_issues(result: Explanation) -> list[dict[str, Any]]:
+    """``scales_differ``: two panels of one figure plot the same ``label`` and unit on
+    value axes with different ranges, or one log and one linear. Advice only.
+
+    A panel whose value axis is hidden (labelled bars) has no range to read: it is
+    compared only with a panel of its own kind, whose marks it is measured against."""
+    seen: list[tuple[str, Panel, tuple[str, str], tuple[float, float, str]]] = []
+    for key, panel in result.panels.items():
+        label = (panel.label or "").strip()
+        rng = _value_range(result, key, panel) if label else None
+        if rng is not None:
+            seen.append((key, panel, (label.casefold(), (panel.unit or "").strip()), rng))
+    out: list[dict[str, Any]] = []
+    for i, (ka, pa, ida, ra) in enumerate(seen):
+        for kb, pb, idb, rb in seen[i + 1 :]:
+            if ida != idb or (not (ra[3] and rb[3]) and pa.kind != pb.kind):
+                continue
+            what = f"{pa.label}" + (f" ({pa.unit})" if pa.unit else "")
+            if ra[2] != rb[2]:
+                message = (
+                    f"Panels {ka} and {kb} both plot {what}, panel {ka} on a {ra[2]} axis "
+                    f"({_short(ra[0])}\N{EN DASH}{_short(ra[1])}) and panel {kb} on a {rb[2]} "
+                    f"axis ({_short(rb[0])}\N{EN DASH}{_short(rb[1])})."
+                )
+            else:
+                tol = 0.01 * max(ra[1] - ra[0], rb[1] - rb[0])
+                if all(math.isclose(x, y, abs_tol=tol) for x, y in zip(ra[:2], rb[:2], strict=True)):
+                    continue
+                message = (
+                    f"Panels {ka} and {kb} both plot {what} but over different ranges: "
+                    f"{_short(ra[0])}\N{EN DASH}{_short(ra[1])} in panel {ka}, "
+                    f"{_short(rb[0])}\N{EN DASH}{_short(rb[1])} in panel {kb}; readers will "
+                    "compare them by eye."
+                )
+            out.append(
+                _issue(
+                    "scales_differ",
+                    "warning",
+                    message,
+                    "Put them in one faceted panel (facet=), which shares one scale, or give "
+                    "both panels matching limits (the same data extent, zero= and log= on both).",
+                    panel=kb,
+                )
+            )
+    return out
+
+
+def _short(v: float) -> str:
+    return f"{float(f'{v:.4g}'):g}"
 
 
 def _too_tall_issue(
@@ -1132,6 +1668,8 @@ def explain(
     palette: str | ExplainPalette | None = None,
     accent: str | None = None,
     colors: Mapping[str, str] | None = None,
+    color_names: bool = True,
+    density: str = "regular",
     strict: bool = True,
     out: str | Path | None = None,
 ) -> Explanation:
@@ -1167,6 +1705,12 @@ def explain(
         ``"green"`` and ``"amber"``, resolved from the style's validated palette.
         Within one figure a name always has one colour; pinned names are fixed
         entries of that registry.
+    color_names:
+        Draw entity names in the takeaway and panel titles in their figure colour
+        (default); ``False`` keeps the words in ink.
+    density:
+        ``"regular"`` (default) or ``"compact"``: thinner bars, tighter rows and smaller
+        gaps at the same type sizes, for a sparse figure in a chat reply.
     out:
         If given, the figure is saved there immediately.
     """
@@ -1189,6 +1733,8 @@ def explain(
                 palette=palette,
                 accent=accent,
                 colors=colors,
+                color_names=color_names,
+                density=density,
                 strict=False,
                 adjustments=local_adjustments,
                 out=out,
@@ -1209,6 +1755,8 @@ def explain(
         palette=palette,
         accent=accent,
         colors=colors,
+        color_names=color_names,
+        density=density,
         strict=True,
         adjustments=local_adjustments,
         out=out,
@@ -1228,11 +1776,25 @@ def _explain_impl(
     palette: str | ExplainPalette | None = None,
     accent: str | None = None,
     colors: Mapping[str, str] | None = None,
+    color_names: bool = True,
+    density: str = "regular",
     strict: bool = True,
     adjustments: list[str] | None = None,
     out: str | Path | None = None,
 ) -> Explanation:
     adj = adjustments if adjustments is not None else []
+    density = density.strip().lower() if isinstance(density, str) else density
+    if density not in _DENSITIES:
+        if not strict:
+            _record_adjustment(f"explain(density={density!r}): fell back to 'regular'")
+            density = "regular"
+        else:
+            raise ExplainError(
+                f"explain(density={density!r}) is not a density.",
+                fix_hint='Use density="regular" (default) or "compact" (tighter rows and gaps).',
+                rule="bad_density",
+            )
+    color_names = bool(color_names)
     try:
         theme = get_theme(style)
     except (TypeError, ValueError) as exc:
@@ -1317,6 +1879,7 @@ def _explain_impl(
 
     pinned = _pinned_colors(colors, theme)
     panel_colors, uniform_color, colour_issues = _colour_registry(built, theme, pinned)
+    word_colours = _word_colours(panel_colors, theme) if color_names else {}
 
     spec = get_spec(target)
     keys = [chr(ord("a") + i) for i in range(len(built))]
@@ -1356,7 +1919,8 @@ def _explain_impl(
             )
 
     with theme.rc_context(spec), _GlyphCapture() as glyph_log:
-        sizes = _Sizes.from_spec(spec, theme)
+        sizes = _Sizes.from_spec(spec, theme, density)
+        compact = sizes.compact
         if is_narrow and spec.name == "screen":
             # Keep smallest text >= 12 px at 450 px sidebar width while tightening
             # the headline slightly so takeaways wrap cleanly within 92 mm.
@@ -1366,11 +1930,16 @@ def _explain_impl(
                 body=sizes.body,
                 small=sizes.small,
                 foot=max(sizes.foot, 7.0),
+                density=density,
             )
         s = sizes.scale
         measure = _Measure(theme)
         width_mm = float(spec.resolve_width_mm(width))
         margin = _MARGIN_MM * s
+        # density="compact" tightens the vertical rhythm only: widths (and so wrapping) and
+        # type sizes stay as they are.
+        margin_y = (2.5 if compact else _MARGIN_MM) * s
+        row_gap = (4.0 if compact else _ROW_GAP_MM) * s
         content_mm = width_mm - 2 * margin
         content_pt = content_mm / PT_TO_MM
 
@@ -1410,10 +1979,10 @@ def _explain_impl(
             + len(title_lines) * _line_mm(sizes.title)
             + len(subtitle_lines) * _line_mm(sizes.body)
         )
-        header_gap = 4.0 * s
+        header_gap = (2.5 if compact else 4.0) * s
         footer_rule_pad = 2.0 * s if (theme.footer_rule and footer_lines) else 0.0
         footer_mm = footer_rule_pad + len(footer_lines) * _line_mm(sizes.foot)
-        footer_gap = 3.5 * s if footer_lines else 0.0
+        footer_gap = (2.5 if compact else 3.5) * s if footer_lines else 0.0
 
         multi = len(built) > 1
         letter_pt = measure.width_pt("a", sizes.body, "bold") + sizes.body * 0.75 if multi else 0.0
@@ -1459,7 +2028,7 @@ def _explain_impl(
                     sizes.small
                 )
                 if head_mm:
-                    head_mm += 2.2 * s
+                    head_mm += (1.2 if compact else 2.2) * s
                 cells.append(
                     {
                         "key": key,
@@ -1496,8 +2065,8 @@ def _explain_impl(
                 r["head_mm"]
                 + max(c["plot_mm"] - squeeze * (c["plot_mm"] - c["min_mm"]) for c in r["cells"])
                 for r in row_plans
-            ) + _ROW_GAP_MM * s * (len(row_plans) - 1)
-            return margin + header_mm + header_gap + body + footer_gap + footer_mm + margin
+            ) + row_gap * (len(row_plans) - 1)
+            return margin_y + header_mm + header_gap + body + footer_gap + footer_mm + margin_y
 
         natural_mm = _height_at(0.0)
         height_mm = natural_mm
@@ -1532,7 +2101,7 @@ def _explain_impl(
         def _fy(mm_from_top: float) -> float:
             return 1.0 - mm_from_top / height_mm
 
-        cursor = margin
+        cursor = margin_y
         if theme.top_rule:
             rule_y = _fy(cursor + 0.3 * s)
             fig.add_artist(
@@ -1557,9 +2126,9 @@ def _explain_impl(
             }
             if theme.title_family is not None:
                 title_kw["fontfamily"] = list(theme.title_family)
-            t_art = fig.text(_fx(margin), _fy(cursor), _plain(line, theme), **title_kw)
-            if theme.allow_serif_title:
-                t_art._mintfig_allow_serif = True  # type: ignore[attr-defined]
+            for t_art in _text_line(fig, _fx(margin), _fy(cursor), line, theme, word_colours, **title_kw):
+                if theme.allow_serif_title:
+                    t_art._mintfig_allow_serif = True  # type: ignore[attr-defined]
             cursor += _line_mm(sizes.title)
         for line in subtitle_lines:
             fig.text(
@@ -1599,10 +2168,13 @@ def _explain_impl(
                     tag._mintfig_panel_label = True  # type: ignore[attr-defined]
                 for line in cell["head_lines"]:
                     if line:
-                        fig.text(
+                        _text_line(
+                            fig,
                             _fx(text_x),
                             _fy(y_mm),
-                            _plain(line, theme),
+                            line,
+                            theme,
+                            word_colours,
                             ha="left",
                             va="top",
                             fontsize=sizes.body,
@@ -1646,6 +2218,7 @@ def _explain_impl(
                     measure_label=_measure_text(panel.label, panel.unit) or "(see measure_unnamed)",
                     colors=panel_colors[keys.index(key)],
                     uniform_color=uniform_color,
+                    takeaway=takeaway,
                 )
                 ax = ctx.tag(fig.add_axes([0.1, 0.1, 0.5, 0.5]))
                 _fit_axes(fig, ax, rect)
@@ -1679,6 +2252,8 @@ def _explain_impl(
                             palette=palette,
                             accent=accent,
                             colors=colors,
+                            color_names=color_names,
+                            density=density,
                             strict=False,
                             adjustments=adj,
                             out=out,
@@ -1715,9 +2290,9 @@ def _explain_impl(
                         )
                     )
                 axes[key] = frames[0][0]
-            cursor = row_top + plan["head_mm"] + plan["plot_mm"] + _ROW_GAP_MM * s
+            cursor = row_top + plan["head_mm"] + plan["plot_mm"] + row_gap
 
-        y_mm = height_mm - margin - footer_mm
+        y_mm = height_mm - margin_y - footer_mm
         if theme.footer_rule and footer_lines:
             frule_y = _fy(y_mm + 0.3 * s)
             fig.add_artist(
@@ -1770,6 +2345,8 @@ def _explain_impl(
                         palette=palette,
                         accent=accent,
                         colors=colors,
+                        color_names=color_names,
+                        density=density,
                         strict=False,
                         adjustments=adj,
                         out=out,
@@ -1800,6 +2377,8 @@ def _explain_impl(
             width=width,
             issues=issues,
             colors={k: str(v) for k, v in _pairs(colors)} if colors else None,
+            color_names=color_names,
+            density=density,
             strict=strict,
             adjustments=adj,
         )
@@ -1815,6 +2394,10 @@ def _explain_impl(
             issues.append(
                 _too_tall_issue(row_plans, panel_map, height_mm, _height_at(1.0), width_mm, spec)
             )
+        low = _low_density_issue(result)
+        if low is not None:
+            issues.append(low)
+        issues.extend(_scales_differ_issues(result))
         if spec.name == "screen" and result.min_text_px < MIN_TEXT_PX:
             issues.append(
                 _issue(
@@ -1855,6 +2438,10 @@ def _explain_impl(
         from ..epistemic import audit_epistemic
 
         issues.extend(audit_epistemic(takeaway, panel_map))
+        # Suggestions about the form, not defects: reported apart from ``issues`` in
+        # every mode, so a clean figure reads as clean.
+        result.advisories = [i for i in issues if i["rule"] in _ADVISORY_RULES]
+        issues[:] = [i for i in issues if i["rule"] not in _ADVISORY_RULES]
         if not strict:
             actionable = [
                 i
@@ -1863,7 +2450,7 @@ def _explain_impl(
             ]
             advisory = [i for i in issues if i not in actionable]
             result.issues = actionable
-            result.advisories = advisory
+            result.advisories = [*result.advisories, *advisory]
 
     if out is not None:
         result.save(out)
@@ -1956,6 +2543,8 @@ def explain_from_spec(
         "palette",
         "accent",
         "colors",
+        "color_names",
+        "density",
         "strict",
     }
     unknown = sorted(set(options) - allowed)

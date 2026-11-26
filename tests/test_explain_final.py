@@ -512,7 +512,7 @@ def test_baseline_round_trips_through_the_spec_and_the_png(tmp_path) -> None:
     path = tmp_path / "f.png"
     fig.save(path)
     assert mint.load(path).to_spec() == spec
-    assert mint.explain_from_spec(spec).to_spec() == spec
+    assert mint.load(spec).to_spec() == spec
 
 
 def test_baseline_is_drawn_in_ink_and_takes_no_palette_colour() -> None:
@@ -534,9 +534,11 @@ def test_baseline_is_drawn_in_ink_and_takes_no_palette_colour() -> None:
 
     assert bars["ctrl"] == to_rgba(ink)
     assert bars["a"] == to_rgba(result.theme.accent_colors[0])  # the highlight keeps red
-    assert bars["b"] == to_rgba(result.theme.context_fill)
+    # "b" is coloured in the trend, so it keeps that colour here, without the emphasis
+    b_line = {ln.get_label(): ln.get_color() for ln in result["b"].get_lines()}["b"]
+    assert bars["b"] == to_rgba(b_line)
     weights = {t.get_text(): t.get_fontweight() for t in result["a"].get_yticklabels()}
-    assert weights["ctrl"] == "normal" and weights["a"] == "bold"
+    assert weights["ctrl"] == "normal" and weights["a"] == "bold" and weights["b"] == "normal"
     lines = {ln.get_label(): ln.get_color() for ln in result["b"].get_lines()}
     assert lines["ctrl"] == ink
     assert ink not in {lines[k] for k in "abcd"}
@@ -763,7 +765,7 @@ def test_relate_takes_unit_as_the_y_unit() -> None:
     assert any("µm/min per unit x" in f for f in panel.facts)
     result = mint.explain(T, panel)
     assert result.summary()["ok"]
-    rebuilt = mint.panel_from_spec(panel.to_spec())
+    rebuilt = mint.explainer.panel_from_spec(panel.to_spec())
     assert rebuilt.facts == panel.facts
     # A y_label that already ends with the unit is not given it twice.
     assert explainer._measure_text("Yield (MPa)", "MPa") == "Yield (MPa)"
@@ -782,7 +784,7 @@ def test_x_unit_comes_only_from_a_unit_like_bracket_or_from_x_unit() -> None:
     given = mint.trend(x, series, x_label="Cycle (1C/1C)", x_unit="cycles", reference=ref)
     assert any(f.endswith("at about 271 cycles") for f in given.facts)
     assert given.to_spec()["x_unit"] == "cycles"
-    assert mint.panel_from_spec(given.to_spec()).facts == given.facts
+    assert mint.explainer.panel_from_spec(given.to_spec()).facts == given.facts
     off = mint.trend(x, series, x_label="Time (h)", x_unit="", reference=ref).facts
     assert any(f.endswith("at about 271") for f in off)
     rx = mint.relate([1, 2, 3, 4], [2, 4, 7, 8], x_label="d (µm)", y_label="s", unit="MPa", fit=True)
@@ -881,10 +883,10 @@ def test_change_in_a_narrow_column_wraps_and_drops_before_raising() -> None:
     _m, slope = _matrix_and_change()
     side = mint.compare({"x": 1.0, "y": 2.0}, label="v", title="t")
     wide = mint.explain(T, side, slope, layout=[["a", "b"]])
-    assert "68.3  code (+3.9)" in _texts(wide, "b")
+    assert "68.3  code (+3.9 pts)" in _texts(wide, "b")  # a "%" delta is in points
     narrow = mint.explain(T, side, slope, layout=[["a", "a", "b"]])
     texts = _texts(narrow, "b")
-    assert "68.3  (+3.9)\ncode" in texts  # the name wraps under its value
+    assert "68.3  (+3.9 pts)\ncode" in texts  # the name wraps under its value
     assert "64.4" not in texts  # the left-hand values give way; the facts keep them
     assert any("28.6% → 45.4%" in f for f in slope.facts)
     with pytest.raises(mint.ExplainError) as err:
@@ -1192,7 +1194,7 @@ def test_log_distribution_of_fold_changes_reads_as_ratios(unit: str | None) -> N
     # The spec keeps the unit as given and renders back the same facts.
     spec = result.to_spec()["panels"][0]
     assert spec.get("unit") == unit
-    assert mint.panel_from_spec(spec).facts == panel.facts
+    assert mint.explainer.panel_from_spec(spec).facts == panel.facts
     # A log-transformed label is not a raw ratio: no "×".
     logged = mint.distribution(groups, log=True, label="log2 fold change")
     assert TIMES not in logged.facts[0]
@@ -1257,7 +1259,7 @@ def test_compare_n_is_drawn_under_names_in_the_facts_and_in_the_spec() -> None:
     assert not result.issues
     spec = result.to_spec()["panels"][0]
     assert spec["n"] == counts
-    assert mint.panel_from_spec(spec).facts == panel.facts
+    assert mint.explainer.panel_from_spec(spec).facts == panel.facts
     # A list follows the order of values; names stay names.
     listed = mint.compare(values, n=[84, 61, 146], unit="%")
     assert listed.spec["n"] == counts
@@ -1485,7 +1487,7 @@ def test_histogram_alias_facts_spec_roundtrip_and_validation(tmp_path) -> None:
     fig.save(out, write_spec=True)
     spec = mint.load(out).to_spec()
     assert spec["panels"][0]["bins"] == 14
-    assert mint.explain_from_spec(spec).summary()["ok"] is True
+    assert mint.load(spec).summary()["ok"] is True
 
     # JSON spec with kind="histogram" also works directly
     hist_spec = {
@@ -1501,7 +1503,7 @@ def test_histogram_alias_facts_spec_roundtrip_and_validation(tmp_path) -> None:
             }
         ],
     }
-    assert mint.explain_from_spec(hist_spec).summary()["ok"] is True
+    assert mint.load(hist_spec).summary()["ok"] is True
 
     # Validation checks
     with pytest.raises(mint.ExplainError):

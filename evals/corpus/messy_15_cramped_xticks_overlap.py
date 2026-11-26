@@ -9,7 +9,7 @@ import mintfig as mint
 def build() -> mint.Plate:
     plate = mint.Plate(journal="science", width="single", height_mm=56.0, layout=(1, 1))
     ax = plate["A"]
-    colors = mint.get_palette("science")
+    colors = mint.pub.get_palette("science")
     labels = ["Condition_01", "Condition_02", "Condition_03", "Condition_04", "Condition_05", "Condition_06"]
     vals = [1.2, 1.8, 1.5, 2.3, 1.9, 2.6]
     ax.bar(range(len(labels)), vals, color=colors[0], alpha=0.85)

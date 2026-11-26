@@ -59,7 +59,7 @@ SCALE_CMAP = LinearSegmentedColormap.from_list(
 
 def _panel_pretraining(ax) -> None:
     """Panel a: Log-log pre-training scaling curves and compute-optimal frontier."""
-    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.pub.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     l_inf = 1.24
     alpha = 0.054
@@ -129,7 +129,7 @@ def _panel_pretraining(ax) -> None:
 
 def _panel_rlvr(ax, rng: np.random.Generator) -> None:
     """Panel b: RLVR post-training trajectories across three benchmarks (5-seed CI)."""
-    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.pub.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     steps = np.linspace(0, 40, 81)  # thousands of steps
     # Smooth saturating learning curves + mild KL-decay bump at 15k
@@ -173,7 +173,7 @@ def _panel_rlvr(ax, rng: np.random.Generator) -> None:
             zorder=4,
         )
 
-    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.38, fontsize=6.0)
+    mint.pub.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.38, fontsize=6.0)
 
     ax.set_xticks([0, 10, 20, 30, 40])
     ax.set_xticklabels(["0", "10k", "20k", "30k", "40k"])
@@ -185,7 +185,7 @@ def _panel_rlvr(ax, rng: np.random.Generator) -> None:
 
 def _panel_test_time(ax) -> None:
     """Panel c: Log-linear inference-time compute scaling with thinking tokens."""
-    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.pub.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     budgets = np.array([256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536], dtype=float)
     log_b = np.log2(budgets / 256.0)
@@ -226,7 +226,7 @@ def _panel_test_time(ax) -> None:
             zorder=4,
         )
 
-    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.45, fontsize=6.0)
+    mint.pub.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.45, fontsize=6.0)
 
     ax.xaxis.set_major_locator(FixedLocator([256, 1024, 4096, 16384, 65536]))
     ax.set_xticklabels(["256", "1k", "4k", "16k", "64k"])
@@ -260,7 +260,7 @@ def _panel_long_context(ax, fig) -> None:
         aspect="auto",
         norm=Normalize(vmin=90, vmax=100),
     )
-    mint.style_heatmap(
+    mint.pub.style_heatmap(
         ax,
         im,
         cell_border_color="#FFFFFF",
@@ -279,7 +279,7 @@ def _panel_long_context(ax, fig) -> None:
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.055, pad=0.04, aspect=18)
     cbar.set_ticks([90, 95, 100])
-    mint.style_colorbar(cbar, label="Recall (%)", tick_pt=6.0)
+    mint.pub.style_colorbar(cbar, label="Recall (%)", tick_pt=6.0)
 
 
 def build(journal: str = "neurips") -> mint.Plate:

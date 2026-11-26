@@ -17,7 +17,7 @@ def build() -> mint.Plate:
     np.fill_diagonal(mat, 1.0)
     im = ax.imshow(mat, cmap="rainbow", vmin=-1, vmax=1)
     cbar = plate.fig.colorbar(im, ax=ax, fraction=0.048, pad=0.03)
-    mint.style_colorbar(cbar, label="Pearson r")
+    mint.pub.style_colorbar(cbar, label="Pearson r")
     ax.set_xlabel("Sample")
     ax.set_ylabel("Sample")
     return plate

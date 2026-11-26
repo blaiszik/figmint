@@ -40,7 +40,7 @@ def render_all(
         for name in EXAMPLE_NAMES:
             spec = json.loads((spec_dir / f"{name}.json").read_text("utf-8"))
             spec["style"] = style_name
-            explanation = mint.explain_from_spec(spec)
+            explanation = mint.load(spec)
             summary = explanation.save(style_dir / f"{name}.png", write_spec=True)
             rows.append(
                 {

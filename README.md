@@ -4,10 +4,16 @@
 
 AI agents are great at running analyses and terrible at showing what they found. `mintfig` turns raw data into clear, self-auditing visual explanations — as a Python library (`import mintfig as mint`), zero-script CLI, and coding-agent skill built on Matplotlib.
 
+| An agent's text-only answer | The same answer as a mintfig reply |
+| :--- | :--- |
+| I ran the ablation with five variants and five seeds each. The full model reaches 0.82 test accuracy (95% CI 0.80–0.84). Removing augmentation gives 0.80 (0.78–0.82) and a smaller encoder 0.78 (0.75–0.81), both within seed noise of the full model. Removing retrieval drops accuracy to 0.74 (0.71–0.77), a loss of 8 points, and removing fine-tuning drops it to 0.69 (0.66–0.72), a loss of 13 points; neither interval overlaps the full model's. On the validation curves the three main variants start together, but by step 500 the full model is at 0.66, no retrieval at 0.60 and no fine-tuning at 0.48, and the order holds through step 2,000, where they end at 0.82, 0.74 and 0.68. | Retrieval and fine-tuning are the two components worth keeping; the other two are within seed noise.<br><br>![Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/explain_science/ablation.png)<br><br>*No retrieval 0.74 and no fine-tuning 0.69 against 0.82 for the full model; neither 95% CI (5 seeds) overlaps it.* |
+
+The reply is one sentence, the figure and one caption; `fig.save()` hands the agent the image line and the caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
+
 1. **Explain results in a conversation (`mint.explain`, `mintfig plot`)** — lead with a takeaway sentence and compose panels by question (comparisons, trends, distributions, attribution bridges, timelines, attrition flows, scorecards). Layout, direct labels, named uncertainty, colorblind-safe themes, drawn-text auditing (`ship`), and computed `facts` are built in — delivered as PNGs, interactive HTML, terminal graphics, or multi-figure briefings (`mint.brief`).
 2. **Ship journal-ready manuscript plates (`mint.Plate`, `mintfig run`)** — exact millimeter column geometry, unified sans-serif typography and math, automated preflight QA, colorblind/grayscale proof sheets, and reproducible submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
 
-[Quickstart](#quickstart) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
+[Quickstart](#quickstart) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill) · [Upgrading from 0.2](#upgrading-from-02)
 
 ---
 
@@ -67,6 +73,67 @@ No Python script needed? Render directly from JSON or stdin with `mintfig explai
 mintfig explain --example | mintfig explain - --style editorial --palette okabe_ito --out fig.png
 ```
 
+### Put it in front of the reader
+
+A figure only helps once it is in the reply. `summary["deliver"]` says how: `markdown` (the image line), `caption` (one sentence taken from the facts that back the takeaway), `text` (a plain rendering for a code block where images do not show) and `html` (once saved as `.html`).
+
+```python
+summary = fig.save("ablation.png")
+deliver = summary["deliver"]
+reply = f"Retrieval and fine-tuning both matter.\n\n{deliver['markdown']}\n\n*{deliver['caption']}*"
+fig.show()                 # notebook: rich display; Kitty, iTerm2, WezTerm, Ghostty: inline PNG; else text
+text = fig.to_text()       # plain text, at most 72 columns, for a code block
+fig.save("ablation.html")  # one self-contained page
+```
+
+`mintfig doctor` reports which of these work where it runs (inline-image protocol, resolved font, notebook) and renders a sample. The HTML page embeds the figure laid out for 360 px, 450 px and its own width and picks one with a container query, so text stays at 11 px or more; it follows the reader's light or dark setting; hovering or focusing a mark shows its value, interval and n, and clicking copies a citation (`ablation.png · b · no retrieval @ 500 = 0.52`) to paste back to the agent. Under the figure there is one quiet line: `data · svg · spec`.
+
+### Words on the marks, tables with graphics, briefings
+
+Entity names in the takeaway and panel titles are drawn in their colour (`color_names=False` turns it off). When the takeaway states a difference between two marks, `compare` draws it as a bracket with the number (`show_delta="auto"`, the default). `density="compact"` gives thinner bars and tighter rows at the same type sizes.
+
+```python
+fig = mint.explain(
+    "Beta scores 8 points below Alpha; Gamma 13 below",
+    mint.compare({"Alpha": 82.0, "Beta": 74.0, "Gamma": 69.0}, label="Accuracy", unit="%",
+                 baseline="Alpha", highlight=["Beta", "Gamma"], title="Test accuracy"),
+    density="compact",  # thinner bars, tighter rows and gaps; same type sizes
+)
+```
+
+`mint.table` draws a bar, whisker or sparkline in the cell beside each number, on one scale per column, so a scorecard no longer needs a bar panel beside it:
+
+```python
+rows = [
+    {"Model": "full model", "Accuracy": 82.0, "lo": 80.5, "hi": 83.4, "Latency": 182},
+    {"Model": "no retrieval", "Accuracy": 74.0, "lo": 72.1, "hi": 75.8, "Latency": 95},
+    {"Model": "no fine-tuning", "Accuracy": 69.0, "lo": 67.0, "hi": 71.1, "Latency": 180},
+]
+scorecard = mint.table(
+    rows, units={"Accuracy": "%", "Latency": "ms"}, baseline="full model", highlight="no retrieval",
+    interval={"Accuracy": ("lo", "hi")}, interval_label="95% CI, 5 seeds",  # whisker beside the number
+    bars="Latency",                                                         # bar from zero, one scale
+    spark={"Training": {"full model": [2, 61, 78, 82], "no retrieval": [2, 48, 68, 74],
+                        "no fine-tuning": [1, 40, 60, 69]}},                # sparklines, one y range
+    title="Accuracy, latency and training curve per variant",
+)
+table_fig = mint.explain("Dropping retrieval halves latency and costs 8 points of accuracy",
+                         scorecard, source="ablation runs")
+```
+
+`mint.brief` reads its arguments in order: strings are paragraphs (`"## ..."` starts a section), everything else is a figure. The page opens with a row of thumbnails, one per finding; each finding is its figure with one caption, and in HTML the facts sit in a collapsed "Numbers behind this figure" block.
+
+```python
+report = mint.brief(
+    "Ablation study",
+    "We removed one component at a time and retrained with five seeds.",
+    fig,
+    "Retrieval is also the slowest component.",
+    table_fig,
+)
+report.save("ablation_brief.html")  # or .md: Markdown with one PNG per figure
+```
+
 ---
 
 ## Pick the form by the question
@@ -94,7 +161,7 @@ Every form enforces its own perceptual rules (zero baselines, direct labels, no 
 - **Uncertainty is first class and must be named.** Raw observations (`distribution`, `histogram`, `trend(points=)`), intervals (`compare(error=, error_label=)`), and bands (`trend(band=, band_label=)`); an unlabelled interval triggers a warning.
 - **Numbers keep their magnitude.** Values format to ~3 significant figures (`1.3×10⁻⁷` when tiny or huge, never silently rounded to zero) with log axes on `compare`, `trend`, `distribution`, `histogram`, and `relate`.
 - **One colour per entity.** A name keeps its colour across every panel of a figure, and `mint.Session` / `colors=` pin hues across turns in a conversation.
-- **Facts & one-shot shipping (`summary["ship"]`, `mint.lenient()`).** `fig.save()` returns computed `facts` per panel plus a `"ship"` verdict that separates real visual defects from minor advisory warnings so agents don't burn extra turns re-rendering good-enough figures. For rapid ad-hoc charts, `with mint.lenient():` / `mint.explain(..., strict=False)` / `mintfig explain --lenient` auto-adjusts soft limits (auto-faceting >4 series, auto-stacking cramped panels, trimming oversized lists) instead of rejecting.
+- **Facts & one-shot shipping (`summary["ship"]`, `mint.lenient()`).** `fig.save()` returns computed `facts` per panel plus a `"ship"` verdict that separates real visual defects from minor advisory warnings so agents don't burn extra turns re-rendering good-enough figures. Advisories include `low_density` (a figure taller than 320 px for fewer than eight values: use `density="compact"`, `mint.table` or one sentence) and `scales_differ` (two panels with the same label and unit on different ranges); `print(summary)` shows a compact view, `json.dumps(summary)` the full one. For rapid ad-hoc charts, `with mint.lenient():` / `mint.explain(..., strict=False)` / `mintfig explain --lenient` auto-adjusts soft limits (auto-faceting >4 series, auto-stacking cramped panels, trimming oversized lists) instead of rejecting.
 - **Errors that teach & figures that come back.** Invalid arguments raise `ExplainError` with the exact fix; every PNG embeds its spec so `mint.edit("fig.png", ...)` / `mint.load("fig.png")` rebuilds and refines returned figures without redrawing from memory.
 - **Native data inputs & Unicode.** Dicts, lists, CSV/TSV/JSON/JSONL files (`mint.load_table_file`, `mintfig plot --kind auto`), NumPy arrays, pandas Series and DataFrames, plus direct Unicode symbols (`µm`, `cm⁻³`, `°C`, `χ²`). Full argument reference: [src/mintfig/assets/SKILL.md](https://github.com/blaiszik/mintfig/blob/main/src/mintfig/assets/SKILL.md) (verified by tests against the live API).
 
@@ -129,6 +196,12 @@ Surface **themes (`style=`)** and **color palettes (`palette=`)** change only ae
 | A name keeps one colour across panels | Consistency of visual encoding across views (Qu & Hullman, *IEEE TVCG* 2018) |
 | Series colours separate under deuteranopia, protanopia, and grayscale; text ≥ 4.5:1 contrast | Machado et al. 2009 simulation; WCAG 2 contrast |
 | Text is at least 11 px tall at a 700 px chat column | Legibility floor, measured after layout and reported in the summary |
+| Names in the title take their mark's colour; a stated difference is drawn as a bracket | Integrating words and images (Tufte, *Beautiful Evidence* 2006); readers see what they are cued to compare (Franconeri et al., *Psychological Science in the Public Interest* 2021) |
+| Numbers in a table carry in-cell bars, whiskers or sparklines on one scale per column | Sparklines and table-graphics (Tufte, *Beautiful Evidence*); bullet graphs (Few, *Information Dashboard Design* 2006) |
+| A tall figure with few values is flagged (`low_density`); `density="compact"` tightens it | Data-ink and the shrink principle (Tufte 1983); density (Few 2006) |
+| Panels that share a label and unit share a scale, or `scales_differ` says so | Common scales (Cleveland, *The Elements of Graphing Data* 1985); small multiples (Tufte 1983) |
+| The text fallback never draws a bar for an interval, and gives no percent change from a near-zero start | Lie factor (Tufte 1983) |
+| The HTML page shows values on hover; a briefing opens with one thumbnail per finding, then figures with prose between | Overview first, details on demand (Shneiderman 1996); annotated-chart narrative (Segel & Heer, *IEEE TVCG* 2010); eyes beat memory (Munzner, *Visualization Analysis and Design* 2014) |
 
 ---
 
@@ -141,7 +214,9 @@ Default Matplotlib figures break journal specifications in subtle ways: 6.4" can
 - **Exact physical column widths** — locked PDF MediaBox dimensions with `constrained_layout` and versioned journal spec provenance.
 - **Uniform sans-serif typography & math** — Helvetica/Arial/Liberation Sans/DejaVu Sans for body text and mathtext, Type 42 PDF embedding (`pdf.fonttype = 42`), editable SVG text (`svg.fonttype = "none"`).
 - **Multi-panel `Plate` engine & Tufte primitives** — aligned bold panel labels (`a, b, c` / `A, B, C`), auto-stacked `sig_bracket`, `scalebar`, `direct_labels`, `zoom_inset`, `range_frame`, `ghost_context`, `tufte_boxplot`, `slopegraph`, and `sparkline`.
-- **Hybrid vector/raster & byte-reproducible bundles** — `save_figure(..., rasterize_above=10_000)` keeps axes crisp vector while rasterizing dense scatter/mesh layers; `mintfig run --bundle out/` emits `figure.pdf`, `figure.svg`, `preview.png`, `proof.png` (CVD + grayscale scorecard), `figure.tex`, `figure.json`, `reproduce.py`, and `report.json`.
+- **Hybrid vector/raster & byte-reproducible bundles** — `mint.pub.save_figure(..., rasterize_above=10_000)` keeps axes crisp vector while rasterizing dense scatter/mesh layers; `mintfig run --bundle out/` emits `figure.pdf`, `figure.svg`, `preview.png`, `proof.png` (CVD + grayscale scorecard), `figure.tex`, `figure.json`, `reproduce.py`, and `report.json`.
+
+`mint.Plate` and `mint.figure` stay at the top level; every other publication tool (styling, annotation primitives, journal specs, export, preflight, palettes) lives in `mint.pub`. PDF checks (`mint.pub.preflight_pdf`, `mintfig check`, `mintfig run --bundle`) read PDFs with `pypdf`: `pip install "mintfig[pub]"`.
 
 **[View the Nature, Science, Cell, and NeurIPS publication plates in the Gallery →](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md#publication-figures-mintfigure-mintplate-mintfig-run)** · [8-dimension journal audit](https://github.com/blaiszik/mintfig/blob/main/gallery/benchmark_comparison.md)
 
@@ -171,7 +246,7 @@ def build(journal: str = "nature") -> mint.Plate:
     plate["a"].plot(x, np.exp(-x / 6.0), label="Treated")
     plate["a"].set_xlabel("Time (h)")
     plate["a"].set_ylabel(r"Normalized signal ($\mu\mathrm{M}$)")
-    mint.direct_labels(plate["a"])
+    mint.pub.direct_labels(plate["a"])
     # Plot into plate["b"], plate["c"], plate["d"] ...
     plate.label_panels()
     return plate
@@ -186,6 +261,11 @@ def build(journal: str = "nature") -> mint.Plate:
 mintfig explain spec.json --out fig.png --write-spec
 mintfig explain fig.png --style dark --palette okabe_ito --out fig_dark.png
 mintfig explain --show-spec fig.png
+mintfig doctor                       # which delivery surfaces work here; renders a sample
+
+# Zero-script: plot a data file, then refine the saved figure
+mintfig plot data.csv --kind auto --takeaway "..." --density compact --out fig.png
+mintfig edit fig.png --drop "no augmentation" --no-color-names --out fig2.png
 
 # Publication scripts: execute, preflight (14 rules), and export reproducible bundle
 mintfig run plot.py --journal nature --bundle out/ --json
@@ -204,9 +284,22 @@ Exit codes: `0` clean pass · `1` error-level issue (or warning under `--strict`
 
 ---
 
+## Upgrading from 0.2
+
+0.3.0 is a breaking release: the top level holds only what an agent calls, and there are no aliases. A moved name raises an `AttributeError` that names its new home.
+
+- Publication helpers (annotation primitives, `save_figure`, preflight, journal specs, `apply` / `use`, palettes and colormaps) → `mint.pub.*`, e.g. `mint.pub.direct_labels`. `mint.Plate` and `mint.figure` stay.
+- Themes and explain palettes (`THEMES`, `get_theme`, `EXPLAIN_PALETTES`, ...) → `mint.themes`.
+- `audit_figure`, `audit_layout`, `audit_epistemic`, `build_narrative` → `mint.audit` (they already run inside `explain()`).
+- `install_skill`, `get_skill_markdown`, `get_agents_snippet` → `mint.skill`; the CLI (`mintfig skill --install`) is unchanged.
+- `explain_from_spec(spec)` → `mint.load(spec)`; `render_html` / `render_terminal` / `show_in_terminal` → `fig.to_html()`, `fig.to_text()`, `fig.show()`.
+- `pypdf` is an extra: `pip install "mintfig[pub]"` for PDF checks.
+
+---
+
 ## Benchmarks & Development
 
-- **Chat figure benchmark (`evals/figure_bench/`)**: timed end-to-end benchmark of fresh agents reading only `SKILL.md` across 10 core tasks and 5 held-out tasks with an independent drawn-text layout audit ([evals/figure_bench/README.md](https://github.com/blaiszik/mintfig/blob/main/evals/figure_bench/README.md)).
+- **Chat figure benchmark (`evals/figure_bench/`)**: timed end-to-end benchmark of fresh agents reading only `SKILL.md` across 10 core tasks and 5 held-out tasks with an independent drawn-text layout audit and a delivery check on the agent's reply (the figure in a deliverable form, at most 60 words of prose) ([evals/figure_bench/README.md](https://github.com/blaiszik/mintfig/blob/main/evals/figure_bench/README.md)). Whether readers do better with the figure reply than with text has not been measured yet.
 - **Publication repair eval (`evals/`)**: 10 clean control scripts and 25 messy agent-written scripts testing `mintfig run --json` + `fix_hint` repair loops ([evals/eval_report.md](https://github.com/blaiszik/mintfig/blob/main/evals/eval_report.md)).
 
 ```bash

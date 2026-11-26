@@ -7,7 +7,9 @@ Inspects the actual artists Matplotlib draws during rendering:
   raw ``nan``/``None``/``inf`` tokens)
 
 Used by :func:`mintfig.explain` to gate ``summary["ship"]`` and reusable on
-saved PNGs via :func:`audit_layout`.
+saved PNGs via :func:`audit_layout`. Also re-exports the claim audit
+:func:`audit_epistemic` and :func:`build_narrative` so every audit lives at
+``mintfig.audit``.
 """
 
 from __future__ import annotations
@@ -15,6 +17,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from .epistemic import audit_epistemic, build_narrative
+
+__all__ = ["audit_epistemic", "audit_figure", "audit_layout", "build_narrative"]
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure

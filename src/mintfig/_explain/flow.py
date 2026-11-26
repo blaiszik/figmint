@@ -40,6 +40,7 @@ from .core import (
     _to_float,
     _with_unit,
 )
+from .marks import tag
 
 MAX_FLOW_STAGES = 12
 COMFORTABLE_FLOW_STAGES = 8
@@ -376,7 +377,7 @@ def flow(
                 alpha = 0.92 if idx == 0 else 0.78
 
             if val > 0:
-                ax.barh(
+                tag(ctx, ax.barh(
                     [idx],
                     [val],
                     height=bar_h,
@@ -384,7 +385,7 @@ def flow(
                     alpha=alpha,
                     edgecolor="none",
                     zorder=2,
-                )
+                ).patches[0], name=nm, value=val, unit=unit)
 
             # Value + % of initial label beside bar
             pct_init = 100.0 * val / start_val

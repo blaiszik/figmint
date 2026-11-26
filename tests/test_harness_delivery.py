@@ -75,13 +75,9 @@ class TestInteractiveHtml:
         assert "</html>" in doc
         assert "<svg" in doc
         assert "viewBox=" in doc
-        assert "Facts &amp; Data" in doc
-        assert "Critique / Ask Agent" in doc
-        assert "Download SVG" in doc
-        assert "Copy Spec JSON" in doc
-        assert "mint.edit(" in doc
-        for action in ("highlight", "drop", "zoom", "style", "re-title", "question"):
-            assert f'value="{action}"' in doc
+        for action in ("data", "svg", "spec"):
+            assert f'data-mf-act="{action}"' in doc
+        assert "Critique / Ask Agent" not in doc
 
         # Zero external CDN or remote asset references
         assert not re.search(
@@ -106,8 +102,8 @@ class TestInteractiveHtml:
         assert "<html" not in frag
         assert "<figure" in frag
         assert "<svg" in frag
-        assert "data-fm-drawer-facts" in frag
-        assert "data-fm-drawer-critique" in frag
+        assert 'class="mf-data" hidden' in frag
+        assert "Critique" not in frag
 
     def test_render_html_noninteractive_mode(self) -> None:
         exp = _sample_multi_panel_exp()
@@ -119,7 +115,7 @@ class TestInteractiveHtml:
         assert "<!DOCTYPE html>" in static_doc
         assert "<svg" in static_doc
         assert "<script>" not in static_doc
-        assert "data-fm-drawer-critique" not in static_doc
+        assert "data-mf-act" not in static_doc
 
     def test_light_and_dark_theme_surface_matching(self) -> None:
         light_exp = _sample_multi_panel_exp(style="mintfig")
@@ -131,13 +127,13 @@ class TestInteractiveHtml:
             _close(light_exp)
             _close(dark_exp)
 
-        assert 'data-fm-theme="mintfig"' in light_html
-        assert 'data-fm-mode="light"' in light_html
+        assert 'data-mf-theme="mintfig"' in light_html
+        assert 'data-mf-mode="light"' in light_html
         assert light_exp.theme.background in light_html
         assert light_exp.theme.ink in light_html
 
-        assert 'data-fm-theme="dark"' in dark_html
-        assert 'data-fm-mode="dark"' in dark_html
+        assert 'data-mf-theme="dark"' in dark_html
+        assert 'data-mf-mode="dark"' in dark_html
         assert dark_exp.theme.background in dark_html
         assert dark_exp.theme.ink in dark_html
 
@@ -186,7 +182,7 @@ class TestInteractiveHtml:
         assert "0.42" in doc
         assert "Before vs after tuning" in doc
         assert "Scaling relation" in doc
-        assert "<table class=\"fm-data-table\">" in doc
+        assert "<table class=\"mf-data-table\">" in doc
 
     def test_xss_and_script_breakout_escaping(self) -> None:
         payload = '</script><script>alert("xss")</script>'
@@ -247,7 +243,7 @@ class TestInteractiveHtml:
         assert "<td>v3</td>" in doc
         assert "31" in doc
         assert "18.67" in doc
-        assert '<td class="fm-num">—</td>' in doc  # empty replicate bucket handled cleanly
+        assert '<td class="mf-num">—</td>' in doc  # empty replicate bucket handled cleanly
         assert "per-x replicate means" in doc
 
         # Terminal sparkline summary matches per-x replicate means (31 s -> 18.7 s, -40%)
@@ -270,8 +266,8 @@ class TestInteractiveHtml:
         finally:
             _close(exp)
 
-        assert "max-width: 498px;" in doc
-        assert "max-width: 720px;" not in doc
+        assert "max-width:450px;" in doc
+        assert "max-width:700px;" not in doc
 
 
 class TestTerminalProtocolAndEncoding:
@@ -495,11 +491,11 @@ class TestCliShowAndExplainHtml:
         stdout = capsys.readouterr().out
         summary = json.loads(stdout)
         assert summary["ok"] is True
-        assert summary["rendered"] is True
+        assert summary["deliver"]["html"] is not None
         assert Path(summary["path"]) == out_html.resolve()
 
         content = out_html.read_text(encoding="utf-8")
         assert content.startswith("<!DOCTYPE html>")
         assert "<svg" in content
-        assert "Facts &amp; Data" in content
+        assert 'data-mf-act="data"' in content
         assert out_html.with_suffix(".json").exists()

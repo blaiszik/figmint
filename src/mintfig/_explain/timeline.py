@@ -41,6 +41,7 @@ from .core import (
     _to_float,
     _with_unit,
 )
+from .marks import tag
 
 MAX_TIMELINE_SPANS = 20
 COMFORTABLE_TIMELINE_SPANS = 12
@@ -417,7 +418,7 @@ def timeline(
                 or not focus_mode
             )
             if dur <= 1e-12:
-                ax.scatter(
+                tag(ctx, ax.scatter(
                     [s_v],
                     [idx],
                     marker="D",
@@ -426,10 +427,10 @@ def timeline(
                     edgecolor=theme.background,
                     linewidth=0.6,
                     zorder=4,
-                )
+                ), name=rec["name"], value=s_v, unit=unit)
                 d_txt = "milestone"
             else:
-                ax.barh(
+                tag(ctx, ax.barh(
                     [idx],
                     [dur],
                     left=[s_v],
@@ -437,7 +438,7 @@ def timeline(
                     color=col,
                     edgecolor="none",
                     zorder=3 if is_focus else 2,
-                )
+                ).patches[0], name=rec["name"], value=dur, lo=s_v, hi=e_v, unit=unit)
                 d_txt = _u(dur)
 
             note = ax.annotate(

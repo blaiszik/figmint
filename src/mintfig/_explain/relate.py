@@ -18,16 +18,21 @@ from matplotlib.transforms import Bbox
 from ..annotations import _relax_positions_pt
 from .core import (
     MAX_COLORED_SERIES,
+    MAX_FACETS,
     ExplainError,
     Panel,
     _clean_sign,
     _Ctx,
+    _facet_shape,
+    _FacetGrid,
     _guarded,
+    _is_strict,
     _issue,
     _jsonable,
     _names,
     _narrow_log_ticks,
     _plain,
+    _record_adjustment,
     _reference_line,
     _resolve_x_unit,
     _sig_text,
@@ -36,6 +41,7 @@ from .core import (
     _tick_label,
     _values_array,
 )
+from .marks import tag_points
 
 # --------------------------------------------------------------------------- #
 # relate
@@ -139,6 +145,7 @@ def relate(
     x_unit: str | None = None,
     callouts: Sequence[tuple[Any, float, str]] | None = None,
     regions: Sequence[tuple[Any, Any, str]] | None = None,
+    facet: bool = False,
 ) -> Panel:
     """Do two measures move together? A scatter with both axes named.
 
@@ -154,6 +161,9 @@ def relate(
     ``"upper-right"`` | ``"lower-left"`` | ``"lower-right"``) draws the exact
     non-dominated Pareto frontier envelope and lists frontier items in ``facts``.
     ``reference=(value, "label")`` draws a horizontal line at that y.
+    ``facet=True`` (with ``groups=``, 2-12 groups) draws one small scatter per group
+    on shared x and y axes, the other groups' points in grey behind it; ``fit=True``
+    then fits each facet.
     """
     if not x_label or not y_label:
         raise ExplainError(
@@ -209,7 +219,49 @@ def relate(
             fix_hint='Pass groups aligned with x and y, e.g. groups=["A", "A", "B", ...].',
         )
     group_names = list(dict.fromkeys(point_groups)) if point_groups is not None else []
-    if len(group_names) > MAX_COLORED_SERIES:
+    if facet:
+        blocked = [
+            arg
+            for arg, used in (
+                ("label_all=True", label_all),
+                ("frontier=", frontier_mode is not None),
+                ("connect_groups=True", connect_groups),
+                ("callouts=", bool(callouts)),
+                ("regions=", bool(regions)),
+            )
+            if used
+        ]
+        if facet is not True or not 2 <= len(group_names) or blocked:
+            raise ExplainError(
+                "relate(facet=True) needs groups= with 2-12 groups"
+                + (f" and cannot be combined with {', '.join(blocked)}" if blocked else "")
+                + (f"; got facet={facet!r}" if facet is not True else "")
+                + ".",
+                fix_hint="Pass groups=[...] (one label per point) with facet=True; draw "
+                + ("an unfaceted relate() for " + ", ".join(blocked) if blocked else "one panel")
+                + " otherwise.",
+            )
+        if len(group_names) > MAX_FACETS:
+            if _is_strict():
+                raise ExplainError(
+                    f"relate(facet=True) got {len(group_names)} groups; more than {MAX_FACETS} "
+                    "small multiples is a wall.",
+                    fix_hint=f"Keep at most {MAX_FACETS} groups (merge or filter the rest).",
+                    rule="too_many_series",
+                )
+            kept = set(group_names[:MAX_FACETS])
+            mask = [g in kept for g in point_groups]  # type: ignore[union-attr]
+            xs, ys = xs[np.array(mask)], ys[np.array(mask)]
+            point_groups = [g for g, ok in zip(point_groups, mask, strict=True) if ok]  # type: ignore[arg-type]
+            if point_names is not None:
+                point_names = [nm for nm, ok in zip(point_names, mask, strict=True) if ok]
+            keep = np.isfinite(xs) & np.isfinite(ys)
+            n_dropped = int((~keep).sum())
+            _record_adjustment(
+                f"relate(facet=True): trimmed {len(group_names)} groups to first {MAX_FACETS}"
+            )
+            group_names = group_names[:MAX_FACETS]
+    if len(group_names) > MAX_COLORED_SERIES and not facet:
         raise ExplainError(
             f"relate(groups) has {len(group_names)} groups; more than {MAX_COLORED_SERIES} "
             "colours cannot be told apart or held in mind.",
@@ -231,6 +283,11 @@ def relate(
             )
         else:
             hl = _names(wanted, point_names, "relate(highlight)")
+    if facet and hl:
+        raise ExplainError(
+            "relate(facet=True) highlights groups, not single points.",
+            fix_hint="Pass highlight= with group names (each facet is one group), or drop facet=True.",
+        )
     ref = _reference_line(reference, "relate(reference)")
     spec_points = {
         "x": _jsonable(xs),
@@ -416,10 +473,16 @@ def relate(
             )
         )
 
-    def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
-        sz = ctx.sizes
-        theme = ctx.theme
-        effects = ctx.line_effects()
+    def _point_marks(ctx: _Ctx, artist: Any, idx: Any) -> None:
+        idx = np.flatnonzero(idx) if np.asarray(idx).dtype == bool else np.asarray(idx, dtype=int)
+        tag_points(ctx, artist, xs[idx], ys[idx], [
+            {"name": point_names[i] if point_names else (point_groups[i] if group_names else None),
+             "x": xs[i], "value": ys[i], "unit": y_unit}
+            for i in idx
+        ])
+
+    def _style_axes(ax: Axes, sz: Any, theme: Any) -> None:
+        """Spines, grid, scales, ticks and tick formats of the scatter's axes."""
         if theme.hide_spines:
             for spine in ax.spines.values():
                 spine.set_visible(False)
@@ -469,6 +532,13 @@ def relate(
                 axis.set_major_formatter(
                     FuncFormatter(lambda v, _p, m=minus, a=axis: _tick_label(v, m, a))
                 )
+
+    def _draw(ctx: _Ctx, ax: Axes) -> Callable[[], None] | None:
+        sz = ctx.sizes
+        theme = ctx.theme
+        effects = ctx.line_effects()
+        _style_axes(ax, sz, theme)
+        minus = theme.minus_sign
         ax.set_xlabel(_plain(x_label, theme), fontsize=sz.small, color=theme.muted, labelpad=3)
         alpha = 0.9 if xs.size <= 40 else (0.6 if xs.size <= 250 else 0.32)
         # Points called out: highlighted names, or (without highlight) names coloured
@@ -508,7 +578,7 @@ def relate(
                     if effects is not None:
                         traj_kw["path_effects"] = effects
                     ax.plot(xs[g_idx], ys[g_idx], **traj_kw)
-                ax.scatter(
+                _point_marks(ctx, ax.scatter(
                     xs[mask],
                     ys[mask],
                     s=(4.0 * sz.scale) ** 2,
@@ -517,10 +587,10 @@ def relate(
                     edgecolor=theme.background,
                     linewidth=0.4,
                     zorder=3 if focus_group else 2,
-                )
+                ), mask)
         else:
             base_color = theme.axis if called else ctx.default_color
-            ax.scatter(
+            _point_marks(ctx, ax.scatter(
                 xs[~is_focus],
                 ys[~is_focus],
                 s=(4.0 * sz.scale) ** 2,
@@ -529,14 +599,14 @@ def relate(
                 edgecolor=theme.background,
                 linewidth=0.4,
                 zorder=2,
-            )
+            ), ~is_focus)
         # Plot highlighted point markers before autoscale_view() so log-axis limits
         # never clip an extreme highlighted point off the canvas.
         called_points: list[tuple[str, int, str]] = []
         for i, name in enumerate(called):
             idx = point_names.index(name)  # type: ignore[union-attr]
             col = ctx.colors.get(name, theme.accent_colors[i % len(theme.accent_colors)])
-            ax.scatter(
+            _point_marks(ctx, ax.scatter(
                 [xs[idx]],
                 [ys[idx]],
                 s=(5.4 * sz.scale) ** 2,
@@ -544,7 +614,7 @@ def relate(
                 edgecolor=theme.background,
                 linewidth=0.7,
                 zorder=5,
-            )
+            ), [idx])
             called_points.append((name, idx, col))
         if ref is not None:
             ax.axhline(ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=2)
@@ -818,33 +888,60 @@ def relate(
 
         return _finish
 
+    spec = {
+        "title": title,
+        "unit": unit,
+        "x_unit": x_unit_given,
+        "x": spec_points["x"],
+        "y": spec_points["y"],
+        "x_label": x_label,
+        "y_label": y_label,
+        "names": spec_points["names"],
+        "groups": spec_points["groups"],
+        "highlight": (hl_groups or hl) or None,
+        "fit": fit or None,
+        "frontier": frontier_mode,
+        "label_all": label_all or None,
+        "connect_groups": connect_groups or None,
+        "log_x": log_x or None,
+        "log_y": log_y or None,
+        "reference": list(ref) if ref else None,
+        "regions": regions_spec or None,
+        "callouts": callouts_spec or None,
+    }
+    if facet:
+        spec["facet"] = True
+        return _facet_panel(
+            spec=spec,
+            title=title,
+            y_label=y_label,
+            y_unit=y_unit,
+            x_label=x_label,
+            xs=xs,
+            ys=ys,
+            fx=fx,
+            fy=fy,
+            group_names=group_names,
+            group_masks=group_masks,
+            group_fits=group_fits,
+            hl_groups=hl_groups,
+            fit=fit,
+            log_x=log_x,
+            log_y=log_y,
+            ref=ref,
+            facts=facts,
+            issues=issues,
+            point_names=point_names,
+            style_axes=_style_axes,
+        )
+
     return Panel(
         kind="relate",
         alt_facts=alt_facts,
         title=title,
         label=y_label,
         unit=y_unit,
-        spec={
-            "title": title,
-            "unit": unit,
-            "x_unit": x_unit_given,
-            "x": spec_points["x"],
-            "y": spec_points["y"],
-            "x_label": x_label,
-            "y_label": y_label,
-            "names": spec_points["names"],
-            "groups": spec_points["groups"],
-            "highlight": (hl_groups or hl) or None,
-            "fit": fit or None,
-            "frontier": frontier_mode,
-            "label_all": label_all or None,
-            "connect_groups": connect_groups or None,
-            "log_x": log_x or None,
-            "log_y": log_y or None,
-            "reference": list(ref) if ref else None,
-            "regions": regions_spec or None,
-            "callouts": callouts_spec or None,
-        },
+        spec=spec,
         facts=facts,
         describe=f"Scatter plot of {y_label} against {x_label}, {xs.size} points"
         + (f" in {len(group_names)} groups" if group_names else ""),
@@ -1316,3 +1413,165 @@ def _place_relate_callouts(
             annotation_clip=False,
         )
         taken.append(final_bb)
+
+
+def _facet_panel(
+    *,
+    spec: dict[str, Any],
+    title: str | None,
+    y_label: str,
+    y_unit: str | None,
+    x_label: str,
+    xs: np.ndarray,
+    ys: np.ndarray,
+    fx: np.ndarray,
+    fy: np.ndarray,
+    group_names: list[str],
+    group_masks: dict[str, np.ndarray],
+    group_fits: dict[str, tuple[float, float, float]],
+    hl_groups: list[str],
+    fit: bool,
+    log_x: bool,
+    log_y: bool,
+    ref: tuple[float, str] | None,
+    facts: list[str],
+    issues: list[dict[str, Any]],
+    point_names: list[str] | None,
+    style_axes: Callable[[Axes, Any, Any], None],
+) -> Panel:
+    """``relate(facet=True)``: one small scatter per group on shared x and y axes, every
+    other group's points in grey behind it, a fitted line per facet with ``fit=True``."""
+    colored = len(group_names) <= MAX_COLORED_SERIES
+    finite_r = {g: group_fits[g][0] for g in group_names if math.isfinite(group_fits[g][0])}
+    cross: str | None = None
+    if len(finite_r) >= 2:
+        hi_g = max(finite_r, key=lambda g: finite_r[g])
+        lo_g = min(finite_r, key=lambda g: finite_r[g])
+        cross = (
+            f"r ranges from {_r_text(finite_r[lo_g])} ({lo_g}) to {_r_text(finite_r[hi_g])} "
+            f"({hi_g}) across {len(group_names)} groups"
+        )
+        if fit:
+            slopes = {g: group_fits[g][1] for g in group_names if math.isfinite(group_fits[g][1])}
+            up = [g for g, m in slopes.items() if m > 0]
+            down = [g for g, m in slopes.items() if m < 0]
+            if up and down:
+                cross += (
+                    f"; the fitted slope is positive in {', '.join(up)} and negative in "
+                    f"{', '.join(down)}"
+                )
+            elif slopes:
+                cross += f"; the fitted slope is {'positive' if up else 'negative'} in every group"
+    facts = ([cross] if cross else []) + facts
+    alt_facts = facts[: min(len(group_names) + 1, 6)]
+
+    def _shape(cell_w_mm: float) -> tuple[int, int]:
+        return _facet_shape(len(group_names), cell_w_mm, min_mm=34.0, balance=True)
+
+    def _height(w: float, _m: Any, sizes: Any, _t: Any) -> float:
+        nrows = _shape(w)[0]
+        return nrows * (26.0 if sizes.compact else 30.0) + (nrows - 1) * 4.5 + 5.0
+
+    def _min_height(w: float, _m: Any, _s: Any, _t: Any) -> float:
+        nrows = _shape(w)[0]
+        return nrows * 24.0 + (nrows - 1) * 4.5 + 5.0
+
+    def _frames(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
+        sz = ctx.sizes
+        theme = ctx.theme
+        effects = ctx.line_effects()
+        _nr, ncols = _shape(ctx.cell_width_mm)
+        grid = _FacetGrid(ctx, ax, rect, len(group_names), ncols, share="xy", rows=True)
+        hl_index = {g: i for i, g in enumerate(hl_groups)}
+        colors: dict[str, str] = {}
+        for i, g in enumerate(group_names):
+            if hl_groups:
+                fallback = theme.accent_colors[hl_index[g]] if g in hl_index else ctx.default_color
+                colors[g] = ctx.colors.get(g, fallback) if g in hl_index else theme.axis
+            elif colored:
+                colors[g] = ctx.colors.get(g, theme.series_colors[i])
+            else:
+                colors[g] = ctx.colors.get(g, ctx.default_color)
+        size = (3.4 * sz.scale) ** 2
+        labelled = False
+        for idx, g in enumerate(group_names):
+            child, _sub = grid.cell(idx)
+            style_axes(child, sz, theme)
+            mask = group_masks[g]
+            child.scatter(xs[~mask], ys[~mask], s=size, color=theme.context_fill, alpha=0.8,
+                          linewidth=0, zorder=1)
+            focus = not hl_groups or g in hl_index
+            dots = child.scatter(xs[mask], ys[mask], s=size, color=colors[g], alpha=0.9,
+                                 edgecolor=theme.background, linewidth=0.4, zorder=3)
+            idx_g = np.flatnonzero(mask)
+            tag_points(ctx, dots, xs[idx_g], ys[idx_g], [
+                {"name": point_names[i] if point_names else g, "x": xs[i], "value": ys[i],
+                 "unit": y_unit}
+                for i in idx_g
+            ])
+            g_r, g_m, g_b = group_fits[g]
+            if fit and math.isfinite(g_m):
+                gx = np.linspace(fx[mask].min(), fx[mask].max(), 50)
+                gy = g_m * gx + g_b
+                fit_kw: dict[str, Any] = {"color": theme.ink if not focus else colors[g],
+                                          "linewidth": 1.0 * sz.scale, "zorder": 4, "label": "_fit"}
+                if effects is not None:
+                    fit_kw["path_effects"] = effects
+                child.plot(10**gx if log_x else gx, 10**gy if log_y else gy, **fit_kw)
+            if ref is not None:
+                child.axhline(ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=2)
+            show_x = grid.last_in_column(idx)
+            child.tick_params(axis="y", labelleft=(idx % ncols == 0))
+            child.tick_params(axis="x", labelbottom=show_x)
+            if show_x and not labelled:
+                child.set_xlabel(_plain(x_label, theme), fontsize=sz.small, color=theme.muted,
+                                 labelpad=3)
+                labelled = True
+            head = f"{g}  r = {_r_text(g_r)}" if math.isfinite(g_r) else g
+            child.set_title(_plain(head, theme), loc="left", fontsize=sz.small,
+                            fontweight="bold" if focus else "normal",
+                            color=ctx.text_color(colors[g]) if (focus and (hl_groups or colored))
+                            else theme.ink, pad=3.0)
+        first = grid.frames[0][0]
+        minus = theme.minus_sign
+        for axis, is_log, vals in ((first.xaxis, log_x, xs), (first.yaxis, log_y, ys)):
+            extra = [ref[0]] if (ref is not None and axis is first.yaxis) else []
+            lo_v, hi_v = float(min([vals.min(), *extra])), float(max([vals.max(), *extra]))
+            setter = first.set_xlim if axis is first.xaxis else first.set_ylim
+            if is_log:
+                pad = (hi_v / lo_v) ** 0.05 if hi_v > lo_v else 1.5
+                setter(*_narrow_log_ticks(axis, lo_v / pad, hi_v * pad, minus, extend=False,
+                                          data_hi=hi_v))
+            else:
+                span = (hi_v - lo_v) or abs(hi_v) or 1.0
+                setter(lo_v - 0.05 * span, hi_v + 0.05 * span)
+                axis.set_major_locator(MaxNLocator(nbins=3, steps=[1, 2, 2.5, 5, 10]))
+        ctx.finishers.append(grid.equalize)
+        return grid.frames
+
+    notes = [nt for nt in (
+        "grey: the other groups",
+        "lines: least-squares fit per group" if fit else None,
+        f"dashed: {ref[1] or 'reference'} {_sig_text(ref[0])}" if ref else None,
+    ) if nt]
+    return Panel(
+        kind="relate",
+        alt_facts=alt_facts,
+        title=title,
+        label=y_label,
+        unit=y_unit,
+        spec=spec,
+        facts=facts,
+        describe=f"Small-multiple scatter plots of {y_label} against {x_label}, one per group for "
+        f"{len(group_names)} groups on shared axes, {xs.size} points",
+        issues=issues,
+        _height_mm=_height,
+        _min_height_mm=_min_height,
+        _draw=lambda _ctx, _ax: None,
+        _frames=_frames,
+        measure_note="; ".join(notes),
+        color_items=tuple(group_names),
+        color_focus=tuple(hl_groups or (group_names if colored else [])),
+        color_mode="highlight" if hl_groups else ("series" if colored else "uniform"),
+        uses_default=not hl_groups and not colored,
+    )

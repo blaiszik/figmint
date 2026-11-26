@@ -11,7 +11,7 @@ import mintfig as mint
 def build() -> mint.Plate:
     plate = mint.Plate(journal="nature", width="single", height_mm=66.0, layout=(1, 1))
     ax = plate["a"]
-    colors = mint.get_palette("nature")
+    colors = mint.pub.get_palette("nature")
     t = np.linspace(0, 60, 60)
     s_hi = np.exp(-t / 52.0)
     s_lo = np.exp(-t / 24.0)

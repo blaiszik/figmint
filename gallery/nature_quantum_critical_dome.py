@@ -291,7 +291,7 @@ def panel_phase_diagram(ax: mpl.axes.Axes) -> None:
     ax.set_ylabel("Temperature (K)")
 
     cbar = ax.figure.colorbar(mesh, ax=ax, fraction=0.045, pad=0.025, aspect=22)
-    mint.style_colorbar(cbar, label=r"Resistivity exponent, $\mathit{n}$")
+    mint.pub.style_colorbar(cbar, label=r"Resistivity exponent, $\mathit{n}$")
     cbar.set_ticks([1.0, 1.5, 2.0])
     cbar.ax.invert_yaxis()
 

@@ -27,7 +27,7 @@ def build() -> mint.Plate:
     for sp in ax.spines.values():
         sp.set_visible(True)
         sp.set_linewidth(0.5)
-    mint.scalebar(ax, length=40.0, unit="µm", pixel_size=1.0, location="lower right", color="white", fontsize=6.0)
+    mint.pub.scalebar(ax, length=40.0, unit="µm", pixel_size=1.0, location="lower right", color="white", fontsize=6.0)
     cbar = plate.fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
-    mint.style_colorbar(cbar, label="Intensity (a.u.)", tick_pt=5.5)
+    mint.pub.style_colorbar(cbar, label="Intensity (a.u.)", tick_pt=5.5)
     return plate

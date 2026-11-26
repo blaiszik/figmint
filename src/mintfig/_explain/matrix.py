@@ -35,6 +35,7 @@ from .core import (
     _to_float,
     _with_unit,
 )
+from .marks import tag_points
 
 # --------------------------------------------------------------------------- #
 # matrix
@@ -435,13 +436,18 @@ def matrix(
         rgb = np.where(hidden_mask[..., None], bg_rgb, rgb)
 
         _bare_axes(ax)
-        ax.imshow(
+        heat = ax.imshow(
             rgb,
             aspect="auto",
             interpolation="nearest",
             zorder=1,
             extent=(-0.5, n_cols - 0.5, n_rows - 0.5, -0.5),
         )
+        shown = [(i, j) for (i, j), v in np.ndenumerate(grid)
+                 if not hidden_mask[i, j] and not diag_mask[i, j] and math.isfinite(v)]
+        tag_points(ctx, heat, [j for _, j in shown], [i for i, _ in shown],
+                   [{"name": row_names[i], "x": col_names[j], "value": grid[i, j], "unit": unit}
+                    for i, j in shown], box=(0.5, 0.5))
         divider_col = theme.ink if theme.sketch is not None else theme.background
         divider_lw = 0.8 if theme.sketch is not None else 1.6
         if triangle is None or theme.sketch is None:

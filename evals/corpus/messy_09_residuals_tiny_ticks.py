@@ -12,7 +12,7 @@ def build() -> mint.Plate:
     rng = np.random.default_rng(209)
     plate = mint.Plate(journal="science", width="double", height_mm=72.0, layout=(1, 1))
     ax = plate["A"]
-    colors = mint.get_palette("science")
+    colors = mint.pub.get_palette("science")
     fitted = np.linspace(1.0, 10.0, 90)
     resid = rng.normal(0.0, 0.45, 90)
     ax.axhline(0.0, ls="--", color="#6B7280", lw=0.5)

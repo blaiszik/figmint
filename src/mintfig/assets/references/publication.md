@@ -2,6 +2,8 @@
 
 Use this workflow when generating manuscript or report plates for *Nature*, *Science*, *Science Advances*, *Cell*, PNAS, NeurIPS, or screen review.
 
+`mint.Plate` and `mint.figure` are top-level; every other publication tool (styling, annotation primitives, journal specs, export, preflight, palettes) lives in `mint.pub`. PDF checks (`--bundle`, `mintfig check`, `mint.pub.preflight_pdf`) need `pip install "mintfig[pub]"`.
+
 ## Standard Agent Workflow
 
 1. Write a self-contained Python plotting script (`plot.py`) following the **Script Contract** below.
@@ -40,7 +42,7 @@ def build(journal: str = "nature") -> mint.Plate:
     plate["a"].plot(x, np.exp(-x / 6.0), label="Treated")
     plate["a"].set_xlabel("Time (h)")
     plate["a"].set_ylabel(r"Signal ($\mu\mathrm{M}$)")
-    mint.direct_labels(plate["a"])
+    mint.pub.direct_labels(plate["a"])
 
     rng = np.random.default_rng(0)
     plate["b"].scatter(rng.normal(size=200), rng.normal(size=200), s=8, alpha=0.7)
@@ -65,9 +67,9 @@ def build(journal: str = "nature") -> mint.Plate:
 
 ## Tufte & Editorial Visual Grammar
 
-- **Small multiples over spaghetti:** for `> 4` curves, split into shared-axis small multiples with `mint.ghost_context(...)`.
-- **High-density comparative forms:** `mint.slopegraph(...)`, `mint.sparkline(...)`, `mint.tufte_boxplot(...)`.
-- **Maximize data-ink & trim spines:** `mint.range_frame(ax, rug=True)`, unboxed legends (`frameon=False`), `mint.direct_labels(ax)`, and `mint.emphasize(ax, keep=...)`.
+- **Small multiples over spaghetti:** for `> 4` curves, split into shared-axis small multiples with `mint.pub.ghost_context(...)`.
+- **High-density comparative forms:** `mint.pub.slopegraph(...)`, `mint.pub.sparkline(...)`, `mint.pub.tufte_boxplot(...)`.
+- **Maximize data-ink & trim spines:** `mint.pub.range_frame(ax, rug=True)`, unboxed legends (`frameon=False`), `mint.pub.direct_labels(ax)`, and `mint.pub.emphasize(ax, keep=...)`.
 - **Micro/macro layering:** keep large fills and CI ribbons pale (`alpha <= 0.14`); reserve saturated ink for focal findings.
 - **Graphical integrity:** start positive bar charts at zero; scale bubble markers by area (`s ∝ value`); always show uncertainty and sample size `n`.
 

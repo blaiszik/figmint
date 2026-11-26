@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -95,7 +96,7 @@ class TestAuditAndShipGate:
         assert summary["ship"] is True
         assert summary["issues"] == []
 
-        audit = mint.audit_layout(png)
+        audit = mint.audit.audit_layout(png)
         assert audit["overlaps"] == []
         assert audit["struck"] == []
         assert audit["text_faults"] == []
@@ -382,7 +383,7 @@ class TestTableForm:
 
         loaded = mint.load(png)
         assert loaded.to_spec() == fig.to_spec()
-        rebuilt = mint.explain_from_spec(loaded.to_spec())
+        rebuilt = mint.load(loaded.to_spec())
         assert rebuilt.summary()["ship"] is True
 
     def test_table_lenient_auto_stacks_when_cramped(self) -> None:
@@ -413,12 +414,15 @@ class TestSkillProgressiveAndCursor:
         assert "pip install" in md
         assert "mint.table" in md
         chat_part = md[: md.index("## Publication Figures")]
-        # Was 23,890 bytes (~6k tokens); should stay lean (<11k bytes)
-        assert len(chat_part.encode("utf-8")) < 11_000
+        # Was 23,890 bytes (~6k tokens); should stay lean. The cap rose from 11k to 12k
+        # in 0.3.0 for step 5 (how to put the figure in front of the reader).
+        assert len(chat_part.encode("utf-8")) < 12_000
 
         refs = get_skill_references()
-        assert "scientific_and_recipes.md" in refs
-        assert "publication.md" in refs
+        assert {"science.md", "recipes.md", "publication.md"} <= set(refs)
+        # Every reference SKILL.md points at is bundled.
+        for name in re.findall(r"`references/([a-z_]+\.md)`", md):
+            assert name in refs, name
 
     def test_cursor_mdc_covers_chat_and_tables(self) -> None:
         mdc = _build_cursor_mdc(get_skill_markdown())
@@ -437,5 +441,10 @@ class TestSkillProgressiveAndCursor:
             tmp_path / ".codex/skills/mintfig",
         ):
             assert (base / "SKILL.md").exists()
-            assert (base / "references/scientific_and_recipes.md").exists()
-            assert (base / "references/publication.md").exists()
+            for name in ("science.md", "recipes.md", "publication.md"):
+                assert (base / "references" / name).exists()
+        # Cursor reads only the rule, so its pointers must resolve from the project root.
+        mdc = (tmp_path / ".cursor/rules/mintfig.mdc").read_text(encoding="utf-8")
+        for rel in re.findall(r"`(\.cursor/rules/mintfig/references/[a-z_]+\.md)`", mdc):
+            assert (tmp_path / rel).exists(), rel
+        assert "`references/" not in mdc

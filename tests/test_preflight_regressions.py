@@ -294,7 +294,7 @@ class TestVectorFontsLiveRcParams:
         assert check.status == "pass"
 
     def test_untagged_figure_after_use_context_warns_honestly(self, tmp_path: Path) -> None:
-        # Mirrors evals/corpus/messy_11: built inside mint.use(), checked after exit.
+        # Mirrors evals/corpus/messy_11: built inside mint.pub.use(), checked after exit.
         with use("nature"):
             fig, ax = plt.subplots(figsize=(mm_to_in(89.0), mm_to_in(58.0)), layout="constrained")
             ax.plot([0, 1], [0, 1])
@@ -310,7 +310,7 @@ class TestVectorFontsLiveRcParams:
         assert check.details["basis"] == "current_rcparams"
         # ...and it says plainly that mintfig's exporters force Type 42.
         assert "plain fig.savefig" in check.message
-        assert "mint.save_figure" in check.message
+        assert "mint.pub.save_figure" in check.message
         assert check.fix_hint and "No plotting change needed" in check.fix_hint
         assert check.elements == ["pdf.fonttype=3 (expected 42)", "svg.fonttype='path' (expected 'none')"]
         assert _check_by_rule(preflight_pdf(pdf_path, "nature"), "vector_fonts").status == "pass"
@@ -380,7 +380,7 @@ def _rule(report, rule):
 def test_direct_labels_bounds_a_full_width_reference_line():
     plate, ax = _dose_axes()
     ref = ax.axhline(50.0, linestyle="--", linewidth=0.5)
-    mint.direct_labels(ax, expand_xlim=0.34)
+    mint.pub.direct_labels(ax, expand_xlim=0.34)
     ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
     xs = ref.get_xdata()
     assert np.isclose(min(xs), 7e-4) and np.isclose(max(xs), 1.4e2)
@@ -389,7 +389,7 @@ def test_direct_labels_bounds_a_full_width_reference_line():
 
 def test_reference_line_past_a_trimmed_axis_fails_preflight():
     plate, ax = _dose_axes()
-    mint.direct_labels(ax, expand_xlim=0.34)
+    mint.pub.direct_labels(ax, expand_xlim=0.34)
     ax.spines["bottom"].set_bounds(7e-4, 1.4e2)
     ax.axhline(50.0, linestyle="--", linewidth=0.5)  # drawn after: spans the label gutter
     result = _rule(plate.preflight(), "line_past_axis")

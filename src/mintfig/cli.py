@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import textwrap
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -210,6 +211,50 @@ def _format_inspect_text(info: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _add_summary_arg(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--summary",
+        choices=("compact", "full"),
+        default="compact",
+        dest="summary_view",
+        help="Summary printed to stdout: compact (default; ok, ship, path, takeaway, deliver, "
+        "issues, top facts) or full (every key).",
+    )
+
+
+def _add_density_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--density",
+        choices=("regular", "compact"),
+        default=None,
+        help="Layout density: regular (default) or compact (thinner bars, tighter rows and gaps).",
+    )
+    parser.add_argument(
+        "--no-color-names",
+        action="store_false",
+        dest="color_names",
+        default=None,
+        help="Do not draw entity names in titles in their series colour.",
+    )
+
+
+def _density_overrides(args: argparse.Namespace) -> dict[str, Any]:
+    """``density`` / ``color_names`` given on the command line, as explain() keywords."""
+    out: dict[str, Any] = {}
+    if args.density is not None:
+        out["density"] = args.density
+    if args.color_names is not None:
+        out["color_names"] = args.color_names
+    return out
+
+
+def _print_summary(summary: Any, view: str = "compact") -> None:
+    if view == "full":
+        print(json.dumps(dict(summary), indent=2, ensure_ascii=False))
+    else:
+        print(summary)
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="mintfig",
@@ -364,6 +409,8 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print an example spec to stdout and exit.",
     )
+    _add_density_args(explain_parser)
+    _add_summary_arg(explain_parser)
 
     # `mintfig show <path_or_spec> [--mode auto|kitty|iterm2|unicode|ascii] [--width 78] [--no-color]`
     show_parser = subparsers.add_parser(
@@ -496,6 +543,8 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_parser.add_argument("--mask-diagonal", action="store_true", help="Mask self-diagonal (matrix).")
     plot_parser.add_argument("--lenient", "--no-strict", action="store_true", dest="lenient", help="Auto-adjust soft limits.")
     plot_parser.add_argument("--write-spec", action="store_true", help="Also write <out>.json spec.")
+    _add_density_args(plot_parser)
+    _add_summary_arg(plot_parser)
 
     # `mintfig brief <fig1.png|spec1.json> [<fig2.png> ...] --title "..." --out report.html|report.md`
     brief_parser = subparsers.add_parser(
@@ -519,6 +568,11 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     brief_parser.add_argument("--source", default=None, help="Briefing footer source.")
     brief_parser.add_argument("--style", default=None, help="Optional theme override for HTML styling.")
+    brief_parser.add_argument(
+        "--intro",
+        default=None,
+        help="Opening paragraph, placed after the findings overview and before the first figure.",
+    )
 
     # `mintfig edit <fig.png|spec.json> [flags] --out out.png`
     edit_parser = subparsers.add_parser(
@@ -557,6 +611,23 @@ def _build_parser() -> argparse.ArgumentParser:
     edit_parser.add_argument("--drop-panel", default=None, help="Drop an entire panel by key (e.g. 'b').")
     edit_parser.add_argument("--lenient", "--no-strict", action="store_true", dest="lenient", help="Auto-adjust soft limits.")
     edit_parser.add_argument("--write-spec", action="store_true", help="Also write <out>.json spec.")
+    _add_density_args(edit_parser)
+    _add_summary_arg(edit_parser)
+
+    # `mintfig doctor [--json] [--out DIR]`
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Report which delivery surfaces work here and render a sample figure.",
+    )
+    doctor_parser.add_argument(
+        "--json", action="store_true", dest="as_json", help="Output the report as JSON."
+    )
+    doctor_parser.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="Directory for the sample figure (default: a new temporary directory, kept).",
+    )
 
     # `mintfig skill [--install] [--target ...] [--root .] [--print] [--snippet]`
     skill_parser = subparsers.add_parser(
@@ -666,29 +737,15 @@ def _run_explain(args: argparse.Namespace) -> int:
         spec = {**spec, "palette": args.palette}
     if getattr(args, "accent", None) is not None:
         spec = {**spec, "accent": args.accent}
+    spec = {**spec, **_density_overrides(args)}
     try:
         explanation = explain_from_spec(spec, strict=not args.lenient)
     except ExplainError as exc:
         return _reject(exc.message, exc.fix_hint, exc.rule)
     except (KeyError, TypeError, ValueError) as exc:
         return _reject(str(exc), "See `mintfig explain --example` for the expected shape.")
-    if args.out.suffix.lower() in {".html", ".htm"}:
-        from .interactive import render_html
-
-        out_path = Path(args.out)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(render_html(explanation, interactive=True), encoding="utf-8")
-        explanation.saved_path = out_path.resolve()
-        explanation.saved_px = None
-        if args.write_spec:
-            out_path.with_suffix(".json").write_text(
-                json.dumps(explanation.to_spec(), indent=2, ensure_ascii=False) + "\n",
-                encoding="utf-8",
-            )
-        summary = explanation.summary()
-    else:
-        summary = explanation.save(args.out, write_spec=args.write_spec)
-    print(summary)
+    summary = explanation.save(args.out, write_spec=args.write_spec)
+    _print_summary(summary, args.summary_view)
     return 0 if summary["ok"] else 1
 
 
@@ -727,24 +784,11 @@ def _emit_explanation(
     show: bool,
     show_mode: str,
     show_width: int,
+    summary_view: str = "compact",
 ) -> int:
     """Save ``explanation`` to ``out`` (PNG/SVG/PDF/HTML) and/or render to terminal."""
     if out is not None:
-        if out.suffix.lower() in {".html", ".htm"}:
-            from .interactive import render_html
-
-            out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(render_html(explanation, interactive=True), encoding="utf-8")
-            explanation.saved_path = out.resolve()
-            explanation.saved_px = None
-            if write_spec:
-                out.with_suffix(".json").write_text(
-                    json.dumps(explanation.to_spec(), indent=2, ensure_ascii=False) + "\n",
-                    encoding="utf-8",
-                )
-            summary = explanation.summary()
-        else:
-            summary = explanation.save(out, write_spec=write_spec)
+        summary = explanation.save(out, write_spec=write_spec)
     else:
         summary = explanation.summary()
 
@@ -753,7 +797,7 @@ def _emit_explanation(
 
         print(show_in_terminal(explanation, mode=show_mode, width=show_width))
     else:
-        print(summary)
+        _print_summary(summary, summary_view)
     return 0 if summary["ok"] else 1
 
 
@@ -1023,6 +1067,7 @@ def _run_plot(args: argparse.Namespace) -> int:
                 accent=args.accent,
                 width=_parse_width_arg(args.width) or "chat",
                 strict=not args.lenient,
+                **_density_overrides(args),
             )
     except ExplainError as exc:
         return _reject(exc.message, exc.fix_hint, exc.rule)
@@ -1036,6 +1081,7 @@ def _run_plot(args: argparse.Namespace) -> int:
         show=args.show,
         show_mode=args.show_mode,
         show_width=args.show_width,
+        summary_view=args.summary_view,
     )
 
 
@@ -1112,6 +1158,7 @@ def _run_edit(args: argparse.Namespace) -> int:
             kwargs["keep"] = keeps
         if args.drop_panel is not None:
             kwargs["drop_panel"] = args.drop_panel
+        kwargs.update(_density_overrides(args))
 
         explanation = _edit(args.figure_path, **kwargs)
     except ExplainError as exc:
@@ -1126,6 +1173,7 @@ def _run_edit(args: argparse.Namespace) -> int:
         show=args.show,
         show_mode=args.show_mode,
         show_width=args.show_width,
+        summary_view=args.summary_view,
     )
 
 
@@ -1147,6 +1195,7 @@ def _run_brief(args: argparse.Namespace) -> int:
     try:
         report = _brief(
             args.title,
+            *([args.intro] if args.intro else []),
             *args.figures,
             subtitle=args.subtitle,
             summary=args.summary,
@@ -1164,6 +1213,73 @@ def _run_brief(args: argparse.Namespace) -> int:
         return 2
     print(json.dumps(meta, indent=2, ensure_ascii=False))
     return 0 if meta["ship_all"] else 1
+
+
+def _run_doctor(args: argparse.Namespace) -> int:
+    """Report the delivery surfaces available here and render the example spec."""
+    import tempfile
+
+    import matplotlib.pyplot as plt
+
+    from . import style as _style
+    from .explainer import EXAMPLE_SPEC, explain_from_spec
+    from .terminal import detect_graphics_protocol, in_notebook
+
+    out_dir = Path(args.out) if args.out is not None else Path(tempfile.mkdtemp(prefix="mintfig-doctor-"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fig = explain_from_spec(EXAMPLE_SPEC)
+    try:
+        fig.save(out_dir / "example.png")
+        summary = fig.save(out_dir / "example.html")
+    finally:
+        plt.close(fig.fig)
+    theme = fig.theme
+    font = (
+        _style._resolve_font_tuple(theme.body_family)
+        if theme.body_family
+        else _style.resolved_font_name(fig.spec)
+    )
+    protocol = detect_graphics_protocol()
+    tty = sys.stdout.isatty()
+    surfaces = {
+        "inline_image_protocol": protocol if protocol in {"kitty", "iterm2"} else None,
+        "body_font": font,
+        "stdout_is_tty": tty,
+        "notebook": in_notebook(),
+    }
+    if surfaces["notebook"]:
+        show_uses = "notebook display"
+    elif surfaces["inline_image_protocol"] and tty:
+        show_uses = f"inline PNG ({protocol})"
+    else:
+        show_uses = "plain text (fig.to_text())"
+    report = {
+        "surfaces": surfaces,
+        "show_uses": show_uses,
+        "out_dir": str(out_dir.resolve()),
+        "deliver": summary["deliver"],
+    }
+    if args.as_json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return 0
+    yes_no = {True: "yes", False: "no"}
+    print("mintfig doctor")
+    print(f"  inline image protocol: {surfaces['inline_image_protocol'] or 'none'}")
+    print(f"  body font:             {font}")
+    print(f"  stdout is a terminal:  {yes_no[tty]}")
+    print(f"  notebook:              {yes_no[surfaces['notebook']]}")
+    print(f"  fig.show() uses:       {show_uses}")
+    kept = "" if args.out is not None else " (temporary folder, kept; delete it when done)"
+    print(f"  sample written to:     {out_dir.resolve()}{kept}")
+    deliver = summary["deliver"]
+    print()
+    print("deliver:")
+    print(f"  markdown: {deliver['markdown']}")
+    print(f"  caption:  {deliver['caption']}")
+    print(f"  html:     {deliver['html']}")
+    print("  text:")
+    print(textwrap.indent(deliver["text"], "    "))
+    return 0
 
 
 def _rerun_with_fixed_hash_seed() -> int | None:
@@ -1274,6 +1390,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "brief":
         return _run_brief(args)
+
+    if args.command == "doctor":
+        return _run_doctor(args)
 
     if args.command == "skill":
         if args.snippet:

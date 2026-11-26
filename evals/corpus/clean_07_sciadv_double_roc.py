@@ -16,7 +16,7 @@ def build() -> mint.Plate:
         layout=[["A", "B"]],
         gap_mm=10.0,
     )
-    colors = mint.get_palette("science")
+    colors = mint.pub.get_palette("science")
     x = np.linspace(0, 1, 150)
 
     # A: ROC

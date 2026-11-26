@@ -4,6 +4,7 @@ Written 2026-11-24 at the end of the review-and-fix pass, updated after a
 second pass on agent usability (section 4b), a third pass with figure-bench
 (section 4c), and a fourth pass reviewing the benchmark work, adding a full
 GitHub gallery and fixing newly discovered agent rough edges (section 4d).
+Latest: the 2026-11-25 presentation-layer pass and 0.3.0 API break (section 4l).
 Self-contained: you do not need the previous conversations.
 
 ## 1. What this project is for
@@ -26,7 +27,8 @@ Self-contained: you do not need the previous conversations.
 - Repository: `https://github.com/blaiszik/mintfig`, branch `main`, MIT. The
   owner asked for all three passes to be committed and pushed; ask before committing
   or pushing in a later pass unless told.
-- Package `mintfig` 0.2.0, Python >= 3.10, `uv`-managed `.venv`.
+- Package `mintfig` 0.3.0 (uncommitted at the end of section 4l; 0.2.1 is the last
+  commit), Python >= 3.10, `uv`-managed `.venv`.
 - **The name `mintfig` is taken on PyPI.** The owner will choose a distribution
   name; nothing is renamed yet. Free on 2026-11-24 (checked against the PyPI
   JSON API): `mintfig`, `plotmint`, `figsay`, `figtell`, `figwise`, `figproof`,
@@ -604,6 +606,105 @@ Three structural improvements aimed at how agents actually communicate with huma
      plus `06_investigation_brief.html` and `06_investigation_brief.md`) and
      documented them in `gallery/README.md`.
 
+## 4l. Eleventh pass (2026-11-25): the presentation layer, and 0.3.0
+
+Plan and evidence: `PRESENTATION_PLAN.md` (rendered findings, per-surface rules,
+sources). Done in three waves of delegated lanes, reviewed by the main session;
+nothing committed. By plan phase:
+
+1. **Last mile.** `summary["deliver"]` (`markdown` image line with a cwd-relative
+   path, `caption` = the facts that print the takeaway's numbers, `text` = plain
+   rendering for a code block, `html`), additive under schema 0.2. `print(summary)`
+   is a compact view; the CLI's `--summary full` prints everything. `fig.show()`,
+   `fig.to_text()`, `mintfig doctor` (without `--out` it keeps its temporary
+   folder and says so). `SKILL.md` step 5 "Put it in front of the reader". The
+   text surface draws intervals as `├──●──┤` on one axis, shares one y range across
+   sparklines, gives no percent change from a near-zero start, and is checked by
+   `terminal.audit_text_surface`.
+2. **HTML.** Layouts at 360 px, 450 px and the figure's own width (a width in mm
+   now embeds its own width plus the smaller ones), switched by a container query;
+   light and dark from one file via CSS variables (an explicit style keeps its own
+   colours); every mark carries `data-mf` with value, interval and n on hover or
+   focus, and a click copies a citation; the toolbar became one `data · svg · spec`
+   line. `render_html_fragment(facts=False, caption=, responsive=False)` serves
+   pages that hold several figures.
+3. **Figure.** Entity names drawn in their colour in titles (`color_names=`);
+   `compare(show_delta="auto")` brackets a difference the takeaway states; one
+   colour per entity everywhere; "pts" on percent-axis deltas; `density="compact"`,
+   the `low_density` advisory, `display.height_px`, trend banking toward 45°;
+   `mint.table(bars=, interval=, interval_label=, spark=)`; `facet=` on more forms
+   and the `scales_differ` advisory (lane F, wave 3). Table "vs baseline" facts on
+   a `%` column are in points.
+4. **Briefing.** `mint.brief(title, "prose", fig, "## Section", fig, ...)`; a row of
+   static thumbnails first (one layout each); one caption per figure, placed under
+   the figure; facts once, in a collapsed "Numbers behind this figure" block (the
+   figure's own data drawer leaves them out); the takeaway heading stays in the
+   outline but is visually hidden because the figure draws it; no extra source
+   line in HTML (the figure draws it); print stylesheet; `mf-` class prefix;
+   Markdown image paths with spaces or parentheses wrapped in `<...>`.
+5. **API.** Top level cut from 91 names to 31 (`__all__`, counting `__version__` and
+   `inline`), clean break, no shims: a moved name
+   raises `AttributeError` naming its new home (`mint.pub`, `mint.themes`,
+   `mint.audit`, `mint.skill`, `mint.load(spec)`, `fig.to_html()` / `to_text()` /
+   `show()`). `pypdf` is the `mintfig[pub]` extra. README, `SKILL.md`, gallery
+   scripts and `evals/corpus` moved to the new names.
+6. **Proof.** figure-bench's delivery check: `submit --reply reply.md`, check
+   `reply_delivers_figure` (the `deliver.markdown` image or `deliver.text` in a
+   fence, at most 60 words of prose), reported beside the checks and in `grade`;
+   it does not gate the pass, and older runs read "not provided". README opens
+   with a before/after (text-only answer vs one sentence, figure, caption).
+
+Also: `mint.edit` prunes `bars=` / `interval=` / `spark=` entries for a dropped
+table column or row and sets `density=` / `color_names=`; the CLI's `explain`,
+`plot` and `edit` take `--density` and `--no-color-names`; `.html` output in the
+CLI goes through `Explanation.save()`.
+
+Verified: the lanes' named test files and `ruff check src tests evals`; every
+README Python sample runs with `ship` true; the gate briefing (three findings,
+light and dark, Markdown) regenerated into a scratch folder. Full-suite counts:
+`pytest` 1261 passed (970 before this pass); `ruff check src tests gallery evals` clean; all 64 gallery specs load with `ok` and `ship` true.
+
+Not done:
+- The reader benchmark (section 6, item 1): the README makes no measured claim.
+- figure-bench was not re-run with `--reply`; r1–r5 predate the delivery check.
+- `gallery/output/` was not regenerated: the committed renders predate this pass
+  (uncoloured names, no brackets, the old HTML) and overwriting them needs the
+  owner's OK. The two redundant-panel examples (`checkout_story`,
+  `table_scorecard_chat`) are not rebuilt.
+- No delta bracket on `trend` (only `compare`).
+- `mint.inline` was not touched and is not documented: it is leaving for its own
+  package.
+
+### 4l addendum: skill progressive disclosure (2026-11-25)
+
+- `SKILL.md` opens with a routing table (task → which file to read), so an agent
+  loads only what it needs. The description is written as a trigger ("before showing
+  a person five or more numbers...").
+- `references/scientific_and_recipes.md` was split into `references/science.md`
+  (uncertainty, units, sizing budgets, colour, narrative; prose only) and
+  `references/recipes.md` (code only, with a table of contents). The stale HTML
+  description (an "Ask Agent" panel and a facts drawer that no longer exist) is
+  gone. Every recipe was run and renders with `ship` true.
+- `AGENTS_SNIPPET.md` (always loaded into AGENTS.md / CLAUDE.md) shrank from 2.65 kB
+  to 1.2 kB and points at the skill or `mintfig skill --print`.
+- Bug fixed: the Cursor install wrote a rule that pointed at `references/*.md`
+  but never copied them. They now go to `.cursor/rules/mintfig/references/` and
+  the rule's pointers are rewritten to that path (covered by a test).
+
+### 4l addendum: figure-bench Matplotlib arms (2026-11-25)
+
+- `evals/figure_bench`: `start --arm matplotlib | matplotlib-plain`, `neutral.py` (an audit
+  of the saved Figure that both arms share, hooked on `Figure.savefig`), `compare`,
+  `readers-prepare` / `readers-score` (blind readers; PNG text chunks stripped). Its own
+  venv: `evals/figure_bench/.venv` (mintfig editable, pandas). Tests:
+  `tests/test_bench_arms.py`.
+- Runs r6 (mintfig), b1, u1 with 45 Sonnet agents and 9 readers; results and caveats in
+  the bench README and `runs/compare_r6_b1_u1.md`. Summary in `ADOPTION_PLAN.md` (C1 result).
+- Not fixed yet (found by the runs): `low_density` counts as a warning; `width="narrow"`
+  vs the bench's 700 px check for phone readers; `trend(points=)` shape missing from
+  SKILL.md; `bench.py` runs a copy of the script from `.bench/`, so `__file__`-relative
+  paths break.
+
 ## 5. Verified at the end of this pass, and what was not
 
 Verified:
@@ -613,7 +714,7 @@ Verified:
     visual defects (`_VISUAL_DEFECT_RULES`) from advisory polish warnings so
     agents ship good-enough figures on the first try without extra re-render loops.
   - `with mint.lenient():`, `mint.explain(..., strict=False)`,
-    `mint.explain_from_spec(..., strict=False)`, and CLI `mintfig explain --lenient`
+    `mint.load(spec, strict=False)`, and CLI `mintfig explain --lenient`
     (`--no-strict`) auto-adjust soft limits instead of raising `ExplainError`
     (auto-faceting >4 trend series, trimming >20 compare items / >14 change items
     / >8 distribution groups / >3 highlights, dropping NaN / unmatched items,
@@ -647,7 +748,8 @@ Not verified:
 - No reader study: whether people read these figures faster or more correctly
   than hand-made plots is untested (section 6, item 2).
 - The committed `gallery/output/explain*` renders predate the second and third
-  passes: the code that draws them changed (date ticks, labels, facts).
+  passes and the 2026-11-25 pass (section 4l): the code that draws them changed
+  (date ticks, labels, facts, coloured names, delta brackets, density).
   Regenerate them only with the owner's OK (they overwrite tracked files).
 
 Known limits:
@@ -674,22 +776,19 @@ Known limits:
 
 ## 6. Next steps, in order
 
-1. **Bet 4 (Human & VLM Comprehension Benchmark) — priority for next cycle:**
-   - Build a reader-comprehension benchmark evaluating both VLMs and humans on
-     factual accuracy, uncertainty calibration, and speed against hand-written
-     baseline plots of the same data.
-   - Include **harness-width evals** comparing legibility and answer accuracy
-     across `450 px` narrow IDE sidebars (`width="narrow"`), `700 px` chat
-     columns (`width="chat"`), and `1280 px` slide/hero cards (`width="slide"`),
-     plus ablations for quantile dotplots, nested CIs, inline deltas, and
-     direct callouts/regions.
-2. CI with a Linux font-fallback job, and a release under whatever PyPI name
-   the owner picks.
-3. `trend(fit=...)` for linear and log-linear fits with the slope on the plot.
-4. The visual leftovers in section 5, known limit 8, then regenerate the
-   `explain*` gallery (with the owner's OK).
-5. figure-bench: more held-out tasks (the core set has plateaued at ~20 s),
-   narrow-sidebar & HTML-output tasks, and a dedicated venv.
+1. **Reader benchmark (Bet 4).** Factual accuracy, uncertainty calibration and
+   speed for VLMs and people, against hand-made plots of the same data, with two
+   arms from `PRESENTATION_PLAN.md` Phase 6: *figure reply vs a text-only reply of
+   the same facts*, and *HTML with hover vs PNG*; plus the harness widths (450,
+   700, 1280 px). This is the claim the README's opening implies and nobody has
+   measured.
+2. **figure-bench run r6 with `--reply`**, to see whether figures reach the reply
+   in a deliverable form; more held-out tasks, a narrow-sidebar and an HTML task,
+   and a dedicated venv.
+3. With the owner's OK: regenerate `gallery/output/explain*`, and rebuild
+   `checkout_story` and `table_scorecard_chat` as one panel each (plan Phase 3).
+4. A delta bracket on `trend`; the visual leftovers in section 5, known limit 8.
+5. Move `mint.inline` to its own package, importing only public names.
 
 ## 7. Decisions
 
@@ -702,6 +801,8 @@ Settled (do not reopen without asking the owner):
 - JSON `schema_version: "0.2"`: add keys, never rename or remove them.
 - Versioned journal specs with source URLs.
 - Neutral style names.
+- The top level holds only what an agent calls; publication helpers live in
+  `mint.pub` (0.3.0, a clean break with no shims, decided 2026-11-25).
 
 Open, for the owner:
 
@@ -710,7 +811,8 @@ Open, for the owner:
   earlier "defer large plotting-recipe suites" decision. The set is still one
   form per question; confirm the scope.
 - Whether `sketch` should keep warning on data not marked illustrative.
-- Whether chat figures should offer a dark variant.
+- Whether chat PNGs should offer a dark variant (the HTML page now follows the
+  reader's light or dark setting).
 - Carried over: the global style leak in `Plate`/`mint.figure`; `turbo` not on
   the banned list; journal widths not checked against the publishers; whether
   to regenerate the stale publication plates and `evals/output/`.

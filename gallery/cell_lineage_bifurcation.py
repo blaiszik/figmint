@@ -214,12 +214,12 @@ def _panel_cascade(ax, fig) -> None:
 
     cbar = fig.colorbar(im, ax=ax, fraction=0.048, pad=0.035, aspect=22)
     cbar.set_ticks([0, 1, 2, 3])
-    mint.style_colorbar(cbar, label=r"Expression ($z$)", tick_pt=6.0)
+    mint.pub.style_colorbar(cbar, label=r"Expression ($z$)", tick_pt=6.0)
 
 
 def _panel_crispri(ax) -> None:
     """Panel C: CRISPRi knockdown fate-bias log-odds forest plot."""
-    mint.subtle_grid(ax, axis="x", color="#ECEFF4", lw=0.45)
+    mint.pub.subtle_grid(ax, axis="x", color="#ECEFF4", lw=0.45)
 
     # (label, mean log-odds shift, half-95% CI, n_cells, group)
     entries = [
@@ -273,7 +273,7 @@ def _panel_crispri(ax) -> None:
 
 def _panel_dynamics(ax, rng: np.random.Generator) -> None:
     """Panel D: Opposing GATA1 and SPI1 bifurcation dynamics across pseudotime."""
-    mint.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
+    mint.pub.subtle_grid(ax, axis="y", color="#ECEFF4", lw=0.45)
 
     t = np.linspace(0.0, 1.0, 200)
     # Clean sigmoidal activation curves crossing at t* = 0.44
@@ -325,7 +325,7 @@ def _panel_dynamics(ax, rng: np.random.Generator) -> None:
         zorder=5,
     )
 
-    mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.22, fontsize=6.4)
+    mint.pub.direct_labels(ax, pad_pt=4.5, min_sep_pt=9.0, expand_xlim=0.22, fontsize=6.4)
 
     ax.set_xticks([0.0, 0.25, 0.5, 0.75, 1.0])
     ax.set_yticks([0, 1, 2, 3])

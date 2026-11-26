@@ -41,7 +41,7 @@ def _sample_two_panel(*, width: str | float = "chat", style: str = "mintfig") ->
 
 
 def test_narrow_spec_and_auto_stack_legibility(tmp_path: Path) -> None:
-    spec = mint.get_spec("screen")
+    spec = mint.pub.get_spec("screen")
     assert spec.resolve_width_mm("narrow") == 92.0
 
     fig = _sample_two_panel(width="narrow")
@@ -200,19 +200,18 @@ def test_epistemic_audit_wired_into_explain_as_advisory() -> None:
 
 
 def test_public_exports_on_package_and_explainer() -> None:
-    expected = (
-        "render_html",
-        "render_terminal",
-        "show_in_terminal",
-        "build_narrative",
-        "audit_epistemic",
-    )
-    for name in expected:
-        assert hasattr(mint, name), f"mintfig missing export {name}"
+    expected = {
+        "render_html": mint.interactive,
+        "render_terminal": mint.terminal,
+        "show_in_terminal": mint.terminal,
+        "build_narrative": mint.audit,
+        "audit_epistemic": mint.audit,
+    }
+    for name, home in expected.items():
+        assert hasattr(home, name), f"{home.__name__} missing export {name}"
         assert hasattr(explainer_mod, name), f"mintfig.explainer missing export {name}"
-        assert name in mint.__all__
         assert name in explainer_mod.__all__
-        assert getattr(mint, name) is getattr(explainer_mod, name)
+        assert getattr(home, name) is getattr(explainer_mod, name)
 
 
 def test_narrow_with_new_visual_science_forms() -> None:

@@ -102,5 +102,5 @@ def test_round_trip_shown_in_the_skill(tmp_path: Path) -> None:
     fig.save(path)
     again = mint.load(path)
     assert again.to_spec() == fig.to_spec()
-    assert mint.explain_from_spec(again.to_spec()).to_spec() == fig.to_spec()
+    assert mint.load(again.to_spec()).to_spec() == fig.to_spec()
     assert os.path.getsize(path) > 0

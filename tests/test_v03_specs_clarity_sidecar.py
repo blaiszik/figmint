@@ -163,8 +163,8 @@ class TestHandoffDeterministicFixes:
         ax = plate["a"]
         try:
             ax.imshow(np.zeros((32, 32)), cmap="magma")
-            _, txt_default = mint.scalebar(ax, 50)
-            _, txt_unicode = mint.scalebar(ax, 25, unit="µm", location="upper left")
+            _, txt_default = mint.pub.scalebar(ax, 50)
+            _, txt_unicode = mint.pub.scalebar(ax, 25, unit="µm", location="upper left")
             assert r"$\mathrm{\mu}$" in txt_default.get_text()
             assert r"$\mathrm{\mu}$" in txt_unicode.get_text()
             assert "µ" not in txt_unicode.get_text()
@@ -271,7 +271,7 @@ class TestClarityWarningTierAndMessageHelpers:
         l_fg = plate["a"].plot(x, np.cos(x), label="Frontier")[0]
         plate["a"].set_xlabel("Step")
         plate["a"].set_ylabel("Score")
-        focused = mint.emphasize(plate["a"], keep="Frontier", focus_lw=1.6)
+        focused = mint.pub.emphasize(plate["a"], keep="Frontier", focus_lw=1.6)
         plate.set_takeaway("Frontier surpasses baseline across all steps.", show=True)
         plate.note_panel("a", "Cosine curve dominates baseline.")
         try:

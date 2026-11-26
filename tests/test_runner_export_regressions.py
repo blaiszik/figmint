@@ -380,7 +380,7 @@ USE_CONTEXT_SCRIPT = (
     "import matplotlib.pyplot as plt\n"
     "import mintfig as mint\n"
     "from mintfig.specs import mm_to_in\n"
-    "with mint.use('nature'):\n"
+    "with mint.pub.use('nature'):\n"
     "    fig, ax = plt.subplots(figsize=(mm_to_in(89.0), mm_to_in(60.0)), layout='constrained')\n"
     "    ax.plot([0, 1], [0, 1])\n"
     "    ax.set_xlabel('x (a.u.)')\n"

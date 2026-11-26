@@ -21,7 +21,6 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.spines import Spine
 from matplotlib.text import Text
-from pypdf import PdfReader
 
 from .palettes import BANNED_COLORMAPS, simulate_cvd
 from .specs import MM_PER_INCH, JournalSpec, get_spec, in_to_mm
@@ -621,7 +620,7 @@ def _check_font_sizes(
             )
             hints.append(
                 f"Reduce font size to <= {spec.font_max_pt:.1f} pt (body={spec.body_pt:.1f} pt) "
-                f"by building inside mint.Plate(journal={spec.name!r}) or mint.use({spec.name!r})."
+                f"by building inside mint.Plate(journal={spec.name!r}) or mint.pub.use({spec.name!r})."
             )
 
         # The first offender's panel: too-small text first (it drives the error).
@@ -732,7 +731,7 @@ def _check_font_family(
             panel=panel,
             elements=elements,
             fix_hint=(
-                f"Remove explicit serif font overrides and wrap plotting in mint.use({spec.name!r}) "
+                f"Remove explicit serif font overrides and wrap plotting in mint.pub.use({spec.name!r}) "
                 f"or mint.Plate(journal={spec.name!r}) to enforce sans-serif ({spec.font_family[0]}/Arial) "
                 "text and mathtext."
             ),
@@ -760,7 +759,7 @@ def _overlap_fix_hint(role_a: str, role_b: str, panel: str | None) -> str:
         )
     if "legend" in roles:
         return (
-            f"Replace the overlapping legend{where} with mint.direct_labels(ax), "
+            f"Replace the overlapping legend{where} with mint.pub.direct_labels(ax), "
             "move it with loc='best' / bbox_to_anchor outside the data, or expand ylim."
         )
     if "panel_label" in roles:
@@ -775,7 +774,7 @@ def _overlap_fix_hint(role_a: str, role_b: str, panel: str | None) -> str:
         )
     return (
         f"Reposition colliding annotations{where} to non-overlapping coordinates, "
-        "use mint.direct_labels(ax), or increase ylim/xlim padding."
+        "use mint.pub.direct_labels(ax), or increase ylim/xlim padding."
     )
 
 
@@ -1083,7 +1082,7 @@ def _check_lines_past_axes(
             elements=[o["artist"] for o in offenders[:6]],
             fix_hint=(
                 "Bound reference lines to the data range (ax.hlines(y, x0, x1) instead of "
-                "ax.axhline, or draw them before mint.direct_labels, which bounds them), keep "
+                "ax.axhline, or draw them before mint.pub.direct_labels, which bounds them), keep "
                 "curves and bands inside the axis range, and leave clip_on on."
             ),
             panels=_distinct_panels(o["panel"] for o in offenders),
@@ -1362,7 +1361,7 @@ def _check_vector_fonts(spec: JournalSpec, fig: Figure | None = None) -> CheckRe
 
     This is only a prediction about a future ``fig.savefig``: ``pdf.fonttype`` and
     ``svg.fonttype`` are read at save time, and mintfig's own exporters
-    (``mint.save_figure``, ``plate.save``, ``mintfig run --bundle``) always force
+    (``mint.pub.save_figure``, ``plate.save``, ``mintfig run --bundle``) always force
     ``pdf.fonttype=42`` / ``svg.fonttype='none'``. The authoritative check is
     :func:`preflight_pdf` on the exported file.
 
@@ -1403,7 +1402,7 @@ def _check_vector_fonts(spec: JournalSpec, fig: Figure | None = None) -> CheckRe
             rule="vector_fonts",
             status="pass",
             message=(
-                "mintfig-built figure: mint.save_figure / plate.save / mintfig run --bundle "
+                "mintfig-built figure: mint.pub.save_figure / plate.save / mintfig run --bundle "
                 "force pdf.fonttype=42 and svg.fonttype='none' "
                 f"(current rcParams: {'; '.join(issues)} only affect a raw fig.savefig)"
             ),
@@ -1415,7 +1414,7 @@ def _check_vector_fonts(spec: JournalSpec, fig: Figure | None = None) -> CheckRe
         status="warn",
         message=(
             f"Current rcParams would embed non-editable text on a plain fig.savefig: "
-            f"{'; '.join(issues)}. Exports through mint.save_figure / plate.save / "
+            f"{'; '.join(issues)}. Exports through mint.pub.save_figure / plate.save / "
             "mintfig run --bundle force Type 42 regardless; preflight_pdf on the "
             "exported PDF is authoritative"
         ),
@@ -1423,9 +1422,9 @@ def _check_vector_fonts(spec: JournalSpec, fig: Figure | None = None) -> CheckRe
         panel=None,
         elements=issues,
         fix_hint=(
-            "No plotting change needed if you export with mint.save_figure(...), plate.save(...) "
+            "No plotting change needed if you export with mint.pub.save_figure(...), plate.save(...) "
             "or mintfig run --bundle (they force pdf.fonttype=42). If you save with plain "
-            f"fig.savefig, call mint.apply({spec.name!r}) or set "
+            f"fig.savefig, call mint.pub.apply({spec.name!r}) or set "
             "plt.rcParams['pdf.fonttype'] = 42 and plt.rcParams['svg.fonttype'] = 'none' "
             "before saving."
         ),
@@ -1717,7 +1716,7 @@ def _check_clarity_metadata(
                 f"{len(missing_cbars)} colormapped panel(s) lack a colorbar ({c_panels})"
             )
             hints.append(
-                "Add a colorbar via cbar = fig.colorbar(im, ax=ax); mint.style_colorbar(cbar, label='...')."
+                "Add a colorbar via cbar = fig.colorbar(im, ax=ax); mint.pub.style_colorbar(cbar, label='...')."
             )
             for c in missing_cbars[:4]:
                 el = f"missing colorbar ({c['colormap']})"
@@ -1928,7 +1927,7 @@ def _check_chartjunk_hints(
 
         if boxed_legends:
             parts.append(f"{len(boxed_legends)} boxed legend frame(s)")
-            hints.append("Remove legend boxes (frameon=False) or use mint.direct_labels(ax).")
+            hints.append("Remove legend boxes (frameon=False) or use mint.pub.direct_labels(ax).")
             for b in boxed_legends[:4]:
                 el = f"boxed legend ({b['panel'] or 'axes'})"
                 elements.append(el)
@@ -1936,7 +1935,7 @@ def _check_chartjunk_hints(
 
         if heavy_grids:
             parts.append(f"{len(heavy_grids)} heavy gridline axes (> 0.65 pt)")
-            hints.append("Use mint.subtle_grid(ax, lw=0.45) instead of heavy dark gridlines.")
+            hints.append("Use mint.pub.subtle_grid(ax, lw=0.45) instead of heavy dark gridlines.")
             for g in heavy_grids[:4]:
                 el = f"heavy grid ({g['linewidth_pt']} pt)"
                 elements.append(el)
@@ -1947,7 +1946,7 @@ def _check_chartjunk_hints(
                 f"{len(spaghetti_axes)} crowded panel(s) with >=6 labeled curves"
             )
             hints.append(
-                "Split crowded spaghetti lines into shared-axis small multiples with mint.ghost_context(...)."
+                "Split crowded spaghetti lines into shared-axis small multiples with mint.pub.ghost_context(...)."
             )
             for s in spaghetti_axes[:4]:
                 el = f"{s['series_count']} curves ({s['panel'] or 'axes'})"
@@ -2115,7 +2114,7 @@ def _check_text_on_data(
             panel=first["panel"],
             elements=elements,
             fix_hint=(
-                f"Move '{first['text']}'{where} into open whitespace, use mint.direct_labels(ax), "
+                f"Move '{first['text']}'{where} into open whitespace, use mint.pub.direct_labels(ax), "
                 "or add a subtle white bbox halo."
             ),
             panels=panels,
@@ -2279,6 +2278,13 @@ def preflight_pdf(
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:  # pragma: no cover - depends on the install
+        raise ImportError(
+            'preflight_pdf needs pypdf; install it with: pip install "mintfig[pub]"'
+        ) from exc
+
     spec = get_spec(journal)
     reader = PdfReader(str(pdf_path))
     if not reader.pages:
@@ -2316,7 +2322,7 @@ def preflight_pdf(
             panel=None,
             elements=keys,
             fix_hint=(
-                "Export via mint.save_figure(...) or set plt.rcParams['pdf.fonttype'] = 42 "
+                "Export via mint.pub.save_figure(...) or set plt.rcParams['pdf.fonttype'] = 42 "
                 "to embed editable TrueType fonts instead of Type 3 outlines."
             ),
         )
@@ -2344,7 +2350,7 @@ def preflight_pdf(
             panel=None,
             elements=bad[:6],
             fix_hint=(
-                f"Build the figure inside mint.use({spec.name!r}) or mint.Plate(journal={spec.name!r}) "
+                f"Build the figure inside mint.pub.use({spec.name!r}) or mint.Plate(journal={spec.name!r}) "
                 "so embedded PDF fonts are sans-serif."
             ),
         )
@@ -2375,7 +2381,7 @@ def preflight_pdf(
             panel=None,
             elements=[f"{size_mb:.2f} MB"],
             fix_hint=(
-                "Pass rasterize_above=10_000 to plate.save(...) / mint.save_figure(...) "
+                "Pass rasterize_above=10_000 to plate.save(...) / mint.pub.save_figure(...) "
                 "to rasterize dense scatter/heatmap layers while keeping text vector."
             ),
         )

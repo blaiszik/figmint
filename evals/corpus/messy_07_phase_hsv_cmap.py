@@ -17,7 +17,7 @@ def build() -> mint.Plate:
     phase = np.arctan2(yy, xx)
     im = ax.imshow(phase, extent=[-3, 3, -3, 3], cmap="hsv", origin="lower")
     cbar = plate.fig.colorbar(im, ax=ax, fraction=0.045, pad=0.03)
-    mint.style_colorbar(cbar, label="Phase (rad)")
+    mint.pub.style_colorbar(cbar, label="Phase (rad)")
     ax.set_xlabel("x (mm)")
     ax.set_ylabel("y (mm)")
     return plate

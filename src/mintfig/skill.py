@@ -155,7 +155,15 @@ def install_skill(
         elif target == "cursor":
             dest = root_path / ".cursor" / "rules" / "mintfig.mdc"
             dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(_build_cursor_mdc(skill_md), encoding="utf-8")
+            # Cursor reads only the .mdc rule, so the reference files go beside it
+            # and the rule points at them by their path from the project root.
+            ref_dir = ".cursor/rules/mintfig/references/"
+            body = skill_md.replace("`references/", f"`{ref_dir}")
+            dest.write_text(_build_cursor_mdc(body), encoding="utf-8")
+            for fname, content in references.items():
+                ref_path = root_path / ref_dir / fname
+                ref_path.parent.mkdir(parents=True, exist_ok=True)
+                ref_path.write_text(content, encoding="utf-8")
             written.append(dest)
         elif target == "codex":
             written.append(_write_skill_dir(root_path / ".codex" / "skills" / "mintfig" / "SKILL.md"))

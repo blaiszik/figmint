@@ -20,6 +20,7 @@ from .core import (
     _bare_axes,
     _base_spec,
     _Ctx,
+    _delta_label,
     _diff_with_unit,
     _formatter,
     _guarded,
@@ -34,6 +35,7 @@ from .core import (
     _Sizes,
     _with_unit,
 )
+from .marks import tag_points
 
 # --------------------------------------------------------------------------- #
 # change (slopegraph)
@@ -179,13 +181,17 @@ def change(
         span = lo_t if len(rest) == 1 or lo_t == hi_t else f"{lo_t} to {hi_t}"
         facts.append(f"{who} changed by {span}")
 
+    def _drawn_delta(name: str) -> str:
+        """The delta at a line's end: in points for a "%" quantity ("+8.2 pts")."""
+        return _delta_label(_delta_text(name), unit, with_unit=False)
+
     def _right_text(name: str, level: int, measure: _Measure, sizes: _Sizes) -> str:
         """The label at the line's end. Level 0: "45.4  math (+16.8)" on one line; from
         level 1 the name goes under "45.4  (+16.8)", wrapped onto two lines if long."""
         head = fmt_fn(right[name])
         if level == 0:
-            return f"{head}  {name} ({_delta_text(name)})"
-        head = f"{head}  ({_delta_text(name)})"
+            return f"{head}  {name} ({_drawn_delta(name)})"
+        head = f"{head}  ({_drawn_delta(name)})"
         budget = max(measure.width_pt(head, sizes.small), 0.6 * _CHANGE_NAME_PT * sizes.scale)
         lines = measure.wrap(name, budget, sizes.small)
         if len(lines) > 2:
@@ -221,6 +227,7 @@ def change(
         )
 
     def _height(w: float, measure: _Measure, sizes: _Sizes, tight: bool) -> float:
+        tight = tight or sizes.compact
         lines = _label_lines(w, measure, sizes)
         if lines == 1:
             return max(30.0, 4.6 * len(names) + 10.0) if tight else max(38.0, 4.6 * len(names) + 12.0)
@@ -255,6 +262,9 @@ def change(
         lines = _label_lines(ctx.cell_width_mm, ctx.measure, sz)
         accent = {name: col for name, col in ctx.colors.items() if name in names}
         focus_mode = bool(hl or accent)
+        # With highlight=, only the highlighted items carry the emphasis; an item coloured
+        # elsewhere in the figure keeps its colour at context weight.
+        emphasis = set(hl) if hl else set(accent)
         effects = ctx.line_effects()
         _bare_axes(ax)
         ax.xaxis.set_visible(False)
@@ -282,7 +292,7 @@ def change(
             )
         left_notes, right_notes = [], []
         for item in names:
-            focus = item in accent
+            focus = item in emphasis
             col = accent.get(item, theme.axis if not focus_mode else theme.context_line)
             line_kw: dict[str, Any] = {
                 "color": col,
@@ -301,8 +311,11 @@ def change(
             }
             if effects is not None:
                 line_kw["path_effects"] = effects
-            ax.plot([0.0, 1.0], [left[item], right[item]], **line_kw)
-            text_color = ctx.text_color(col) if focus else theme.ink
+            slope = ax.plot([0.0, 1.0], [left[item], right[item]], **line_kw)[0]
+            tag_points(ctx, slope, [0.0, 1.0], [left[item], right[item]],
+                       [{"name": item, "x": labels[0], "value": left[item], "unit": unit},
+                        {"name": item, "x": labels[1], "value": right[item], "unit": unit}])
+            text_color = ctx.text_color(col) if item in accent else theme.ink
             weight = "bold" if focus else "normal"
             if level < 2:
                 left_notes.append(
@@ -314,7 +327,7 @@ def change(
                         ha="right",
                         va="center",
                         fontsize=sz.small,
-                        color=text_color if focus else theme.muted,
+                        color=text_color if item in accent else theme.muted,
                         fontweight=weight,
                         annotation_clip=False,
                     )

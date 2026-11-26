@@ -19,6 +19,7 @@ from ..themes import (
 )
 from .core import (
     MAX_COMPARE_ITEMS,
+    MAX_FACETS,
     MAX_GROUPS,
     ExplainError,
     Panel,
@@ -27,6 +28,9 @@ from .core import (
     _cover_with_ticks,
     _Ctx,
     _diff_with_unit,
+    _facet_cross_fact,
+    _facet_shape,
+    _FacetGrid,
     _fold_unit,
     _formatter,
     _guarded,
@@ -55,6 +59,8 @@ from .core import (
     _vs_text,
     _with_unit,
 )
+from .marks import tag as tag_mark
+from .marks import tag_each
 
 # --------------------------------------------------------------------------- #
 # distribution
@@ -263,6 +269,7 @@ def distribution(
     fmt: str | None = None,
     mode: str = "dots",
     quantiles: int = 20,
+    facet: bool | str = False,
 ) -> Panel:
     """How are values spread within groups? Every observation as a dot, quantile dotplot, or histogram.
 
@@ -278,7 +285,11 @@ def distribution(
     stacked small multiples for up to 4 groups). ``baseline`` names the reference
     group (a control, "before"): drawn in ink, with every highlighted (or every
     other) group stated against it, including pairwise superiority probability
-    ``P(group > baseline)``.
+    ``P(group > baseline)``. ``facet=`` draws small multiples on one shared value axis:
+    with dot strips, one panel per facet level showing the same groups (tidy rows with
+    ``facet="<column>"``, or ``{facet: {group: [obs]}}`` with ``facet=True``); with
+    ``bins=``, ``facet=True`` gives each of 2-12 groups its own histogram on shared bins
+    and a shared count axis.
     """
     if stat not in {"median", "mean"}:
         raise ExplainError(
@@ -301,6 +312,33 @@ def distribution(
             fix_hint="Pass quantiles=20 (each dot = 5%) or another integer from 5 to 50.",
         )
     q = int(quantiles)
+    faceted = facet is not False and facet is not None
+    if faceted and bins is None:
+        if mode != "dots":
+            raise ExplainError(
+                'distribution(facet=...) draws dot strips; mode="quantile" has no faceted form.',
+                fix_hint='Drop mode="quantile", or drop facet= for one quantile dotplot.',
+            )
+        return _faceted_strips(
+            groups,
+            facet=facet,
+            group=group,
+            value=value,
+            title=title,
+            label=label,
+            unit=unit,
+            highlight=highlight,
+            baseline=baseline,
+            reference=reference,
+            log=log,
+            stat=stat,
+            fmt=fmt,
+        )
+    if faceted and facet is not True:
+        raise ExplainError(
+            f"histogram(facet={facet!r}) must be True or False: each group becomes one histogram.",
+            fix_hint="Pass facet=True with {group: [observations]} (2-12 groups).",
+        )
     if mode == "quantile" and bins is not None:
         raise ExplainError(
             'distribution(mode="quantile") cannot be combined with bins=.',
@@ -348,7 +386,7 @@ def distribution(
     if not data:
         raise ExplainError("distribution(groups) is empty.", fix_hint="Pass at least one group.")
     names = list(data)
-    group_limit = MAX_HIST_GROUPS if bins is not None else MAX_GROUPS
+    group_limit = (MAX_FACETS if faceted else MAX_HIST_GROUPS) if bins is not None else MAX_GROUPS
     if len(names) > group_limit:
         if not _is_strict():
             req_hl = (
@@ -528,7 +566,13 @@ def distribution(
     alt_facts += pair_facts
 
     if bins is not None:
-        if len(names) > MAX_HIST_GROUPS:
+        if faceted and not 2 <= len(names) <= MAX_FACETS:
+            raise ExplainError(
+                f"histogram(facet=True) got {len(names)} group(s); small multiples take 2-{MAX_FACETS}.",
+                fix_hint=f"Pass {{group: [observations]}} with 2-{MAX_FACETS} groups, or drop facet=True.",
+                rule="too_many_items" if len(names) > MAX_FACETS else "explain_spec",
+            )
+        if len(names) > MAX_HIST_GROUPS and not faceted:
             raise ExplainError(
                 f"Binned distribution() got {len(names)} groups; more than {MAX_HIST_GROUPS} "
                 "stacked histograms crowd a chat figure.",
@@ -647,7 +691,7 @@ def distribution(
                 )
             edge_col = theme.bar_edgecolor or theme.background
             edge_lw = theme.bar_edge_lw if theme.bar_edgecolor else 0.65
-            ax_h.bar(
+            bins = ax_h.bar(
                 edges[:-1],
                 hists[nm],
                 width=widths,
@@ -658,6 +702,10 @@ def distribution(
                 alpha=0.88,
                 zorder=2,
             )
+            tag_each(ctx, bins.patches, [
+                {"name": nm, "x": _with_unit(f"{fmt_fn(a)}\u2013{fmt_fn(b)}", unit), "value": int(c)}
+                for a, b, c in zip(edges[:-1], edges[1:], hists[nm])
+            ])
             med = stats[nm][1]
             ax_h.axvline(
                 med,
@@ -774,6 +822,32 @@ def distribution(
                 color_mode="highlight" if hl else "uniform",
                 uses_default=not hl,
                 color_baseline=base,
+            )
+
+        if faceted:
+            return _hist_facet_panel(
+                names=names,
+                data=data,
+                given=given,
+                stats=stats,
+                hists=hists,
+                hl=hl,
+                base=base,
+                ref=ref,
+                stat=stat,
+                label=label,
+                unit=unit,
+                given_unit=given_unit,
+                title=title,
+                log=log,
+                fmt=fmt,
+                fmt_fn=fmt_fn,
+                bins_spec=bins_spec,
+                bin_note=bin_note,
+                facts=facts,
+                alt_facts=alt_facts,
+                setup_axes=_setup_hist_axes,
+                draw_bars=_draw_hist_bars,
             )
 
         def _hist_frames(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
@@ -966,7 +1040,7 @@ def distribution(
                 shown = arr if arr.size <= 600 else rng.choice(arr, size=600, replace=False)
                 alpha = 0.8 if shown.size <= 30 else (0.5 if shown.size <= 150 else 0.28)
                 jitter = rng.uniform(-0.2, 0.2, size=shown.size)
-                ax.scatter(
+                tag_mark(ctx, ax.scatter(
                     shown,
                     row + jitter,
                     s=(3.4 * sz.scale) ** 2,
@@ -974,7 +1048,7 @@ def distribution(
                     alpha=alpha,
                     linewidth=0,
                     zorder=2,
-                )
+                ), name=name, value=med, lo=q1, hi=q3, n=arr.size, unit=unit)
                 # Summary through the dot row: a thin line for the middle half (or +/- 1 s.d.)
                 # and a taller tick for the centre, haloed so it reads over the dots. With
                 # fewer than five observations quartiles and s.d. mean little: the centre
@@ -1110,7 +1184,7 @@ def distribution(
                         for k in range(count):
                             dot_xs.append(cx)
                             dot_ys.append(y_base - (k + 0.55) * dy_data)
-                    ax.scatter(
+                    tag_mark(ctx, ax.scatter(
                         dot_xs,
                         dot_ys,
                         s=d_pt**2,
@@ -1119,7 +1193,8 @@ def distribution(
                         linewidth=0.45 * sz.scale,
                         alpha=0.92,
                         zorder=3,
-                    )
+                    ), name=name, value=stats[name][1], lo=stats[name][0], hi=stats[name][2],
+                        n=data[name].size, unit=unit)
                     q1, med, q3 = stats[name]
                     if log:
                         q1 = max(q1, ax.get_xlim()[0])
@@ -1242,6 +1317,7 @@ def histogram(
     log: bool = False,
     stat: str = "median",
     fmt: str | None = None,
+    facet: bool = False,
 ) -> Panel:
     """How is a continuous variable shaped? Alias for ``distribution(..., bins=bins)``.
 
@@ -1249,7 +1325,8 @@ def histogram(
     4 named groups for stacked shared-axis histograms, or row-shaped data /
     DataFrame with ``value=`` (and optional ``group=``). ``bins`` accepts
     ``"auto"`` (default), a bin count (2–60), a numpy binning rule, or explicit
-    bin edges.
+    bin edges. ``facet=True`` gives each of 2-12 groups its own histogram in a grid,
+    on shared bins and one shared count axis.
     """
     return distribution(
         values,
@@ -1265,4 +1342,421 @@ def histogram(
         log=log,
         stat=stat,
         fmt=fmt,
+        facet=facet,
+    )
+
+
+def _facet_levels(
+    groups: Any, facet: object, group: str | None, value: str | None
+) -> dict[str, dict[str, Any]]:
+    """``{facet level: {group: observations}}`` from tidy rows (``facet=`` a column name)
+    or a nested mapping (``facet=True``)."""
+    from .._tabular import extract_records, is_tabular
+
+    if isinstance(facet, str):
+        if not is_tabular(groups):
+            raise ExplainError(
+                f"distribution(facet={facet!r}) names a column, so it needs row-shaped data "
+                f"(a list of dicts or a DataFrame), got {type(groups).__name__}.",
+                fix_hint='Pass rows with value= (and group=), e.g. mint.distribution(rows, '
+                f'group="arm", value="score", facet="{facet}"), or a nested mapping '
+                "{facet: {group: [obs]}} with facet=True.",
+            )
+        cols, rows = extract_records(groups, what="distribution(groups)")
+        missing = [c for c in (facet, value, group) if c is not None and c not in cols]
+        if value is None or missing:
+            raise ExplainError(
+                f"distribution(facet={facet!r}) needs value= and existing columns"
+                + (f"; not found: {', '.join(map(repr, missing))}" if missing else "")
+                + ".",
+                fix_hint=f"Columns: {', '.join(map(repr, cols[:10]))}. Pass value= (the numbers), "
+                "group= (the rows inside each facet) and facet= (one small panel per level).",
+            )
+        nested: dict[str, dict[str, list[Any]]] = {}
+        for row in rows:
+            level = str(row.get(facet, ""))
+            name = str(row.get(group, "")) if group is not None else ""
+            nested.setdefault(level, {}).setdefault(name, []).append(row.get(value))
+        return nested
+    if facet is not True:
+        raise ExplainError(
+            f"distribution(facet={facet!r}) must be True or a column name.",
+            fix_hint="Pass facet=True with {facet: {group: [obs]}}, or facet=\"<column>\" with rows.",
+        )
+    if group is not None or value is not None:
+        raise ExplainError(
+            "distribution(facet=True) takes a nested mapping, not group=/value= columns.",
+            fix_hint='With rows, name the facet column instead: facet="site".',
+        )
+    if not (_has_items(groups) and all(_has_items(v) for _k, v in _pairs(groups))):
+        raise ExplainError(
+            "distribution(facet=True) needs a nested mapping {facet: {group: [observations]}}.",
+            fix_hint='e.g. {"site A": {"control": [...], "treated": [...]}, "site B": {...}}; '
+            'with rows pass the facet column, facet="site".',
+        )
+    return {str(k): {str(g): obs for g, obs in _pairs(v)} for k, v in _pairs(groups)}
+
+
+def _faceted_strips(
+    groups: Any,
+    *,
+    facet: object,
+    group: str | None,
+    value: str | None,
+    title: str | None,
+    label: str | None,
+    unit: str | None,
+    highlight: str | Sequence[str] | None,
+    baseline: str | None,
+    reference: float | tuple[float, str] | None,
+    log: bool,
+    stat: str,
+    fmt: str | None,
+) -> Panel:
+    """``distribution(facet=...)``: one small panel of dot strips per facet level, the
+    same groups in the same order in each, on one shared value axis."""
+    levels = _facet_levels(groups, facet, group, value)
+    facets = list(levels)
+    if len(facets) > MAX_FACETS:
+        if not _is_strict():
+            _record_adjustment(
+                f"distribution(facet=...): trimmed {len(facets)} facets to first {MAX_FACETS}"
+            )
+            facets = facets[:MAX_FACETS]
+        else:
+            raise ExplainError(
+                f"distribution(facet=...) got {len(facets)} facet levels; more than {MAX_FACETS} "
+                "small multiples is a wall.",
+                fix_hint=f"Keep at most {MAX_FACETS} levels (filter the rows), or compare() their "
+                "medians with error= for an interval.",
+                rule="too_many_items",
+            )
+    if len(facets) < 2:
+        raise ExplainError(
+            f"distribution(facet=...) found {len(facets)} facet level; small multiples need 2-{MAX_FACETS}.",
+            fix_hint="Drop facet= for one panel of dot strips.",
+        )
+    names = list(dict.fromkeys(g for f in facets for g in levels[f]))
+    if len(names) > MAX_GROUPS:
+        raise ExplainError(
+            f"distribution(facet=...) has {len(names)} groups per facet; more than {MAX_GROUPS} "
+            "rows of dots blur together.",
+            fix_hint=f"Keep at most {MAX_GROUPS} groups (the ones the takeaway compares).",
+            rule="too_many_items",
+        )
+    cells: dict[str, dict[str, np.ndarray]] = {}
+    given: dict[str, dict[str, Any]] = {}
+    for f in facets:
+        cells[f], given[f] = {}, {}
+        for g in names:
+            if g not in levels[f]:
+                continue
+            obs = levels[f][g]
+            if _is_number(obs) or obs is None or isinstance(obs, (str, bytes)):
+                raise ExplainError(
+                    f"distribution(groups[{f!r}][{g!r}]) is {obs!r}, not a list of observations.",
+                    fix_hint="Each facet maps group names to raw observations.",
+                )
+            arr = _values_array(obs, f"distribution(groups[{f!r}][{g!r}])")
+            given[f][g] = arr
+            arr = arr[np.isfinite(arr)]
+            if arr.size < 3:
+                raise ExplainError(
+                    f"distribution(groups[{f!r}][{g!r}]) has {arr.size} finite values; a spread needs >= 3.",
+                    fix_hint="Drop that group from the facet, or use compare() for one value per group.",
+                )
+            cells[f][g] = arr
+    hl = _names(highlight, names)
+    base = _baseline_name(baseline, names, hl, "distribution")
+    ref = _reference_line(reference, "distribution(reference)")
+    everything = np.concatenate([a for per in cells.values() for a in per.values()])
+    if log and (everything.min() <= 0 or (ref is not None and ref[0] <= 0)):
+        raise ExplainError(
+            "distribution(log=True) needs strictly positive values.",
+            fix_hint="Drop log=True or remove non-positive values.",
+        )
+
+    def _stats(arr: np.ndarray) -> tuple[float, float, float]:
+        if stat == "mean":
+            m, sd = float(arr.mean()), float(arr.std(ddof=1))
+            return m - sd, m, m + sd
+        q1, med, q3 = (float(q) for q in np.percentile(arr, [25, 50, 75]))
+        return q1, med, q3
+
+    stats = {f: {g: _stats(a) for g, a in per.items()} for f, per in cells.items()}
+    fmt_fn = _formatter(
+        [v for per in stats.values() for trio in per.values() for v in trio], fmt, unit=unit, log=log
+    )
+
+    def _u(v: float) -> str:
+        return _with_unit(fmt_fn(v), unit)
+
+    rankings = {
+        f: sorted(stats[f], key=lambda g, f=f: stats[f][g][1], reverse=True) for f in facets
+    }
+    per_facet: list[str] = []
+    for f in facets:
+        parts = [
+            f"{g or (label or 'values')} {stat} {_u(stats[f][g][1])} (n={cells[f][g].size})"
+            for g in names
+            if g in cells[f]
+        ]
+        text = f"{f}: " + ", ".join(parts)
+        if base is not None and base in cells[f]:
+            for g in (hl or [nm for nm in names if nm != base])[:3]:
+                if g in cells[f]:
+                    diff = stats[f][g][1] - stats[f][base][1]
+                    d_fmt = _formatter([diff], fmt, unit=unit)
+                    text += f"; {g} \N{MINUS SIGN} {base} {_diff_with_unit(_signed(d_fmt(diff)), unit)}"
+        missing = [g for g in names if g not in cells[f]]
+        if missing:
+            text += f"; no data for {', '.join(missing)}"
+        per_facet.append(text)
+    cross = _facet_cross_fact(rankings, what=f"order of {stat}s (highest first)")
+    facts = ([cross] if cross else []) + per_facet
+    if stat == "median":
+        note = "tick: median; line: middle half"
+    else:
+        note = "tick: mean; line: \N{PLUS-MINUS SIGN} 1 s.d."
+    notes = [note, "log scale" if log else None]
+    if ref is not None:
+        notes.append(f"dashed: {ref[1] or 'reference'} {_u(ref[0])}")
+    lo_all, hi_all = float(everything.min()), float(everything.max())
+    if ref is not None:
+        lo_all, hi_all = min(lo_all, ref[0]), max(hi_all, ref[0])
+    k_rows = len(names)
+
+    def _shape(cell_w_mm: float) -> tuple[int, int]:
+        return _facet_shape(len(facets), cell_w_mm, min_mm=36.0, balance=True)
+
+    def _each_mm(sizes: _Sizes, tight: bool) -> float:
+        return 6.0 + k_rows * (5.6 if (tight or sizes.compact) else 7.0) + 4.0
+
+    def _height_mm(w: float, _m: Any, sizes: _Sizes, _t: Theme) -> float:
+        nrows = _shape(w)[0]
+        return nrows * _each_mm(sizes, False) + (nrows - 1) * 4.5
+
+    def _min_height_mm(w: float, _m: Any, sizes: _Sizes, _t: Theme) -> float:
+        nrows = _shape(w)[0]
+        return nrows * _each_mm(sizes, True) + (nrows - 1) * 4.5
+
+    def _frames(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
+        sz = ctx.sizes
+        theme = ctx.theme
+        _nr, ncols = _shape(ctx.cell_width_mm)
+        grid = _FacetGrid(ctx, ax, rect, len(facets), ncols, share="x", rows=True)
+        accent = {nm: col for nm, col in ctx.colors.items() if nm in names and nm != base}
+        rng = np.random.default_rng(0)
+        halo = [patheffects.withStroke(linewidth=2.6 * sz.scale, foreground=theme.background, alpha=0.9)]
+        for idx, f in enumerate(facets):
+            child, _sub = grid.cell(idx)
+            if log and idx == 0:  # the scale and its ticks are shared by every facet
+                child.set_xscale("log")
+            _value_axis(child, sz, theme, axis="x", nbins=3)
+            child.spines["left"].set_visible(False)
+            child.spines["bottom"].set_visible(False)
+            child.grid(axis="y", visible=False)
+            if idx == 0:
+                if log:
+                    child.set_xlim(*_narrow_log_ticks(
+                        child.xaxis, lo_all / 1.12, hi_all * 1.12, theme.minus_sign,
+                        extend=False, data_hi=hi_all,
+                    ))
+                else:
+                    span = (hi_all - lo_all) or abs(hi_all) or 1.0
+                    child.set_xlim(lo_all - 0.04 * span, hi_all + 0.04 * span)
+                    _cover_with_ticks(child.xaxis, lo_all, hi_all)
+            child.set_ylim(k_rows - 0.45, -0.6)
+            child.set_yticks(range(k_rows), [_plain(g, theme) for g in names])
+            child.tick_params(axis="y", length=0, labelsize=sz.body, labelcolor=theme.ink,
+                              labelleft=(idx % ncols == 0))
+            for tick, g in zip(child.get_yticklabels(), names):
+                if g in accent:
+                    tick.set_fontweight("bold")
+            child.tick_params(axis="x", labelbottom=grid.last_in_column(idx))
+            for row, g in enumerate(names):
+                if g not in cells[f]:
+                    continue
+                arr = cells[f][g]
+                if g == base:
+                    col = ctx.colors.get(g, theme.ink)
+                else:
+                    col = accent.get(g, theme.context_line if (hl or accent) else ctx.default_color)
+                q1, med, q3 = stats[f][g]
+                if log:
+                    q1 = max(q1, child.get_xlim()[0])
+                shown = arr if arr.size <= 400 else rng.choice(arr, size=400, replace=False)
+                alpha = 0.8 if shown.size <= 30 else (0.5 if shown.size <= 150 else 0.28)
+                tag_mark(ctx, child.scatter(
+                    shown, row + rng.uniform(-0.2, 0.2, size=shown.size),
+                    s=(3.0 * sz.scale) ** 2, color=col, alpha=alpha, linewidth=0, zorder=2,
+                ), name=g or label, x=f, value=med, lo=q1, hi=q3, n=arr.size, unit=unit)
+                if arr.size >= 5:
+                    child.hlines(row, q1, q3, color=theme.ink, linewidth=1.0 * sz.scale, zorder=4,
+                                 path_effects=halo)
+                child.vlines(med, row - 0.3, row + 0.3, color=theme.ink, linewidth=2.0 * sz.scale,
+                             zorder=5, path_effects=halo)
+            if ref is not None:
+                child.axvline(ref[0], color=theme.ink, linewidth=0.7, linestyle=(0, (3, 2)), zorder=3)
+            child.set_title(_plain(f, theme), loc="left", fontsize=sz.small, fontweight="bold",
+                            color=theme.ink, pad=3.0)
+        ctx.finishers.append(grid.equalize)
+        return grid.frames
+
+    return Panel(
+        kind="distribution",
+        title=title,
+        label=label,
+        unit=unit,
+        spec=_base_spec(
+            title,
+            label,
+            unit,
+            groups={f: {g: _jsonable(given[f][g]) for g in names if g in given[f]} for f in facets},
+            facet=True,
+            highlight=hl or None,
+            baseline=base,
+            reference=list(ref) if ref else None,
+            log=log or None,
+            stat=stat if stat != "median" else None,
+            fmt=fmt,
+        ),
+        facts=facts,
+        alt_facts=facts[: min(5, len(facts))],
+        describe=(
+            f"Small-multiple dot strips of {label or 'values'}"
+            + (f" ({unit})" if unit else "")
+            + f", one panel per level for {len(facets)} levels, the same {k_rows} group(s) in each "
+            f"on one shared scale, each with a {stat} tick"
+        ),
+        _height_mm=_height_mm,
+        _min_height_mm=_min_height_mm,
+        _draw=lambda _ctx, _ax: None,
+        _frames=_frames,
+        measure_note="; ".join(nt for nt in notes if nt),
+        color_items=tuple(nm for nm in names if nm),
+        color_focus=tuple(hl),
+        color_mode="highlight" if hl else "uniform",
+        uses_default=not hl,
+        color_baseline=base,
+    )
+
+
+def _hist_facet_panel(
+    *,
+    names: list[str],
+    data: Mapping[str, np.ndarray],
+    given: Mapping[str, Any],
+    stats: Mapping[str, tuple[float, float, float]],
+    hists: Mapping[str, np.ndarray],
+    hl: list[str],
+    base: str | None,
+    ref: tuple[float, str] | None,
+    stat: str,
+    label: str | None,
+    unit: str | None,
+    given_unit: str | None,
+    title: str | None,
+    log: bool,
+    fmt: str | None,
+    fmt_fn: Callable[[float], str],
+    bins_spec: Any,
+    bin_note: str,
+    facts: list[str],
+    alt_facts: list[str],
+    setup_axes: Callable[..., None],
+    draw_bars: Callable[..., None],
+) -> Panel:
+    """``histogram(facet=True)``: one histogram per group in a grid, on shared bins and one
+    shared count axis (the stacked form's axes and bars, laid out as small multiples)."""
+    centre = {nm: stats[nm][1] for nm in names}
+    top, low = max(names, key=lambda nm: centre[nm]), min(names, key=lambda nm: centre[nm])
+    cross = (
+        f"{stat} highest in {top} ({_with_unit(fmt_fn(centre[top]), unit)}), lowest in {low} "
+        f"({_with_unit(fmt_fn(centre[low]), unit)}); all {len(names)} groups on the same bins"
+    )
+    facts = [cross, *facts]
+
+    def _shape(cell_w_mm: float) -> tuple[int, int]:
+        return _facet_shape(len(names), cell_w_mm, min_mm=36.0, balance=True)
+
+    def _height_mm(w: float, _m: Any, sizes: _Sizes, _t: Theme) -> float:
+        nrows = _shape(w)[0]
+        each = 22.0 if sizes.compact else 24.0
+        return nrows * each + (nrows - 1) * 4.5 + 5.0
+
+    def _min_height_mm(w: float, _m: Any, _s: _Sizes, _t: Theme) -> float:
+        nrows = _shape(w)[0]
+        return nrows * 21.0 + (nrows - 1) * 4.5 + 5.0
+
+    def _frames(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
+        sz = ctx.sizes
+        theme = ctx.theme
+        accent = {nm: col for nm, col in ctx.colors.items() if nm in names and nm != base}
+        _nr, ncols = _shape(ctx.cell_width_mm)
+        grid = _FacetGrid(ctx, ax, rect, len(names), ncols, share="xy", rows=True)
+        room_pt = (rect.width * ctx.pt_per_px) / ncols - 6.0
+        labelled = False
+        for idx, nm in enumerate(names):
+            child, _sub = grid.cell(idx)
+            show_x = grid.last_in_column(idx)
+            setup_axes(child, sz, theme, show_x=show_x, nbins_y=3,
+                       cell_w_mm=ctx.cell_width_mm / ncols)
+            if show_x and labelled:
+                child.set_xlabel("")
+            labelled = labelled or show_x
+            child.tick_params(axis="y", labelleft=(idx % ncols == 0))
+            draw_bars(ctx, child, nm, accent, sz, theme)
+            if ref is not None:
+                child.axvline(ref[0], color=theme.muted, linewidth=0.85 * sz.scale,
+                              linestyle=(0, (3, 2)), zorder=3)
+            weight = "bold" if (nm in accent or nm == base) else "normal"
+            head = f"{nm}  n={data[nm].size}"
+            if ctx.measure.width_pt(head, sz.small, weight) > room_pt:
+                head = nm
+            col = ctx.colors.get(nm, theme.ink) if nm == base else accent.get(nm, theme.ink)
+            child.set_title(_plain(head, theme), loc="left", fontsize=sz.small, fontweight=weight,
+                            color=ctx.text_color(col) if nm in accent else theme.ink, pad=5.0)
+        ctx.finishers.append(grid.equalize)
+        return grid.frames
+
+    notes = [f"Count per group; {bin_note}; dashed: {stat}"]
+    if ref is not None:
+        notes.append(f"dotted: {ref[1] or 'reference'} {_with_unit(fmt_fn(ref[0]), unit)}")
+    return Panel(
+        kind="distribution",
+        title=title,
+        label=label,
+        unit=unit,
+        spec=_base_spec(
+            title,
+            label,
+            given_unit,
+            groups=_jsonable(given),
+            facet=True,
+            highlight=hl or None,
+            baseline=base,
+            reference=list(ref) if ref else None,
+            log=log or None,
+            stat=stat if stat != "median" else None,
+            bins=bins_spec,
+            fmt=fmt,
+        ),
+        facts=facts,
+        alt_facts=[cross, *alt_facts],
+        describe=(
+            f"Small-multiple histograms of {label or 'values'}"
+            + (f" ({unit})" if unit else "")
+            + f", one per group for {len(names)} groups, on shared bins ({bin_note}) and one count axis"
+        ),
+        _height_mm=_height_mm,
+        _min_height_mm=_min_height_mm,
+        _draw=lambda _ctx, _ax: None,
+        _frames=_frames,
+        measure_note="; ".join(notes),
+        color_items=tuple(nm for nm in names if nm),
+        color_focus=tuple(hl),
+        color_mode="highlight" if hl else "uniform",
+        uses_default=not hl,
+        color_baseline=base,
     )

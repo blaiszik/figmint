@@ -67,7 +67,8 @@ jobs:
           "${{ runner.temp }}/smoke-venv/bin/mintfig" --help > /dev/null
           "${{ runner.temp }}/smoke-venv/bin/mintfig" skill --install --root "${{ runner.temp }}/skill-test"
           test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/SKILL.md"
-          test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/scientific_and_recipes.md"
+          test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/recipes.md"
+          test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/science.md"
           test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/publication.md"
           "${{ runner.temp }}/smoke-venv/bin/python" -c '
           import mintfig as mint

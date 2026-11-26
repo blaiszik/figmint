@@ -17,7 +17,7 @@ def build() -> mint.Plate:
         layout=[["a", "b"], ["c", "d"]],
         gap_mm=(10.0, 9.5),
     )
-    colors = mint.get_palette("nature")
+    colors = mint.pub.get_palette("nature")
 
     # a: time series
     t = np.linspace(0, 12, 120)

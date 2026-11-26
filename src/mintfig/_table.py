@@ -13,6 +13,7 @@ import numbers
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+from matplotlib.collections import LineCollection
 from matplotlib.patches import Rectangle
 
 from ._tabular import extract_table_data
@@ -25,6 +26,11 @@ if TYPE_CHECKING:
 
 MAX_TABLE_ROWS = 20
 MAX_TABLE_COLS = 8
+#: In-cell graphic width (pt at scale 1): the least that still reads, and the most it grows to.
+_GRAPHIC_MIN_PT = 16.0
+_GRAPHIC_PREF_PT = 44.0
+#: Gap between a cell's number and its graphic (pt at scale 1).
+_GRAPHIC_GAP_PT = 4.0
 
 
 def _is_missing(val: Any) -> bool:
@@ -113,6 +119,10 @@ def table(
     sort: str | None = None,
     align: Mapping[str, str] | None = None,
     fmt: str | Mapping[str, str] | None = None,
+    bars: str | Sequence[str] | None = None,
+    interval: Mapping[str, Any] | None = None,
+    interval_label: str | None = None,
+    spark: Mapping[str, Mapping[str, Sequence[Any]]] | None = None,
 ) -> Panel:
     """Exact lookup table or multi-metric scorecard with booktabs rules and aligned figures.
 
@@ -130,6 +140,17 @@ def table(
     - ``sort`` sorts by a column name (``"col"`` ascending, ``"-col"`` descending).
     - ``units`` attaches per-column units (``{"GPQA": "%", "Cost": "$/M"}``).
     - ``fmt`` sets a global format string or ``{col: fmt_str}``.
+
+    Table-graphics (each drawn in the cell beside its number, on one scale per column):
+
+    - ``bars`` names numeric columns that gain a thin bar from zero (both ways when
+      the column has negative values).
+    - ``interval`` adds a dot-and-whisker: ``{col: {row: (lo, hi)}}``, or
+      ``{col: ("lo_col", "hi_col")}`` naming two columns of ``rows`` (then not shown
+      as columns). Say what the interval is with ``interval_label=`` ("95% CI").
+    - ``spark`` adds sparklines on one shared y range: ``{title: {row: [values]}}``.
+      A new title adds a column with the last value beside each line; an existing
+      column name draws the sparkline beside that column's number.
     """
     from ._explain.core import (
         _LINE,
@@ -138,39 +159,154 @@ def table(
         Panel,
         _bare_axes,
         _baseline_name,
+        _diff_with_unit,
         _formatter,
+        _interval_issue,
         _is_strict,
         _jsonable,
         _names,
         _plain,
+        _range_with_unit,
         _record_adjustment,
         _relative_luminance,
         _with_unit,
     )
+    from ._explain.marks import tag
 
     def _line_mm(pt: float) -> float:
         return pt * _LINE * PT_TO_MM
 
-    col_names, raw_rows = extract_table_data(rows, columns=columns)
-    if not col_names:
+    all_cols, full_rows = extract_table_data(rows, columns=columns)
+    if not all_cols:
         raise ExplainError("table() has no columns.", fix_hint="Pass at least one column.")
-    if not raw_rows:
+    if not full_rows:
         raise ExplainError("table() has no rows.", fix_hint="Pass at least one row.")
 
-    # Column limit
-    if len(col_names) > MAX_TABLE_COLS:
+    def _cols_hint(cols: Sequence[str]) -> str:
+        return f"Use column names from: {', '.join(map(repr, cols))}."
+
+    # Table-graphics arguments: parse their shape first (interval column pairs are hidden).
+    iv_spec: dict[str, Any] = {}
+    hidden: list[str] = []
+    if interval is not None:
+        if not isinstance(interval, Mapping) or not interval:
+            raise ExplainError(
+                "table(interval) must map a column name to its intervals.",
+                fix_hint='e.g. interval={"Acc": {"Alpha": (0.71, 0.77)}} or '
+                'interval={"Acc": ("Acc lo", "Acc hi")}.',
+            )
+        for k, v in interval.items():
+            ks = str(k)
+            if ks not in all_cols:
+                raise ExplainError(
+                    f"table(interval) names unknown column {ks!r}.", fix_hint=_cols_hint(all_cols[1:])
+                )
+            if isinstance(v, Mapping):
+                iv_spec[ks] = dict(v)
+            elif (
+                isinstance(v, Sequence)
+                and not isinstance(v, (str, bytes))
+                and len(v) == 2
+                and all(isinstance(x, str) for x in v)
+            ):
+                pair = (str(v[0]), str(v[1]))
+                for nm in pair:
+                    if nm not in all_cols or nm in (all_cols[0], ks) or pair[0] == pair[1]:
+                        raise ExplainError(
+                            f"table(interval[{ks!r}]) names {nm!r} as a bound column.",
+                            fix_hint="Name two other columns of rows (low, high). "
+                            + _cols_hint([c for c in all_cols[1:] if c != ks]),
+                        )
+                iv_spec[ks] = pair
+                hidden.extend(nm for nm in pair if nm not in hidden)
+            else:
+                raise ExplainError(
+                    f"table(interval[{ks!r}]) must be {{row: (lo, hi)}} or a pair of column names.",
+                    fix_hint=f'e.g. interval={{"{ks}": ("{ks} lo", "{ks} hi")}}.',
+                )
+        clash = [c for c in iv_spec if c in hidden]
+        if clash:
+            raise ExplainError(
+                f"table(interval) uses column {clash[0]!r} both as a value and as a bound.",
+                fix_hint="Give each interval its own two bound columns.",
+            )
+
+    spark_spec: dict[str, dict[str, list[float | None]]] = {}
+    if spark is not None:
+        if not isinstance(spark, Mapping) or not spark:
+            raise ExplainError(
+                "table(spark) must map a column title to {row: [values]}.",
+                fix_hint='e.g. spark={"Trend": {"Alpha": [0.61, 0.70, 0.74]}}.',
+            )
+        for t, series in spark.items():
+            ts = str(t)
+            if ts == all_cols[0] or ts in hidden:
+                raise ExplainError(
+                    f"table(spark) cannot draw in column {ts!r}.",
+                    fix_hint="Use a new column title, or a numeric column that is shown.",
+                )
+            if not isinstance(series, Mapping) or not series:
+                raise ExplainError(
+                    f"table(spark[{ts!r}]) must map row names to lists of values.",
+                    fix_hint=f'e.g. spark={{"{ts}": {{"Alpha": [0.61, 0.70, 0.74]}}}}.',
+                )
+            parsed: dict[str, list[float | None]] = {}
+            for rn, vals in series.items():
+                if isinstance(vals, (str, bytes)) or not isinstance(vals, Sequence):
+                    raise ExplainError(
+                        f"table(spark[{ts!r}][{rn!r}]) must be a list of numbers.",
+                        fix_hint="Pass the series as a list, e.g. [0.61, 0.70, 0.74].",
+                    )
+                if any(not _is_missing(x) and _as_float_or_none(x) is None for x in vals):
+                    raise ExplainError(
+                        f"table(spark[{ts!r}][{rn!r}]) has a value that is not a number.",
+                        fix_hint="Use numbers, with None for a gap.",
+                    )
+                pv = [_as_float_or_none(x) for x in vals]
+                if sum(x is not None for x in pv) < 2:
+                    raise ExplainError(
+                        f"table(spark[{ts!r}][{rn!r}]) needs at least two numbers.",
+                        fix_hint="A sparkline shows a change: pass two or more values per row.",
+                    )
+                parsed[str(rn)] = pv
+            spark_spec[ts] = parsed
+
+    if bars is None:
+        bar_cols: list[str] = []
+    elif isinstance(bars, str):
+        bar_cols = [bars]
+    elif isinstance(bars, Sequence):
+        bar_cols = [str(b) for b in bars]
+    else:
+        raise ExplainError(
+            "table(bars) must be a column name or a list of column names.",
+            fix_hint=f'e.g. bars="{all_cols[-1]}".',
+        )
+
+    # Column limit: shown columns plus new sparkline columns
+    visible = [c for c in all_cols if c not in hidden]
+    new_spark = [t for t in spark_spec if t not in visible]
+    n_shown = len(visible) + len(new_spark)
+    if n_shown > MAX_TABLE_COLS:
         if not _is_strict():
-            orig = len(col_names)
-            col_names = col_names[:MAX_TABLE_COLS]
-            raw_rows = [r[:MAX_TABLE_COLS] for r in raw_rows]
-            _record_adjustment(f"table(): trimmed {orig} columns to first {MAX_TABLE_COLS}")
+            keep = max(1, MAX_TABLE_COLS - len(new_spark))
+            visible = visible[:keep]
+            new_spark = new_spark[: MAX_TABLE_COLS - len(visible)]
+            spark_spec = {t: s for t, s in spark_spec.items() if t in visible or t in new_spark}
+            bar_cols = [b for b in bar_cols if b in visible or b not in all_cols]
+            iv_spec = {k: v for k, v in iv_spec.items() if k in visible}
+            hidden = [nm for v in iv_spec.values() if isinstance(v, tuple) for nm in v]
+            _record_adjustment(f"table(): trimmed {n_shown} columns to first {MAX_TABLE_COLS}")
         else:
             raise ExplainError(
-                f"table() got {len(col_names)} columns; beyond {MAX_TABLE_COLS} columns "
-                "a chat table becomes unreadable.",
+                f"table() shows {n_shown} columns (sparkline columns count); beyond "
+                f"{MAX_TABLE_COLS} columns a chat table becomes unreadable.",
                 fix_hint=f"Keep at most {MAX_TABLE_COLS} columns via columns=[...], or split into two tables.",
                 rule="too_many_items",
             )
+    spec_cols = [c for c in all_cols if c in visible or c in hidden]
+    col_names = all_cols
+    raw_rows = full_rows
 
     # Validate units / align / fmt / bold_best column keys
     unit_map: dict[str, str] = {}
@@ -182,7 +318,7 @@ def table(
             )
         for k, v in units.items():
             ks = str(k)
-            if ks not in col_names:
+            if ks not in col_names and ks not in spark_spec:
                 raise ExplainError(
                     f"table(units) names unknown column {ks!r}.",
                     fix_hint=f"Use column names from: {', '.join(map(repr, col_names))}.",
@@ -196,7 +332,7 @@ def table(
     elif isinstance(fmt, Mapping):
         for k, v in fmt.items():
             ks = str(k)
-            if ks not in col_names:
+            if ks not in col_names and ks not in spark_spec:
                 raise ExplainError(
                     f"table(fmt) names unknown column {ks!r}.",
                     fix_hint=f"Use column names from: {', '.join(map(repr, col_names))}.",
@@ -239,6 +375,7 @@ def table(
     row_keys = [
         "\N{EM DASH}" if _is_missing(r[0]) else str(r[0]) for r in raw_rows
     ]
+    untrimmed_keys = set(row_keys)
 
     # Row limit
     if len(raw_rows) > MAX_TABLE_ROWS:
@@ -269,6 +406,12 @@ def table(
                 fix_hint=f"Keep at most {MAX_TABLE_ROWS} rows (e.g. top rows in sort=), or split into two tables.",
                 rule="too_many_items",
             )
+
+    # Rows keep every column for the spec; the drawn table shows the visible ones.
+    full_rows = raw_rows
+    spec_rows = [[r[all_cols.index(c)] for c in spec_cols] for r in full_rows]
+    col_names = list(visible)
+    raw_rows = [[r[all_cols.index(c)] for c in visible] for r in full_rows]
 
     hl = _names(highlight, row_keys, "table(highlight)")
     base = _baseline_name(baseline, row_keys, hl, "table")
@@ -358,6 +501,96 @@ def table(
             if v is not None and target_val is not None and math.isclose(v, target_val, rel_tol=1e-9, abs_tol=1e-12):
                 best_cells.add((r, c))
 
+    # Table-graphics: check names against the shown columns and rows.
+    numeric_names = [col_names[c] for c in range(1, n_cols) if col_numeric[c]]
+
+    def _numeric_col(name: str, arg: str) -> int:
+        c = col_names.index(name) if name in col_names else -1
+        if c <= 0 or not col_numeric[c]:
+            raise ExplainError(
+                f"table({arg}) names {name!r}, which is not a numeric column of the table.",
+                fix_hint="Use a numeric column from: "
+                + (", ".join(map(repr, numeric_names)) or "(none)")
+                + ".",
+            )
+        return c
+
+    def _known_row(name: str, arg: str) -> int | None:
+        if name in row_keys:
+            return row_keys.index(name)
+        if name in untrimmed_keys:
+            return None  # its row was trimmed (lenient mode)
+        raise ExplainError(
+            f"table({arg}) names unknown row {name!r}.",
+            fix_hint=f"Use row names from: {', '.join(map(repr, row_keys))}.",
+        )
+
+    gfx_kind: dict[int, str] = {}
+
+    def _claim_col(c: int, kind: str) -> None:
+        if c in gfx_kind:
+            raise ExplainError(
+                f"table() column {col_names[c]!r} gets both {gfx_kind[c]}= and {kind}=.",
+                fix_hint="Give each column one graphic: bars=, interval= or spark=.",
+            )
+        gfx_kind[c] = kind
+
+    for b in bar_cols:
+        _claim_col(_numeric_col(b, "bars"), "bars")
+
+    iv_bounds: dict[int, list[tuple[float, float] | None]] = {}
+    for cname, how in iv_spec.items():
+        c = _numeric_col(cname, "interval")
+        _claim_col(c, "interval")
+        given: list[tuple[int, Any, Any]] = []
+        if isinstance(how, tuple):
+            lo_i, hi_i = all_cols.index(how[0]), all_cols.index(how[1])
+            given = [(r, full_rows[r][lo_i], full_rows[r][hi_i]) for r in range(n_rows)]
+        else:
+            for rn, pair in how.items():
+                r_idx = _known_row(str(rn), f"interval[{cname!r}]")
+                if r_idx is None:
+                    continue
+                if (
+                    isinstance(pair, (str, bytes))
+                    or not isinstance(pair, Sequence)
+                    or len(pair) != 2
+                    or any(_as_float_or_none(x) is None for x in pair)
+                ):
+                    raise ExplainError(
+                        f"table(interval[{cname!r}][{rn!r}]) must be two numbers (low, high).",
+                        fix_hint="e.g. (0.71, 0.77).",
+                    )
+                given.append((r_idx, pair[0], pair[1]))
+        bounds: list[tuple[float, float] | None] = [None] * n_rows
+        for r, lo_raw, hi_raw in given:
+            lo_v, hi_v = _as_float_or_none(lo_raw), _as_float_or_none(hi_raw)
+            if lo_v is None or hi_v is None or col_floats[c][r] is None:
+                continue
+            if lo_v > hi_v:
+                raise ExplainError(
+                    f"table(interval[{cname!r}]) for row {row_keys[r]!r} has its low bound "
+                    f"{lo_v:g} above its high bound {hi_v:g}.",
+                    fix_hint="Give each interval as (low, high).",
+                )
+            bounds[r] = (lo_v, hi_v)
+        iv_bounds[c] = bounds
+
+    spark_rows: dict[str, list[list[float | None] | None]] = {}
+    for sp_title, series in spark_spec.items():
+        per_row: list[list[float | None] | None] = [None] * n_rows
+        for rn, vals in series.items():
+            r_idx = _known_row(rn, f"spark[{sp_title!r}]")
+            if r_idx is not None:
+                per_row[r_idx] = vals
+        spark_rows[sp_title] = per_row
+        if sp_title in col_names:
+            _claim_col(_numeric_col(sp_title, "spark"), "spark")
+
+    panel_issues: list[dict[str, Any]] = []
+    if iv_bounds and not interval_label:
+        panel_issues.append(_interval_issue("table", "interval", "interval_label"))
+
     # Format headers (include per-column unit cleanly when not already in header)
     header_labels: list[str] = []
     for c, cname in enumerate(col_names):
@@ -376,6 +609,7 @@ def table(
         u = unit_map.get(cname) or (unit if col_numeric[c] and not unit_map else None)
         if col_numeric[c]:
             finite_vals = [v for v in col_floats[c] if v is not None]
+            finite_vals += [b for pair in iv_bounds.get(c, []) if pair for b in pair]
             cfmt = fmt_map.get(cname, global_fmt)
             fmt_fn = _formatter(finite_vals, cfmt, unit=u)
             col_formatters[c] = fmt_fn
@@ -402,8 +636,51 @@ def table(
             return val_str + u[1:]
         return _with_unit(val_str, u)
 
+    # In-cell graphics by drawn column; a new sparkline title adds a column at the end.
+    graphics: dict[int, dict[str, Any]] = {}
+    for c, kind in gfx_kind.items():
+        vals_c = col_floats[c]
+        finite_c = [v for v in vals_c if v is not None]
+        if kind == "bars":
+            graphics[c] = {"kind": "bars", "values": vals_c, "lead": True,
+                           "lo": min(0.0, *finite_c), "hi": max(0.0, *finite_c)}
+        elif kind == "interval":
+            ends = finite_c + [b for pair in iv_bounds[c] if pair for b in pair]
+            fmt_fn = col_formatters[c]
+            graphics[c] = {
+                "kind": "interval", "values": vals_c, "lead": True, "bounds": iv_bounds[c],
+                "lo": min(ends), "hi": max(ends), "label": interval_label,
+                "bounds_text": [
+                    _range_with_unit(fmt_fn(p[0]), fmt_fn(p[1]), None) if p else None
+                    for p in iv_bounds[c]
+                ],
+            }
+    for sp_title, per_row in spark_rows.items():
+        every = [v for s in per_row if s for v in s if v is not None]
+        lasts = [next((v for v in reversed(s) if v is not None), None) if s else None for s in per_row]
+        if sp_title in col_names:
+            c = col_names.index(sp_title)
+        else:
+            c = len(header_labels)
+            u = unit_map.get(sp_title)
+            header_labels.append(f"{sp_title} ({u})" if u and f"({u})" not in sp_title else sp_title)
+            col_align.append("right")
+            last_fmt = _formatter(
+                [v for v in lasts if v is not None], fmt_map.get(sp_title, global_fmt), unit=u
+            )
+            for r in range(n_rows):
+                if lasts[r] is None:
+                    formatted[r].append("\N{EM DASH}")
+                    missing_count += 1
+                else:
+                    formatted[r].append(last_fmt(lasts[r]))
+        graphics[c] = {"kind": "spark", "series": per_row, "values": lasts,
+                       "lead": c < n_cols, "lo": min(every), "hi": max(every)}
+    n_all = len(header_labels)
+    col_title = [*col_names, *(t for t in spark_rows if t not in col_names)]
+
     # Compute facts
-    facts: list[str] = [f"{n_rows} rows \N{MULTIPLICATION SIGN} {n_cols} columns"]
+    facts: list[str] = [f"{n_rows} rows \N{MULTIPLICATION SIGN} {n_all} columns"]
     base_idx = row_keys.index(base) if base is not None else None
     for c in range(n_cols):
         if not col_numeric[c]:
@@ -433,19 +710,48 @@ def table(
                 assert tv is not None
                 diff = tv - bv
                 sign = "+" if diff > 0 else ("\N{MINUS SIGN}" if diff < 0 else "")
-                dtxt = _cell_with_unit(fmt_fn(abs(diff)), u)
-                facts.append(f"{cname}: {row_keys[tr]} vs {base} is {sign}{dtxt}")
+                if u and u.strip().startswith("%"):  # a difference of percents is in points
+                    dtxt = _diff_with_unit(f"{sign}{fmt_fn(abs(diff))}", u)
+                else:
+                    dtxt = sign + _cell_with_unit(fmt_fn(abs(diff)), u)
+                facts.append(f"{cname}: {row_keys[tr]} vs {base} is {dtxt}")
+    for c, bounds in iv_bounds.items():
+        rated = [(r, col_floats[c][r]) for r in range(n_rows) if bounds[r] is not None]
+        if len(rated) < 2:
+            continue
+        pick = min if best_dir.get(c) == "min" else max
+        best_r = pick(rated, key=lambda kv: kv[1])[0]  # type: ignore[arg-type,return-value]
+        b_lo, b_hi = bounds[best_r]  # type: ignore[misc]
+        over = [
+            row_keys[r] for r, _ in rated
+            if r != best_r and bounds[r][0] <= b_hi and bounds[r][1] >= b_lo  # type: ignore[index]
+        ]
+        cname = col_names[c]
+        if over:
+            noun, verb = ("interval", "overlaps") if len(over) == 1 else ("intervals", "overlap")
+            facts.append(
+                f"{cname}: the {noun} of {', '.join(over)} {verb} that of the best row, "
+                f"{row_keys[best_r]}"
+            )
+        else:
+            facts.append(f"{cname}: no interval overlaps that of the best row, {row_keys[best_r]}")
     if missing_count:
         facts.append(f"{missing_count} empty cell(s) shown as \N{EM DASH}")
 
-    markdown_text = _format_cell_markdown(header_labels, col_align, formatted)
+    md_rows = [list(row) for row in formatted]
+    for c, g in graphics.items():
+        if g["kind"] == "interval":
+            for r, txt in enumerate(g["bounds_text"]):
+                if txt:
+                    md_rows[r][c] = f"{formatted[r][c]} ({txt})"
+    markdown_text = _format_cell_markdown(header_labels, col_align, md_rows)
 
     # Height computation: proportional to row count + header height
     def _height_mm(cell_w_mm: float, measure: _Measure, sizes: _Sizes, theme: Theme) -> float:
         row_h = max(_line_mm(sizes.small) * 1.48, 5.2 * sizes.scale)
         # Estimate whether any header wraps to 2 lines
         head_lines = 1
-        est_col_pt = (cell_w_mm / PT_TO_MM) / max(n_cols, 1)
+        est_col_pt = (cell_w_mm / PT_TO_MM) / max(n_all, 1)
         if any(measure.width_pt(h, sizes.small) > est_col_pt * 1.15 and " " in h for h in header_labels):
             head_lines = 2
         head_h = max(_line_mm(sizes.small) * (1.25 * head_lines + 0.55), 6.2 * sizes.scale)
@@ -464,28 +770,34 @@ def table(
 
         pad_pt = 4.2 * sz.scale
         stripe_pad_pt = 4.0 * sz.scale if (hl or base) else 1.5 * sz.scale
+        gap_pt = _GRAPHIC_GAP_PT * sz.scale
+        g_min = _GRAPHIC_MIN_PT * sz.scale
+        g_pref = _GRAPHIC_PREF_PT * sz.scale
 
-        # Measure natural column widths
+        # Measure natural column widths (a graphic column also needs its graphic)
         data_widths = [
             max(
                 (measure.width_pt(_plain(formatted[r][c], theme), sz.small) for r in range(n_rows)),
                 default=14.0,
             )
-            for c in range(n_cols)
+            for c in range(n_all)
+        ]
+        body_widths = [
+            data_widths[c] + (gap_pt + g_min if c in graphics else 0.0) for c in range(n_all)
         ]
         head_widths_1 = [
             measure.width_pt(_plain(header_labels[c], theme), sz.small) * 1.06
-            for c in range(n_cols)
+            for c in range(n_all)
         ]
 
         # Decide whether to wrap headers to fit width
-        need_1 = [max(data_widths[c], head_widths_1[c]) + 2 * pad_pt for c in range(n_cols)]
+        need_1 = [max(body_widths[c], head_widths_1[c]) + 2 * pad_pt for c in range(n_all)]
         need_1[0] += stripe_pad_pt
         drawn_headers = list(header_labels)
         if sum(need_1) > cell_w_pt:
             # Try wrapping multi-word headers
-            for c in range(n_cols):
-                target_w = max(data_widths[c], head_widths_1[c] * 0.58)
+            for c in range(n_all):
+                target_w = max(body_widths[c], head_widths_1[c] * 0.58)
                 wrapped = _wrap_header(header_labels[c], target_w, measure, sz.small)
                 drawn_headers[c] = wrapped
             head_widths_2 = [
@@ -493,9 +805,9 @@ def table(
                     measure.width_pt(_plain(line, theme), sz.small) * 1.06
                     for line in drawn_headers[c].split("\n")
                 )
-                for c in range(n_cols)
+                for c in range(n_all)
             ]
-            need = [max(data_widths[c], head_widths_2[c]) + 2 * pad_pt for c in range(n_cols)]
+            need = [max(body_widths[c], head_widths_2[c]) + 2 * pad_pt for c in range(n_all)]
             need[0] += stripe_pad_pt
         else:
             need = need_1
@@ -509,11 +821,20 @@ def table(
                 rule="table_too_wide",
             )
 
-        # Distribute any surplus width proportionally across columns (slightly favouring col 0)
+        # Surplus width first lets each graphic grow to its preferred width, then is
+        # shared proportionally across columns (slightly favouring col 0)
         surplus = max(0.0, cell_w_pt - total_need)
-        weights = [1.4 if c == 0 else 1.0 for c in range(n_cols)]
+        col_w = list(need)
+        grow = {c: max(0.0, data_widths[c] + gap_pt + g_pref + 2 * pad_pt - need[c]) for c in graphics}
+        want = sum(grow.values())
+        if want > 0:
+            share = min(1.0, surplus / want)
+            for c, extra in grow.items():
+                col_w[c] += extra * share
+            surplus -= want * share
+        weights = [1.4 if c == 0 else 1.0 for c in range(n_all)]
         w_sum = sum(weights)
-        col_w = [need[c] + surplus * (weights[c] / w_sum) for c in range(n_cols)]
+        col_w = [col_w[c] + surplus * (weights[c] / w_sum) for c in range(n_all)]
         total_w = sum(col_w)
         col_x = [0.0]
         for w in col_w:
@@ -594,13 +915,30 @@ def table(
             ax.hlines(inner_ys, 0.0, 1.0, color=theme.grid, linewidth=0.45 * sz.scale, zorder=2)
         ax.hlines(total_y - 0.02, 0.0, 1.0, color=theme.ink, linewidth=0.9 * sz.scale, zorder=3)
 
-        # Column header text
         pad_frac = pad_pt / max(total_w, 1.0)
         stripe_frac = stripe_pad_pt / max(total_w, 1.0)
-        for c in range(n_cols):
-            al = col_align[c]
-            left_x = col_x[c] + (stripe_frac if c == 0 else 0.0) + pad_frac
-            right_x = col_x[c + 1] - pad_frac
+        gap_frac = gap_pt / max(total_w, 1.0)
+
+        def _span(c: int) -> tuple[float, float]:
+            return col_x[c] + (stripe_frac if c == 0 else 0.0) + pad_frac, col_x[c + 1] - pad_frac
+
+        # Where each graphic column puts its number (right edge) and its graphic.
+        text_right: dict[int, float] = {}
+        g_span: dict[int, tuple[float, float]] = {}
+        for c, g in graphics.items():
+            left_x, right_x = _span(c)
+            dw = data_widths[c] / max(total_w, 1.0)
+            if g["lead"]:
+                text_right[c] = left_x + dw
+                g_span[c] = (left_x + dw + gap_frac, right_x)
+            else:
+                text_right[c] = right_x
+                g_span[c] = (left_x, right_x - dw - gap_frac)
+
+        # Column header text
+        for c in range(n_all):
+            al = "left" if c in graphics else col_align[c]
+            left_x, right_x = _span(c)
             if al == "right":
                 tx, ha = right_x, "right"
             elif al == "center":
@@ -620,17 +958,35 @@ def table(
             )
             t._mintfig_heatmap_text = True  # type: ignore[attr-defined]
 
+        def _unit_of(c: int) -> str | None:
+            if c >= n_cols:
+                return unit_map.get(col_title[c])
+            return unit_map.get(col_names[c]) or (unit if col_numeric[c] and not unit_map else None)
+
+        def _record(r: int, c: int) -> dict[str, Any]:
+            g = graphics.get(c)
+            if c >= n_cols:
+                value: Any = g["values"][r] if g else None
+            else:
+                value = col_floats[c][r] if col_numeric[c] else raw_rows[r][c]
+            rec: dict[str, Any] = {"name": row_keys[r], "x": col_title[c], "unit": _unit_of(c),
+                                   "value": value}
+            if g and g["kind"] == "interval" and g["bounds"][r]:
+                rec["lo"], rec["hi"] = g["bounds"][r]
+            return rec
+
         # Data cell text
         for r in range(n_rows):
             yc = head_units + r + 0.5
             rk = row_keys[r]
             is_hl = rk in hl
             is_base = base is not None and rk == base
-            for c in range(n_cols):
+            for c in range(n_all):
                 al = col_align[c]
-                left_x = col_x[c] + (stripe_frac if c == 0 else 0.0) + pad_frac
-                right_x = col_x[c + 1] - pad_frac
-                if al == "right":
+                left_x, right_x = _span(c)
+                if c in graphics:
+                    tx, ha = text_right[c], "right"
+                elif al == "right":
                     tx, ha = right_x, "right"
                 elif al == "center":
                     tx, ha = 0.5 * (left_x + right_x), "center"
@@ -654,11 +1010,89 @@ def table(
                     zorder=4,
                 )
                 t._mintfig_heatmap_text = True  # type: ignore[attr-defined]
+                if c > 0 and not is_dash:
+                    tag(ctx, t, **_record(r, c))
+
+        # In-cell graphics, one scale per column
+        def _row_color(rk: str, other: str) -> str:
+            if rk in hl:
+                return ctx.colors.get(rk, theme.series_colors[0])
+            if base is not None and rk == base:
+                return ctx.colors.get(rk, theme.ink)
+            return other
+
+        lw = 0.9 * sz.scale
+        for c, g in graphics.items():
+            g0, g1 = g_span[c]
+            lo, hi = float(g["lo"]), float(g["hi"])
+            if g["kind"] == "bars":
+                if hi <= lo:
+                    continue
+                def _bx(v: float, g0: float = g0, g1: float = g1, lo: float = lo, hi: float = hi) -> float:
+                    return g0 + (v - lo) / (hi - lo) * (g1 - g0)
+                if lo < 0:
+                    ax.vlines(_bx(0.0), head_units + 0.12, total_y - 0.12, color=theme.zero_line,
+                              linewidth=theme.zero_line_lw * sz.scale, zorder=3)
+                for r, v in enumerate(g["values"]):
+                    if v is None or v == 0:
+                        continue
+                    x0, x1 = sorted((_bx(0.0), _bx(v)))
+                    bar = ax.add_patch(
+                        Rectangle(
+                            (x0, head_units + r + 0.32), x1 - x0, 0.36,
+                            facecolor=_row_color(row_keys[r], theme.context_fill),
+                            edgecolor="none", zorder=3,
+                        )
+                    )
+                    tag(ctx, bar, quiet=True, **_record(r, c))
+            elif g["kind"] == "interval":
+                pad = 0.06 * (hi - lo) or abs(hi) * 0.05 or 1.0
+                lo, hi = lo - pad, hi + pad
+                def _ix(v: float, g0: float = g0, g1: float = g1, lo: float = lo, hi: float = hi) -> float:
+                    return g0 + (v - lo) / (hi - lo) * (g1 - g0)
+                for r, v in enumerate(g["values"]):
+                    if v is None:
+                        continue
+                    yc = head_units + r + 0.5
+                    col = _row_color(row_keys[r], theme.axis)
+                    if g["bounds"][r]:
+                        b0, b1 = (_ix(b) for b in g["bounds"][r])
+                        whisker = ax.hlines(yc, b0, b1, color=col, linewidth=lw, zorder=3)
+                        ax.vlines([b0, b1], yc - 0.16, yc + 0.16, color=col, linewidth=lw, zorder=3)
+                        tag(ctx, whisker, quiet=True, **_record(r, c))
+                    dot = ax.scatter([_ix(v)], [yc], s=(3.8 * sz.scale) ** 2, color=col,
+                                     edgecolor=theme.background, linewidth=0.6, zorder=3.5)
+                    tag(ctx, dot, quiet=True, **_record(r, c))
+            else:
+                end_r = 2.6 * sz.scale / max(total_w, 1.0)  # room for the end dot
+                g1 -= end_r
+                for r, series in enumerate(g["series"]):
+                    if not series:
+                        continue
+                    yc = head_units + r + 0.5
+                    step = (g1 - g0) / max(len(series) - 1, 1)
+                    segs: list[list[tuple[float, float]]] = [[]]
+                    for i, v in enumerate(series):
+                        if v is None:
+                            segs.append([])
+                            continue
+                        y = yc + 0.3 - ((v - lo) / (hi - lo) * 0.6 if hi > lo else 0.3)
+                        segs[-1].append((g0 + i * step, y))
+                    end = next(s[-1] for s in reversed(segs) if s)
+                    col = _row_color(row_keys[r], theme.context_line)
+                    line = ax.add_collection(
+                        LineCollection([s for s in segs if len(s) > 1], colors=col, linewidths=lw,
+                                       capstyle="round", joinstyle="round", zorder=3)
+                    )
+                    tag(ctx, line, quiet=True, **_record(r, c))
+                    dot = ax.scatter([end[0]], [end[1]], s=(3.4 * sz.scale) ** 2,
+                                     color=col, edgecolor="none", zorder=3.5)
+                    tag(ctx, dot, quiet=True, **_record(r, c))
         return None
 
     spec: dict[str, Any] = {
-        "rows": [_jsonable(r) for r in raw_rows],
-        "columns": list(col_names),
+        "rows": [_jsonable(r) for r in spec_rows],
+        "columns": list(spec_cols),
         "title": title,
         "label": label,
         "unit": unit,
@@ -668,8 +1102,19 @@ def table(
         "bold_best": bold_best if bold_best else None,
         "align": dict(align) if align else None,
         "fmt": fmt,
+        "bars": list(bar_cols) or None,
+        "interval": _jsonable(iv_spec) or None,
+        "interval_label": interval_label if iv_spec else None,
+        "spark": _jsonable(spark_spec) or None,
     }
-    describe = f"Table of {n_rows} rows across {', '.join(col_names)}"
+    describe = f"Table of {n_rows} rows across {', '.join(col_title)}"
+    drawn = [
+        f"{word} in {', '.join(col_title[c] for c, g in graphics.items() if g['kind'] == kind)}"
+        for kind, word in (("bars", "bars"), ("interval", "intervals"), ("spark", "sparklines"))
+        if any(g["kind"] == kind for g in graphics.values())
+    ]
+    if drawn:
+        describe += "; in-cell " + "; ".join(drawn)
     panel = Panel(
         kind="table",
         title=title,
@@ -686,6 +1131,18 @@ def table(
         color_mode="highlight" if hl else "none",
         color_baseline=base,
         alt_facts=facts[: min(4, len(facts))],
+        issues=panel_issues,
+        measure_note=f"intervals: {interval_label}" if iv_bounds and interval_label else None,
     )
     panel._markdown = markdown_text  # type: ignore[attr-defined]
+    # What the text and HTML surfaces need to draw the same cells on the same scales.
+    panel._table_view = {  # type: ignore[attr-defined]
+        "headers": list(header_labels),
+        "aligns": list(col_align),
+        "cells": [list(row) for row in formatted],
+        "row_keys": list(row_keys),
+        "highlight": list(hl),
+        "graphics": graphics,
+        "interval_label": interval_label,
+    }
     return panel

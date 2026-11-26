@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -30,6 +31,7 @@ from .core import (
     _baseline_name,
     _cover_with_ticks,
     _Ctx,
+    _delta_label,
     _diff_with_unit,
     _formatter,
     _guarded,
@@ -48,6 +50,7 @@ from .core import (
     _narrow_log_ticks,
     _or_list,
     _pairs,
+    _percent_change,
     _plain,
     _range_with_unit,
     _ratio_text,
@@ -63,6 +66,7 @@ from .core import (
     _vs_text,
     _with_unit,
 )
+from .marks import tag_each, tag_points
 
 # --------------------------------------------------------------------------- #
 # compare / share
@@ -93,6 +97,8 @@ def _bar_panel(
     counts: Mapping[str, int] | None = None,
     boosts: Sequence[float] | None = None,
     inner_errors: dict[str, tuple[float, float]] | None = None,
+    auto_delta: bool = False,
+    fmt: str | None = None,
 ) -> Panel:
     n = len(names)
     hl_index = {name: i for i, name in enumerate(highlight)}
@@ -138,10 +144,12 @@ def _bar_panel(
             if text.replace("\n", " ").count(ell) > name.count(ell)
         ]
 
-    def _pitch(wrapped: list[str], tight: bool = False) -> float:
+    def _pitch(wrapped: list[str], tight: bool = False, compact: bool = False) -> float:
         lines = max(name.count("\n") + 1 for name in wrapped)
         # A count under each name ("n=84") takes about one small line more.
-        extra = (2.4 if tight else 2.8) if counts else 0.0
+        extra = (2.4 if (tight or compact) else 2.8) if counts else 0.0
+        if compact:  # density="compact": names and value labels just clear each other
+            return {1: (4.2 if tight else 4.4), 2: 6.8}.get(lines, 9.6) + extra
         if tight:  # the closest pitch at which names and value labels still clear
             return {1: 4.6, 2: 7.2}.get(lines, 10.0) + extra
         return {1: 5.3, 2: 8.2}.get(lines, 11.0) + extra
@@ -159,6 +167,9 @@ def _bar_panel(
         accent = {
             name: col for name, col in ctx.colors.items() if name in names and name != baseline
         }
+        # Bold marks the emphasis: the highlighted names, or (without highlight) the names
+        # coloured elsewhere. A name coloured elsewhere keeps its colour, not the emphasis.
+        emphasis = set(highlight) if highlight else set(accent)
 
         def _color(name: str) -> str:
             if name == baseline:
@@ -169,6 +180,14 @@ def _bar_panel(
 
         y = np.arange(n, dtype=float)
         vals = np.asarray(values, dtype=float)
+
+        def _mark_records() -> list[dict[str, Any]]:
+            return [
+                {"name": nm, "value": v, "lo": (errors or {}).get(nm, (None, None))[0],
+                 "hi": (errors or {}).get(nm, (None, None))[1], "n": counts.get(nm),
+                 "unit": unit or ("%" if kind == "share" else None)}
+                for nm, v in zip(names, values, strict=True)
+            ]
         boost_arr = np.asarray(boosts, dtype=float) if boosts is not None else None
         totals = vals + boost_arr if boost_arr is not None else vals
         colors = [_color(name) for name in names]
@@ -225,7 +244,7 @@ def _bar_panel(
                     )
             else:
                 ax.hlines(y, left, vals, color=stem_color, linewidth=0.7, zorder=1)
-            ax.scatter(
+            dots_art = ax.scatter(
                 vals,
                 y,
                 s=(5.2 * sz.scale) ** 2,
@@ -234,36 +253,39 @@ def _bar_panel(
                 linewidth=0.6,
                 zorder=3,
             )
+            tag_points(ctx, dots_art, vals, y, _mark_records())
         else:
             lo = float(min(0.0, vals.min(), reference[0] if reference else 0.0))
             hi = float(max(0.0, totals.max(), reference[0] if reference else 0.0))
             if hi == lo:
                 hi = lo + 1.0
             ax.set_xlim(lo, hi)
+            bar_h = min(theme.bar_height, 0.6) if sz.compact else theme.bar_height
             bar_kw: dict[str, Any] = {
-                "height": theme.bar_height,
+                "height": bar_h,
                 "color": colors,
                 "linewidth": theme.bar_edge_lw,
                 "zorder": 2,
             }
             if theme.bar_edgecolor is not None and theme.bar_edge_lw > 0:
                 bar_kw["edgecolor"] = theme.bar_edgecolor
-            ax.barh(y, vals, **bar_kw)
+            tag_each(ctx, ax.barh(y, vals, **bar_kw).patches, _mark_records())
             if boost_arr is not None:
-                for yi, b_val, b_ext, col in zip(y, vals, boost_arr, colors, strict=True):
+                for yi, b_val, b_ext, col, nm in zip(y, vals, boost_arr, colors, names, strict=True):
                     if b_ext <= 0:
                         continue
-                    ax.barh(
+                    boost_bar = ax.barh(
                         [yi],
                         [b_ext],
                         left=[b_val],
-                        height=theme.bar_height,
+                        height=bar_h,
                         color=col,
                         alpha=0.34,
                         edgecolor=col,
                         linewidth=0.9 * sz.scale,
                         zorder=2,
                     )
+                    tag_each(ctx, boost_bar.patches, [{"name": nm, "value": b_val + b_ext, "unit": unit}])
             ax.axvline(0.0, color=theme.zero_line, linewidth=theme.zero_line_lw, zorder=3)
 
         if log:
@@ -316,7 +338,7 @@ def _bar_panel(
         ax.tick_params(axis="y", length=0, labelsize=sz.body, labelcolor=theme.ink, pad=5)
         for tick, name in zip(ax.get_yticklabels(), names, strict=True):
             tick.set_linespacing(1.05)
-            if name in accent:
+            if name in emphasis:
                 tick.set_fontweight("bold")
             elif name in muted_names:
                 tick.set_color(theme.muted)
@@ -354,12 +376,27 @@ def _bar_panel(
                 va="center",
                 fontsize=sz.small,
                 color=theme.muted if name in muted_names else theme.ink,
-                fontweight="bold" if name in accent else "normal",
+                fontweight="bold" if name in emphasis else "normal",
                 annotation_clip=False,
             )
             # Where the value can go instead: left of the mark (dots, from the low end of
             # an interval) or inside the bar's end (bars).
             value_notes.append((value_note, float(lo_v if dots else value), float(value), col))
+
+        if auto_delta and reference is None and not log and boosts is None:
+            _draw_brackets(
+                ctx,
+                ax,
+                names=names,
+                values=values,
+                anchors=[float(hi_v if (dots or v >= 0) else 0.0) for v, hi_v in zip(vals, highs, strict=True)],
+                labels=labels,
+                weights=["bold" if nm in emphasis else "normal" for nm in names],
+                highlight=highlight,
+                baseline=baseline,
+                unit=unit,
+                fmt=fmt,
+            )
 
         if reference is not None:
             ref_value, ref_text = reference
@@ -448,10 +485,19 @@ def _bar_panel(
         describe=describe,
         issues=list(issues or []),
         _height_mm=lambda w, measure, sizes, theme: (
-            max(14.0, _pitch(_wrapped(w, measure, sizes, theme)) * n + 1.0) + _extras()
+            max(
+                10.0 if sizes.compact else 14.0,
+                _pitch(_wrapped(w, measure, sizes, theme), compact=sizes.compact) * n + 1.0,
+            )
+            + _extras()
         ),
         _min_height_mm=lambda w, measure, sizes, theme: (
-            max(12.0, _pitch(_wrapped(w, measure, sizes, theme), tight=True) * n + 1.0) + _extras()
+            max(
+                10.0 if sizes.compact else 12.0,
+                _pitch(_wrapped(w, measure, sizes, theme), tight=True, compact=sizes.compact) * n
+                + 1.0,
+            )
+            + _extras()
         ),
         _draw=_draw,
         measure_note=measure_note,
@@ -461,6 +507,151 @@ def _bar_panel(
         uses_default=not highlight,
         color_baseline=baseline,
     )
+
+
+#: At most this many claimed differences are bracketed in one compare panel.
+MAX_BRACKETS = 2
+
+
+def _bracket_text(
+    data: Mapping[str, float],
+    a: str,
+    b: str,
+    how: str,
+    ref: str | None,
+    unit: str | None,
+    fmt: str | None,
+) -> str:
+    """The bracket's number, in the terms the takeaway used: a ratio ("4.0×"), a relative
+    change ("+46%", against ``ref``) or the difference (signed from ``ref`` when known)."""
+    other = (b if ref == a else a) if ref else None
+    if how == "ratio":
+        num, den = (data[other], data[ref]) if ref and other else (max(data[a], data[b]), min(data[a], data[b]))
+        return _ratio_text(abs(num / den))
+    if how.startswith("relative:"):  # against the value the stated percent is relative to
+        base = b if how.endswith(":b") else a
+        text = _percent_change(data[base], data[a if base == b else b], precise=True)
+        if text:
+            return text
+    diff = data[other] - data[ref] if ref and other else abs(data[a] - data[b])
+    shown = _formatter([diff], fmt, unit=unit)(diff)
+    return _delta_label(_signed(shown) if ref else _unsigned(shown), unit)
+
+
+def _draw_brackets(
+    ctx: _Ctx,
+    ax: Axes,
+    *,
+    names: Sequence[str],
+    values: Sequence[float],
+    anchors: Sequence[float],
+    labels: Sequence[str],
+    weights: Sequence[str],
+    highlight: Sequence[str],
+    baseline: str | None,
+    unit: str | None,
+    fmt: str | None,
+) -> None:
+    """Bracket two marks whose difference the takeaway states ("costs 8 points").
+
+    A takeaway number is drawn only when exactly one pair of items matches it (under the
+    derivations ``claim_number_mismatch`` uses); at most :data:`MAX_BRACKETS`. The
+    brackets sit right of the value labels, so they never cross text.
+    """
+    from matplotlib.lines import Line2D
+    from matplotlib.markers import TICKLEFT
+    from matplotlib.transforms import offset_copy
+
+    from ..epistemic import claim_numbers, claimed_pairs
+
+    if not ctx.takeaway or len(names) < 2:
+        return
+    data = dict(zip(names, values, strict=True))
+    row = {nm: i for i, nm in enumerate(names)}
+    # A takeaway that names two or more items says which ones it compares.
+    named = {
+        nm
+        for nm in names
+        if re.search(rf"(?<!\w){re.escape(nm)}(?!\w)", ctx.takeaway, re.IGNORECASE)
+    }
+    percent_unit = bool(unit) and str(unit).strip().startswith("%")
+    chosen: list[tuple[int, int, str]] = []
+    for claim in claim_numbers(ctx.takeaway, unit):
+        pairs = [
+            p
+            for p in claimed_pairs(claim, data, percent_unit=percent_unit)
+            if len(named) < 2 or {p[0], p[1]} <= named
+        ]
+        if len(pairs) != 1:
+            continue  # nothing matches, or the match is ambiguous
+        a, b, how = pairs[0]
+        i, j = sorted((row[a], row[b]))
+        if any((i, j) == (c[0], c[1]) for c in chosen):
+            continue
+        ref = baseline if baseline in (a, b) else None
+        if ref is None and highlight and ((a in highlight) != (b in highlight)):
+            ref = b if a in highlight else a  # "removing X costs 8": X against the other
+        chosen.append((i, j, _bracket_text(data, a, b, how, ref, unit, fmt)))
+        if len(chosen) == MAX_BRACKETS:
+            break
+    if not chosen:
+        return
+
+    sz, theme, measure = ctx.sizes, ctx.theme, ctx.measure
+    tick, gap = 2.5 * sz.scale, 4.0 * sz.scale
+    names_pt = max(
+        measure.width_pt(line, sz.body, "bold") for nm in names for line in str(nm).split("\n")
+    )
+    cell_pt = ctx.cell_width_mm * sz.scale / PT_TO_MM
+    while chosen:
+        rows = sorted({k for i, j, _ in chosen for k in range(i, j + 1)})
+        anchor = max(anchors[k] for k in rows)
+        widest = max(measure.width_pt(labels[k], sz.small, weights[k]) for k in rows)
+        base = 5.0 + widest + gap + tick
+        placed: list[tuple[int, int, str, float, float]] = []
+        # Inner (shorter) brackets first; one that shares a row goes right of the last label.
+        for i, j, text in sorted(chosen, key=lambda c: (c[1] - c[0], c[0])):
+            x = base
+            for pi, pj, _t, px, pw in placed:
+                if not (j < pi or i > pj):
+                    x = max(x, px + tick + pw + gap + tick)
+            placed.append((i, j, text, x, measure.width_pt(text, sz.small)))
+        right = max(x + tick + w for *_, x, w in placed)
+        # Keep names, a readable plot (16 mm) and the brackets inside the cell.
+        if names_pt + 6.0 + 16.0 * sz.scale / PT_TO_MM + right <= cell_pt:
+            break
+        chosen = chosen[:-1]  # the claim stated last gives way first
+    if not chosen:
+        return
+    lw = 0.8 * sz.scale
+    for i, j, text, x, _w in placed:
+        ax.add_line(
+            Line2D(
+                [anchor, anchor],
+                [i, j],
+                transform=offset_copy(ax.transData, fig=ctx.fig, x=x, y=0.0, units="points"),
+                color=theme.muted,
+                linewidth=lw,
+                marker=TICKLEFT,
+                markersize=tick,
+                markeredgewidth=lw,
+                clip_on=False,
+                zorder=3,
+                label="_bracket",
+                gid="mintfig-margin-bracket",
+            )
+        )
+        ax.annotate(
+            _plain(text, theme),
+            (anchor, 0.5 * (i + j)),
+            xytext=(x + tick, 0.0),
+            textcoords="offset points",
+            ha="left",
+            va="center",
+            fontsize=sz.small,
+            color=theme.ink,
+            annotation_clip=False,
+        )
 
 
 def _sort_order(sort: object) -> str:
@@ -600,6 +791,67 @@ def _compare_counts(n: object, names: Sequence[str]) -> dict[str, int]:
     return counts
 
 
+def _faceted(
+    values: Any,
+    *,
+    name: str | None,
+    group: str | None,
+    value: str | None,
+    facet: object,
+    error: Any,
+    unsupported: Mapping[str, bool],
+    **options: Any,
+) -> Panel:
+    """``compare(facet=True)``: the nested form, or tidy rows with ``group=``, as small multiples."""
+    from .._tabular import extract_records, is_tabular, resolve_grouped_compare_table
+    from .compare_grouped import build_faceted_compare, is_nested_compare
+
+    if facet is not True:
+        raise ExplainError(
+            f"compare(facet={facet!r}) must be True or False.",
+            fix_hint="Pass facet=True with nested values {category: {item: value}} (or tidy rows "
+            "with group=): each category becomes one small panel.",
+        )
+    blocked = [arg for arg, used in unsupported.items() if used]
+    if blocked:
+        raise ExplainError(
+            f"compare(facet=True) cannot be combined with {', '.join(blocked)}: small multiples "
+            "draw one value (and error=) per item and category.",
+            fix_hint="Drop " + ", ".join(blocked) + ", or draw one single-series compare() per "
+            "category to use them.",
+        )
+    if group is not None:
+        nested = resolve_grouped_compare_table(values, name=name, group=group, value=value)
+        if isinstance(error, (str, tuple, list)) and is_tabular(values):
+            cols, rows = extract_records(values, what="compare(values)")
+            picked = [error] if isinstance(error, str) else list(error)
+            if not (1 <= len(picked) <= 2 and all(isinstance(c, str) and c in cols for c in picked)):
+                raise ExplainError(
+                    f"compare(error={error!r}) names no column of the rows.",
+                    fix_hint=f"With tidy rows pass a half-width column (error=\"ci\") or (low, high) "
+                    f"columns (error=(\"lo\", \"hi\")); columns: {', '.join(map(repr, cols[:8]))}.",
+                )
+            error = {}
+            for row in rows:
+                cell = [row.get(c) for c in picked]
+                error.setdefault(str(row.get(name, "")), {})[str(row.get(group, ""))] = (
+                    cell[0] if len(cell) == 1 else tuple(cell)
+                )
+    elif is_nested_compare(values):
+        nested = values
+    else:
+        raise ExplainError(
+            "compare(facet=True) needs nested values {category: {item: value}} (or tidy rows "
+            "with name=, group= and value=); a flat {item: value} mapping has one panel's worth.",
+            fix_hint='e.g. mint.compare({"bench A": {"model 1": 0.74, "model 2": 0.69}, '
+            '"bench B": {...}}, facet=True), or drop facet=True.',
+        )
+    sort = options.pop("sort")
+    return build_faceted_compare(
+        nested, error=error, sort=sort if sort is not True else False, **options
+    )
+
+
 @_guarded("compare")
 def compare(
     values: (
@@ -628,7 +880,8 @@ def compare(
     log: bool = False,
     fmt: str | None = None,
     n: Mapping[str, int] | Sequence[int] | str | None = None,
-    show_delta: bool = False,
+    show_delta: bool | str = "auto",
+    facet: bool = False,
 ) -> Panel:
     """How do items differ in size? Sorted horizontal bars, grouped bars, or dot-interval marks.
 
@@ -644,7 +897,14 @@ def compare(
     thicker inner interval (e.g. 50% CI inside 95% CI, Kay & Hullman ggdist).
     ``baseline`` draws a control/incumbent in ink and states gaps against it in
     ``facts``; pass ``show_delta=True`` with ``baseline=`` to append inline signed
-    deltas beside each non-baseline value label.
+    deltas beside each non-baseline value label. ``show_delta="auto"`` (default)
+    brackets two items when a number in the takeaway is their difference (at most two
+    brackets, none when the match is ambiguous); ``False`` draws neither.
+    ``facet=True`` draws the nested form (or tidy rows with ``group=``) as small
+    multiples instead of grouped bars: one panel per category (2-12), the same items
+    in the same order in each, on one shared value axis; ``error=`` then takes one
+    number or ``{category: {item: interval}}`` (a column name, or ``(low, high)``
+    columns, with tidy rows).
     """
     from .._tabular import (
         extract_records,
@@ -654,13 +914,45 @@ def compare(
     )
     from .compare_grouped import build_grouped_compare, is_nested_compare
 
+    if not (show_delta is True or show_delta is False or show_delta == "auto"):
+        raise ExplainError(
+            f"compare(show_delta={show_delta!r}) is not a delta mode.",
+            fix_hint='Use show_delta="auto" (bracket a difference the takeaway states), True '
+            "(inline deltas against baseline=) or False.",
+        )
+    if facet is not False and facet is not None:
+        return _faceted(
+            values,
+            name=name,
+            group=group,
+            value=value,
+            facet=facet,
+            title=title,
+            label=label,
+            unit=unit,
+            highlight=highlight,
+            baseline=baseline,
+            sort=sort,
+            zero=zero,
+            error=error,
+            error_label=error_label,
+            reference=reference,
+            log=log,
+            fmt=fmt,
+            unsupported={
+                "inner_error": inner_error is not None,
+                "boost": boost is not None,
+                "n": n is not None,
+                "show_delta=True": show_delta is True,
+            },
+        )
     if group is not None:
         if (
             boost is not None
             or error is not None
             or inner_error is not None
             or n is not None
-            or show_delta
+            or show_delta is True
         ):
             raise ExplainError(
                 "Grouped compare(group=...) cannot be combined with error=, inner_error=, boost=, n=, or show_delta=.",
@@ -687,7 +979,7 @@ def compare(
             or error is not None
             or inner_error is not None
             or n is not None
-            or show_delta
+            or show_delta is True
         ):
             raise ExplainError(
                 "Grouped compare() with nested dicts cannot be combined with error=, inner_error=, boost=, n=, or show_delta=.",
@@ -792,7 +1084,7 @@ def compare(
                     f"outer error ({out_lo}, {out_hi}).",
                     fix_hint="Ensure inner_error bounds lie within error bounds (e.g. 50% CI inside 95% CI).",
                 )
-    if show_delta:
+    if show_delta is True:
         if base is None:
             raise ExplainError(
                 "compare(show_delta=True) requires baseline= to compute inline deltas against.",
@@ -896,14 +1188,15 @@ def compare(
         for i, (tot_v, b_v) in enumerate(zip(totals, boost_vals, strict=True)):
             t_txt = _with_unit(fmt_fn(tot_v), unit) if (i == 0 or _inline_unit(unit)) else fmt_fn(tot_v)
             labels.append(f"{t_txt} (+{b_fmt(b_v)})" if b_v > 0 else t_txt)
-    elif show_delta and base is not None:
+    elif show_delta is True and base is not None:
         deltas = [data[nm] - data[base] for nm in names if nm != base]
         d_fmt = _formatter(deltas or [0.0], fmt, unit=unit)
         labels = []
         for i, (nm, v) in enumerate(zip(names, vals, strict=True)):
             base_txt = _with_unit(fmt_fn(v), unit) if (i == 0 or _inline_unit(unit)) else fmt_fn(v)
             if nm != base:
-                labels.append(f"{base_txt} ({_signed(d_fmt(v - data[base]))})")
+                delta = _delta_label(_signed(d_fmt(v - data[base])), unit, with_unit=False)
+                labels.append(f"{base_txt} ({delta})")
             else:
                 labels.append(base_txt)
     else:
@@ -1161,7 +1454,7 @@ def compare(
             log=log or None,
             fmt=fmt,
             n=dict(counts) or None,
-            show_delta=True if show_delta else None,
+            show_delta=None if show_delta == "auto" else show_delta,
         ),
         facts=facts,
         describe=describe,
@@ -1175,6 +1468,8 @@ def compare(
         baseline=base,
         counts=counts,
         boosts=boost_vals,
+        auto_delta=show_delta == "auto",
+        fmt=fmt,
     )
     panel.alt_facts = alt_facts
     return panel

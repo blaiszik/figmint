@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mintfig"
-version = "0.2.1"
+version = "0.3.0"
 description = "Message-first figures for agents explaining scientific results to people, plus journal-ready plates with preflight QA and reproducible bundles."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -22,11 +22,14 @@ dependencies = [
     "matplotlib>=3.8",
     "numpy>=1.24",
     "pillow>=10.0",
-    "pypdf>=4.0",
 ]
 
 [project.optional-dependencies]
+pub = [
+    "pypdf>=4.0",
+]
 dev = [
+    "pypdf>=4.0",
     "pytest>=8.0",
     "ruff>=0.4",
 ]

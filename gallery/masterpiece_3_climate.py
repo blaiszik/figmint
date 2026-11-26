@@ -75,7 +75,7 @@ def _build_panel_a(ax: plt.Axes, rng: np.random.Generator) -> None:
     ssp126 = hist_end + 0.48 * np.sin(np.pi * 0.72 * tau) - 0.06 * tau**2
     ssp126_w = 0.06 + 0.36 * (tau**0.95)
 
-    mint.subtle_grid(ax, axis="y")
+    mint.pub.subtle_grid(ax, axis="y")
 
     # Preindustrial zero baseline & Paris thresholds (terminated cleanly at 2100)
     ax.plot([1850, 2100], [0.0, 0.0], color="#C5CDD6", lw=0.55, zorder=1)
@@ -168,7 +168,7 @@ def _build_panel_a(ax: plt.Axes, rng: np.random.Generator) -> None:
     ax.set_title("Global surface warming & scenarios")
 
     # Direct labels placed neatly right of 2100 in open white space
-    for txt in mint.direct_labels(ax, pad_pt=4.5, min_sep_pt=8.5, fontsize=6.2):
+    for txt in mint.pub.direct_labels(ax, pad_pt=4.5, min_sep_pt=8.5, fontsize=6.2):
         txt.set_fontweight("bold")
 
 
@@ -291,7 +291,7 @@ def _build_panel_b(ax: plt.Axes) -> None:
         ax.spines[side].set_linewidth(0.5)
 
     cbar = ax.figure.colorbar(cf, ax=ax, pad=0.035, fraction=0.055, aspect=22)
-    mint.style_colorbar(cbar, label="ΔT (°C)")
+    mint.pub.style_colorbar(cbar, label="ΔT (°C)")
     cbar.set_ticks([-4, -2, 0, 2, 4])
 
 
@@ -314,7 +314,7 @@ def _build_panel_c(ax: plt.Axes, rng: np.random.Generator) -> None:
     colors = ["#1F4E79", "#4F86B5", "#8FB9D9", "#D98A4E"]
     labels = ["0–700 m", "700–2000 m", ">2000 m", "Land/ice/atm"]
 
-    mint.subtle_grid(ax, axis="y")
+    mint.pub.subtle_grid(ax, axis="y")
 
     ax.stackplot(
         years,
@@ -399,7 +399,7 @@ def _build_panel_d(ax: plt.Axes) -> None:
         "Multi-centennial": (NAVY, "D"),
     }
 
-    mint.subtle_grid(ax, axis="x")
+    mint.pub.subtle_grid(ax, axis="x")
 
     y_pos = np.arange(len(elements))
     y_bottom = len(elements) - 0.35

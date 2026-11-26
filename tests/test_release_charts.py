@@ -42,7 +42,7 @@ class TestGroupedAndBoostCompare:
 
         loaded = mint.load(png)
         assert loaded.to_spec() == fig.to_spec()
-        assert mint.explain_from_spec(loaded.to_spec()).summary()["ship"] is True
+        assert mint.load(loaded.to_spec()).summary()["ship"] is True
 
     def test_grouped_compare_tidy_rows_with_group_col(self) -> None:
         rows = [
