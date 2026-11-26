@@ -1,12 +1,12 @@
 {
-  "git_sha": "bd4ed55",
+  "git_sha": "06bea62",
   "total_cases": 50,
-  "elapsed_seconds": 2.54,
+  "elapsed_seconds": 2.48,
   "summary": {
     "clean_total": 25,
-    "clean_passed": 16,
-    "false_positives": 9,
-    "false_positive_rate": 0.36,
+    "clean_passed": 25,
+    "false_positives": 0,
+    "false_positive_rate": 0.0,
     "clean_with_nonblocking_warnings": 0,
     "defective_total": 25,
     "defective_caught": 25,
@@ -16,7 +16,7 @@
     "targets": {
       "max_fp_rate": 0.02,
       "min_catch_rate": 0.9,
-      "fp_target_met": false,
+      "fp_target_met": true,
       "catch_target_met": true,
       "exact_rule_target_met": true
     }
@@ -61,8 +61,8 @@
     "ci_band": {
       "total": 2,
       "clean_total": 2,
-      "clean_pass": 1,
-      "clean_fp": 1,
+      "clean_pass": 2,
+      "clean_fp": 0,
       "defective_total": 0,
       "defective_caught": 0,
       "defective_exact_rule": 0
@@ -79,8 +79,8 @@
     "errorbar": {
       "total": 1,
       "clean_total": 1,
-      "clean_pass": 0,
-      "clean_fp": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
       "defective_total": 0,
       "defective_caught": 0,
       "defective_exact_rule": 0
@@ -97,8 +97,8 @@
     "headline_tokens": {
       "total": 3,
       "clean_total": 3,
-      "clean_pass": 2,
-      "clean_fp": 1,
+      "clean_pass": 3,
+      "clean_fp": 0,
       "defective_total": 0,
       "defective_caught": 0,
       "defective_exact_rule": 0
@@ -106,8 +106,8 @@
     "histogram": {
       "total": 3,
       "clean_total": 2,
-      "clean_pass": 0,
-      "clean_fp": 2,
+      "clean_pass": 2,
+      "clean_fp": 0,
       "defective_total": 1,
       "defective_caught": 1,
       "defective_exact_rule": 1
@@ -151,8 +151,8 @@
     "quadmesh": {
       "total": 4,
       "clean_total": 2,
-      "clean_pass": 0,
-      "clean_fp": 2,
+      "clean_pass": 2,
+      "clean_fp": 0,
       "defective_total": 2,
       "defective_caught": 2,
       "defective_exact_rule": 2
@@ -160,8 +160,8 @@
     "scatter_ols": {
       "total": 3,
       "clean_total": 1,
-      "clean_pass": 0,
-      "clean_fp": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
       "defective_total": 2,
       "defective_caught": 2,
       "defective_exact_rule": 2
@@ -169,8 +169,8 @@
     "violinplot": {
       "total": 1,
       "clean_total": 1,
-      "clean_pass": 0,
-      "clean_fp": 1,
+      "clean_pass": 1,
+      "clean_fp": 0,
       "defective_total": 0,
       "defective_caught": 0,
       "defective_exact_rule": 0
@@ -226,17 +226,7 @@
       "recall": 1.0
     }
   },
-  "false_positive_cases": [
-    "clean_01_quadmesh_heatmap_colorbar",
-    "clean_02_quadmesh_diverging_ratio",
-    "clean_04_ci_band_upper_bound",
-    "clean_05_hist_counts",
-    "clean_06_hist_density",
-    "clean_09_violinplot_medians",
-    "clean_15_scatter_ols_regplot",
-    "clean_20_unit_scale_seconds_to_ms",
-    "clean_23_errorbar_categorical"
-  ],
+  "false_positive_cases": [],
   "missed_defect_cases": [],
   "cases": [
     {
@@ -246,35 +236,20 @@
       "defect_category": null,
       "description": "Seaborn-style QuadMesh heatmap + colorbar + viridis + year token 2026",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 65.8,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 78.6,
       "panel_kinds": [
-        "empty",
-        "empty"
+        "heatmap"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "In 2026, L2–L3 similarity peaks at 0.92",
-      "unmatched_claim_numbers": [
-        {
-          "text": "0.92",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '0.92', which matches no value, difference, ratio, percentage change or share in the plotted data."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_02_quadmesh_diverging_ratio",
@@ -283,40 +258,20 @@
       "defect_category": null,
       "description": "QuadMesh RdBu_r latency heatmap + colorbar with max/min 4x ratio claim",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 49.6,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 52.3,
       "panel_kinds": [
-        "empty",
-        "empty"
+        "heatmap"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Peak cell reaches 48 ms, 4x the minimum cell",
-      "unmatched_claim_numbers": [
-        {
-          "text": "4x",
-          "kind": "fold",
-          "nearest": null
-        },
-        {
-          "text": "48",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '4x', '48', which matches no value, difference, ratio, percentage change or share in the plotted data."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_03_ci_band_fill_between",
@@ -330,7 +285,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 53.6,
+      "elapsed_ms": 51.5,
       "panel_kinds": [
         "lines"
       ],
@@ -347,34 +302,20 @@
       "defect_category": null,
       "description": "Dual fill_between uncertainty bands citing upper 1 s.d. envelope peak (94%)",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 51.7,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 50.3,
       "panel_kinds": [
         "lines"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Upper 1 s.d. envelope reaches 94% on validation",
-      "unmatched_claim_numbers": [
-        {
-          "text": "94%",
-          "kind": "percent",
-          "nearest": "end (Tuned (±1 s.d., n = 8)) = 88"
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '94%', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '94%' → end (Tuned (±1 s.d., n = 8)) = 88."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_05_hist_counts",
@@ -383,34 +324,20 @@
       "defect_category": null,
       "description": "Count histogram (contiguous BarContainer) citing peak bin center & sample count",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 50.9,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 58.1,
       "panel_kinds": [
-        "bars"
+        "histogram"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Request latency peaks at 40 ms across 200 samples",
-      "unmatched_claim_numbers": [
-        {
-          "text": "40",
-          "kind": "plain",
-          "nearest": "37.5 vs 52.5: 66 − 21 = 45"
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '40', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '40' → 37.5 vs 52.5: 66 − 21 = 45."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_06_hist_density",
@@ -419,34 +346,20 @@
       "defect_category": null,
       "description": "Density histogram + median line with ResNet-50 (FP16) headline",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 54.1,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 50.3,
       "panel_kinds": [
-        "bars"
+        "histogram"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "ResNet-50 (FP16) median inference time is 18 ms",
-      "unmatched_claim_numbers": [
-        {
-          "text": "18",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '18', which matches no value, difference, ratio, percentage change or share in the plotted data."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_07_boxplot_patch_artist",
@@ -460,9 +373,9 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.3,
+      "elapsed_ms": 40.0,
       "panel_kinds": [
-        "lines"
+        "boxplot"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
@@ -482,9 +395,9 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 40.7,
+      "elapsed_ms": 35.2,
       "panel_kinds": [
-        "lines"
+        "boxplot"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
@@ -499,34 +412,20 @@
       "defect_category": null,
       "description": "Violinplot with medians citing 65 ms across 3 replicates",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 37.5,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 35.7,
       "panel_kinds": [
-        "empty"
+        "violin"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Group B median reaches 65 ms across 3 replicates",
-      "unmatched_claim_numbers": [
-        {
-          "text": "65",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '65', which matches no value, difference, ratio, percentage change or share in the plotted data."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_10_grouped_bars_ml_models",
@@ -540,7 +439,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 42.0,
+      "elapsed_ms": 38.6,
       "panel_kinds": [
         "bars"
       ],
@@ -562,7 +461,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 31.1,
+      "elapsed_ms": 29.2,
       "panel_kinds": [
         "bars"
       ],
@@ -584,7 +483,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.2,
+      "elapsed_ms": 41.1,
       "panel_kinds": [
         "bars"
       ],
@@ -606,7 +505,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 63.1,
+      "elapsed_ms": 59.6,
       "panel_kinds": [
         "lines"
       ],
@@ -628,7 +527,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 129.2,
+      "elapsed_ms": 131.9,
       "panel_kinds": [
         "lines"
       ],
@@ -645,34 +544,20 @@
       "defect_category": null,
       "description": "Seaborn regplot (scatter + OLS + CI band) with slope 2.0 and p < 0.05",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 56.8,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 55.0,
       "panel_kinds": [
         "lines+scatter"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Response rises 2.0 units per mg (p < 0.05)",
-      "unmatched_claim_numbers": [
-        {
-          "text": "0.05",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '0.05', which matches no value, difference, ratio, percentage change or share in the plotted data."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_16_multipanel_2x1",
@@ -686,7 +571,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 63.4,
+      "elapsed_ms": 63.5,
       "panel_kinds": [
         "bars",
         "bars"
@@ -709,7 +594,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 144.2,
+      "elapsed_ms": 141.7,
       "panel_kinds": [
         "lines",
         "lines",
@@ -734,7 +619,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 52.3,
+      "elapsed_ms": 52.9,
       "panel_kinds": [
         "lines"
       ],
@@ -756,7 +641,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 49.5,
+      "elapsed_ms": 50.7,
       "panel_kinds": [
         "lines"
       ],
@@ -773,34 +658,20 @@
       "defect_category": null,
       "description": "Unit scale conversion (0.08 s -> 80 ms) with Llama-3.1 70B & p = 0.01",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 33.4,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 33.0,
       "panel_kinds": [
         "bars"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Llama-3.1 70B cuts latency to 80 ms (p = 0.01)",
-      "unmatched_claim_numbers": [
-        {
-          "text": "0.01",
-          "kind": "plain",
-          "nearest": "Pruned vs Llama-3.1 70B: 0.12 − 0.08 = 0.04"
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '0.01', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '0.01' → Pruned vs Llama-3.1 70B: 0.12 − 0.08 = 0.04."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_21_unit_scale_thousands_k",
@@ -814,7 +685,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 34.1,
+      "elapsed_ms": 33.1,
       "panel_kinds": [
         "bars"
       ],
@@ -836,7 +707,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 30.2,
+      "elapsed_ms": 30.0,
       "panel_kinds": [
         "bars"
       ],
@@ -853,34 +724,20 @@
       "defect_category": null,
       "description": "Categorical errorbar point plot with 95% CI, n = 10, and p < 0.05",
       "expected_ship": true,
-      "actual_ship": false,
+      "actual_ship": true,
       "expected_rules": [],
-      "actual_rules": [
-        "claim_number_mismatch"
-      ],
-      "passed": false,
-      "exact_rule_match": false,
-      "elapsed_ms": 36.3,
+      "actual_rules": [],
+      "passed": true,
+      "exact_rule_match": true,
+      "elapsed_ms": 35.0,
       "panel_kinds": [
         "intervals"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Variant A leads baseline by 15 points (95% CI, p < 0.05)",
-      "unmatched_claim_numbers": [
-        {
-          "text": "0.05",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
-      "issues": [
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '0.05', which matches no value, difference, ratio, percentage change or share in the plotted data."
-        }
-      ]
+      "unmatched_claim_numbers": [],
+      "issues": []
     },
     {
       "case_id": "clean_24_imshow_cividis_colorbar",
@@ -894,12 +751,11 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 51.7,
+      "elapsed_ms": 51.9,
       "panel_kinds": [
-        "image",
-        "empty"
+        "image"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Peak intensity reaches 96, 3x the minimum cell",
       "unmatched_claim_numbers": [],
@@ -917,7 +773,7 @@
       "actual_rules": [],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 37.5,
+      "elapsed_ms": 43.8,
       "panel_kinds": [
         "bars"
       ],
@@ -943,7 +799,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 47.1,
+      "elapsed_ms": 42.4,
       "panel_kinds": [
         "bars"
       ],
@@ -981,7 +837,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 43.8,
+      "elapsed_ms": 55.6,
       "panel_kinds": [
         "lines"
       ],
@@ -1019,26 +875,25 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 40.3,
+      "elapsed_ms": 40.2,
       "panel_kinds": [
-        "empty",
-        "empty"
+        "heatmap"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Peak cell correlation reaches 0.99",
       "unmatched_claim_numbers": [
         {
           "text": "0.99",
           "kind": "plain",
-          "nearest": null
+          "nearest": "highest cell = 0.85"
         }
       ],
       "issues": [
         {
           "rule": "claim_number_mismatch",
           "severity": "warning",
-          "message": "The claim states '0.99', which matches no value, difference, ratio, percentage change or share in the plotted data."
+          "message": "The claim states '0.99', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '0.99' → highest cell = 0.85."
         }
       ]
     },
@@ -1058,9 +913,9 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.2,
+      "elapsed_ms": 37.3,
       "panel_kinds": [
-        "lines"
+        "boxplot"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
@@ -1069,14 +924,14 @@
         {
           "text": "95",
           "kind": "plain",
-          "nearest": "end (line 12) = 65.9"
+          "nearest": "Group C (boxplot medians) = 60"
         }
       ],
       "issues": [
         {
           "rule": "claim_number_mismatch",
           "severity": "warning",
-          "message": "The claim states '95', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '95' → end (line 12) = 65.9."
+          "message": "The claim states '95', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '95' → Group C (boxplot medians) = 60."
         }
       ]
     },
@@ -1096,9 +951,9 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.3,
+      "elapsed_ms": 40.6,
       "panel_kinds": [
-        "bars"
+        "histogram"
       ],
       "panel_count": 1,
       "min_text_px": 13.9,
@@ -1107,14 +962,14 @@
         {
           "text": "180",
           "kind": "plain",
-          "nearest": "total of values = 200"
+          "nearest": "histogram total = 200"
         }
       ],
       "issues": [
         {
           "rule": "claim_number_mismatch",
           "severity": "warning",
-          "message": "The claim states '180', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '180' → total of values = 200."
+          "message": "The claim states '180', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '180' → histogram total = 200."
         }
       ]
     },
@@ -1134,7 +989,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 39.5,
+      "elapsed_ms": 37.2,
       "panel_kinds": [
         "bars"
       ],
@@ -1166,7 +1021,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 30.4,
+      "elapsed_ms": 28.8,
       "panel_kinds": [
         "bars"
       ],
@@ -1198,7 +1053,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 39.3,
+      "elapsed_ms": 37.4,
       "panel_kinds": [
         "bars"
       ],
@@ -1230,7 +1085,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 44.2,
+      "elapsed_ms": 42.5,
       "panel_kinds": [
         "bars"
       ],
@@ -1262,7 +1117,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 49.5,
+      "elapsed_ms": 44.8,
       "panel_kinds": [
         "lines"
       ],
@@ -1294,7 +1149,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 41.4,
+      "elapsed_ms": 39.5,
       "panel_kinds": [
         "lines"
       ],
@@ -1326,7 +1181,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 133.3,
+      "elapsed_ms": 125.4,
       "panel_kinds": [
         "lines",
         "lines",
@@ -1360,7 +1215,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 47.0,
+      "elapsed_ms": 45.7,
       "panel_kinds": [
         "scatter"
       ],
@@ -1392,7 +1247,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 55.5,
+      "elapsed_ms": 53.5,
       "panel_kinds": [
         "bars"
       ],
@@ -1424,7 +1279,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 45.6,
+      "elapsed_ms": 44.0,
       "panel_kinds": [
         "lines"
       ],
@@ -1456,7 +1311,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 48.1,
+      "elapsed_ms": 45.7,
       "panel_kinds": [
         "lines"
       ],
@@ -1488,7 +1343,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 50.1,
+      "elapsed_ms": 45.3,
       "panel_kinds": [
         "lines"
       ],
@@ -1520,7 +1375,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 44.6,
+      "elapsed_ms": 42.8,
       "panel_kinds": [
         "lines"
       ],
@@ -1552,12 +1407,11 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 51.6,
+      "elapsed_ms": 46.7,
       "panel_kinds": [
-        "image",
-        "empty"
+        "image"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Peak cell reaches 75 W",
       "unmatched_claim_numbers": [],
@@ -1581,36 +1435,23 @@
         "rainbow_colormap"
       ],
       "actual_rules": [
-        "rainbow_colormap",
-        "claim_number_mismatch"
+        "rainbow_colormap"
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 44.5,
+      "elapsed_ms": 41.0,
       "panel_kinds": [
-        "empty",
-        "empty"
+        "heatmap"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Peak cell reaches 90 deg",
-      "unmatched_claim_numbers": [
-        {
-          "text": "90",
-          "kind": "plain",
-          "nearest": null
-        }
-      ],
+      "unmatched_claim_numbers": [],
       "issues": [
         {
           "rule": "rainbow_colormap",
           "severity": "error",
           "message": "Rainbow colormap (hsv) invents boundaries and fails for colour-blind readers."
-        },
-        {
-          "rule": "claim_number_mismatch",
-          "severity": "warning",
-          "message": "The claim states '90', which matches no value, difference, ratio, percentage change or share in the plotted data."
         }
       ]
     },
@@ -1630,12 +1471,11 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 56.1,
+      "elapsed_ms": 54.2,
       "panel_kinds": [
-        "scatter",
-        "empty"
+        "scatter"
       ],
-      "panel_count": 2,
+      "panel_count": 1,
       "min_text_px": 13.9,
       "claim_text": "Energy reaches 30 J",
       "unmatched_claim_numbers": [],
@@ -1663,7 +1503,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 36.4,
+      "elapsed_ms": 34.5,
       "panel_kinds": [
         "bars"
       ],
@@ -1695,7 +1535,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 44.6,
+      "elapsed_ms": 40.1,
       "panel_kinds": [
         "lines"
       ],
@@ -1727,7 +1567,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 32.7,
+      "elapsed_ms": 29.2,
       "panel_kinds": [
         "bars"
       ],
@@ -1759,7 +1599,7 @@
       ],
       "passed": true,
       "exact_rule_match": true,
-      "elapsed_ms": 27.4,
+      "elapsed_ms": 24.5,
       "panel_kinds": [
         "lines"
       ],

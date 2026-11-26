@@ -741,8 +741,43 @@ already have, not a library to switch to.
   run over every attempt-1 script in runs u1 and b1 (29 that run here), the five text
   checks agree with `neutral.py` on every figure.
 - Not done: `mint.explain(takeaway, fig)` (B2) and `mint.style()` (B1); checking a PNG
-  without its Figure; reading `hist` bins, `fill_between` bounds or `boxplot` stats as
-  values (bands are only counted, for `interval_unlabelled`).
+  without its Figure (wild artists `QuadMesh`, `hist`, `fill_between`, `boxplot`,
+  `violinplot` were added in section 4n).
+
+## 4n. Phases 1 & 2 on `mintfig-neon`: `mint.check` wild hardening & automatic distribution (2026-11-26)
+
+Implemented via a 4-worker swarm on branch `mintfig-neon`:
+
+1. **Wild Matplotlib/Seaborn hardening (`src/mintfig/figcheck.py`, `src/mintfig/epistemic.py`, `src/mintfig/_check_runner.py`):**
+   - Artist extraction for `QuadMesh` (`sns.heatmap` / `pcolormesh`), colorbar axes exclusion,
+     contiguous-edge `hist` bins, `PolyCollection` CI bands (`fill_between`), and `boxplot`/
+     `violinplot` clusters (no longer misread as data lines).
+   - False-positive claim filtering for model/precision tokens (`GPT-5`, `Llama-3.1`, `8B`,
+     `FP16`, `INT4`, `ResNet-50`, `v2.3`), statistical/sample counts (`p < 0.05`, `5 seeds`,
+     `top-5`, `95% CI`), calendar years (`1990`–`2035`), plus SI/scale unit conversions
+     (`0.08` ↔ `8%` ↔ `8 points`, `0.08 s` ↔ `80 ms`, `1500` ↔ `1.5k`).
+   - Cross-env `uvx` runner (`--python` + auto-detecting script-parent/cwd `.venv`,
+     `VIRTUAL_ENV`, `CONDA_PREFIX` via `_check_runner.py`) and zero-dep `.ipynb` checking
+     (`check_notebook`, `mintfig check analysis.ipynb`).
+2. **Wild-50 verification corpus (`evals/check_bench/`, `tests/test_figcheck_wild.py`):**
+   - 25 clean + 25 defective deterministic Matplotlib/Seaborn-idiom figures.
+   - Reduced baseline FP from 9/25 (36.0%) to **0/25 (0.0%)** while holding **25/25 (100%)**
+     defect catch and **25/25 (100%)** exact-rule recall.
+3. **Global skill install, PostToolUse hooks & Claude Code plugin (`src/mintfig/skill.py`, `src/mintfig/hooks.py`, `plugins/claude-code/`, `tests/test_hooks_and_skill.py`):**
+   - `mintfig skill --install --global` (auto-detecting `~/.claude`, `~/.codex`, `~/.gemini`,
+     `~/.cursor`), `--target all`, and `mintfig skill --print --all`.
+   - `mintfig hook --install|--uninstall|--status|run`: idempotent `PostToolUse` hook merging
+     without clobbering existing settings; silent exit 0 on non-plot or clean scripts; emits
+     structured `fix_hint` feedback only when `ship: false`.
+   - Native Claude Code plugin bundle in `plugins/claude-code/` synced with `src/mintfig/assets/`.
+4. **40-prompt trigger eval, 3-column README opener & release notes (`evals/trigger_eval/`, `gallery/make_readme_comparison.py`, `README.md`, `CHANGELOG.md`, `ADOPTION_PLAN.md`):**
+   - 20 positive + 20 negative realistic prompts (none naming `mintfig`), offline rubric
+     scorer + `--live` CLI adapter: **100% recall (20/20)** and **0% false-trigger (0/20)**.
+   - Sharpened `SKILL.md` (11.8 kB chat section) and `AGENTS_SNIPPET.md` with explicit
+     non-trigger exclusions for regular coding tasks.
+   - 3-column README opener (`Agent text` | `Default agent Matplotlib` | `mintfig`) and
+     wedge-first Quickstart (`mint.check` + `mintfig hook --install` + `mint.explain`), plus
+     `CHANGELOG.md`.
 
 ## 5. Verified at the end of this pass, and what was not
 

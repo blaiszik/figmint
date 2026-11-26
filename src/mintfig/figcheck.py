@@ -1861,9 +1861,10 @@ def _resolve_python(target_path: Any, python: str | os.PathLike[str] | None) -> 
         return None if _is_same_interpreter(cand) else cand
 
     target = Path(target_path).resolve()
-    search_roots: list[Path] = [Path.cwd() / ".venv", target.parent / ".venv"]
+    search_roots: list[Path] = [target.parent / ".venv"]
     if target.parent.parent != target.parent:
         search_roots.append(target.parent.parent / ".venv")
+    search_roots.append(Path.cwd() / ".venv")
     for env_var in ("VIRTUAL_ENV", "CONDA_PREFIX"):
         val = os.environ.get(env_var)
         if val:
