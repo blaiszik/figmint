@@ -9,6 +9,7 @@ from typing import Any
 
 import numpy as np
 from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
 from matplotlib.ticker import (
     FuncFormatter,
     MaxNLocator,
@@ -23,12 +24,14 @@ from .core import (
     Panel,
     _clean_sign,
     _Ctx,
+    _draw_top_legend,
     _facet_shape,
     _FacetGrid,
     _guarded,
     _is_strict,
     _issue,
     _jsonable,
+    _legend_extra_mm,
     _names,
     _narrow_log_ticks,
     _plain,
@@ -146,6 +149,7 @@ def relate(
     callouts: Sequence[tuple[Any, float, str]] | None = None,
     regions: Sequence[tuple[Any, Any, str]] | None = None,
     facet: bool = False,
+    legend: bool = False,
 ) -> Panel:
     """Do two measures move together? A scatter with both axes named.
 
@@ -165,6 +169,11 @@ def relate(
     on shared x and y axes, the other groups' points in grey behind it; ``fit=True``
     then fits each facet.
     """
+    if not isinstance(legend, bool):
+        raise ExplainError(
+            f"relate(legend={legend!r}) must be True or False.",
+            fix_hint="Pass legend=True (with groups=) for a frameless legend, or legend=False (default) for direct group labels.",
+        )
     if not x_label or not y_label:
         raise ExplainError(
             "relate() needs x_label and y_label.",
@@ -448,6 +457,7 @@ def relate(
         facts.append(
             f"{n_dropped} point{'s' if n_dropped > 1 else ''} with a missing value dropped"
         )
+    use_legend = bool(legend and group_names and not facet)
     issues: list[dict[str, Any]] = []
     if fit and group_names:
         # One line per group: judge each drawn fit, and warn only when none is strong
@@ -837,7 +847,8 @@ def relate(
                 else None
             )
 
-        # Group names sit at each group's right end (its fit line end when fitted).
+        # Group names sit at each group's right end (its fit line end when fitted),
+        # or in a frameless top legend when legend=True.
         anchors: list[tuple[str, float, float, str, bool]] = []
         for g in group_names:
             mask = group_masks[g]
@@ -855,6 +866,46 @@ def relate(
             # Context groups keep a direct label in the muted colour, as grey context
             # lines in trend() do, so no cloud on the plot is left unidentified.
             anchors.append((g, ax_x, ax_y, group_color[g], focus_group))
+
+        if use_legend:
+            handles: list[Any] = []
+            weights: list[str] = []
+            text_colors: list[str] = []
+            for g, _px, _py, col, focus in anchors:
+                handles.append(
+                    Line2D(
+                        [],
+                        [],
+                        marker="o",
+                        linestyle="-" if (connect_groups or fit) else "none",
+                        linewidth=(1.1 * sz.scale) if (connect_groups or fit) else 0.0,
+                        markersize=4.8 * sz.scale,
+                        color=col,
+                        markerfacecolor=col,
+                        markeredgecolor=theme.background,
+                        markeredgewidth=0.4,
+                        label=_plain(g, theme),
+                    )
+                )
+                weights.append("bold" if (hl_groups and g in hl_groups) else "normal")
+                text_colors.append(ctx.text_color(col) if focus else theme.muted)
+            leg = _draw_top_legend(
+                ctx,
+                ax,
+                handles,
+                weights=weights,
+                text_colors=text_colors,
+                y_anchor=1.03,
+                gutter_mm=12.0,
+            )
+
+            def _finish_legend() -> None:
+                renderer = ctx.fig.canvas.get_renderer()
+                leg_boxes = [t.get_window_extent(renderer) for t in leg.get_texts()] if leg else []
+                _finish_annotations(extra_boxes=leg_boxes)
+
+            return _finish_legend if (point_notes or region_items or callout_items) else None
+
         notes = [
             ax.annotate(
                 _plain(g, theme),
@@ -908,6 +959,7 @@ def relate(
         "reference": list(ref) if ref else None,
         "regions": regions_spec or None,
         "callouts": callouts_spec or None,
+        "legend": legend or None,
     }
     if facet:
         spec["facet"] = True
@@ -946,8 +998,10 @@ def relate(
         describe=f"Scatter plot of {y_label} against {x_label}, {xs.size} points"
         + (f" in {len(group_names)} groups" if group_names else ""),
         issues=issues,
-        _height_mm=lambda w, _m, _s, _t: min(62.0, max(40.0, 0.6 * w)),
-        _min_height_mm=lambda _w, _m, _s, _t: 34.0,
+        _height_mm=lambda w, m, s, _t: min(62.0, max(40.0, 0.6 * w))
+        + (_legend_extra_mm(group_names, w, m, s) if use_legend else 0.0),
+        _min_height_mm=lambda w, m, s, _t: 34.0
+        + (_legend_extra_mm(group_names, w, m, s) if use_legend else 0.0),
         stretch=True,
         _draw=_draw,
         color_items=tuple(dict.fromkeys([*group_names, *(point_names or [])])),
