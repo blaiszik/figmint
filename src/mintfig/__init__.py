@@ -10,6 +10,7 @@ from __future__ import annotations
 
 # Submodule homes for names that left the top level in 0.3.0 (reachable as mint.pub, ...).
 from . import audit as audit
+from . import byo as byo
 from . import inline
 from . import interactive as interactive
 from . import pub as pub
@@ -17,6 +18,15 @@ from . import skill as skill
 from . import terminal as terminal
 from . import themes as themes
 from .brief import Brief, Session, brief
+from .byo import (
+    load_ipython_extension as load_ipython_extension,
+)
+from .byo import (
+    style,
+)
+from .byo import (
+    unload_ipython_extension as unload_ipython_extension,
+)
 from .edit import edit
 from .explainer import (
     ExplainError,
@@ -75,6 +85,7 @@ __all__ = [
     "matrix",
     "relate",
     "share",
+    "style",
     "table",
     "timeline",
     "trend",
