@@ -1,0 +1,22 @@
+{
+  "name": "mintfig-demo-video",
+  "private": true,
+  "version": "1.0.0",
+  "description": "40-second social demo of mint.check (Remotion)",
+  "scripts": {
+    "assets": "MPLCONFIGDIR=/tmp/mpl-mintfig ../../.venv/bin/python make_assets.py",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts MintCheck out/mintfig-check-16x9.mp4 --concurrency=2",
+    "render:square": "remotion render src/index.ts MintCheckSquare out/mintfig-check-1x1.mp4 --concurrency=2"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.547",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "4.0.547"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.3",
+    "typescript": "5.9.3"
+  }
+}

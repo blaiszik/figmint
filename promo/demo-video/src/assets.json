@@ -1,0 +1,70 @@
+{
+  "before": {
+    "ship": false,
+    "report": "figure.png: FIX FIRST\n  read at 700 px wide; PNG 1800×750 px; smallest text 8.1 px\n  claim (headline): 'Removing retrieval costs 12 points of accuracy'\n    12 points: NOT FOUND (closest: full model vs no retrieval: 0.82 − 0.74 = 8 points)\n  error bar_baseline_nonzero: Bars start at zero but the value axis runs 0.6–0.85, so bar lengths overstate the differences.\n    fix: Let the value axis include 0 (drop set_ylim/set_xlim on it), or draw points (ax.plot(..., 'o')) if the differences are what matters.\n  warning claim_number_mismatch: The claim states '12 points', which matches no value, difference, ratio, percentage change or share in the plotted data. Closest in the data: '12 points' → full model vs no retrieval: 0.82 − 0.74 = 8 points.\n    fix: Recompute the number from the data and fix the claim (or the plot). If it comes from outside the figure, say where in a note, or hedge it ('about 8').\n  warning text_too_small: 11 text(s) under 11 px as read: 'full model' 8.1 px, 'no retrieval' 8.1 px, 'no fine-tuning' 8.1 px. The 1800 px PNG is shown 700 px wide, so text shrinks to 39% of its saved size.\n    fix: Draw at the size it is read: figsize width ≈ 4.7 in at dpi=150 (or the same width at a higher dpi), or set text to at least 14 pt.\n  warning interval_unlabelled: The figure draws error bars or bands but never says what they are.\n    fix: Name the interval where it is read: '95% CI, 5 seeds' or '±1 s.d., n = 12' in the axis label, title or legend.\n  facts read from the plotted data:\n    - highest full model 0.82, 0.08 above no retrieval (0.74), 1.11×; lowest no fine-tuning 0.69\n    - intervals of full model (0.8–0.84) and no retrieval (0.71–0.77) do not overlap",
+    "display": {
+      "png_px": [
+        1800,
+        750
+      ],
+      "dpi": 150.0,
+      "bbox_inches": null,
+      "width_px": 700,
+      "shown_px": [
+        700,
+        292
+      ],
+      "min_text_px": 8.1,
+      "texts": 11,
+      "legends": 0
+    },
+    "numbers": [
+      {
+        "text": "12 points",
+        "value": 12.0,
+        "kind": "points",
+        "found": false,
+        "how": null,
+        "nearest": "full model vs no retrieval: 0.82 − 0.74 = 8 points"
+      }
+    ],
+    "rules": [
+      "bar_baseline_nonzero",
+      "claim_number_mismatch",
+      "text_too_small",
+      "interval_unlabelled"
+    ]
+  },
+  "after": {
+    "ship": true,
+    "report": "figure.png: SHIP\n  read at 700 px wide; PNG 1400×720 px; smallest text 15.3 px\n  claim (headline): 'Removing retrieval costs 8 points of accuracy'\n    8 points: found (full model vs no retrieval: 0.82 − 0.74 = 8 points)\n  facts read from the plotted data:\n    - highest full model 0.82, 0.08 above no retrieval (0.74), 1.11×; lowest no fine-tuning 0.69\n    - intervals of full model (0.8–0.84) and no retrieval (0.71–0.77) do not overlap",
+    "display": {
+      "png_px": [
+        1400,
+        720
+      ],
+      "dpi": 200.0,
+      "bbox_inches": null,
+      "width_px": 700,
+      "shown_px": [
+        700,
+        360
+      ],
+      "min_text_px": 15.3,
+      "texts": 14,
+      "legends": 0
+    },
+    "numbers": [
+      {
+        "text": "8 points",
+        "value": 8.0,
+        "kind": "points",
+        "found": true,
+        "how": "full model vs no retrieval: 0.82 − 0.74 = 8 points"
+      }
+    ]
+  },
+  "mintfig": {
+    "ship": true
+  }
+}

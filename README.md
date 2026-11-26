@@ -91,7 +91,7 @@ fig.save("ablation.html")  # one self-contained page
 
 ### Already have Matplotlib? Check it (`mint.check`)
 
-Most figures an agent ships are plain Matplotlib, and in [figure-bench](evals/figure_bench/README.md) agents writing it the way they do today shipped a layout or text defect in 13 of 15 figures and put the answer in the headline in 4. `mint.check` audits any Matplotlib figure without a rewrite:
+Most figures an agent ships are plain Matplotlib, and in [figure-bench](evals/figure_bench/README.md) agents writing it the way they do today shipped a layout or text defect in 13 of 15 figures and stated the correct number in the headline in 4 of 15. `mint.check` audits any Matplotlib figure without a rewrite:
 
 ```python
 import matplotlib.pyplot as plt
