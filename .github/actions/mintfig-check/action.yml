@@ -1,0 +1,290 @@
+name: "mintfig check"
+description: "Audit Matplotlib/Seaborn scripts, notebooks, and journal PDFs for claim accuracy and reading-size legibility."
+author: "mintfig"
+
+branding:
+  icon: "check-circle"
+  color: "blue"
+
+inputs:
+  paths:
+    description: >-
+      Space-separated file paths or globs (.py, .ipynb, .pdf), or "changed" to
+      auto-detect changed plotting scripts, notebooks, and PDFs in a PR.
+    required: false
+    default: "changed"
+  width:
+    description: "Reading width preset for script/notebook checks: narrow (450 px), chat (700 px), slide (1280 px), or pixels."
+    required: false
+    default: "chat"
+  journal:
+    description: "Target journal preset for PDF preflight checks (e.g. nature, science, cell, pnas, neurips)."
+    required: false
+    default: "nature"
+  strict:
+    description: "Treat warnings and advisories as failures (true/false)."
+    required: false
+    default: "false"
+  fail-on-fix:
+    description: "Fail the workflow step when any figure returns FIX FIRST or fails to run (true/false)."
+    required: false
+    default: "true"
+  python-version:
+    description: "Python version to set up for running mintfig."
+    required: false
+    default: "3.12"
+  mintfig-version:
+    description: >-
+      Optional mintfig version to install (e.g. "0.3.0" or ">=0.3,<1.0").
+      Leave empty to install the local repository when running inside mintfig,
+      otherwise the latest release from PyPI.
+    required: false
+    default: ""
+  write-summary:
+    description: "Write the Markdown check report to $GITHUB_STEP_SUMMARY (true/false)."
+    required: false
+    default: "true"
+
+outputs:
+  passed:
+    description: "Whether all checked figures passed (true/false)."
+    value: ${{ steps.mintfig-check.outputs.passed }}
+  checked-count:
+    description: "Total number of figures checked across all targets."
+    value: ${{ steps.mintfig-check.outputs.checked-count }}
+  failed-count:
+    description: "Number of figures that returned FIX FIRST or failed execution."
+    value: ${{ steps.mintfig-check.outputs.failed-count }}
+  report-markdown:
+    description: "Formatted Markdown table and fix hints suitable for a PR comment or Step Summary."
+    value: ${{ steps.mintfig-check.outputs.report-markdown }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install mintfig
+      shell: bash
+      env:
+        INPUT_MINTFIG_VERSION: ${{ inputs.mintfig-version }}
+      run: |
+        set -euo pipefail
+        python -m pip install --upgrade pip >/dev/null
+        if [ -n "$INPUT_MINTFIG_VERSION" ]; then
+          if [ "$INPUT_MINTFIG_VERSION" = "." ] || [ "$INPUT_MINTFIG_VERSION" = "local" ]; then
+            python -m pip install ".[pub]"
+          elif [[ "$INPUT_MINTFIG_VERSION" == [0-9]* ]]; then
+            python -m pip install "mintfig[pub]==$INPUT_MINTFIG_VERSION"
+          else
+            python -m pip install "mintfig[pub]$INPUT_MINTFIG_VERSION"
+          fi
+        elif [ -f pyproject.toml ] && grep -qE '^name\s*=\s*"mintfig"' pyproject.toml; then
+          python -m pip install ".[pub]"
+        else
+          python -m pip install "mintfig[pub]"
+        fi
+
+    - name: Run mintfig check
+      id: mintfig-check
+      shell: bash
+      env:
+        INPUT_PATHS: ${{ inputs.paths }}
+        INPUT_WIDTH: ${{ inputs.width }}
+        INPUT_JOURNAL: ${{ inputs.journal }}
+        INPUT_STRICT: ${{ inputs.strict }}
+        INPUT_FAIL_ON_FIX: ${{ inputs.fail-on-fix }}
+        INPUT_WRITE_SUMMARY: ${{ inputs.write-summary }}
+        MPLCONFIGDIR: ${{ runner.temp }}/mpl-mintfig
+        PYTHONHASHSEED: "0"
+      run: |
+        set -euo pipefail
+        python - <<'PY'
+        from __future__ import annotations
+
+        import glob
+        import json
+        import os
+        import re
+        import shlex
+        import subprocess
+        import sys
+        import uuid
+        from pathlib import Path
+        from typing import Any
+
+        SUPPORTED_SUFFIXES = {".py", ".ipynb", ".pdf"}
+        PLOT_HINTS_RE = re.compile(
+            r"\b(matplotlib|pyplot|seaborn|mintfig|savefig|subplots|Figure|plt\.|sns\.)\b"
+        )
+
+
+        def _is_true(value: str | None, default: bool = False) -> bool:
+            if value is None or not value.strip():
+                return default
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+        def _looks_like_plotting_file(path: Path) -> bool:
+            if path.suffix.lower() == ".pdf":
+                return True
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                return False
+            return bool(PLOT_HINTS_RE.search(text))
+
+
+        def _detect_changed_targets() -> list[Path]:
+            base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+            diff_ranges: list[list[str]] = []
+            if base_ref:
+                diff_ranges.append(
+                    ["git", "diff", "--name-only", "--diff-filter=ACMR", f"origin/{base_ref}...HEAD"]
+                )
+            diff_ranges.append(
+                ["git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD~1...HEAD"]
+            )
+            changed_lines: list[str] = []
+            for cmd in diff_ranges:
+                proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+                if proc.returncode == 0:
+                    changed_lines = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip()]
+                    break
+            targets: list[Path] = []
+            for rel in changed_lines:
+                candidate = Path(rel)
+                if (
+                    candidate.is_file()
+                    and candidate.suffix.lower() in SUPPORTED_SUFFIXES
+                    and _looks_like_plotting_file(candidate)
+                ):
+                    targets.append(candidate)
+            return sorted(dict.fromkeys(targets))
+
+
+        def _resolve_targets(raw_paths: str) -> list[Path]:
+            cleaned = raw_paths.strip()
+            if not cleaned or cleaned.lower() == "changed":
+                return _detect_changed_targets()
+            tokens = shlex.split(cleaned)
+            found: list[Path] = []
+            for token in tokens:
+                matches = sorted(glob.glob(token, recursive=True))
+                if matches:
+                    for match in matches:
+                        p = Path(match)
+                        if p.is_file() and p.suffix.lower() in SUPPORTED_SUFFIXES:
+                            found.append(p)
+                else:
+                    p = Path(token)
+                    if p.is_file() and p.suffix.lower() in SUPPORTED_SUFFIXES:
+                        found.append(p)
+            return list(dict.fromkeys(found))
+
+
+        def _run_check(target: Path, *, width: str, journal: str, strict: bool) -> list[dict[str, Any]]:
+            cmd = [sys.executable, "-m", "mintfig.cli", "check", str(target), "--json"]
+            if target.suffix.lower() == ".pdf":
+                cmd.extend(["--journal", journal])
+            else:
+                cmd.extend(["--width", width])
+            if strict:
+                cmd.append("--strict")
+            proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            stdout = proc.stdout.strip()
+            stderr = proc.stderr.strip()
+            if stdout:
+                try:
+                    payload = json.loads(stdout)
+                except json.JSONDecodeError:
+                    payload = None
+                if isinstance(payload, dict):
+                    if isinstance(payload.get("figures"), list):
+                        out: list[dict[str, Any]] = []
+                        for idx, fig_rep in enumerate(payload["figures"], start=1):
+                            entry = dict(fig_rep)
+                            if not entry.get("path"):
+                                entry["path"] = (
+                                    f"{target.as_posix()} (figure {idx})"
+                                    if len(payload["figures"]) > 1
+                                    else target.as_posix()
+                                )
+                            else:
+                                entry["path"] = f"{target.as_posix()} -> {entry['path']}"
+                            if strict and entry.get("ship") and (entry.get("issues") or entry.get("advisories")):
+                                entry["ship"] = False
+                            out.append(entry)
+                        return out
+                    entry = dict(payload)
+                    entry.setdefault("path", target.as_posix())
+                    if "ship" not in entry:
+                        passed_pdf = bool(entry.get("passed", entry.get("ok", proc.returncode == 0)))
+                        if strict and entry.get("num_warnings", 0):
+                            passed_pdf = False
+                        entry["ship"] = passed_pdf
+                    return [entry]
+            msg = stderr or stdout or f"mintfig check exited with status {proc.returncode}"
+            return [{"path": target.as_posix(), "ship": False, "error": msg, "issues": []}]
+
+
+        def _format_markdown(reports: list[dict[str, Any]]) -> str:
+            try:
+                from mintfig.pr_card import format_check_pr_comment
+
+                return format_check_pr_comment(reports)
+            except ImportError:
+                failed = sum(1 for r in reports if not r.get("ship", r.get("passed", False)))
+                return (
+                    f"### mintfig check\n\n"
+                    f"Checked {len(reports)} figure(s); {failed} need fixes."
+                )
+
+
+        def _write_output(handle: Any, key: str, value: str) -> None:
+            if "\n" in value:
+                delim = f"MINTFIG_EOF_{uuid.uuid4().hex}"
+                handle.write(f"{key}<<{delim}\n{value}\n{delim}\n")
+            else:
+                handle.write(f"{key}={value}\n")
+
+
+        raw_paths = os.environ.get("INPUT_PATHS", "changed")
+        width = os.environ.get("INPUT_WIDTH", "chat").strip() or "chat"
+        journal = os.environ.get("INPUT_JOURNAL", "nature").strip() or "nature"
+        strict = _is_true(os.environ.get("INPUT_STRICT"), default=False)
+        fail_on_fix = _is_true(os.environ.get("INPUT_FAIL_ON_FIX"), default=True)
+        write_summary = _is_true(os.environ.get("INPUT_WRITE_SUMMARY"), default=True)
+
+        targets = _resolve_targets(raw_paths)
+        all_reports: list[dict[str, Any]] = []
+        for target in targets:
+            all_reports.extend(_run_check(target, width=width, journal=journal, strict=strict))
+
+        checked_count = len(all_reports)
+        failed_count = sum(1 for r in all_reports if not r.get("ship", r.get("passed", False)))
+        passed = failed_count == 0
+        markdown = _format_markdown(all_reports)
+
+        print(markdown)
+
+        if write_summary:
+            summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+            if summary_path:
+                with open(summary_path, "a", encoding="utf-8") as fh:
+                    fh.write(markdown + "\n")
+
+        output_path = os.environ.get("GITHUB_OUTPUT")
+        if output_path:
+            with open(output_path, "a", encoding="utf-8") as fh:
+                _write_output(fh, "passed", "true" if passed else "false")
+                _write_output(fh, "checked-count", str(checked_count))
+                _write_output(fh, "failed-count", str(failed_count))
+                _write_output(fh, "report-markdown", markdown)
+
+        if not passed and fail_on_fix:
+            sys.exit(1)
+        PY

@@ -1,0 +1,70 @@
+name: "Example: mintfig check"
+
+# Manual-only example workflow showing how to drop `.github/actions/mintfig-check`
+# into a repository. Copy this file and add `pull_request:` under `on:` in your own repo.
+on:
+  workflow_dispatch:
+    inputs:
+      paths:
+        description: 'Paths/globs to check (.py, .ipynb, .pdf) or "changed"'
+        required: false
+        default: "changed"
+      width:
+        description: "Reading width preset (narrow, chat, slide)"
+        required: false
+        default: "chat"
+      strict:
+        description: "Treat warnings as failures (true/false)"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  check-figures:
+    name: Audit figures with mintfig
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run mintfig check
+        id: check
+        uses: ./.github/actions/mintfig-check
+        with:
+          paths: ${{ inputs.paths }}
+          width: ${{ inputs.width }}
+          journal: "nature"
+          strict: ${{ inputs.strict }}
+          fail-on-fix: "true"
+          write-summary: "true"
+
+      - name: Print check summary metadata
+        if: always()
+        shell: bash
+        env:
+          MINTFIG_PASSED: ${{ steps.check.outputs.passed }}
+          MINTFIG_CHECKED: ${{ steps.check.outputs.checked-count }}
+          MINTFIG_FAILED: ${{ steps.check.outputs.failed-count }}
+        run: |
+          echo "passed=$MINTFIG_PASSED checked=$MINTFIG_CHECKED failed=$MINTFIG_FAILED"
+
+      # Optional: to post the Markdown table as a PR comment in your own repo,
+      # grant `pull-requests: write` above and enable this step:
+      #
+      # - name: Post PR comment
+      #   if: github.event_name == 'pull_request' && steps.check.outputs.checked-count != '0'
+      #   uses: actions/github-script@v7
+      #   env:
+      #     MINTFIG_REPORT: ${{ steps.check.outputs.report-markdown }}
+      #   with:
+      #     script: |
+      #       await github.rest.issues.createComment({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         issue_number: context.issue.number,
+      #         body: process.env.MINTFIG_REPORT,
+      #       });
