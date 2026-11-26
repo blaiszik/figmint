@@ -164,10 +164,14 @@ def test_every_form_renders_clean_across_all_styles(style_name: str, form_name: 
     )
     summary = result.summary()
     assert summary["style"] == style_name
-    # a three-item slopegraph (6 values) at its natural height is flagged as sparse
-    sparse = ["low_density"] if form_name == "change" else []
+    # low_density is the only advisory allowed: a three-item slopegraph (6 values) at its
+    # natural height always gets it; others may, depending on the host's font metrics
+    # (DejaVu Sans on Linux CI makes the editorial and paper compare panels taller).
+    advisories = {i["rule"] for i in summary.get("advisories", [])}
     assert summary["issues"] == []
-    assert [i["rule"] for i in summary.get("advisories", [])] == sparse
+    assert advisories <= {"low_density"}
+    if form_name == "change":
+        assert advisories == {"low_density"}
     assert summary["ok"] is True
     assert result.width_mm == pytest.approx(140.0, abs=0.01)
     assert summary["display"]["min_text_px"] >= explainer.MIN_TEXT_PX
