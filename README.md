@@ -4,7 +4,7 @@
 
 Working with Claude Code, Codex, Cursor, or Antigravity shouldn't end in 16 numbers buried in prose or a cramped default Matplotlib chart with tiny text, truncated axes, and unnamed error bars. `mintfig` upgrades your agentic coding interface into a visual briefing loop: agents turn raw results into beautiful, publication-grade graphics whose headlines are checked against the plotted data — or automatically audit and upgrade the Matplotlib you already write (`mint.check`, `mint.style`, `mintfig hook --install`).
 
-In [figure-bench](evals/figure_bench/README.md), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15**. Watch the exact same 5-seed ablation reply move from a text wall, to default agent Matplotlib, to `mintfig`:
+In [figure-bench v0.1](docs/figure-bench.md) (60 tasks across science, SWE, and epistemic traps; initial 15-task agent baseline), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15** — while `mintfig` shipped **14/15** clean on try 1 (**15/15** final) with **15/15** accurate headlines. Watch the exact same 5-seed ablation reply move from a text wall, to default agent Matplotlib, to `mintfig`:
 
 ![Comparison of an agent's text-only reply, default agent Matplotlib (ship: false), and mintfig reply (ship: true)](gallery/output/readme_comparison/opener.gif)
 
@@ -34,7 +34,7 @@ Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](gal
 2. **Add an automatic agent guardrail (`mintfig hook --install`, `mintfig skill --install --global`).** Install the skill globally for Claude Code, Codex, Cursor, and Antigravity, and wire a silent `PostToolUse` hook that checks agent-written Matplotlib scripts automatically and only speaks up when a figure fails `ship`.
 3. **Explain results in one call (`mint.explain`, `mintfig plot`) & ship journal plates (`mint.Plate`, `mintfig run`).** Lead with a takeaway sentence and compose panels by question with direct labels, named uncertainty, colorblind-safe themes, HTML/terminal delivery, and exact-mm submission bundles for *Nature*, *Science*, *Cell*, PNAS, and NeurIPS.
 
-[Quickstart](#quickstart) · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
+[Quickstart](#quickstart) · **[Benchmark & Failure Modes](docs/figure-bench.md)** · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
 
 ---
 
@@ -377,7 +377,8 @@ Exit codes: `0` clean pass · `1` error-level issue (or warning under `--strict`
 
 ## Benchmarks & Development
 
-- **Chat figure benchmark (`evals/figure_bench/`, v0.1 work in progress)**: 60 deterministic tasks across 3 splits (15 `dev`, 30 frozen `public-test`, 15 `heldout`) and 6 tracks (science, SWE/coding, epistemic traps, multi-turn edits, multi-surface delivery, BYO-Matplotlib repair) with library-agnostic SVG/pixel/rubric scoring (`grade-dir`), open leaderboard + visual explorer (`site/index.html`), and a display-size human blind-reader study app (`human_study/index.html`) ([evals/figure_bench/README.md](evals/figure_bench/README.md) · [Compete / Contribute](evals/figure_bench/CONTRIBUTING.md)).
+- **Chat figure benchmark (`evals/figure_bench/`, v0.1 work in progress)**: 60 deterministic tasks across 3 splits (15 `dev`, 30 frozen `public-test`, 15 `heldout`) and 6 tracks (science, SWE/coding, epistemic traps, multi-turn edits, multi-surface delivery, BYO-Matplotlib repair) with library-agnostic SVG/pixel/rubric scoring (`grade-dir`), open leaderboard + visual explorer (`site/index.html`), and a display-size human blind-reader study app (`human_study/index.html`) — **[Results & Failure Anatomy](docs/figure-bench.md)** · [Spec](evals/figure_bench/README.md) · [Compete / Contribute](evals/figure_bench/CONTRIBUTING.md).
+- **Wild-50 `mint.check` audit (`evals/check_bench/`)**: 50 realistic Matplotlib & Seaborn-idiom scripts (25 clean, 25 defective) verifying **0/25 (0.0%) false positives** and **25/25 (100%) defect catch** ([evals/check_bench/REPORT.md](evals/check_bench/REPORT.md)).
 - **Skill trigger evaluation (`evals/trigger_eval/`)**: 40 realistic developer and scientist prompts (20 positive, 20 negative, zero mentions of `mintfig`) testing skill recall (>= 85%) and false-trigger rate (<= 5%) with both a deterministic offline rubric and a `--live` CLI adapter ([evals/trigger_eval/README.md](evals/trigger_eval/README.md)).
 - **Publication repair eval (`evals/`)**: 10 clean control scripts and 25 messy agent-written scripts testing `mintfig run --json` + `fix_hint` repair loops ([evals/eval_report.md](https://github.com/blaiszik/mintfig/blob/main/evals/eval_report.md)).
 

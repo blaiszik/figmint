@@ -13,6 +13,7 @@ uncertainty-aware figure — fast, and at the exact width a human will actually 
 `Gemini`, open-weights) and any plotting stack (`matplotlib`, `seaborn`, `altair`, `plotly`,
 `plotnine`, `ggplot2`, `d3`, `mintfig`, or your own skills and verifier hooks).
 
+- **Visual Results & Matplotlib Failure Anatomy:** [`docs/figure-bench.md`](../../docs/figure-bench.md)
 - **Open Leaderboard & Visual Explorer:** [`site/index.html`](site/index.html) (zero-CDN static page)
 - **Human Blind Reader Study App:** [`human_study/index.html`](human_study/index.html) (exact `700 px` / `450 px` display-width lock)
 - **5-Minute Contributor Guide:** [`CONTRIBUTING.md`](CONTRIBUTING.md)

@@ -259,7 +259,7 @@ def _render_card_frame(
     elif step == 2:
         b_txt, b_fill, b_out, b_fg = "mint.check  →  ship: false", "#FEF3F2", "#FDA29B", "#B42318"
     else:
-        b_txt, b_fill, b_out, b_fg = "mint.check  →  ship: true", "#ECFDF3", "#6CE9A6", "#067647"
+        b_txt, b_fill, b_out, b_fg = "ship: true · 15/15 clean & right #", "#ECFDF3", "#6CE9A6", "#067647"
     bb = draw.textbbox((0, 0), b_txt, font=f_badge)
     bw = (bb[2] - bb[0]) + 44
     _draw_pill(draw, cx1 - 40 - bw, hdr_y, b_txt, f_badge, fill=b_fill, outline=b_out, fg=b_fg, pad_x=22)
@@ -300,7 +300,7 @@ def _render_card_frame(
     elif step == 2:
         draw.text(
             (body_x, prompt_y + 44),
-            "Default agent Matplotlib (13/15 defective in figure-bench; 4/15 accurate headline):",
+            "Default Matplotlib (figure-bench v0.1 initial-15: 13/15 defective, 4/15 right headline):",
             font=f_lead,
             fill="#334155",
         )
