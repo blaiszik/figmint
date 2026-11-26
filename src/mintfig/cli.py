@@ -14,7 +14,13 @@ from typing import Any
 
 from .preflight import preflight_pdf
 from .runner import run_script
-from .skill import VALID_TARGETS, get_agents_snippet, get_skill_markdown, install_skill
+from .skill import (
+    VALID_TARGETS,
+    get_agents_snippet,
+    get_full_skill_bundle,
+    get_skill_markdown,
+    install_skill,
+)
 from .specs import JOURNALS, JournalSpec, get_spec
 
 
@@ -649,7 +655,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Directory for the sample figure (default: a new temporary directory, kept).",
     )
 
-    # `mintfig skill [--install] [--target ...] [--root .] [--print] [--snippet]`
+    # `mintfig skill [--install] [--global] [--target ...] [--root .] [--print [--all]] [--snippet]`
     skill_parser = subparsers.add_parser(
         "skill",
         help="Print or install mintfig agent skill instructions (Claude, Antigravity, Cursor, Codex, AGENTS.md).",
@@ -657,7 +663,16 @@ def _build_parser() -> argparse.ArgumentParser:
     skill_parser.add_argument(
         "--install",
         action="store_true",
-        help="Install skill and/or instruction files into --root.",
+        help="Install skill and/or instruction files into --root (or user home with --global).",
+    )
+    skill_parser.add_argument(
+        "--global",
+        action="store_true",
+        dest="global_install",
+        help=(
+            "Install globally into user-home agent directories "
+            "(auto-detects installed agents when --target is omitted)."
+        ),
     )
     skill_parser.add_argument(
         "--target",
@@ -665,7 +680,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Comma-separated install target(s): "
-            f"{','.join(VALID_TARGETS)} (default: claude,antigravity,agents-md)."
+            f"{','.join(VALID_TARGETS)},all "
+            "(default: claude,antigravity,agents-md; with --global: auto-detect)."
         ),
     )
     skill_parser.add_argument(
@@ -675,15 +691,85 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Project root directory for --install (default: current directory).",
     )
     skill_parser.add_argument(
+        "--home",
+        type=Path,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    skill_parser.add_argument(
         "--print",
         action="store_true",
         dest="print_skill",
         help="Print the bundled SKILL.md to stdout without modifying disk.",
     )
     skill_parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="print_all",
+        help="With --print, include all bundled references/*.md with section headers.",
+    )
+    skill_parser.add_argument(
         "--snippet",
         action="store_true",
         help="Print the marker-wrapped AGENTS.md / CLAUDE.md snippet without modifying disk.",
+    )
+
+    # `mintfig hook [--install | --uninstall | --status | run] [--target ...] [--global] [--root .]`
+    hook_parser = subparsers.add_parser(
+        "hook",
+        help="Install, inspect, remove, or run automatic PostToolUse figure-audit hooks.",
+    )
+    hook_parser.add_argument(
+        "action",
+        nargs="?",
+        choices=("run",),
+        default=None,
+        help="Use 'run' inside a PostToolUse hook to audit a plotting script from stdin JSON.",
+    )
+    hook_parser.add_argument(
+        "--install",
+        action="store_true",
+        help="Install mintfig PostToolUse hook(s) idempotently without clobbering existing settings.",
+    )
+    hook_parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Remove installed mintfig PostToolUse hook(s), preserving existing user settings.",
+    )
+    hook_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Show whether mintfig PostToolUse hook(s) are installed.",
+    )
+    hook_parser.add_argument(
+        "--target",
+        action="append",
+        default=None,
+        help="Comma-separated hook target(s): claude,cursor,codex,all (default: claude).",
+    )
+    hook_parser.add_argument(
+        "--global",
+        action="store_true",
+        dest="global_install",
+        help="Target user-home agent config directories (e.g. ~/.claude/settings.json).",
+    )
+    hook_parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path("."),
+        help="Project root directory for project-local hook install/status (default: current directory).",
+    )
+    hook_parser.add_argument(
+        "--home",
+        type=Path,
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+    hook_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Output --status as JSON.",
     )
 
     return parser
@@ -1457,20 +1543,107 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(get_agents_snippet(), end="")
             return 0
         if args.install:
-            targets = _parse_targets_arg(args.target)
+            if args.target:
+                targets: list[str] | None = _parse_targets_arg(args.target)
+            elif args.global_install:
+                targets = None
+            else:
+                targets = _parse_targets_arg(None)
             try:
-                written = install_skill(root=args.root, targets=targets)
+                written = install_skill(
+                    root=args.root,
+                    targets=targets,
+                    global_install=args.global_install,
+                    home=args.home,
+                )
             except ValueError as exc:
                 print(f"Error: {exc}", file=sys.stderr)
                 return 1
             for path in written:
                 print(f"Installed: {path}")
             return 0
-        # Default or --print: output SKILL.md without touching disk
-        print(get_skill_markdown(), end="")
+        # Default or --print: output SKILL.md (or full bundle with --all) without touching disk
+        if args.print_all:
+            print(get_full_skill_bundle(), end="")
+        else:
+            print(get_skill_markdown(), end="")
         return 0
 
+    if args.command == "hook":
+        return _run_hook(args)
+
     return 1
+
+
+def _run_hook(args: argparse.Namespace) -> int:
+    """Dispatch `mintfig hook` subcommand."""
+    from .hooks import (
+        format_hook_status,
+        hook_status,
+        install_hook,
+        run_hook,
+        uninstall_hook,
+    )
+
+    if args.action == "run":
+        rc, output = run_hook()
+        if output:
+            print(output)
+        return rc
+
+    raw_targets = _parse_list_arg(args.target)
+
+    if args.install:
+        targets = raw_targets if raw_targets is not None else (None if args.global_install else ["claude"])
+        try:
+            written = install_hook(
+                root=args.root,
+                targets=targets,
+                global_install=args.global_install,
+                home=args.home,
+            )
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        for path in written:
+            print(f"Installed hook: {path}")
+        return 0
+
+    if args.uninstall:
+        targets = raw_targets if raw_targets is not None else (None if args.global_install else ["claude"])
+        try:
+            updated = uninstall_hook(
+                root=args.root,
+                targets=targets,
+                global_install=args.global_install,
+                home=args.home,
+            )
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
+        if updated:
+            for path in updated:
+                print(f"Removed hook: {path}")
+        else:
+            print("No mintfig hooks found to remove.")
+        return 0
+
+    # Default or --status
+    try:
+        status = hook_status(
+            root=args.root,
+            targets=raw_targets,
+            global_install=args.global_install,
+            home=args.home,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.as_json:
+        print(json.dumps(status, indent=2, ensure_ascii=False))
+    else:
+        print(format_hook_status(status))
+    return 0
 
 
 if __name__ == "__main__":

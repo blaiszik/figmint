@@ -1,0 +1,16 @@
+{
+  "description": "Automatically audit Matplotlib and Seaborn plotting scripts with mintfig check after Bash, Write, or Edit tool calls.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "mintfig hook run"
+          }
+        ]
+      }
+    ]
+  }
+}
