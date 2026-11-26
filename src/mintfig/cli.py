@@ -833,6 +833,50 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output --status as JSON.",
     )
 
+    # `mintfig log [--init | --add FIG | --search Q | --brief OUT | --open | --rebuild]`
+    log_parser = subparsers.add_parser(
+        "log",
+        help="Opt-in local visual lab notebook (.mintfig/) for figure provenance and history.",
+    )
+    log_parser.add_argument(
+        "--init",
+        action="store_true",
+        help="Initialize an opt-in .mintfig/ lab notebook (auto-excluded from git status).",
+    )
+    log_parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="Project root or .mintfig directory (default: auto-discover from cwd).",
+    )
+    log_parser.add_argument(
+        "--title",
+        default=None,
+        help="Optional notebook title for --init or --brief.",
+    )
+    log_parser.add_argument(
+        "--add",
+        type=Path,
+        default=None,
+        help="Manually log any PNG, SVG, or HTML figure (including plain Matplotlib).",
+    )
+    log_parser.add_argument("--takeaway", default=None, help="Takeaway caption for --add.")
+    log_parser.add_argument("--source", default=None, help="Source text or data path for --add.")
+    log_parser.add_argument("--note", default=None, help="Optional lab note for --add.")
+    log_parser.add_argument("--tag", action="append", default=None, help="Tag(s) for --add or filtering.")
+    log_parser.add_argument("--search", "-q", default=None, help="Filter logged figures by keyword.")
+    log_parser.add_argument("--last", type=int, default=None, help="Show or bundle only the N most recent entries.")
+    log_parser.add_argument("--ship-only", action="store_true", help="Include only ship=true figures.")
+    log_parser.add_argument("--rebuild", action="store_true", help="Regenerate .mintfig/index.html.")
+    log_parser.add_argument(
+        "--brief",
+        type=Path,
+        default=None,
+        help="Compose logged figures (with specs) into a single mint.brief HTML/Markdown report.",
+    )
+    log_parser.add_argument("--open", action="store_true", dest="open_viewer", help="Open .mintfig/index.html.")
+    log_parser.add_argument("--json", action="store_true", dest="as_json", help="Print entries as JSON.")
+
     return parser
 
 
@@ -1761,6 +1805,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "hook":
         return _run_hook(args)
 
+    if args.command == "log":
+        return _run_log(args)
+
     return 1
 
 
@@ -1832,6 +1879,109 @@ def _run_hook(args: argparse.Namespace) -> int:
         print(json.dumps(status, indent=2, ensure_ascii=False))
     else:
         print(format_hook_status(status))
+    return 0
+
+
+def _run_log(args: argparse.Namespace) -> int:
+    """Dispatch ``mintfig log`` subcommand for the opt-in ``.mintfig/`` lab notebook."""
+    import webbrowser
+
+    from .brief import brief as build_brief
+    from .notebook import (
+        HTML_FILENAME,
+        NOTEBOOK_DIRNAME,
+        build_index_html,
+        find_notebook,
+        format_log_table,
+        list_entries,
+        log_file,
+    )
+    from .notebook import (
+        init as init_notebook,
+    )
+
+    if args.init:
+        nb_dir = init_notebook(args.root or Path.cwd(), title=args.title)
+        print(f"Initialized mintfig lab notebook: {nb_dir}")
+        print(f"Viewer: {nb_dir / HTML_FILENAME}")
+        return 0
+
+    nb_dir: Path | None = None
+    if args.root is not None:
+        r = args.root.resolve()
+        nb_dir = r if r.name == NOTEBOOK_DIRNAME else (r / NOTEBOOK_DIRNAME)
+        if not nb_dir.is_dir():
+            nb_dir = None
+    else:
+        nb_dir = find_notebook()
+
+    if args.add is not None:
+        tags = _parse_list_arg(args.tag)
+        try:
+            entry = log_file(
+                args.add,
+                takeaway=args.takeaway,
+                source=args.source,
+                note=args.note,
+                tags=tags,
+                notebook_dir=nb_dir,
+            )
+        except FileNotFoundError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
+        if args.as_json:
+            print(json.dumps(entry, indent=2, ensure_ascii=False))
+        else:
+            print(f"Logged {entry['id']}: {entry['takeaway']}")
+        return 0
+
+    if nb_dir is None:
+        print("No .mintfig/ lab notebook found. Run `mintfig log --init` to opt in.")
+        return 0
+
+    if args.rebuild:
+        html_path = build_index_html(nb_dir)
+        print(f"Rebuilt viewer: {html_path}")
+        if not args.open_viewer and not args.brief:
+            return 0
+
+    if args.open_viewer:
+        html_path = build_index_html(nb_dir)
+        webbrowser.open(html_path.as_uri())
+        print(f"Opened {html_path}")
+        return 0
+
+    filter_tags = _parse_list_arg(args.tag)
+    tag_arg = filter_tags[0] if filter_tags else None
+    entries = list_entries(
+        nb_dir,
+        query=args.search,
+        tag=tag_arg,
+        ship_only=args.ship_only,
+        last=args.last,
+    )
+
+    if args.brief is not None:
+        spec_paths = [
+            nb_dir / e["spec_file"]
+            for e in entries
+            if e.get("spec_file") and (nb_dir / e["spec_file"]).is_file()
+        ]
+        if not spec_paths:
+            print("Error: no logged entries with embedded specs matched for --brief.", file=sys.stderr)
+            return 2
+        doc = build_brief(
+            args.title or f"{nb_dir.parent.name} visual briefing",
+            *spec_paths[:12],
+        )
+        doc.save(args.brief)
+        print(f"Wrote briefing ({len(spec_paths[:12])} figures) -> {args.brief}")
+        return 0
+
+    if args.as_json:
+        print(json.dumps(entries, indent=2, ensure_ascii=False))
+    else:
+        print(format_log_table(entries))
     return 0
 
 

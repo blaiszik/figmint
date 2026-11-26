@@ -76,6 +76,7 @@ Without Python: `mintfig inspect data.csv` recommends forms, and `mintfig plot d
 | Chat that renders images | default `width="chat"` (700 px) | `deliver["markdown"]` |
 | Phone or IDE sidebar (~450 px) | `width="narrow"` (panels stack) | `deliver["markdown"]` |
 | Artifact host or review page | `fig.save("fig.html")` | file at `deliver["html"]` |
+| Inline interactive HTML embed (Antigravity / webview) | `fig.save("fig.html", compact=True)` or `fig.to_html(compact=True)` | lean single-SVG HTML (~80% smaller, transparent flush bg, live light/dark `themechange` sync); never hand-write SVG |
 | Plain terminal or unknown | (any) | `deliver["text"]` in a code fence |
 | Notebook | (any) | return `fig` |
 | Slide or PR | `width="slide"` (1280 px) for slides | PNG (by repo path in a PR) |
