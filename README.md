@@ -4,12 +4,12 @@
 
 Working with Claude Code, Codex, Cursor, or Antigravity shouldn't end in 16 numbers buried in prose or a cramped default Matplotlib chart with tiny text, truncated axes, and unnamed error bars. `mintfig` upgrades your agentic coding interface into a visual briefing loop: agents turn raw results into beautiful, publication-grade graphics whose headlines are checked against the plotted data — or automatically audit and upgrade the Matplotlib you already write (`mint.check`, `mint.style`, `mintfig hook --install`).
 
-In [figure-bench v0.1](docs/figure-bench.md) (60 tasks across science, SWE, and epistemic traps; initial 15-task agent baseline), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15** — while `mintfig` shipped **14/15** clean on try 1 (**15/15** final) with **15/15** accurate headlines. Watch the exact same 5-seed ablation reply move from a text wall, to default agent Matplotlib, to `mintfig`:
+In [figure-bench v0.1](docs/figure-bench.md) (60 tasks across science, SWE, and epistemic traps; initial 15-task agent baseline), agents writing default Matplotlib shipped a layout or text defect in **13 of 15** figures and put the right number in the headline in only **4 of 15** — while `mintfig` shipped **14/15** clean on try 1 (**15/15** final) with **15/15** accurate headlines. Watch an agent's wall of 32 numbers turn into inline `mintchip` sparklines & intervals, a forest-plot table, and an interactive `mintfig` figure you can hover and click to cite back:
 
-![Comparison of an agent's text-only reply, default agent Matplotlib (ship: false), and mintfig reply (ship: true)](gallery/output/readme_comparison/opener.gif)
+![Wall of 32 agent numbers transformed into mintchip inline chips, a forest-plot table, and an interactive mintfig figure](gallery/output/readme_comparison/opener.gif)
 
 <details>
-<summary>Inspect all three replies as static frames</summary>
+<summary>Inspect a static 5-seed ablation comparison (text-only vs default Matplotlib vs mintfig)</summary>
 
 1. **Agent text-only:**
    > I ran the ablation with five variants and five seeds each. The full model reaches 0.82 test accuracy (95% CI 0.80–0.84). Removing augmentation gives 0.80 (0.78–0.82) and a smaller encoder 0.78 (0.75–0.81), both within seed noise of the full model. Removing retrieval drops accuracy to 0.74 (0.71–0.77), a loss of 8 points, and removing fine-tuning drops it to 0.69 (0.66–0.72), a loss of 13 points; neither interval overlaps the full model's. On the validation curves the three main variants start together, but by step 500 the full model is at 0.66, no retrieval at 0.60 and no fine-tuning at 0.48, and the order holds through step 2,000, where they end at 0.82, 0.74 and 0.68.
@@ -61,7 +61,9 @@ mintfig hook --install
 
 ### Already have Matplotlib? Check it (`mint.check`)
 
-Most figures an agent ships are plain Matplotlib, and in [figure-bench](evals/figure_bench/README.md) agents writing it without guardrails shipped a layout or text defect in 13 of 15 figures and stated the correct number in the headline in only 4 of 15. `mint.check` audits any Matplotlib or Seaborn figure without rewriting it:
+Most figures an agent ships are plain Matplotlib, and in [figure-bench v0.1](docs/figure-bench.md) (initial 15-task baseline) agents writing it without guardrails shipped a layout or text defect in **13 of 15** figures and stated the right number in the headline in only **4 of 15**. Watch `mintfig check plot.py` catch a wrong claim (`12 points` vs `8 points`), truncated bar axis, and `8.1 px` text — and verify the fix with zero rewrite:
+
+![mintfig check auditing a broken Matplotlib figure, catching a wrong headline claim and unreadable text, and verifying the fix](gallery/output/readme_comparison/mintcheck.gif)
 
 ```python
 import matplotlib.pyplot as plt
