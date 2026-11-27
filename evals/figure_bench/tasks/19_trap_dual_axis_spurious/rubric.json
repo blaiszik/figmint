@@ -1,0 +1,50 @@
+{
+  "schema_version": "0.1",
+  "id": "19_trap_dual_axis_spurious",
+  "split": "dev",
+  "track": "epistemic_traps",
+  "domain": "Statistical Literacy",
+  "title": "Dual-axis spurious trend correlation trap",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Raw r = 0.99 is driven by shared time drift; detrended correlation collapses to r = 0.05 (YoY diff r = -0.06)",
+  "accept": [
+    0.051605,
+    0.051605,
+    -0.064949,
+    0.064949,
+    0.985065
+  ],
+  "rel_tol": 0.15,
+  "abs_tol": 0.08,
+  "uncertainty_required": false,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "tightly coupled",
+    "drives solar",
+    "causes",
+    "real link",
+    "strong causal"
+  ],
+  "required_disclosures": [
+    "spurious|detrend|trend|drift|independent|no relationship|coincid",
+    "r =|r=|corr"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the correlation after removing the shared time trend?",
+      "expected": "Near zero (detrended r = 0.05, YoY difference r = -0.06)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Why was the raw correlation so high?",
+      "expected": "Both series grew steadily over 2012–2025, inflating raw r to 0.99 without any real link."
+    },
+    {
+      "kind": "nuance",
+      "question": "Should a dual y-axis chart be used to claim coupling?",
+      "expected": "No; overlapping dual axes visually manufacture a spurious link between independent upward trends."
+    }
+  ]
+}

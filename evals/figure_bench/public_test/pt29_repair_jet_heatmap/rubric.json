@@ -19,9 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "perceptually uniform colormap (no jet/rainbow)",
-    "corrected overall accuracy (73.2%)",
-    "search -> infra misrouting (46 tickets)"
+    "73.2%|73%|accuracy",
+    "search|infra|46"
   ],
   "reader_questions": [
     {

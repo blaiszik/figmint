@@ -4,16 +4,18 @@ Automatically teaches Claude Code how to build message-first scientific figures 
 
 ## Prerequisites
 
-Install the `mintfig` CLI in your environment (once):
+Install the `mintfig` CLI in your environment (once) — or use `uvx` (the hook falls back automatically to `uvx mintfig hook run` when `mintfig` is not on `PATH`):
 
 ```bash
 pip install mintfig
+# or with inline terminal/PR chips (mintchip):
+pip install "mintfig[chip]"
 # or: uv tool install mintfig
 ```
 
 ## 1-Command Installation
 
-Install directly from GitHub:
+Install directly from the repository marketplace (`.claude-plugin/marketplace.json`):
 
 ```bash
 claude plugin install https://github.com/blaiszik/mintfig --path plugins/claude-code
@@ -25,7 +27,7 @@ Or load directly from a local checkout:
 claude --plugin-dir ./plugins/claude-code
 ```
 
-Alternatively, install the global skill and `PostToolUse` hook via the `mintfig` CLI:
+Alternatively, install the global skill (and companion `mintchip` skill when installed) and `PostToolUse` hook via the `mintfig` CLI:
 
 ```bash
 mintfig skill --install --global

@@ -7,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "mintfig hook run"
+            "command": "sh -c 'if command -v mintfig >/dev/null 2>&1; then exec mintfig hook run; elif command -v uvx >/dev/null 2>&1; then exec uvx mintfig hook run; fi'"
           }
         ]
       }

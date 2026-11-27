@@ -268,3 +268,15 @@ def test_fragment_options_for_pages_with_several_figures() -> None:
     assert thumb.count('<div class="mf-v mf-v') == 1 and "@container" not in thumb
     assert 'data-mf-layouts="700"' in thumb and "var(--mf-" in thumb  # still light and dark
     assert "<script" not in thumb and 'class="mf-foot"' not in thumb
+
+
+def test_svg_text_keeps_the_spaces_between_coloured_words() -> None:
+    exp = mint.explain(
+        "Only alpha gets under the target",
+        mint.trend([0, 1, 2], {"alpha": [3.0, 2.0, 0.5], "beta": [3.0, 2.5, 2.0]},
+                   label="Loss", reference=(1.0, "target"), title="Loss"),
+    )
+    svg, _ = _render_svg(exp)
+    texts = re.findall(r'<text style="([^"]*)"[^>]*>([^<]*)</text>', svg)
+    assert any(body.startswith(" gets") for _, body in texts)
+    assert all(style.startswith("white-space: pre") for style, _ in texts)

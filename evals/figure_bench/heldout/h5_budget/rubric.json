@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1",
+  "id": "h5_budget",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "Public Finance",
+  "title": "City FY2025 to FY2026 departmental budget changes",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Libraries' cut (%)",
+  "accept": [
+    -18.04878
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 1.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "libraries"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By what percentage is the Libraries department's budget cut?",
+      "expected": "About −18.0%."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How are the 12 departments compared?",
+      "expected": "Percentage or dollar change from FY2025 to FY2026 across all 12 departments."
+    },
+    {
+      "kind": "nuance",
+      "question": "Did most departments change drastically or stay roughly flat?",
+      "expected": "Most departments stayed roughly flat, with Libraries taking the steepest percentage cut."
+    }
+  ]
+}

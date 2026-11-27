@@ -880,12 +880,20 @@ def _css_block(
         "padding:3px 7px;border-radius:4px;background:var(--mf-ui-ink);color:var(--mf-ui-bg);"
         "font-size:12px;font-variant-numeric:tabular-nums}"
         f"{r} .mf-cap{{margin:8px 0 0;font-size:15px;line-height:1.5}}"
-        f"{r} .mf-foot{{margin:4px 0 0;font-size:12px;color:var(--mf-ui-muted)}}"
+        f"{r} .mf-foot{{margin:4px 0 0;font-size:12px;color:var(--mf-ui-muted);"
+        "display:flex;flex-wrap:wrap;align-items:baseline}"
+        f"{r} .mf-data-details{{display:inline}}"
+        f"{r} .mf-data-details[open]{{flex:1 0 100%}}"
+        f"{r} .mf-data-details>summary{{list-style:none;cursor:pointer;color:inherit;"
+        "text-decoration:underline dotted;text-underline-offset:2px;display:inline}"
+        f"{r} .mf-data-details>summary::-webkit-details-marker{{display:none}}"
+        f"{r} .mf-data-details>summary:hover,{r} .mf-data-details>summary:focus-visible"
+        "{color:var(--mf-ui-ink)}"
         f"{r} .mf-foot button{{all:unset;cursor:pointer;color:inherit;"
         "text-decoration:underline dotted;text-underline-offset:2px}"
         f"{r} .mf-foot button:hover,{r} .mf-foot button:focus-visible{{color:var(--mf-ui-ink)}}"
         f"{r} .mf-note{{margin-left:8px}}"
-        f"{r} .mf-data{{margin-top:8px;font-size:12.5px}}"
+        f"{r} .mf-data{{margin-top:8px;font-size:12.5px;color:var(--mf-ui-ink)}}"
         f"{r} .mf-data h3{{margin:10px 0 2px;font-size:12.5px}}"
         f"{r} .mf-data ul{{margin:2px 0 6px;padding-left:18px}}"
         f"{r} .mf-table-wrap{{overflow-x:auto}}"
@@ -937,9 +945,7 @@ R.addEventListener('keydown',function(e){var el=mark(e.target);
   if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();act(el);}});
 R.addEventListener('click',function(e){var el=mark(e.target);if(el)return act(el);
   var b=e.target.closest('[data-mf-act]');if(!b)return;var a=b.getAttribute('data-mf-act');
-  if(a==='data'){var d=R.querySelector('.mf-data');d.hidden=!d.hidden;
-    b.setAttribute('aria-expanded',String(!d.hidden));}
-  else if(a==='spec')copy(JSON.stringify(SPEC,null,2),'copied spec JSON');
+  if(a==='spec')copy(JSON.stringify(SPEC,null,2),'copied spec JSON');
   else if(a==='svg'){var s=[].filter.call(R.querySelectorAll('.mf-v svg'),
       function(n){return n.getClientRects().length;})[0];if(!s)return;
     var url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(s)],
@@ -951,7 +957,7 @@ R.addEventListener('click',function(e){var el=mark(e.target);if(el)return act(el
 
 
 def _data_section(exp: Explanation, *, facts: bool = True) -> str:
-    """Facts and the data table of every panel, plus source and note (hidden until asked)."""
+    """Facts and the data table of every panel, plus source and note (inside native <details>)."""
     parts: list[str] = []
     for key, panel in exp.panels.items():
         title = html.escape(panel.title or panel.describe, quote=True)
@@ -963,23 +969,72 @@ def _data_section(exp: Explanation, *, facts: bool = True) -> str:
     for label, value in (("Source", exp.source), ("Note", exp.note)):
         if value:
             parts.append(f'<p class="mf-meta">{label}: {html.escape(value, quote=True)}</p>')
-    return '<div class="mf-data" hidden>' + "".join(parts) + "</div>"
+    return '<div class="mf-data">' + "".join(parts) + "</div>"
 
 
 _ROTATE_ZERO_RE = re.compile(r' transform="rotate\(-?0(?:\.0+)? [^)]+\)"')
-_FONT_FAMILY_RE = re.compile(r"font-family:[^;\"<>]+;?\s*")
+_FONT_FAMILY_RE = re.compile(r"font-family:\s*([^;\"<>]+);?\s*")
 _WHITE_SPACE_PRE_RE = re.compile(r"white-space:\s*pre;?\s*")
 _LONG_FLOAT_RE = re.compile(r"(\d+\.\d)\d+")
+_GEOM_ATTR_RE = re.compile(
+    r'\b(d|points|x|y|dx|dy|cx|cy|r|rx|ry|x1|y1|x2|y2|width|height|viewBox|transform)="([^"]*)"'
+)
 _INLINE_STYLE_RE = re.compile(r'style="([^"]+)"')
 _PLAIN_GROUP_RE = re.compile(r"<g>((?:(?!</?g\b).)*)</g>")
 
 
-def _minify_svg(raw: str) -> str:
-    """Compact Matplotlib SVG markup for fast inline chat embeds (~50% smaller, visually identical)."""
+def _css_font_stack(families: Sequence[str] | None, *, fallback: str = "sans-serif") -> str:
+    if not families:
+        return f"Helvetica,Arial,{fallback}"
+    generics = {"sans-serif", "serif", "monospace", "cursive", "fantasy", "system-ui"}
+    parts: list[str] = []
+    for fam in families:
+        clean = fam.strip()
+        if not clean:
+            continue
+        if clean.lower() in generics or re.fullmatch(r"[A-Za-z0-9-]+", clean):
+            parts.append(clean)
+        else:
+            parts.append(f"'{clean}'")
+    if not any(p.lower() in generics for p in parts):
+        parts.append(fallback)
+    return ",".join(parts)
+
+
+def _minify_svg(raw: str, theme: Theme | None = None) -> str:
+    """Compact Matplotlib SVG markup for fast inline chat embeds (~50% smaller, visually identical).
+
+    Restricts coordinate rounding strictly to numeric geometric attributes so visible
+    ``<text>`` nodes and ``aria-label`` values remain 100% verbatim, and preserves the
+    active :class:`Theme` typography (including serif headlines or sketch/mono stacks).
+    """
     out = _ROTATE_ZERO_RE.sub("", raw)
-    out = _FONT_FAMILY_RE.sub("", out)
+
+    # Identify the dominant body font-family rendered in the SVG; hoist only that one
+    # to the base text{} rule so distinct families (e.g. Georgia serif titles on
+    # editorial/paper) remain intact on their elements.
+    fam_counts: dict[str, int] = {}
+    for m in _FONT_FAMILY_RE.finditer(out):
+        fam = m.group(1).strip()
+        fam_counts[fam] = fam_counts.get(fam, 0) + 1
+    if fam_counts:
+        dominant_fam = max(fam_counts.items(), key=lambda kv: kv[1])[0]
+        body_font_css = re.sub(r"\s*,\s*", ",", dominant_fam)
+
+        def _strip_dominant_font(match: re.Match[str]) -> str:
+            return "" if match.group(1).strip() == dominant_fam else match.group(0)
+
+        out = _FONT_FAMILY_RE.sub(_strip_dominant_font, out)
+    else:
+        body_font_css = _css_font_stack(theme.body_family if theme is not None else None)
+
     out = _WHITE_SPACE_PRE_RE.sub("", out)
-    out = _LONG_FLOAT_RE.sub(r"\1", out)
+    # Round coordinate precision ONLY on numeric geometric attributes, never <text> or aria-label!
+    def _round_geom_attr(match: re.Match[str]) -> str:
+        rounded = _LONG_FLOAT_RE.sub(r"\1", match.group(2))
+        return f'{match.group(1)}="{rounded}"'
+
+    out = _GEOM_ATTR_RE.sub(_round_geom_attr, out)
     out = re.sub(r"\s*\n\s*", " ", out)
     out = re.sub(r">\s+<", "><", out)
     out = out.replace("<g/>", "")
@@ -1006,7 +1061,7 @@ def _minify_svg(raw: str) -> str:
 
     out = _INLINE_STYLE_RE.sub(_repl, out)
     out = out.replace("xlink:href=", "href=")
-    extra = "text{white-space:pre;font-family:Helvetica,Arial,sans-serif}" + "".join(rules)
+    extra = f"text{{white-space:pre;font-family:{body_font_css}}}" + "".join(rules)
     return re.sub(r"(<style[^>]*>)", lambda m: m.group(1) + extra, out, count=1)
 
 
@@ -1097,7 +1152,7 @@ def render_html_fragment(
                     f'{_scope_ids(dark_svg, f"{root_id}-{i}d-")}</div>'
                 )
         if compact:
-            body = _minify_svg(body)
+            body = _minify_svg(body, theme=exp.theme)
         blocks.append(f'<div class="mf-v mf-v{i}">{body}</div>')
 
     light_ui = _ui_tokens(exp.theme)
@@ -1138,24 +1193,27 @@ def render_html_fragment(
     if not interactive:
         return f"{css}\n{open_tag}{stage}</figure>"
 
+    data_drawer = (
+        '<details class="mf-data-details">'
+        '<summary data-mf-act="data">data</summary>'
+        f"{_data_section(exp, facts=facts)}"
+        "</details>"
+    )
     if compact:
-        foot = (
-            '<p class="mf-foot">'
-            '<button type="button" data-mf-act="data" aria-expanded="false">data</button>'
-            " \N{MIDDLE DOT} "
+        actions = (
+            '<span class="mf-foot-acts"> \N{MIDDLE DOT} '
             '<button type="button" data-mf-act="svg">svg</button>'
-            '<span class="mf-note" role="status" aria-live="polite"></span></p>'
+            '<span class="mf-note" role="status" aria-live="polite"></span></span>'
         )
     else:
-        foot = (
-            '<p class="mf-foot">'
-            '<button type="button" data-mf-act="data" aria-expanded="false">data</button>'
-            " \N{MIDDLE DOT} "
+        actions = (
+            '<span class="mf-foot-acts"> \N{MIDDLE DOT} '
             '<button type="button" data-mf-act="svg">svg</button>'
             " \N{MIDDLE DOT} "
             '<button type="button" data-mf-act="spec">spec</button>'
-            '<span class="mf-note" role="status" aria-live="polite"></span></p>'
+            '<span class="mf-note" role="status" aria-live="polite"></span></span>'
         )
+    foot = f'<div class="mf-foot">{data_drawer}{actions}</div>'
     js = _JS % {
         "id": json.dumps(root_id),
         "marks": _safe_json_for_script(marks),
@@ -1165,7 +1223,7 @@ def render_html_fragment(
     return (
         f"{css}\n{open_tag}{stage}"
         '<div class="mf-tip" role="tooltip" hidden></div>'
-        f"{foot}{_data_section(exp, facts=facts)}</figure>\n<script>\n{js}\n</script>"
+        f"{foot}</figure>\n<script>\n{js}\n</script>"
     )
 
 

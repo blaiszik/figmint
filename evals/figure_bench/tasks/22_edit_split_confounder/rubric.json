@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "22_edit_split_confounder",
+  "split": "dev",
+  "track": "multiturn_edit",
+  "domain": "ML Training",
+  "title": "Split pooled training curve by BF16 vs FP8 precision",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "FP8 diverges after step 40k, ending +0.36 loss higher than BF16 (2.38 vs 2.02)",
+  "accept": [
+    0.363239,
+    2.383679,
+    2.02044,
+    40.0,
+    40000.0
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.05,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "fp8",
+    "bf16",
+    "40k|40,000|40000",
+    "3 run|3 seed|n=3|s.d.|sd|±|ci|individual"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By how much does FP8 validation loss exceed BF16 at step 80k?",
+      "expected": "About +0.36 loss (2.38 vs 2.02)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many runs per precision group are plotted?",
+      "expected": "3 runs per precision (R1–R3 BF16, R4–R6 FP8)."
+    },
+    {
+      "kind": "nuance",
+      "question": "At what step do FP8 and BF16 diverge?",
+      "expected": "Right after step 40k, where FP8 turns upward while BF16 keeps improving."
+    }
+  ]
+}

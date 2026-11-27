@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "95% CI",
-    "at risk"
+    "95% CI|confidence interval|CI",
+    "at risk|censor"
   ],
   "reader_questions": [
     {

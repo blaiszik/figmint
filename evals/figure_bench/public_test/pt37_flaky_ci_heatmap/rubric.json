@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt37_flaky_ci_heatmap",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Developer Productivity",
+  "title": "8×6 CI test-suite flake-rate heatmap",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Flakiness is localized to auth_oauth starting W04, peaking at 22.6% in W06 (other 7 modules stay < 2.5%)",
+  "accept": [
+    22.6,
+    15.8,
+    9.4
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 0.4,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "auth_oauth|oauth",
+    "w04|w06|localized|other 7"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which module drives the CI flake spike and what rate did it hit in W06?",
+      "expected": "auth_oauth, spiking from W04 (9.4%) to 22.6% in W06."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many CI runs back each module-week cell?",
+      "expected": "200 CI runs per cell."
+    },
+    {
+      "kind": "nuance",
+      "question": "Are the other seven test modules flaking too?",
+      "expected": "No — all other seven modules stay below 2.5% across all six weeks."
+    }
+  ]
+}

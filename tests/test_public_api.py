@@ -14,7 +14,7 @@ TOP_LEVEL = {
     "matrix", "table", "waterfall", "timeline", "flow", "custom", "Explanation", "Panel",
     "ExplainError", "lenient", "load", "edit", "Session", "brief", "Brief", "inspect_data",
     "auto_panel", "load_table_file", "Plate", "figure", "__version__",
-    "inline", "InlineGraphic", "check", "style",
+    "inline", "InlineGraphic", "check", "style", "notebook",
 }  # fmt: skip
 
 PUB = [
@@ -96,3 +96,30 @@ def test_import_does_not_load_pypdf() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=True
     )
     assert out.stdout.strip() == "False"
+
+
+def test_import_is_lazy_for_heavy_deps_and_preserves_callables() -> None:
+    code = (
+        "import sys, mintfig; "
+        "heavy = [m for m in ('matplotlib', 'numpy', 'PIL', 'pypdf') if m in sys.modules]; "
+        "print(','.join(heavy))"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert out.stdout.strip() == ""
+
+    # Submodule imports with matching names must never shadow top-level callables.
+    code2 = (
+        "import mintfig as mint; "
+        "import mintfig.brief, mintfig.edit, mintfig.inspect_data, mintfig.style; "
+        "assert callable(mint.brief); "
+        "assert callable(mint.edit); "
+        "assert callable(mint.inspect_data); "
+        "assert callable(mint.style); "
+        "print('ok')"
+    )
+    out2 = subprocess.run(
+        [sys.executable, "-c", code2], capture_output=True, text=True, check=True
+    )
+    assert out2.stdout.strip() == "ok"

@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt34_climate_ensemble_fan",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Climate Science",
+  "title": "12-model climate ensemble fan (SSP1-2.6 vs SSP3-7.0)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "By 2100 SSP3-7.0 median reaches +4.34 °C vs +1.75 °C under SSP1-2.6 (+2.60 °C gap across 12 models)",
+  "accept": [
+    2.596596,
+    4.342392,
+    1.745796
+  ],
+  "rel_tol": 0.07,
+  "abs_tol": 0.15,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "12 model|ensemble|n=12|percentile|iqr|s.d.|sd|±|10th|90th",
+    "ssp3|ssp1|2100"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the 2100 median warming gap between SSP3-7.0 and SSP1-2.6?",
+      "expected": "About +2.60 °C (4.34 °C vs 1.75 °C)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is inter-model uncertainty shown?",
+      "expected": "Shaded envelope (10th–90th percentile / IQR / SD) across 12 climate models."
+    },
+    {
+      "kind": "nuance",
+      "question": "When do the two scenario envelopes clearly separate?",
+      "expected": "Around mid-century (2045–2055), after which SSP1-2.6 stabilizes below 2 °C while SSP3-7.0 accelerates."
+    }
+  ]
+}

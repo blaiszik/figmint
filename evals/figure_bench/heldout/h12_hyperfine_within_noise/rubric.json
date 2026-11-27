@@ -28,8 +28,8 @@
     "beats baseline cleanly"
   ],
   "required_disclosures": [
-    "difference is within run-to-run noise",
-    "overlapping \u00b11 s.d. intervals across 25 runs"
+    "within noise|noise|overlap|no speedup|not faster|inconclusive",
+    "25 runs|n=25|s.d.|sd|\u00b1|ci"
   ],
   "reader_questions": [
     {

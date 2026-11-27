@@ -19,6 +19,7 @@ from .core import (
     MAX_HIGHLIGHTS,
     MAX_MATRIX_COLS,
     MAX_MATRIX_ROWS,
+    PT_TO_MM,
     ExplainError,
     Panel,
     _bare_axes,
@@ -177,7 +178,7 @@ def _matrix_outlier(
     return (int(i), int(j)), gaps, word
 
 
-@_guarded("matrix")
+@_guarded("matrix", aliases={"measure": "label"})
 def matrix(
     values: Sequence[Sequence[float | None]] | Sequence[Mapping[str, Any]],
     *,
@@ -553,7 +554,7 @@ def matrix(
         return lambda: _check_fit(ctx, ax)
 
     def _headers(ctx: _Ctx, ax: Axes, rect: Bbox) -> list[tuple[Axes, Bbox]]:
-        """Column headers must not touch: wrap long ones to two lines, else refuse.
+        """Column headers must not touch: wrap to two lines, then angle 40 deg, else refuse.
 
         Runs between drawing and the final fit, on the axes at its final width.
         """
@@ -568,34 +569,97 @@ def matrix(
         if not _collide():
             return [(ax, rect)]
         cell_pt = ax.get_window_extent(renderer).width * ctx.pt_per_px / grid.shape[1]
-        wrapped: list[str] = []
-        for name in col_names:
+
+        def _wrap_tokens(name: str, split_delims: bool = False) -> str:
+            if ctx.measure.width_pt(name, ctx.sizes.small) <= cell_pt:
+                return name
             words = name.split()
-            if len(words) < 2 or ctx.measure.width_pt(name, ctx.sizes.small) <= cell_pt:
-                wrapped.append(name)
-                continue
-            splits = [(" ".join(words[:i]), " ".join(words[i:])) for i in range(1, len(words))]
-            best = min(
-                splits,
-                key=lambda pair: max(ctx.measure.width_pt(p, ctx.sizes.small) for p in pair),
-            )
-            wrapped.append("\n".join(best))
-        ax.set_xticks(range(len(col_names)), [_plain(c, ctx.theme) for c in wrapped])
-        for j in hl_cols:
-            ax.get_xticklabels()[j].set_fontweight("bold")
+            if len(words) >= 2:
+                splits = [(" ".join(words[:i]), " ".join(words[i:])) for i in range(1, len(words))]
+                best = min(
+                    splits,
+                    key=lambda pair: max(ctx.measure.width_pt(p, ctx.sizes.small) for p in pair),
+                )
+                return "\n".join(best)
+            if split_delims:
+                for delim in ("_", "-", "/"):
+                    if delim in name:
+                        parts = [p for p in name.split(delim) if p]
+                        if len(parts) >= 2:
+                            splits = [
+                                (delim.join(parts[:i]) + delim, delim.join(parts[i:]))
+                                for i in range(1, len(parts))
+                            ]
+                            best = min(
+                                splits,
+                                key=lambda pair: max(
+                                    ctx.measure.width_pt(p, ctx.sizes.small) for p in pair
+                                ),
+                            )
+                            return "\n".join(best)
+            return name
+
+        for split_delims in (False, True):
+            wrapped = [_wrap_tokens(name, split_delims=split_delims) for name in col_names]
+            ax.set_xticks(range(len(col_names)), [_plain(c, ctx.theme) for c in wrapped])
+            for j in hl_cols:
+                ax.get_xticklabels()[j].set_fontweight("bold")
+            for header in ax.get_xticklabels():
+                header.set_linespacing(1.05)
+            if not _collide():
+                return [(ax, rect)]
+
+        # Still colliding (e.g. wide single-word column headers): angle 40 deg so parallel
+        # tilted strips clear each other cleanly, provided perpendicular clearance and
+        # post-fit plot height stay readable.
+        angle_deg = 40.0
+        ax.set_xticks(range(len(col_names)), [_plain(c, ctx.theme) for c in col_names])
+        is_bottom = triangle == "lower"
+        for j, header in enumerate(ax.get_xticklabels()):
+            if j in hl_cols:
+                header.set_fontweight("bold")
+            header.set_rotation(angle_deg)
+            header.set_rotation_mode("anchor")
+            header.set_ha("right" if is_bottom else "left")
+            header.set_va("top" if is_bottom else "bottom")
+            header._mintfig_angled_header = True  # type: ignore[attr-defined]
+        _fit_axes(ctx.fig, ax, rect)
+        renderer = ctx.fig.canvas.get_renderer()
+        fitted_box = ax.get_window_extent(renderer)
+        fitted_cell_pt = fitted_box.width * ctx.pt_per_px / grid.shape[1]
+        perp_clear_pt = fitted_cell_pt * math.sin(math.radians(angle_deg))
+        need_perp_pt = ctx.sizes.small * 1.15
+        row_h_pt = fitted_box.height * ctx.pt_per_px / grid.shape[0]
+        min_row_pt = ctx.sizes.small * 1.35
+        if perp_clear_pt >= need_perp_pt and row_h_pt >= min_row_pt:
+            return [(ax, rect)]
+
+        # Undo rotation before raising so caller gets a clean error.
         for header in ax.get_xticklabels():
-            header.set_linespacing(1.05)
-        if _collide():
-            raise ExplainError(
-                f"matrix() column headers overlap: {grid.shape[1]} columns of about "
-                f"{cell_pt:.0f} pt cannot hold names such as "
-                f"{max(col_names, key=len)!r}.",
-                fix_hint='Give the matrix a wider cell with layout= (e.g. layout=[["a"], '
-                '["b", "c"]] for a full-width row), shorten the column names, or swap rows '
-                "and cols so the long names run down the side.",
-                rule="matrix_cells_too_small",
-            )
-        return [(ax, rect)]
+            header.set_rotation(0.0)
+            header.set_ha("center")
+        raise ExplainError(
+            f"matrix() column headers overlap: {grid.shape[1]} columns of about "
+            f"{cell_pt:.0f} pt cannot hold names such as "
+            f"{max(col_names, key=len)!r}.",
+            fix_hint='Give the matrix a wider cell with layout= (e.g. layout=[["a"], '
+            '["b", "c"]] for a full-width row), shorten the column names, or swap rows '
+            "and cols so the long names run down the side.",
+            rule="matrix_cells_too_small",
+        )
+
+    def _extra_header_mm(cell_w_mm: float, measure: Any, sizes: Any) -> float:
+        """Reserve extra header height when column names are too wide to sit horizontally."""
+        est_row_lbl_mm = max(
+            (measure.width_pt(r, sizes.small) * PT_TO_MM for r in row_names),
+            default=8.0,
+        ) + 3.0
+        est_plot_pt = max(20.0, (cell_w_mm - est_row_lbl_mm) / PT_TO_MM)
+        est_cell_pt = est_plot_pt / max(len(col_names), 1)
+        max_col_pt = max((measure.width_pt(c, sizes.small) for c in col_names), default=0.0)
+        if max_col_pt <= est_cell_pt * 0.95:
+            return 0.0
+        return min(15.0, max(4.0, max_col_pt * math.sin(math.radians(40.0)) * PT_TO_MM))
 
     return Panel(
         kind="matrix",
@@ -622,8 +686,8 @@ def matrix(
             + (f" ({unit})" if unit else "")
             + f", {len(row_names)} rows by {len(col_names)} columns, a number in every cell"
         ),
-        _height_mm=lambda _w, _m, _s, _t: 6.2 * len(row_names) + 6.0,
-        _min_height_mm=lambda _w, _m, _s, _t: 5.0 * len(row_names) + 6.0,
+        _height_mm=lambda w, m, s, _t: 6.2 * len(row_names) + 6.0 + _extra_header_mm(w, m, s),
+        _min_height_mm=lambda w, m, s, _t: 5.0 * len(row_names) + 6.0 + _extra_header_mm(w, m, s),
         _draw=_draw_and_check,
         _frames=_headers,
     )

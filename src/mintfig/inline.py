@@ -1,5 +1,10 @@
 """Tufte word-sized micro-graphics and expandable evidence chips (``mint.inline``).
 
+.. deprecated:: 0.3
+   ``mint.inline`` and ``InlineGraphic`` are deprecated in favour of the standalone,
+   zero-dependency ``mintchip`` package (``pip install 'mintfig[chip]'`` or
+   ``pip install mintchip``) and will be removed in ``mintfig 2.0.0``.
+
 Public façade exposing all 17 dual-surface (Unicode/ASCII text + themed SVG)
 inline components across five families, plus prose/document helpers and a
 ``CATALOG`` registry for discovery and review.
@@ -9,12 +14,22 @@ Migration note
 New word-sized inline graphics, shared-scale terminal/Markdown/HTML tables, and
 ``{{...}}`` prose directives live in the standalone, zero-dependency ``mintchip``
 package (``pip install 'mintfig[chip]'`` or ``pip install mintchip``). ``mint.inline``
-remains fully supported for backward compatibility, while ``mint.brief(...)`` accepts
+remains functional for backward compatibility, while ``mint.brief(...)`` accepts
 ``mintchip.Chip``, ``mintchip.Table``, and ``{{...}}`` directives directly when
 ``mintchip`` is installed. See ``MINTCHIP_MIGRATION`` and ``mintchip_migration_note()``.
 """
 
 from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "mintfig.inline is deprecated and will be removed in mintfig 2.0.0; "
+    "use the standalone `mintchip` package (`pip install 'mintfig[chip]'` or "
+    "`pip install mintchip`) instead. See mintfig.inline.MINTCHIP_MIGRATION.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from ._chip_bridge import (
     MIGRATION_MAP as MINTCHIP_MIGRATION,

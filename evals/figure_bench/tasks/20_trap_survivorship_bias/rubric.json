@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "20_trap_survivorship_bias",
+  "split": "dev",
+  "track": "epistemic_traps",
+  "domain": "Product Analytics",
+  "title": "Survivorship bias trap with churned cohort file",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Including 24 churned accounts drops cohort mean from 83.5 to 64.6 (-18.9 pts survivorship inflation)",
+  "accept": [
+    64.631776,
+    18.869738,
+    83.501515,
+    36.327169
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "all customers are happy",
+    "uniformly high satisfaction"
+  ],
+  "required_disclosures": [
+    "churn|survivor|cancelled|dropped",
+    "24|60|n=|s.d.|sd|ci|±"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the true full-cohort mean NPS once churned accounts are included?",
+      "expected": "About 64.6 (vs 83.5 for active-only — a 18.9-point survivorship inflation)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many churned vs active accounts are in the cohort?",
+      "expected": "24 churned accounts (40% of the cohort) and 36 active accounts (60 total)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why would plotting only active_accounts.csv mislead leadership?",
+      "expected": "It omits the 24 unhappy accounts that cancelled during Q3 (mean ~38.5)."
+    }
+  ]
+}

@@ -53,6 +53,7 @@ class TestGlobalSkillAndBundle:
             "claude",
             "codex",
             "antigravity",
+            "gemini",
             "cursor",
         ]
 
@@ -83,6 +84,8 @@ class TestGlobalSkillAndBundle:
         assert (home_detected / ".codex" / "skills" / "mintfig" / "references" / "science.md").is_file()
         mdc = (home_detected / ".cursor" / "rules" / "mintfig.mdc").read_text(encoding="utf-8")
         assert mdc.startswith("---")
+        assert "globs:" not in mdc
+        assert "alwaysApply: false" in mdc
         assert "~/.cursor/rules/mintfig/references/" in mdc
         assert (
             home_detected / ".cursor" / "rules" / "mintfig" / "references" / "publication.md"
@@ -102,8 +105,10 @@ class TestGlobalSkillAndBundle:
         assert out_local.count("Installed:") == len(VALID_TARGETS)
         assert (proj / ".claude" / "skills" / "mintfig" / "SKILL.md").is_file()
         assert (proj / ".agents" / "skills" / "mintfig" / "SKILL.md").is_file()
+        assert (proj / ".gemini" / "skills" / "mintfig" / "SKILL.md").is_file()
         assert (proj / ".cursor" / "rules" / "mintfig.mdc").is_file()
         assert (proj / ".codex" / "skills" / "mintfig" / "SKILL.md").is_file()
+        assert (proj / ".github" / "copilot-instructions.md").is_file()
         assert (proj / "AGENTS.md").is_file()
         assert (proj / "CLAUDE.md").is_file()
 
@@ -125,6 +130,7 @@ class TestGlobalSkillAndBundle:
         assert out_global.count("Installed:") == len(GLOBAL_TARGETS)
         assert (home / ".claude" / "skills" / "mintfig" / "SKILL.md").is_file()
         assert (home / ".gemini" / "config" / "skills" / "mintfig" / "SKILL.md").is_file()
+        assert (home / ".gemini" / "skills" / "mintfig" / "SKILL.md").is_file()
         assert (home / ".cursor" / "rules" / "mintfig.mdc").is_file()
         assert (home / ".codex" / "skills" / "mintfig" / "SKILL.md").is_file()
 
@@ -139,7 +145,56 @@ class TestGlobalSkillAndBundle:
         assert rc == 0
         assert ".claude/skills/mintfig/SKILL.md" in out
         assert ".gemini/config/skills/mintfig/SKILL.md" in out
+        assert ".gemini/skills/mintfig/SKILL.md" in out
         assert not (home / ".cursor").exists()
+
+    def test_cli_skill_install_auto_installs_mintchip_with_no_chip_opt_out(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        import types
+
+        installed_calls: list[tuple[str, object]] = []
+
+        def fake_chip_install(
+            root: str | Path = ".",
+            *,
+            targets: object = None,
+            global_install: bool = False,
+            home: str | Path | None = None,
+        ) -> list[Path]:
+            installed_calls.append((str(root), targets))
+            dest = Path(root) / ".claude" / "skills" / "mintchip" / "SKILL.md"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text("# mintchip skill\n", encoding="utf-8")
+            return [dest]
+
+        fake_chip_skill = types.ModuleType("mintchip.skill")
+        fake_chip_skill.VALID_TARGETS = ("claude", "antigravity", "agents-md")  # type: ignore[attr-defined]
+        fake_chip_skill.install_skill = fake_chip_install  # type: ignore[attr-defined]
+        fake_chip = types.ModuleType("mintchip")
+        fake_chip.skill = fake_chip_skill  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "mintchip", fake_chip)
+        monkeypatch.setitem(sys.modules, "mintchip.skill", fake_chip_skill)
+
+        proj1 = tmp_path / "with_chip"
+        proj1.mkdir()
+        rc1 = cli_main(["skill", "--install", "--root", str(proj1), "--target", "claude"])
+        out1 = capsys.readouterr().out
+        assert rc1 == 0
+        assert (proj1 / ".claude" / "skills" / "mintfig" / "SKILL.md").is_file()
+        assert (proj1 / ".claude" / "skills" / "mintchip" / "SKILL.md").is_file()
+        assert "Installed mintchip skill:" in out1
+        assert len(installed_calls) == 1
+
+        proj2 = tmp_path / "no_chip"
+        proj2.mkdir()
+        rc2 = cli_main(["skill", "--install", "--root", str(proj2), "--target", "claude", "--no-chip"])
+        out2 = capsys.readouterr().out
+        assert rc2 == 0
+        assert (proj2 / ".claude" / "skills" / "mintfig" / "SKILL.md").is_file()
+        assert not (proj2 / ".claude" / "skills" / "mintchip" / "SKILL.md").exists()
+        assert "mintchip" not in out2
+        assert len(installed_calls) == 1
 
     def test_print_and_print_all_bundle(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -234,6 +289,25 @@ class TestHookInstallManage:
         # Second uninstall is a clean no-op
         assert uninstall_hook(root=tmp_path, targets=("claude",)) == []
 
+        # Legacy bare `"mintfig hook run"` entries are upgraded in-place cleanly.
+        legacy = {
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Bash|Write|Edit",
+                        "hooks": [{"type": "command", "command": "mintfig hook run"}],
+                    }
+                ]
+            }
+        }
+        settings_path.write_text(json.dumps(legacy, indent=2) + "\n", encoding="utf-8")
+        assert hook_status(root=tmp_path, targets=("claude",))["claude"]["installed"] is True
+        install_hook(root=tmp_path, targets=("claude",))
+        upgraded = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert len(upgraded["hooks"]["PostToolUse"]) == 1
+        assert upgraded["hooks"]["PostToolUse"][0]["hooks"][0]["command"] == HOOK_COMMAND
+        assert "uvx mintfig hook run" in HOOK_COMMAND
+
     def test_claude_hook_global_and_malformed_json_guard(self, tmp_path: Path) -> None:
         home = tmp_path / "home"
         home.mkdir()
@@ -254,10 +328,17 @@ class TestHookInstallManage:
     def test_cursor_and_codex_hooks_install_status_uninstall(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        # Preserve an unrelated user file in .cursor/hooks/
-        user_file = tmp_path / ".cursor" / "hooks" / "my-custom-hook.sh"
-        user_file.parent.mkdir(parents=True)
-        user_file.write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
+        # Preserve an unrelated user hook inside .cursor/hooks.json
+        cursor_hooks = tmp_path / ".cursor" / "hooks.json"
+        cursor_hooks.parent.mkdir(parents=True)
+        pre_cursor = {
+            "version": 1,
+            "hooks": {
+                "beforeShellExecution": [{"command": "echo audit-shell"}],
+                "afterFileEdit": [{"command": "ruff check"}],
+            },
+        }
+        cursor_hooks.write_text(json.dumps(pre_cursor, indent=2) + "\n", encoding="utf-8")
 
         rc_inst = cli_main(
             ["hook", "--install", "--root", str(tmp_path), "--target", "all"]
@@ -266,27 +347,42 @@ class TestHookInstallManage:
         assert rc_inst == 0
         assert out_inst.count("Installed hook:") == len(HOOK_TARGETS)
 
-        for target in ("cursor", "codex"):
-            script = tmp_path / f".{target}" / "hooks" / "mintfig-post-tool.sh"
-            manifest = tmp_path / f".{target}" / "hooks" / "mintfig.json"
-            assert script.is_file()
-            assert manifest.is_file()
-            assert script.stat().st_mode & stat.S_IXUSR
-            data = json.loads(manifest.read_text(encoding="utf-8"))
-            assert data["command"] == HOOK_COMMAND
-            assert data["managed_by"] == "mintfig"
+        # Cursor uses native .cursor/hooks.json with afterFileEdit merged idempotently.
+        cursor_after_raw = cursor_hooks.read_text(encoding="utf-8")
+        cursor_after = json.loads(cursor_after_raw)
+        assert cursor_after["version"] == 1
+        assert cursor_after["hooks"]["beforeShellExecution"] == [{"command": "echo audit-shell"}]
+        assert cursor_after["hooks"]["afterFileEdit"] == [
+            {"command": "ruff check"},
+            {"command": HOOK_COMMAND},
+        ]
+        # Second install is byte-identical.
+        install_hook(root=tmp_path, targets=("cursor",))
+        assert cursor_hooks.read_text(encoding="utf-8") == cursor_after_raw
+
+        # Codex uses sidecar manifest + executable shell wrapper.
+        script = tmp_path / ".codex" / "hooks" / "mintfig-post-tool.sh"
+        manifest = tmp_path / ".codex" / "hooks" / "mintfig.json"
+        assert script.is_file()
+        assert manifest.is_file()
+        assert script.stat().st_mode & stat.S_IXUSR
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+        assert data["command"] == HOOK_COMMAND
+        assert data["managed_by"] == "mintfig"
 
         rc_status = cli_main(["hook", "--status", "--root", str(tmp_path), "--json"])
         status_json = json.loads(capsys.readouterr().out)
         assert rc_status == 0
         assert all(status_json[t]["installed"] is True for t in HOOK_TARGETS)
+        assert status_json["cursor"]["path"].endswith(".cursor/hooks.json")
 
         rc_uninst = cli_main(
             ["hook", "--uninstall", "--root", str(tmp_path), "--target", "all"]
         )
         capsys.readouterr()
         assert rc_uninst == 0
-        assert user_file.is_file()  # Untouched
+        # Existing Cursor hooks preserved verbatim after uninstall.
+        assert json.loads(cursor_hooks.read_text(encoding="utf-8")) == pre_cursor
         st_after = hook_status(root=tmp_path)
         assert all(st_after[t]["installed"] is False for t in HOOK_TARGETS)
 
@@ -494,6 +590,61 @@ class TestHookRuntime:
         parsed = json.loads(out)
         assert "fix_hint:" in parsed["hookSpecificOutput"]["additionalContext"]
 
+    def test_write_edit_never_executes_heavy_ml_or_cli_scripts(self, tmp_path: Path) -> None:
+        side_effect = tmp_path / "executed.txt"
+        train_py = tmp_path / "train.py"
+        train_py.write_text(
+            "from pathlib import Path\n"
+            f"Path({str(side_effect)!r}).write_text('RAN', encoding='utf-8')\n"
+            "import torch\n"
+            "import matplotlib.pyplot as plt\n"
+            "fig, ax = plt.subplots()\n"
+            "ax.plot([1, 2], [3, 4])\n",
+            encoding="utf-8",
+        )
+
+        for payload in (
+            {"tool_name": "Write", "tool_input": {"file_path": str(train_py)}},
+            {"tool_name": "Edit", "tool_input": {"file_path": str(train_py)}},
+            {"hook_event_name": "afterFileEdit", "file_path": str(train_py)},
+        ):
+            assert run_hook(json.dumps(payload)) == (0, "")
+            assert not side_effect.exists(), f"train.py was executed on {payload}!"
+
+        cli_script = tmp_path / "cli_plot.py"
+        cli_script.write_text(
+            "from pathlib import Path\n"
+            f"Path({str(side_effect)!r}).write_text('RAN', encoding='utf-8')\n"
+            "import argparse\n"
+            "import matplotlib.pyplot as plt\n"
+            "argparse.ArgumentParser().parse_args()\n",
+            encoding="utf-8",
+        )
+        assert run_hook(
+            json.dumps({"tool_name": "Write", "tool_input": {"file_path": str(cli_script)}})
+        ) == (0, "")
+        assert not side_effect.exists()
+
+    def test_hook_run_noop_stays_pure_stdlib(self) -> None:
+        import subprocess
+
+        code = (
+            "import io, sys; "
+            "sys.stdin = io.StringIO('{\"tool_name\": \"Write\", \"tool_input\": {\"file_path\": \"README.md\"}}'); "
+            "from mintfig.cli import main; "
+            "rc = main(['hook', 'run']); "
+            "assert rc == 0; "
+            "heavy = [m for m in ('matplotlib', 'numpy', 'PIL', 'pypdf') if m in sys.modules]; "
+            "print(','.join(heavy))"
+        )
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert proc.stdout.strip() == ""
+
 
 # --------------------------------------------------------------------------- Claude Code Plugin tests
 
@@ -522,7 +673,13 @@ class TestClaudeCodePluginPackage:
         post_entries = hooks_cfg["hooks"]["PostToolUse"]
         assert len(post_entries) == 1
         assert post_entries[0]["matcher"] == "Bash|Write|Edit"
-        assert post_entries[0]["hooks"][0]["command"] == "mintfig hook run"
+        assert post_entries[0]["hooks"][0]["command"] == HOOK_COMMAND
+
+        marketplace_path = REPO_ROOT / ".claude-plugin" / "marketplace.json"
+        assert marketplace_path.is_file()
+        marketplace = json.loads(marketplace_path.read_text(encoding="utf-8"))
+        assert marketplace["name"] == "mintfig"
+        assert marketplace["plugins"][0]["source"] == "./plugins/claude-code"
 
         assert cmd_path.is_file()
         cmd_text = cmd_path.read_text(encoding="utf-8")

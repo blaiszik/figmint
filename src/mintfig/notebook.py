@@ -614,7 +614,7 @@ def build_index_html(
   .badge {{ flex: 0 0 auto; font-family: var(--mono); font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }}
   .badge.ship {{ background: var(--accent-soft); color: var(--accent); }}
   .badge.fix {{ background: var(--warn-soft); color: var(--warn); }}
-  .preview {{ padding: 6px 14px 10px; background: #ffffff; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }}
+  .preview {{ padding: 6px 14px 10px; background: var(--card); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }}
   .preview img {{ width: 100%; height: auto; display: block; border-radius: 4px; }}
   .preview-link {{ display: block; padding: 20px 16px; text-align: center; color: var(--accent); font-family: var(--mono); font-size: 12.5px; text-decoration: none; }}
   .meta {{ padding: 10px 16px 14px; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }}

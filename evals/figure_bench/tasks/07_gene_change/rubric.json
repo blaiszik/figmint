@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "07_gene_change",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Genomics",
+  "title": "RNA-seq 24 h p53 target vs proliferation fold change",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "CDKN1A fold change, or the p53-target / proliferation group medians (×)",
+  "accept": [
+    7.016664,
+    2.457456,
+    0.549903
+  ],
+  "rel_tol": 0.12,
+  "abs_tol": 0.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "p53",
+    "replicate|n=3|triplicate|s.d.|sd|±|ci|tpm"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the fold change of CDKN1A, or the typical fold change of the p53 target genes?",
+      "expected": "CDKN1A rises ~7.0×; p53 targets rise ~2.5× median while proliferation genes fall to ~0.55×."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many biological replicates back each gene?",
+      "expected": "3 replicates per condition (vehicle vs drug 24h)."
+    },
+    {
+      "kind": "nuance",
+      "question": "How did housekeeping genes behave?",
+      "expected": "Housekeeping genes stayed near 1× (no change), validating normalization."
+    }
+  ]
+}

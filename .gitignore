@@ -41,3 +41,6 @@ htmlcov/
 # Local only
 .archive/
 .claude/
+.serena/
+evals/figure_bench/.venv/
+evals/figure_bench/runs/*/*/

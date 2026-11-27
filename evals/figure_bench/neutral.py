@@ -81,7 +81,7 @@ def _masked(t: Any, legend_texts: set[int]) -> bool:
 def text_audit(fig: Any, texts: list[Any], *, skip_masked: bool) -> dict:
     """Overlapping texts, texts crossed by a data or reference line, and malformed text."""
     renderer = fig.canvas.get_renderer()
-    out: dict = {"overlaps": [], "struck": [], "text_faults": []}
+    out: dict = {"overlaps": [], "struck": [], "text_faults": [], "text_advisories": []}
     shrunk = []
     for t in texts:
         b = t.get_window_extent(renderer)
@@ -127,25 +127,47 @@ def text_audit(fig: Any, texts: list[Any], *, skip_masked: bool) -> dict:
         if m and not m.group(1).isdigit():
             out["text_faults"].append(f"repeated words {m.group(0)!r}: {txt!r}")
         if _ASCII_MINUS.search(plain) and not re.search(r"\d{4}-\d{2}", plain):
-            out["text_faults"].append(f"ASCII hyphen as minus sign: {txt!r}")
+            out["text_advisories"].append(f"ASCII hyphen as minus sign: {txt!r}")
         if _JUNK.search(plain):
             out["text_faults"].append(f"junk value: {txt!r}")
     return out
 
 
+def _fig_text_y(fig: Any, text_artist: Any) -> float:
+    """Return a figure-level Text artist's y coordinate in normalized figure coords [0, 1]."""
+    pos = text_artist.get_position()
+    try:
+        disp = text_artist.get_transform().transform(pos)
+        _, fy = fig.transFigure.inverted().transform(disp)
+        return float(fy)
+    except Exception:  # noqa: BLE001
+        return float(pos[1])
+
+
 def headline_texts(fig: Any) -> list[str]:
-    """Figure-level texts and axes titles: where a reader looks for the claim."""
-    out = []
+    """Title/subtitle figure texts (``y > 0.78``) and axes titles: where a reader looks for the claim."""
+    out: list[str] = []
+    seen_ids: set[int] = set()
     sup = getattr(fig, "_suptitle", None)
     if sup is not None and sup.get_visible() and sup.get_text().strip():
         out.append(sup.get_text())
-    out += [t.get_text() for t in fig.texts if t.get_visible() and t.get_text().strip()]
+        seen_ids.add(id(sup))
+    for t in fig.texts:
+        if id(t) in seen_ids or not t.get_visible() or not t.get_text().strip():
+            continue
+        if _fig_text_y(fig, t) > 0.78:
+            out.append(t.get_text())
+            seen_ids.add(id(t))
     for ax in fig.axes:
         if not ax.get_visible():
             continue
         for title in (ax.title, getattr(ax, "_left_title", None), getattr(ax, "_right_title", None)):
-            if title is not None and title.get_visible() and title.get_text().strip():
+            if title is not None and id(title) not in seen_ids and title.get_visible() and title.get_text().strip():
                 out.append(title.get_text())
+                seen_ids.add(id(title))
+        ax_title = ax.get_title().strip()
+        if ax_title and ax_title not in out:
+            out.append(ax_title)
     return out
 
 
@@ -157,6 +179,74 @@ def _colormaps(fig: Any) -> set[str]:
             if cmap is not None and getattr(art, "get_array", lambda: None)() is not None:
                 names.add(cmap.name.removesuffix("_r"))
     return names
+
+
+def _truncated_bar_axes(fig: Any) -> list[str]:
+    """Return descriptions of visible linear bar-chart axes whose baseline is truncated above 0.
+
+    Only flags clear zero-anchored positive bar charts (all bars share base == 0 with positive
+    extent, yet the axis lower limit cuts off more than 5% of the top value). Floating/waterfall
+    bars, histograms with non-zero baselines, log axes, and negative-valued bars are skipped.
+    """
+    from matplotlib.container import BarContainer
+
+    flagged: list[str] = []
+    for idx, ax in enumerate(fig.axes):
+        if not ax.get_visible() or not ax.axison:
+            continue
+        bar_containers = [c for c in getattr(ax, "containers", []) if isinstance(c, BarContainer)]
+        if not bar_containers:
+            continue
+        patches = [p for c in bar_containers for p in c.patches if p.get_visible()]
+        if len(patches) < 2:
+            continue
+
+        # Infer orientation from container metadata or patch geometry
+        orient = getattr(bar_containers[0], "orientation", None)
+        if orient not in ("vertical", "horizontal"):
+            widths = [abs(p.get_width()) for p in patches]
+            heights = [abs(p.get_height()) for p in patches]
+            bases_y = [p.get_y() for p in patches]
+            bases_x = [p.get_x() for p in patches]
+            if all(abs(b) < 1e-6 for b in bases_y) and any(h > 0 for h in heights):
+                orient = "vertical"
+            elif all(abs(b) < 1e-6 for b in bases_x) and any(w > 0 for w in widths):
+                orient = "horizontal"
+            else:
+                continue
+
+        if orient == "vertical":
+            if ax.get_yscale() != "linear":
+                continue
+            bases = [float(p.get_y()) for p in patches]
+            heights = [float(p.get_height()) for p in patches]
+            if not (all(abs(b) < 1e-6 for b in bases) and all(h > 0 for h in heights)):
+                continue
+            lo, hi = sorted(ax.get_ylim())
+            ymax = max(heights)
+            if lo > 0.05 * ymax and lo < hi:
+                flagged.append(f"ax{idx} y-axis starts at {lo:.4g} (max bar {ymax:.4g})")
+        else:
+            if ax.get_xscale() != "linear":
+                continue
+            bases = [float(p.get_x()) for p in patches]
+            widths = [float(p.get_width()) for p in patches]
+            if not (all(abs(b) < 1e-6 for b in bases) and all(w > 0 for w in widths)):
+                continue
+            lo, hi = sorted(ax.get_xlim())
+            xmax = max(widths)
+            if lo > 0.05 * xmax and lo < hi:
+                flagged.append(f"ax{idx} x-axis starts at {lo:.4g} (max bar {xmax:.4g})")
+    return flagged
+
+
+def _has_log_axis(fig: Any) -> bool:
+    for ax in fig.axes:
+        if not ax.get_visible() or not ax.axison:
+            continue
+        if ax.get_xscale() in ("log", "symlog") or ax.get_yscale() in ("log", "symlog"):
+            return True
+    return False
 
 
 def audit_saved_figure(
@@ -197,12 +287,16 @@ def audit_saved_figure(
             if b.x0 < canvas.x0 - 1 or b.y0 < canvas.y0 - 1 or b.x1 > canvas.x1 + 1 or b.y1 > canvas.y1 + 1:
                 clipped.append(repr(t.get_text()[:40]))
     out["clipped"] = clipped
-    all_text = " ".join(t.get_text() for t in texts)
+    all_text_list = [t.get_text() for t in texts if t.get_text().strip()]
+    all_text = " ".join(all_text_list)
+    out["all_texts"] = all_text_list
     out["uncertainty_named"] = bool(UNCERTAINTY_WORDS.search(all_text))
     out["headlines"] = headline_texts(fig)
     out["panels"] = sum(1 for ax in fig.axes if ax.get_visible() and ax.axison)
     out["legends"] = sum(1 for ax in fig.axes if ax.get_legend() is not None) + len(fig.legends)
     out["banned_colormaps"] = sorted(_colormaps(fig) & BANNED_COLORMAPS)
+    out["truncated_bar_axes"] = _truncated_bar_axes(fig)
+    out["has_log_axis"] = _has_log_axis(fig)
     return out
 
 

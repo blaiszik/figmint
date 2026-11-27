@@ -1,0 +1,5 @@
+service,monthly_budget_pct,remaining_pct,burned_pct
+checkout-api,100.0,21.4,78.6
+auth-edge,100.0,88.2,11.8
+search-rank,100.0,91.5,8.5
+billing-sync,100.0,64.0,36.0

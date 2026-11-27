@@ -48,7 +48,7 @@ _CHANGE_PLOT_MM = 14.0
 _CHANGE_NAME_PT = 70.0
 
 
-@_guarded("change")
+@_guarded("change", aliases={"measure": "label"})
 def change(
     before: Mapping[str, float] | str,
     after: Mapping[str, float] | str,

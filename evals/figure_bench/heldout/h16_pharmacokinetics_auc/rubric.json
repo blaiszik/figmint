@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "h16_pharmacokinetics_auc",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "Pharmacokinetics",
+  "title": "24-hour PK concentration–time profiles and AUC comparison",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Liposomal_IV delivers 2.10x the 24h AUC of IR_tablet (1614 vs 769 ng·h/mL, n = 8/arm)",
+  "accept": [
+    2.098064,
+    1614.422018,
+    844.940127
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 15.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "liposomal|auc",
+    "8 subject|n=8|95% ci|ci|s.d.|sd|±"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much higher is Liposomal_IV's 24-hour AUC than IR_tablet?",
+      "expected": "About 2.10× higher (1614 vs 769 ng·h/mL)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is inter-subject variability shown?",
+      "expected": "Mean ± 95% CI (or SD) across n = 8 subjects per formulation."
+    },
+    {
+      "kind": "nuance",
+      "question": "How does ER_capsule behave compared to IR_tablet?",
+      "expected": "ER_capsule lowers the early Cmax peak while maintaining higher trough levels through 12–24 h."
+    }
+  ]
+}

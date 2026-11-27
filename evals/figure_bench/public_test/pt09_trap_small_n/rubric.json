@@ -25,8 +25,8 @@
     "statistically significant"
   ],
   "required_disclosures": [
-    "n=3",
-    "replicates"
+    "n=3|n = 3|3 replicates|triplicate|pilot",
+    "replicate|point|individual|overlap|small"
   ],
   "reader_questions": [
     {

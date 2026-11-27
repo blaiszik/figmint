@@ -24,6 +24,8 @@ _DARK_TOKENS = (
 )
 
 SCHEME_SYNC_CSS = (
+    f":root{{{_LIGHT_TOKENS}}}\n"
+    f"@media (prefers-color-scheme: dark){{:root{{{_DARK_TOKENS}}}}}\n"
     f':root[data-mc-scheme="light"],:root[data-mf-scheme="light"],:root[data-theme="light"]'
     f"{{{_LIGHT_TOKENS}}}\n"
     f':root[data-mc-scheme="dark"],:root[data-mf-scheme="dark"],:root[data-theme="dark"]'

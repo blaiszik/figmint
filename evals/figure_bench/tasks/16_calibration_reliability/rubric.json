@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "16_calibration_reliability",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "ML Calibration",
+  "title": "Classifier reliability diagram and ECE reduction",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Temperature scaling cuts ECE from 11.8% to 1.7% (drop 10.1 pp)",
+  "accept": [
+    1.672995,
+    11.757301,
+    10.084306,
+    7.027697
+  ],
+  "rel_tol": 0.12,
+  "abs_tol": 0.4,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "ece|calibration error",
+    "95% ci|ci|n=|binomial|error bar|±"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much does temperature scaling reduce Expected Calibration Error (ECE)?",
+      "expected": "From 11.8% down to 1.7% (a 10.1 pp reduction)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is bin-level sampling uncertainty shown?",
+      "expected": "95% binomial confidence intervals (and sample counts per bin)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Where is the uncalibrated model most overconfident?",
+      "expected": "In the high-probability tail (0.75–0.95) where empirical positive rates fall well below the diagonal."
+    }
+  ]
+}

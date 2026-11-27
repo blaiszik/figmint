@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "id": "23_surface_narrow_oncall",
+  "split": "dev",
+  "track": "multi_surface",
+  "domain": "SRE / Mobile",
+  "title": "450 px mobile on-call SLO error budget triage",
+  "display_width_px": 450,
+  "surface": "narrow",
+  "what": "checkout-api has only 21.4% error budget remaining (78.6% burned), below the 25% alert floor",
+  "accept": [
+    21.4,
+    78.6
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 0.5,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "checkout-api|checkout",
+    "25%|budget|slo"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which service is below the 25% remaining error budget alert threshold and how much is left?",
+      "expected": "checkout-api with 21.4% remaining (78.6% burned)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What display width constraint applies?",
+      "expected": "Narrow 450 px mobile chat width (all labels >= 11 px at 450 px)."
+    },
+    {
+      "kind": "nuance",
+      "question": "How healthy are the other three services?",
+      "expected": "billing-sync has 64.0% remaining while auth-edge (88.2%) and search-rank (91.5%) have ample headroom."
+    }
+  ]
+}

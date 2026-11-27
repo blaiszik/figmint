@@ -4,14 +4,15 @@
 
 Working with Claude Code, Codex, Cursor, or Antigravity shouldn't end in numbers buried in prose or a cramped default Matplotlib chart with tiny text, truncated axes, and unnamed error bars. `mintfig` turns your coding agent into a visual briefing loop: agents produce clear, publication-grade graphics whose headlines are verified against the plotted data — and automatically audit any Matplotlib they already write.
 
-**Measured on [figure-bench v0.1](docs/figure-bench.md) (60 tasks, fresh Claude Sonnet 5.5 per task):**
-- **Default Matplotlib:** **35%** (21/60) defect-free at reading width, **60%** (36/60) right headline number.
-- **Plain Matplotlib + `mint.check` hook:** **80%** (48/60) defect-free — zero library rewrite.
-- **`mintfig`:** **95%** (57/60) defect-free and **88%** (53/60) right headline numbers, finishing fastest (**13.4 s** median).
+**Measured on [figure-bench v0.1](https://github.com/blaiszik/mintfig/blob/main/docs/figure-bench.md) (100 tasks × 4 arms, 400 fresh Claude Sonnet 5.5 runs):**
+- **Default Matplotlib:** **35%** (35/100) defect-free at reading width, **65%** (64/99) right headline number, **10.9 s** median (`84.2` composite).
+- **Prompt-Coached Matplotlib (style prompt, no `mintfig`):** **54%** (54/100; 56/100 incl. 2 terminal tasks) defect-free — prompting fixes headlines (**95%**) and font size (**100%**), but 24% still get struck by lines and 17% overlap text (**12.9 s** median, `94.7` composite).
+- **Plain Matplotlib + `mint.check` hook:** **91%** (91/100) defect-free and **73%** (73/100) right headline number, **13.9 s** median (`93.9` composite) — zero library rewrite.
+- **`mintfig`:** **100%** (100/100) defect-free (**87%** first-try clean) and **97%** (97/100) right headline numbers, **11.7 s** median (`98.0` composite — faster at median than both `matplotlib-coached` and `matplotlib-hook`).
 
-Watch an agent's wall of 32 numbers turn into inline `mintchip` sparklines & intervals, a forest-plot table, and an interactive `mintfig` figure you can hover and click to cite back:
+Watch an agent's wall of 32 numbers turn into inline [`mintchip`](https://github.com/blaiszik/mintchip) sparklines & intervals, a forest-plot table, and an interactive `mintfig` figure you can hover and click to cite back:
 
-![Wall of 32 agent numbers transformed into mintchip inline chips, a forest-plot table, and an interactive mintfig figure](gallery/output/readme_comparison/opener.gif)
+![Wall of 32 agent numbers transformed into mintchip inline chips, a forest-plot table, and an interactive mintfig figure](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/readme_comparison/opener.gif)
 
 <details>
 <summary>Inspect a static 5-seed ablation comparison (text-only vs default Matplotlib vs mintfig)</summary>
@@ -21,25 +22,25 @@ Watch an agent's wall of 32 numbers turn into inline `mintchip` sparklines & int
 
 2. **Default agent Matplotlib (`mint.check` → `ship: false`):** text shrinks to **8.1 px** at 700 px chat width, bar axis starts at 0.55 (`bar_baseline_nonzero`), error bars and bands are unlabelled (`interval_unlabelled`), rotated labels crowd, boxed legend, and a topic-only title ("Ablation Results") with no takeaway number.
 
-   ![Default agent Matplotlib render of the ablation](gallery/output/readme_comparison/matplotlib_default.png)
+   ![Default agent Matplotlib render of the ablation](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/readme_comparison/matplotlib_default.png)
 
 3. **`mintfig` reply (`mint.check` → `ship: true`):** *"Retrieval and fine-tuning are the two components worth keeping; the other two are within seed noise."*
 
-   ![Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13](gallery/output/readme_comparison/mintfig_reply.png)
+   ![Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/readme_comparison/mintfig_reply.png)
 
    *No retrieval 0.74 and no fine-tuning 0.69 against 0.82 for the full model; neither 95% CI (5 seeds) overlaps it.*
 
 </details>
 
-Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](gallery/make_readme_comparison.py). The reply is one sentence, the figure, and one caption; `fig.save()` hands the agent the image line and caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
+Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](https://github.com/blaiszik/mintfig/blob/main/gallery/make_readme_comparison.py). The reply is one sentence, the figure, and one caption; `fig.save()` hands the agent the image line and caption in `summary["deliver"]` ([Put it in front of the reader](#put-it-in-front-of-the-reader)).
 
 ### Three steps to get started
 
 1. **Try it on a plot you already have (zero rewrite):** run `uvx mintfig check plot.py` — or `mint.check(fig)` in Python — to audit text legibility, layout, and headline numbers against your plotted data.
-2. **Enable it for your coding agent (2 commands):** install `mintfig`, then run `mintfig skill --install --global` and `mintfig hook --install`. Claude Code, Codex, Cursor, and Antigravity will automatically audit Matplotlib figures and reach for `mintfig` when sharing results.
-3. **Go further when you want to:** draw message-first chat figures in one call with `mint.explain(...)` (or `mintfig plot data.csv`), and export journal-ready multi-panel plates with `mint.Plate(...)`.
+2. **Enable it for your coding agent (2 commands):** install `mintfig`, then run `mintfig skill --install --global` (or `npx skills add blaiszik/mintfig`) and `mintfig hook --install --global`. **Claude Code & Cursor** wire native PostToolUse audit hooks automatically; **Codex, Gemini CLI, Antigravity, and GitHub Copilot** use the bundled agent skill.
+3. **Go further when you want to:** draw message-first chat figures in one call with `mint.explain(...)` (or `mintfig plot data.csv` / `--pr-card`), add inline sparklines & intervals with `pip install "mintfig[chip]"` ([`mintchip`](https://github.com/blaiszik/mintchip)), and export journal-ready multi-panel plates with `mint.Plate(...)`.
 
-[Quickstart](#quickstart) · **[Benchmark & Failure Modes](docs/figure-bench.md)** · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
+[Quickstart](#quickstart) · **[Benchmark & Failure Modes](https://github.com/blaiszik/mintfig/blob/main/docs/figure-bench.md)** · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Forms at a Glance](#pick-the-form-by-the-question) · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
 
 ---
 
@@ -51,24 +52,26 @@ Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](gal
 
 ```bash
 pip install mintfig
+# with companion inline micro-graphics (https://github.com/blaiszik/mintchip)
+pip install "mintfig[chip]"
 # or with uv
 uv add mintfig
 # or zero-install check on any existing plotting script
 uvx mintfig check plot.py
 ```
 
-Give your coding agents the bundled skill globally (auto-detects Claude Code, Codex, Cursor, Antigravity) and enable the automatic Matplotlib audit hook:
+Give your coding agents the bundled skill globally (Claude Code, Codex, Cursor, Gemini CLI, Antigravity, GitHub Copilot) and enable the automatic Matplotlib audit hook (native PostToolUse hooks on **Claude Code & Cursor**; skill-driven on Codex, Gemini CLI, Antigravity, and Copilot):
 
 ```bash
-mintfig skill --install --global
-mintfig hook --install
+mintfig skill --install --global      # or: npx skills add blaiszik/mintfig
+mintfig hook --install --global       # native PostToolUse hooks (Claude Code & Cursor)
 ```
 
 ### Already have Matplotlib? Check it (`mint.check`)
 
-Most figures an agent ships are plain Matplotlib — and without guardrails, only **35%** (21/60) pass reading-width and layout checks in [figure-bench v0.1](docs/figure-bench.md). Adding the `mint.check` hook lifts that to **80%** (48/60) with zero library rewrite. Watch `mintfig check plot.py` catch a wrong claim (`12 points` vs `8 points`), a truncated bar axis, and `8.1 px` text — then verify the fix:
+Most figures an agent ships are plain Matplotlib — and without guardrails, only **35%** (35/100) pass reading-width and layout checks in [figure-bench v0.1](https://github.com/blaiszik/mintfig/blob/main/docs/figure-bench.md). Adding the `mint.check` hook lifts that to **91%** (91/100) with zero library rewrite. Watch `mintfig check plot.py` catch a wrong claim (`12 points` vs `8 points`), a truncated bar axis, and `8.1 px` text — then verify the fix:
 
-![mintfig check auditing a broken Matplotlib figure, catching a wrong headline claim and unreadable text, and verifying the fix](gallery/output/readme_comparison/mintcheck.gif)
+![mintfig check auditing a broken Matplotlib figure, catching a wrong headline claim and unreadable text, and verifying the fix](https://raw.githubusercontent.com/blaiszik/mintfig/main/gallery/output/readme_comparison/mintcheck.gif)
 
 ```python
 import matplotlib.pyplot as plt
@@ -107,8 +110,8 @@ print(report)
 
 - **The claim, against the data.** Bars, lines, error bars, scatter points, heatmaps (`QuadMesh`), histograms, `fill_between` CI bands, boxplots, and images are read back from the drawn artists. Each number the headline (or `claim=`) states is checked against values, differences, ratios, percentage changes, shares, and crossings (ignoring model IDs like `Llama-3.1`/`8B` and sample counts like `5 seeds`).
 - **At reading size.** Text is measured after scaling the PNG to `width="chat"` (700 px), `"narrow"` (450 px, phones), or `"slide"` (1280 px), alongside overlaps, text struck by lines, malformed text, clipping, truncated bar baselines, and rainbow colormaps.
-- **Zero-rewrite CLI, notebooks, and hooks.** Run `mintfig check plot.py` (auto-detects your project `.venv`, or pass `--python /path/to/python`), `mintfig check analysis.ipynb` (zero extra deps), `%load_ext mintfig` in Jupyter/marimo, or `mintfig hook --install` so agent-written Matplotlib scripts are checked automatically with exit `0` (ship), `1` (fix first), or `2` (script error).
-- **Upgrade existing Matplotlib in 1–2 lines (`mint.style()`, `mint.explain(takeaway, fig)`).** Wrap existing plotting code in `with mint.style(width="chat"):` for chat-readable sizing, despining, and CVD-safe palettes without leaking global `rcParams`, or pass any existing Matplotlib/Seaborn `Figure` or `Axes` straight into `mint.explain(takeaway, fig)` to get the takeaway frame, `mint.check` facts, interactive HTML, and `deliver` ([gallery/byo_matplotlib_examples.py](gallery/byo_matplotlib_examples.py)).
+- **Zero-rewrite CLI, notebooks, and hooks.** Run `mintfig check plot.py` (auto-detects your project `.venv`, or pass `--python /path/to/python`), `mintfig check analysis.ipynb` (zero extra deps), `%load_ext mintfig` in Jupyter/marimo, or `mintfig hook --install --global` (Claude Code & Cursor native PostToolUse hooks) so agent-written Matplotlib scripts are checked automatically with exit `0` (ship), `1` (fix first), or `2` (script error).
+- **Upgrade existing Matplotlib in 1–2 lines (`mint.style()`, `mint.explain(takeaway, fig)`).** Wrap existing plotting code in `with mint.style(width="chat"):` for chat-readable sizing, despining, and CVD-safe palettes without leaking global `rcParams`, or pass any existing Matplotlib/Seaborn `Figure` or `Axes` straight into `mint.explain(takeaway, fig)` to get the takeaway frame, `mint.check` facts, interactive HTML, and `deliver` ([gallery/byo_matplotlib_examples.py](https://github.com/blaiszik/mintfig/blob/main/gallery/byo_matplotlib_examples.py)).
 
 ### Explain a result (`mint.explain`)
 
@@ -340,10 +343,11 @@ mintfig check analysis.ipynb --width chat --json
 mintfig check figure2.pdf --journal nature --json
 
 # Install bundled agent skill globally (or per project) & wire automatic PostToolUse hooks
-mintfig skill --install --global                  # auto-detects ~/.claude, ~/.codex, ~/.gemini, ~/.cursor
+mintfig skill --install --global                  # auto-detects Claude Code, Codex, Cursor, Gemini CLI, Antigravity, Copilot
+npx skills add blaiszik/mintfig                   # or install via skills.sh
 mintfig skill --install --target all --root .
 mintfig skill --print --all                       # print SKILL.md + all references/*.md
-mintfig hook --install                            # auto-audit agent Matplotlib writes (silent on pass)
+mintfig hook --install --global                   # native PostToolUse hooks (Claude Code & Cursor; silent on pass)
 mintfig hook --status
 
 # Zero-script: plot CSV/JSON or SWE tool outputs (hyperfine, pytest-benchmark, go/cargo bench, CI timings, k6, esbuild)
@@ -351,6 +355,7 @@ mintfig plot data.csv --kind auto --takeaway "..." --density compact --out fig.p
 mintfig plot hyperfine.json --kind auto --text               # <=72-col Unicode terminal summary (no PNG)
 mintfig plot bench.json --kind auto --markdown               # GitHub-flavored Markdown summary
 mintfig diff main_bench.json pr_bench.json --markdown --fail-on-regression 5
+mintfig diff main_bench.json pr_bench.json --pr-card         # PR-ready summary card (SVG/Markdown)
 mintfig edit fig.png --drop "no augmentation" --no-color-names --out fig2.png
 
 # Chat figures from JSON or an embedded-spec PNG
@@ -384,9 +389,9 @@ Exit codes: `0` clean pass · `1` error-level issue (or warning under `--strict`
 
 ## Benchmarks & Development
 
-- **Chat figure benchmark (`evals/figure_bench/`, v0.1 work in progress)**: 60 deterministic tasks across 3 splits (15 `dev`, 30 frozen `public-test`, 15 `heldout`) and 6 tracks (science, SWE/coding, epistemic traps, multi-turn edits, multi-surface delivery, BYO-Matplotlib repair) with library-agnostic SVG/pixel/rubric scoring (`grade-dir`), open leaderboard + visual explorer (`site/index.html`), and a display-size human blind-reader study app (`human_study/index.html`) — **[Results & Failure Anatomy](docs/figure-bench.md)** · [Spec](evals/figure_bench/README.md) · [Compete / Contribute](evals/figure_bench/CONTRIBUTING.md).
-- **Wild-50 `mint.check` audit (`evals/check_bench/`)**: 50 realistic Matplotlib & Seaborn-idiom scripts (25 clean, 25 defective) verifying **0/25 (0.0%) false positives** and **25/25 (100%) defect catch** ([evals/check_bench/REPORT.md](evals/check_bench/REPORT.md)).
-- **Skill trigger evaluation (`evals/trigger_eval/`)**: 40 realistic developer and scientist prompts (20 positive, 20 negative, zero mentions of `mintfig`) testing skill recall (>= 85%) and false-trigger rate (<= 5%) with both a deterministic offline rubric and a `--live` CLI adapter ([evals/trigger_eval/README.md](evals/trigger_eval/README.md)).
+- **Chat figure benchmark (`evals/figure_bench/`, v0.1 work in progress)**: 100 deterministic tasks across 3 splits (25 `dev`, 50 frozen `public-test`, 25 `heldout`) and 6 tracks (science, SWE/coding, epistemic traps, multi-turn edits, multi-surface delivery, BYO-Matplotlib repair) with library-agnostic SVG/pixel/rubric scoring (`grade-dir`), open leaderboard + visual explorer (`site/index.html`), and a display-size human blind-reader study app (`human_study/index.html`) — **[Results & Failure Anatomy](https://github.com/blaiszik/mintfig/blob/main/docs/figure-bench.md)** · [Spec](https://github.com/blaiszik/mintfig/blob/main/evals/figure_bench/README.md) · [Compete / Contribute](https://github.com/blaiszik/mintfig/blob/main/evals/figure_bench/CONTRIBUTING.md).
+- **Wild-50 `mint.check` audit (`evals/check_bench/`)**: 50 realistic Matplotlib & Seaborn-idiom scripts (25 clean, 25 defective) verifying **0/25 (0.0%) false positives** and **25/25 (100%) defect catch** ([evals/check_bench/REPORT.md](https://github.com/blaiszik/mintfig/blob/main/evals/check_bench/REPORT.md)).
+- **Skill trigger evaluation (`evals/trigger_eval/`)**: 40 realistic developer and scientist prompts (20 positive, 20 negative, zero mentions of `mintfig`) testing skill recall (>= 85%) and false-trigger rate (<= 5%) with both a deterministic offline rubric and a `--live` CLI adapter ([evals/trigger_eval/README.md](https://github.com/blaiszik/mintfig/blob/main/evals/trigger_eval/README.md)).
 - **Publication repair eval (`evals/`)**: 10 clean control scripts and 25 messy agent-written scripts testing `mintfig run --json` + `fix_hint` repair loops ([evals/eval_report.md](https://github.com/blaiszik/mintfig/blob/main/evals/eval_report.md)).
 
 ```bash

@@ -1570,16 +1570,16 @@ def test_lenient_mode_auto_recovers_soft_limits_and_separates_advisories(tmp_pat
     assert any("facet=True" in a for a in s["adjustments"])
     assert any("trimmed 25 items" in a for a in s["adjustments"])
 
-    # Auto-stacking narrow side-by-side matrix in strict=False
-    vals = [[10, 20, 30, 40], [50, 60, 70, 80]]
+    # Auto-stacking narrow side-by-side matrix in strict=False when side-by-side cells are too narrow
+    vals = [[1234.5] * 10, [5678.9] * 10]
     stacked = mint.explain(
-        "Matrix auto-stacks to full width when side-by-side headers would collide",
+        "Matrix auto-stacks to full width when side-by-side cells are too narrow",
         mint.matrix(
             vals,
             rows=["x", "y"],
-            cols=["HotpotQAextended", "TriviaQAextended", "NaturalQuestions", "SciFactBench"],
-            label="Accuracy",
-            unit="%",
+            cols=[f"B{i}" for i in range(10)],
+            label="Throughput",
+            fmt=".1f",
         ),
         mint.compare({"a": 1.0, "b": 2.0}, label="Count"),
         strict=False,

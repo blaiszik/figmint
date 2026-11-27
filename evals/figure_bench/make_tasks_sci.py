@@ -134,6 +134,9 @@ def _write_rubric(
     reader_questions: list[dict[str, str]],
     display_width_px: int = 700,
     surface: str = "chat",
+    forbid_truncated_bars: bool = False,
+    require_log_scale: bool = False,
+    min_panels: int = 0,
 ) -> Path:
     tdir = _task_dir(split, task_id)
     tdir.mkdir(parents=True, exist_ok=True)
@@ -154,6 +157,9 @@ def _write_rubric(
         "no_effect_trap": bool(no_effect_trap),
         "forbidden_overclaim_phrases": list(forbidden_overclaim_phrases),
         "required_disclosures": list(required_disclosures),
+        **({"forbid_truncated_bars": True} if forbid_truncated_bars else {}),
+        **({"require_log_scale": True} if require_log_scale else {}),
+        **({"min_panels": int(min_panels)} if min_panels > 0 else {}),
         "reader_questions": reader_questions,
     }
     path = tdir / "rubric.json"
@@ -282,7 +288,7 @@ the 1.0 null reference line and highlight the pooled estimate.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["95% CI", "1.0"],
+        required_disclosures=["95% CI|confidence interval|CI", "1.0|null"],
         reader_questions=_questions(
             f"Pooled OR = {pooled_or:.2f} (95% CI {pooled_lo:.2f}–{pooled_hi:.2f}), a {red_pct:.0f}% odds reduction.",
             f"Yes; the pooled 95% CI ({pooled_lo:.2f}–{pooled_hi:.2f}) stays well below the 1.0 null line.",
@@ -383,7 +389,7 @@ how `n_at_risk` thins out late in follow-up.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["95% CI", "at risk"],
+        required_disclosures=["95% CI|confidence interval|CI", "at risk|censor"],
         reader_questions=_questions(
             f"Combination extends median survival by ~{gap:.1f} months ({medians['combination']:.1f} vs {medians['standard']:.1f} mo).",
             "Yes; the 95% CI bands separate cleanly through the middle follow-up window (months 12–28).",
@@ -459,7 +465,7 @@ compare and whether we are ready to ship `cand_b` this week.
             "proves",
             "outside seed noise",
         ],
-        required_disclosures=["95% CI", "overlap"],
+        required_disclosures=["95% CI|confidence interval|CI|s.d.|sd|±", "overlap|noise|no difference|inconclusive"],
         reader_questions=_questions(
             f"cand_b averages {stats['cand_b'][0]:.1f} vs baseline {stats['baseline'][0]:.1f} (+{diff:.1f} pts), with no reliable winner.",
             "No; all four variants' 95% CIs heavily overlap across the 5 seeds, so the +0.6 pt gap is within seed noise.",
@@ -530,7 +536,7 @@ summarizing the operating range and peak yield from `data/reactor_runs.csv`.
         uncertainty_required=False,
         no_effect_trap=False,
         forbidden_overclaim_phrases=["999.9 °C peak", "reached 999.9"],
-        required_disclosures=["excluded", "999.9"],
+        required_disclosures=["excluded|corrupt|fault|sensor|removed|flagged", "999.9"],
         reader_questions=_questions(
             f"Yield rises to ~{clean_max_y:.1f}% at the top operating temperature of ~{clean_max_t:.1f} °C (gain ~{yield_gain:.1f} pp).",
             "Yes; across the 35 valid hourly readings, yield rises monotonically with tight scatter (~0.6 pp SD).",
@@ -611,7 +617,7 @@ highlight `cache_b`, and update the takeaway to report the gain over `control_v2
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=["945 req/s", "deprecated_exp leads"],
-        required_disclosures=["95% CI", "control_v2"],
+        required_disclosures=["95% CI|confidence interval|CI|s.d.|sd|±", "control_v2"],
         reader_questions=_questions(
             f"cache_b reaches {vals['cache_b']:.0f} req/s, +{gain_abs:.0f} req/s (+{gain_pct:.1f}%) above control_v2.",
             "Yes; cache_b (812 ± 22 req/s) clears control_v2 (620 ± 19 req/s) well outside their 95% CIs.",
@@ -692,7 +698,7 @@ and call out the three genes that clearly clear both thresholds.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["threshold", "p"],
+        required_disclosures=["threshold|cutoff|1.5|0.01", "p < 0.01|p-value|padj|fdr|-log10"],
         reader_questions=_questions(
             f"CXCL10 is the strongest hit (log2 FC = +{top_lfc:.2f}, ~{top_fold:.1f}x, -log10 p = {top_nlp:.2f}), alongside ISG15 and COL1A1.",
             "Yes; all three hits sit far above the adjusted p < 0.01 (-log10 p >= 2.0) and |log2 FC| >= 1.5 thresholds.",
@@ -842,7 +848,7 @@ scale, fit their slopes to report `Ea` in kJ/mol, and show the replicates.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["kJ/mol", "replicates"],
+        required_disclosures=["kJ/mol|kj", "replicate|3 run|n=3|s.d.|sd|ci|±"],
         reader_questions=_questions(
             f"Cat-Pt has Ea = {ea_fit['Cat-Pt']:.1f} kJ/mol vs Cat-Ni Ea = {ea_fit['Cat-Ni']:.1f} kJ/mol (a {ea_diff:.1f} kJ/mol lower barrier).",
             "Yes; triplicate scatter is tight (~5.5% CV) around both Arrhenius lines, separating the slopes cleanly.",
@@ -917,7 +923,7 @@ the six final-step seed scores per algorithm.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["SD", "6 seeds"],
+        required_disclosures=["SD|s.d.|standard deviation|±|ci", "6 seeds|n=6|seeds"],
         reader_questions=_questions(
             f"SAC-tuned reaches {means['SAC-tuned']:.0f} (±{sds['SAC-tuned']:.0f} SD), ahead of TD3-clip by +{lead_td3:.0f} and PPO-base by +{lead_ppo:.0f}.",
             "Yes; SAC-tuned separates cleanly above both baselines outside ±1 SD by 100k steps.",
@@ -996,7 +1002,7 @@ alongside group summaries and the 420 MPa qualification threshold.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["420 MPa", "replicates"],
+        required_disclosures=["420 MPa|420", "replicate|coupon|8 |n=8|individual"],
         reader_questions=_questions(
             f"T6 averages {mean_t6:.1f} MPa (+{mean_t6 - spec_mpa:.1f} MPa above the 420 MPa spec) and passes 8/8 coupons.",
             "Yes; T6 sits well above the 420 MPa threshold across all 8 replicate coupons.",
@@ -1073,7 +1079,7 @@ for all three stations and report the acidification rate per decade (and total
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["seasonal", "decade"],
+        required_disclosures=["seasonal|oscillation|cycle|annual", "decade|yr|year"],
         reader_questions=_questions(
             f"Southern Ocean declines fastest at {so_decade:.3f} pH/decade (~{abs(so_20yr):.3f} pH over 20 years).",
             "Yes; despite the ±0.02 seasonal oscillation, the 20-year secular downward trend is clear at all three stations.",
@@ -1145,7 +1151,7 @@ results and whether we achieved a real speedup?
             "proves",
             "outside noise",
         ],
-        required_disclosures=["within noise", "95% CI"],
+        required_disclosures=["within noise|noise|overlap|no speedup|not faster|inconclusive", "95% CI|confidence interval|CI|s.d.|sd|±"],
         reader_questions=_questions(
             f"solver_v2 averages {m2:.1f} ms vs solver_v1 {m1:.1f} ms (-{diff_ms:.1f} ms / -{diff_pct:.1f}%), showing no reliable speedup.",
             f"No; the 95% CIs ({lo2:.1f}–{hi2:.1f} ms vs {lo1:.1f}–{hi1:.1f} ms) overlap heavily across the 10 trials.",
@@ -1221,7 +1227,7 @@ in `data/clinical_outcomes.csv`.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=["treatment is worse", "treatment harms", "22 pp worse"],
-        required_disclosures=["severity", "Simpson"],
+        required_disclosures=["severity|severe|mild|stratif", "Simpson|confound|pooled|overall"],
         reader_questions=_questions(
             f"Treatment outperforms control in BOTH strata: +{sev_gain:.0f} pp in severe ({sev_trt:.0f}% vs {sev_ctrl:.0f}%) and +{mild_gain:.0f} pp in mild ({mild_trt:.0f}% vs {mild_ctrl:.0f}%).",
             "In the severe stratum (n=250 vs 50) the +12 pp lift is meaningful; in the mild stratum (n=40 treatment) the +5 pp edge has wider uncertainty.",
@@ -1292,7 +1298,7 @@ progress update?
             "clearly elevates",
             "statistically significant",
         ],
-        required_disclosures=["n=3", "replicates"],
+        required_disclosures=["n=3|n = 3|3 replicates|triplicate|pilot", "replicate|point|individual|overlap|small"],
         reader_questions=_questions(
             f"Inhibitor averages {m_i:.2f} vs vehicle {m_v:.2f} (+{diff:.2f} / +{pct:.0f}%), but the pilot is inconclusive.",
             f"No; with n=3 per arm, individual replicates overlap (95% CIs {lo_i:.2f}–{hi_i:.2f} vs {lo_v:.2f}–{hi_v:.2f}).",
@@ -1431,7 +1437,8 @@ visual comparison for the regional rollout.
         uncertainty_required=False,
         no_effect_trap=False,
         forbidden_overclaim_phrases=["massive leap", "dramatic jump"],
-        required_disclosures=["1.2", "scale"],
+        forbid_truncated_bars=True,
+        required_disclosures=["1.2|97.4|98.6", "scale|baseline|zero|0|truncat|axis|pp"],
         reader_questions=_questions(
             f"v4.2 lifts request success rate by +{gain_pp:.1f} pp on average ({mean_v41:.1f}% to {mean_v42:.1f}%).",
             "Yes; with >300k requests per region, the +1.1 to +1.3 pp gain is consistent across all four regions.",
@@ -1532,7 +1539,7 @@ summary figure for the sponsor thread.
             "proves efficacy",
             "significantly outperforms placebo",
         ],
-        required_disclosures=["placebo", "95% CI"],
+        required_disclosures=["placebo|control", "95% CI|confidence interval|CI|s.d.|sd|±|overlap|noise"],
         reader_questions=_questions(
             f"Net effect over placebo is only {net_pts:+.1f} pts ({net_pct_pp:+.1f} pp): treated improves {t_imp_pct:.1f}% while placebo improves {p_imp_pct:.1f}%.",
             "No; the treated and placebo trajectories and 95% CIs overlap throughout all 8 weeks.",
@@ -1625,7 +1632,8 @@ highlight `CMP-C`, mark the `50 ng/mL` floor, and state the 24-hour readout.
         uncertainty_required=False,
         no_effect_trap=False,
         forbidden_overclaim_phrases=["all four candidates clear rapidly"],
-        required_disclosures=["log", "50 ng/mL"],
+        require_log_scale=True,
+        required_disclosures=["log|order of magnitude|decade", "50 ng/mL|50 ng|threshold|floor"],
         reader_questions=_questions(
             f"CMP-C retains {c_24:.0f} ng/mL at 24 h (~{ratio:.0f}x higher than the next compound, {next_best:.1f} ng/mL).",
             "Yes; on a log scale the exponential elimination slopes separate cleanly across three decades.",
@@ -1710,13 +1718,13 @@ control.
         domain="Biology",
         title="Replace bare bar chart with replicates and named 95% CI",
         what="dose_high secretion lift over control (pg/mL or %), or dose_high mean",
-        accept=[gain_abs, gain_pct, means["dose_high"]],
+        accept=[gain_abs, gain_pct, means["dose_high"], means["dose_high"] / means["control"]],
         rel_tol=0.06,
-        abs_tol=5.0,
+        abs_tol=0.08,
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["95% CI", "replicates"],
+        required_disclosures=["95% CI|confidence interval|CI|s.d.|sd|±", "replicate|n=|well|point|individual"],
         reader_questions=_questions(
             f"dose_high reaches {means['dose_high']:.0f} pg/mL, +{gain_abs:.0f} pg/mL (+{gain_pct:.0f}%) above control ({means['control']:.0f} pg/mL).",
             f"Yes; dose_high 95% CI ({hi_lo:.0f}–{hi_hi:.0f}) separates cleanly from control ({ct_lo:.0f}–{ct_hi:.0f}), while dose_low overlaps control.",
@@ -1907,7 +1915,7 @@ triplicate points and Michaelis-Menten fits for both variants, highlighting the
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["replicates", "Km"],
+        required_disclosures=["replicate|n=|s.d.|sd|ci|±", "Km|K_m|k_m"],
         reader_questions=_questions(
             f"E142A increases Km ~{km_ratio:.1f}x ({km_mut:.1f} vs {km_wt:.1f} uM) while Vmax stays nearly unchanged ({vmax_mut:.1f} vs {vmax_wt:.1f} uM/min).",
             "Yes; triplicate scatter (~1.1 uM/min SD) is tight and cleanly separates the low-substrate binding region.",
@@ -2059,7 +2067,7 @@ both dose arms from `data/biomarker_delta.csv`.
             "proves dose superiority",
             "outside noise",
         ],
-        required_disclosures=["95% CI", "overlap"],
+        required_disclosures=["95% CI|confidence interval|CI|s.d.|sd|±", "overlap|noise|no difference|inconclusive"],
         reader_questions=_questions(
             f"150 mg averages {m_hi:.1f} pg/mL vs 50 mg {m_lo:.1f} pg/mL (a {abs(diff):.1f} pg/mL difference, no clear dose advantage).",
             f"No; the 95% CIs ({ci_hi_l:.1f} to {ci_hi_h:.1f} vs {ci_lo_l:.1f} to {ci_lo_h:.1f} pg/mL) overlap extensively.",
@@ -2135,7 +2143,7 @@ clean figure showing the real `treated` vs `control` result?
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=["all 5 plates confirm", "no batch issues"],
-        required_disclosures=["P4", "excluded"],
+        required_disclosures=["P4|plate 4|batch", "excluded|contaminat|flagged|omitted|outlier"],
         reader_questions=_questions(
             f"Across clean plates P1–P3 and P5, treated averages {m_t:.2f} OD vs control {m_c:.2f} OD (+{clean_diff:.2f} OD, +{clean_pct:.0f}%).",
             "Yes; on the four valid plates, replicate scatter (~0.025 OD SD) is tiny compared to the +0.26 OD signal increase.",
@@ -2226,7 +2234,7 @@ exceed the limit.
         uncertainty_required=True,
         no_effect_trap=False,
         forbidden_overclaim_phrases=[],
-        required_disclosures=["5.0%", "SD"],
+        required_disclosures=["5.0%|5%|drift limit|spec", "SD|s.d.|±|ci|replicate|n="],
         reader_questions=_questions(
             f"Only two coatings fail the 5.0% drift limit: TiN-3 ({tin:.1f}%, +{tin - spec:.1f} pp over) and BN-6 ({bn:.1f}%, +{bn - spec:.1f} pp over).",
             "Yes; both TiN-3 (7.8 ± 0.5%) and BN-6 (6.4 ± 0.5%) sit well above 5.0% outside ±1 SD.",

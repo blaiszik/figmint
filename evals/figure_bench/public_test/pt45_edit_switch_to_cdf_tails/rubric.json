@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt45_edit_switch_to_cdf_tails",
+  "split": "public-test",
+  "track": "multiturn_edit",
+  "domain": "Backend Performance",
+  "title": "Replace mean-only bar chart to expose bimodal p95 tail",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "checkout_v3 is bimodal: faster median (95 ms) but 10% retry tail pushes p95 to 625 ms (vs 185 ms in v2)",
+  "accept": [
+    624.788181,
+    440.178757,
+    3.384379,
+    94.801497
+  ],
+  "rel_tol": 0.07,
+  "abs_tol": 8.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "p95|95th|tail|bimodal",
+    "250|n=250|median|iqr|distribution"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is checkout_v3's p95 latency compared to checkout_v2?",
+      "expected": "About 625 ms vs 185 ms (3.4× higher)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How did checkout_v3 look at the median?",
+      "expected": "Faster for typical requests (median 95 ms vs ~145 ms for v2), masking the 10% slow mode when averaged."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why did prior_figure.png hide this regression?",
+      "expected": "A mean-only bar chart averaged the faster 90% and the ~620 ms 10% tail back to ~145 ms."
+    }
+  ]
+}

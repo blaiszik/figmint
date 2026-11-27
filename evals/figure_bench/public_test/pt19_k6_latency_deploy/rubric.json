@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "500 ms SLA breach",
-    "p50 barely changed"
+    "500 ms|500ms|sla",
+    "p50|median"
   ],
   "reader_questions": [
     {

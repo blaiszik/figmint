@@ -93,7 +93,7 @@ from .waterfall import waterfall
 # --------------------------------------------------------------------------- #
 
 
-@_guarded("table")
+@_guarded("table", aliases={"measure": "label"})
 def table(
     rows: Sequence[Mapping[str, Any]] | Mapping[str, Sequence[Any]] | Sequence[Sequence[Any]],
     *,
@@ -114,6 +114,17 @@ def table(
     spark: Mapping[str, Mapping[str, Sequence[Any]]] | None = None,
 ) -> Panel:
     """Exact lookup table or scorecard with booktabs rules, aligned figures and in-cell graphics."""
+    for arg_name, arg_val in (
+        ("units", units),
+        ("align", align),
+        ("interval", interval),
+        ("spark", spark),
+    ):
+        if arg_val is not None and not isinstance(arg_val, Mapping):
+            raise ExplainError(
+                f"table({arg_name}=...) must be a mapping keyed by column name, got {type(arg_val).__name__}.",
+                fix_hint=f'Pass a dict for {arg_name}=, e.g. {arg_name}={{"Score": ...}}.',
+            )
     from .._table import table as _build_table
 
     return _build_table(
@@ -141,7 +152,7 @@ def table(
 # --------------------------------------------------------------------------- #
 
 
-@_guarded("custom")
+@_guarded("custom", aliases={"measure": "label"})
 def custom(
     draw: Callable[[Axes], None],
     *,
@@ -342,20 +353,33 @@ def _text_line(
     return drawn
 
 
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+
+
+def _normalize_hex_color(raw: str) -> str | None:
+    """Normalize ``#RGB`` or ``#RRGGBB`` to uppercase ``#RRGGBB``, else ``None``."""
+    cleaned = raw.strip()
+    if not _HEX_COLOR_RE.fullmatch(cleaned):
+        return None
+    if len(cleaned) == 4:
+        r, g, b = cleaned[1], cleaned[2], cleaned[3]
+        return f"#{r}{r}{g}{g}{b}{b}".upper()
+    return cleaned.upper()
+
+
 def _pinned_colors(colors: object, theme: Theme) -> dict[str, str]:
-    """Read ``explain(colors={name: slot})`` into ``{name: hex}`` from the theme palette."""
+    """Read ``explain(colors={name: slot_or_hex})`` into ``{name: hex}``."""
     if colors is None:
         return {}
     slots = ", ".join(f'"{s}"' for s in COLOR_SLOTS)
     hint = (
-        f"Pass colors={{name: slot}} with slot one of {slots}, e.g. "
-        'colors={"no retrieval": "red", "full model": "blue"}. Slots resolve to the style\'s '
-        "validated palette (colour-blind and grayscale separated), so arbitrary colours are not "
-        "accepted."
+        f"Pass colors={{name: slot_or_hex}} with slot one of {slots} or a #HEX color, e.g. "
+        'colors={"no retrieval": "red", "full model": "#1F5A9D"}. Named slots resolve to the '
+        "style's validated palette (colour-blind and grayscale separated)."
     )
     if not _has_items(colors):
         raise ExplainError(
-            f"explain(colors=...) must map names to colour slots, got {type(colors).__name__}.",
+            f"explain(colors=...) must map names to colour slots or #HEX strings, got {type(colors).__name__}.",
             fix_hint=hint,
             rule="bad_colors",
         )
@@ -363,24 +387,36 @@ def _pinned_colors(colors: object, theme: Theme) -> dict[str, str]:
     used: dict[str, str] = {}
     for name, slot in _pairs(colors):
         key = _entity_key(name)
-        word = slot.strip().lower() if isinstance(slot, str) else None
-        if word not in COLOR_SLOTS:
+        if not isinstance(slot, str):
             raise ExplainError(
-                f"explain(colors[{key!r}]) = {slot!r} is not a colour slot.",
+                f"explain(colors[{key!r}]) = {slot!r} is not a colour slot or #HEX string.",
                 fix_hint=hint,
                 rule="bad_colors",
             )
-        if word in used:
+        word = slot.strip().lower()
+        if word in COLOR_SLOTS:
+            resolved = theme.series_colors[COLOR_SLOTS[word] % len(theme.series_colors)].upper()
+            token = word
+        else:
+            hex_val = _normalize_hex_color(slot)
+            if hex_val is None:
+                raise ExplainError(
+                    f"explain(colors[{key!r}]) = {slot!r} is not a colour slot or #HEX string.",
+                    fix_hint=hint,
+                    rule="bad_colors",
+                )
+            resolved = hex_val
+            token = hex_val
+        if resolved in used:
             raise ExplainError(
-                f"explain(colors=...) gives {used[word]!r} and {key!r} the same slot {word!r}; "
+                f"explain(colors=...) gives {used[resolved]!r} and {key!r} the same colour {token!r}; "
                 "one colour must mean one thing.",
-                fix_hint=f"Give each pinned name its own slot ({slots}): at most "
-                f"{len(COLOR_SLOTS)} pinned names; leave the rest unpinned (they take the "
-                "figure's own colours).",
+                fix_hint=f"Give each pinned name its own slot ({slots}) or distinct #HEX colour; "
+                "leave the rest unpinned (they take the figure's own colours).",
                 rule="bad_colors",
             )
-        used[word] = key
-        out[key] = theme.series_colors[COLOR_SLOTS[word] % len(theme.series_colors)]
+        used[resolved] = key
+        out[key] = resolved
     return out
 
 
@@ -429,7 +465,7 @@ def _colour_registry(
     base += [c for c in theme.series_colors if c not in base]
     default = theme.default_color
     pool = [c for c in base if c not in pinned.values()]
-    if any(_uniform(p) for p in panels) and default in pool:
+    if any(_uniform(p) for p in panels) and default in pool and not (any_highlight and pool[0] == default):
         pool = [c for c in pool if c != default] + [default]
 
     registry: dict[str, str] = dict(pinned)
@@ -1253,6 +1289,31 @@ class Explanation:
         with self.theme.rc_context(self.spec):
             return bundle_figure(self.fig, out_dir, journal=self.spec, **kwargs)
 
+    def save_pr_card(
+        self,
+        out_dir: str | Path,
+        *,
+        name: str = "figure",
+        repo_prefix: str | None = None,
+        light_style: str | None = None,
+        dark_style: str = "dark",
+        include_facts: bool = True,
+        include_reproduce: bool = True,
+    ) -> dict[str, Any]:
+        """Render light + dark PNGs and ready-to-paste GitHub PR Markdown into ``out_dir``."""
+        from ..pr_card import save_pr_card as _save_pr_card
+
+        return _save_pr_card(
+            self,
+            out_dir,
+            name=name,
+            repo_prefix=repo_prefix,
+            light_style=light_style,
+            dark_style=dark_style,
+            include_facts=include_facts,
+            include_reproduce=include_reproduce,
+        )
+
     def to_html(self, interactive: bool = True, *, compact: bool = False) -> str:
         """Render a self-contained interactive HTML document for this figure.
 
@@ -1990,6 +2051,42 @@ def _explain_impl(
             family=theme.title_family,
         )
         if len(title_lines) > MAX_TITLE_LINES:
+            # Gently nudge headline font size down by 0.5-1.0 pt (staying within the
+            # 11 px display floor and above body size) so borderline 4-line takeaways
+            # fit cleanly on 3 lines before raising takeaway_too_long.
+            w_key = width.strip().lower() if isinstance(width, str) else ""
+            disp_px = (
+                SLIDE_DISPLAY_WIDTH_PX
+                if w_key == "slide"
+                else (NARROW_DISPLAY_WIDTH_PX if w_key == "narrow" else DISPLAY_WIDTH_PX)
+            )
+            min_title_pt = max(
+                sizes.body + 0.5,
+                (MIN_TEXT_PX * (width_mm / 25.4 * 72.0) / disp_px) if spec.name == "screen" else 0.0,
+            )
+            for step_pt in (0.5, 1.0):
+                cand_pt = round(sizes.title - step_pt, 2)
+                if cand_pt < min_title_pt:
+                    continue
+                cand_lines = measure.wrap(
+                    takeaway,
+                    content_pt,
+                    cand_pt,
+                    theme.title_weight,
+                    family=theme.title_family,
+                )
+                if len(cand_lines) <= MAX_TITLE_LINES:
+                    sizes = _Sizes(
+                        scale=sizes.scale,
+                        title=cand_pt,
+                        body=sizes.body,
+                        small=sizes.small,
+                        foot=sizes.foot,
+                        density=sizes.density,
+                    )
+                    title_lines = cand_lines
+                    break
+        if len(title_lines) > MAX_TITLE_LINES:
             if not strict:
                 if len(title_lines) > MAX_TITLE_LINES + 2:
                     ell = theme.ellipsis
@@ -2418,13 +2515,16 @@ def _explain_impl(
             strict=strict,
             adjustments=adj,
         )
-        slot_of = {theme.series_colors[i]: slot for slot, i in COLOR_SLOTS.items()}
+        slot_of = {theme.series_colors[i].upper(): slot for slot, i in COLOR_SLOTS.items()}
         for panel_map_colors in panel_colors:
             for name, col in panel_map_colors.items():
                 key = _entity_key(name)
+                col_up = col.upper()
                 used = set(result.entity_colors.values())
-                if col in slot_of and key not in result.entity_colors and slot_of[col] not in used:
-                    result.entity_colors[key] = slot_of[col]  # overflow reuse is left out
+                if col_up in slot_of and key not in result.entity_colors and slot_of[col_up] not in used:
+                    result.entity_colors[key] = slot_of[col_up]  # overflow reuse is left out
+                elif key in pinned and key not in result.entity_colors and pinned[key].upper() == col_up:
+                    result.entity_colors[key] = col_up
 
         if height_mm > spec.max_height_mm + 0.5:
             issues.append(
@@ -2451,13 +2551,30 @@ def _explain_impl(
         if missing:
             issues.append(_glyph_issue(missing))
 
+        from matplotlib.text import Text as _MplText
+
         from ..audit import audit_figure, audit_to_issues
         from ..preflight import preflight_figure
 
+        angled_headers = {
+            t.get_text()
+            for t in fig.findobj(_MplText)
+            if getattr(t, "_mintfig_angled_header", False) and t.get_text()
+        }
         report = preflight_figure(fig, spec)
         for check in report.issues:
             if check.rule == "dimensions":
                 continue  # height is reported above as too_tall, in chat terms
+            if check.rule == "text_overlaps" and angled_headers:
+                ov = check.details.get("overlaps") or []
+                mod = check.details.get("moderate_overlaps") or []
+                real_ov = [
+                    o
+                    for o in (*ov, *mod)
+                    if not (o.get("text_a") in angled_headers and o.get("text_b") in angled_headers)
+                ]
+                if not real_ov:
+                    continue
             issues.append(
                 {
                     "rule": check.rule,
@@ -2468,6 +2585,11 @@ def _explain_impl(
                 }
             )
         audit = audit_figure(fig, allow_ascii_minus=(theme.minus_sign == "-"))
+        if angled_headers and audit.get("overlaps"):
+            angled_pairs = {
+                f"{a!r} / {b!r}" for a in angled_headers for b in angled_headers
+            }
+            audit["overlaps"] = [o for o in audit["overlaps"] if o not in angled_pairs]
         existing_rules = {str(i.get("rule", "")) for i in issues}
         issues.extend(audit_to_issues(audit, existing_rules=existing_rules))
 

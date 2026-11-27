@@ -218,6 +218,10 @@
             "type": "integer",
             "minimum": 100,
             "maximum": 4096
+          },
+          "timing": {
+            "type": ["object", "null"],
+            "description": "Optional detailed per-task timing breakdown (seconds_to_pass, seconds_total, time_to_first_submit_s, total_think_s, total_render_s, per_attempt, agent_cli)."
           }
         }
       }
@@ -254,6 +258,10 @@
           "type": ["number", "null"],
           "minimum": 0,
           "maximum": 100
+        },
+        "timing_summary": {
+          "type": ["object", "null"],
+          "description": "Optional aggregate timing distribution across tasks (min/p25/median/mean/p75/p90/p95/max/total)."
         },
         "notes": {
           "type": "string",

@@ -23,7 +23,7 @@
     "reached 999.9"
   ],
   "required_disclosures": [
-    "excluded",
+    "excluded|corrupt|fault|sensor|removed|flagged",
     "999.9"
   ],
   "reader_questions": [

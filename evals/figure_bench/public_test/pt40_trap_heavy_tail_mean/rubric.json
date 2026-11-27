@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1",
+  "id": "pt40_trap_heavy_tail_mean",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Commerce Analytics",
+  "title": "Heavy-tail whale outlier inflating mean while median drops",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "3 whale orders ($1.85k-$2.14k) inflate mean +48%, while median order value actually fell -4.4% ($47.7 -> $45.5)",
+  "accept": [
+    -4.440592,
+    4.440592,
+    45.549389,
+    47.666043,
+    47.519132
+  ],
+  "rel_tol": 0.1,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "broad 40% lift",
+    "typical order jumped 40%"
+  ],
+  "required_disclosures": [
+    "median",
+    "outlier|whale|skew|3 order|three order|tail"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How did the median (typical) order value change under new_pricing?",
+      "expected": "It actually fell by 4.4% (from $47.7 to $45.5)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Why did the arithmetic mean rise by over +40%?",
+      "expected": "Just 3 extreme whale orders ($1,850–$2,140) skewed the treatment mean upward."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why would a mean-only bar chart be deceptive?",
+      "expected": "It hides that the typical customer spent slightly less and attributes 3 outliers to broad lift."
+    }
+  ]
+}

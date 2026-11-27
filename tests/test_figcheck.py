@@ -209,6 +209,38 @@ def test_rainbow_colormap_is_an_error() -> None:
     assert "rainbow_colormap" in _rules(report) and report["ship"] is False
     assert report["panels"][0]["values"]["image"]["max"] == 15.0
 
+    # Turbo is also banned as a rainbow-like colormap.
+    fig2, ax2 = plt.subplots(figsize=(6, 5))
+    ax2.imshow(np.arange(16.0).reshape(4, 4), cmap="turbo")
+    report2 = mint.check(fig2, dpi=100)
+    assert "rainbow_colormap" in _rules(report2) and report2["ship"] is False
+
+
+def test_ascii_minus_is_advisory_while_malformed_text_blocks() -> None:
+    # ASCII hyphen-minus is a non-blocking advisory (`ascii_minus`), not `text_malformed`.
+    fig, ax = plt.subplots(figsize=(7, 3.6))
+    ax.bar(["A", "B"], [100, 91.8])
+    ax.set_title("B drops -8.2% vs A", fontsize=14)
+    ax.set_ylabel("Score", fontsize=11)
+    ax.tick_params(labelsize=11)
+    fig.tight_layout()
+    rep = mint.check(fig, dpi=100)
+    assert rep["ship"] is True, rep["issues"]
+    assert "text_malformed" not in _rules(rep)
+    assert "ascii_minus" in {a["rule"] for a in rep["advisories"]}
+
+    # Unresolved format placeholders, doubled %, repeated words, and NaN/None still block.
+    for bad_label in ("Delta {val}%", "Loss 40%%", "Score Score 10", "Mean nan"):
+        fig_bad, ax_bad = plt.subplots(figsize=(7, 3.6))
+        ax_bad.bar(["A", "B"], [10, 20])
+        ax_bad.set_title("B doubles A", fontsize=14)
+        ax_bad.set_ylabel(bad_label, fontsize=11)
+        ax_bad.tick_params(labelsize=11)
+        fig_bad.tight_layout()
+        rep_bad = mint.check(fig_bad, dpi=100)
+        assert rep_bad["ship"] is False, bad_label
+        assert "text_malformed" in _rules(rep_bad), bad_label
+
 
 def test_framed_legend_over_a_line_is_not_struck() -> None:
     fig, ax = plt.subplots(figsize=(6, 4))
@@ -565,6 +597,48 @@ def test_check_script_cross_env_subprocess_and_venv_autodetect(
 
     # 3. Missing --python fails cleanly
     assert cli_main(["check", str(script), "--python", str(tmp_path / "no_python")]) == 2
+
+
+def test_venv_without_matplotlib_falls_back_to_in_process_and_timeout_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from mintfig import figcheck
+
+    # 1. A standard .venv (with pyvenv.cfg) whose python lacks matplotlib is skipped cleanly.
+    bad_venv = tmp_path / "no_mpl_proj" / ".venv"
+    (bad_venv / "bin").mkdir(parents=True)
+    (bad_venv / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
+    no_mpl_py = bad_venv / "bin" / "python"
+    no_mpl_py.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    no_mpl_py.chmod(0o755)
+
+    script_dir = tmp_path / "no_mpl_proj"
+    script = _script(script_dir, GOOD_SCRIPT, "good.py")
+    assert figcheck._resolve_python(script, None) is None
+    reports = figcheck.check_script(script)
+    assert len(reports) == 1 and reports[0]["ship"] is True
+
+    # 2. Wrapper without pyvenv.cfg that fails with ModuleNotFoundError for matplotlib
+    #    automatically falls back to in-process execution when python=None.
+    wrap_proj = tmp_path / "wrap_proj"
+    (wrap_proj / ".venv" / "bin").mkdir(parents=True)
+    wrap_py = wrap_proj / ".venv" / "bin" / "python"
+    wrap_py.write_text(
+        "#!/bin/sh\necho \"ModuleNotFoundError: No module named 'matplotlib'\" >&2\nexit 1\n",
+        encoding="utf-8",
+    )
+    wrap_py.chmod(0o755)
+    script2 = _script(wrap_proj, GOOD_SCRIPT, "good2.py")
+    reports2 = figcheck.check_script(script2)
+    assert len(reports2) == 1 and reports2[0]["ship"] is True
+
+    # 3. Slow subprocess hits clean TimeoutError.
+    slow_py = tmp_path / "slow_py"
+    slow_py.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
+    slow_py.chmod(0o755)
+    monkeypatch.setattr(figcheck, "_SUBPROCESS_TIMEOUT_S", 0.2)
+    with pytest.raises(TimeoutError, match="timed out"):
+        figcheck._run_via_subprocess(slow_py, script, mode="script", claim=None, width="chat", timeout=0.2)
 
 
 def test_check_notebook_and_cli_ipynb(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

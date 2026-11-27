@@ -1,9 +1,12 @@
 # figure-bench v0.1 (work in progress)
 
-> **Status:** `figure-bench v0.1` is live with **60 deterministic tasks**, library-agnostic
-> scoring, verified **full 60-task × 3-arm** Claude Sonnet 5.5 leaderboard entries, and a
-> display-width-locked human reader study app. Community runs across additional models and
-> plotting libraries are welcome via PR.
+> **Status:** `figure-bench v0.1` includes **100 deterministic tasks** (`25 dev` /
+> `50 public-test` / `25 heldout` across 6 tracks and 6 surfaces), hardened library-agnostic
+> scoring with structural invariants (`forbid_truncated_bars`, `require_log_scale`, `min_panels`),
+> full per-task/per-attempt timing capture, an external benchmark bridge
+> ([`EXTERNAL_BENCHMARKS.md`](EXTERNAL_BENCHMARKS.md)), verified **full 100-task × 3-arm**
+> Claude Sonnet 5.5 leaderboard entries, and a display-width-locked human reader study app.
+> Community runs across additional models and plotting libraries are welcome via PR.
 
 **Can an AI agent turn a real conversation and dataset into a legible, truthful,
 uncertainty-aware figure — fast, and at the exact width a human will actually read it?**
@@ -13,37 +16,45 @@ uncertainty-aware figure — fast, and at the exact width a human will actually 
 `plotnine`, `ggplot2`, `d3`, `mintfig`, or your own skills and verifier hooks).
 
 - **Visual Results & Matplotlib Failure Anatomy:** [`docs/figure-bench.md`](../../docs/figure-bench.md)
+- **External Benchmarks & Outside-Data Adapter:** [`EXTERNAL_BENCHMARKS.md`](EXTERNAL_BENCHMARKS.md) + [`external_bridge.py`](external_bridge.py)
 - **Open Leaderboard & Visual Explorer:** [`site/index.html`](site/index.html) (zero-CDN static page)
 - **Human Blind Reader Study App:** [`human_study/index.html`](human_study/index.html) (exact `700 px` / `450 px` display-width lock)
 - **5-Minute Contributor Guide:** [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
 ---
 
-## Benchmark Architecture: 60 Tasks · 3 Splits · 6 Tracks
+## Benchmark Architecture: 100 Tasks · 3 Splits · 6 Tracks
 
 Every task is a realistic conversation (`context.md`), compact deterministic dataset(s) in
-`data/`, and a canonical `rubric.json` (`schema_version: "0.1"`). Prompts never mention
-`mintfig` or any specific library.
+`data/`, and a canonical `rubric.json` (`schema_version: "0.1"`) with 3 structured blind-reader
+questions (`primary`, `uncertainty`, `nuance`). Prompts never mention `mintfig` or any specific
+library (enforced automatically by `bench.py validate-tasks`).
 
 ### Splits
 
 | Split | Directory | Tasks | Purpose |
 | :--- | :--- | ---: | :--- |
-| **`dev`** | `tasks/` | 15 | Open development & iteration (original 10 + 5 scientific/trap/edit tasks) |
-| **`public-test`** | `public_test/` | 30 | Frozen public evaluation suite for open leaderboard comparisons |
-| **`heldout`** | `heldout/` | 15 | Held-out generalization split (never used to tune `mintfig` or `SKILL.md`) |
-| **Total** | | **60** | |
+| **`dev`** | `tasks/` | 25 | Open development & iteration across all 6 tracks |
+| **`public-test`** | `public_test/` | 50 | Public evaluation suite for open leaderboard comparisons |
+| **`heldout`** | `heldout/` | 25 | Held-out generalization split (never used to tune `mintfig` or `SKILL.md`) |
+| **Total** | | **100** | |
 
 ### Tracks
 
-| Track | ID | Tasks | What It Evaluates |
-| :--- | :--- | ---: | :--- |
-| **Science & Uncertainty** | `science_uncertainty` | 19 | Multi-seed ablations, dose-response, meta-analysis forests, survival curves, volcano plots, Raman spectra, Arrhenius kinetics, RL seed bands, alloy replicates, ocean pH, enzyme kinetics, clinical funnels |
-| **SWE & Quantitative Coding** | `swe_coding` | 13 | Latency tails, eval matrices, incidents, `hyperfine` & `pytest-benchmark` diffs, CI timelines, `k6` p99 deploy regressions, `esbuild` bundle waterfalls, LLM Pareto frontiers, signup funnels, soak memory leaks, Chrome traces |
-| **Epistemic Traps & Refusals** | `epistemic_traps` | 12 | Overlapping CIs, no-effect traps (must not overclaim speedup/improvement), Simpson's paradox, `n=3` small samples, near-zero `%` traps, truncated-bar bait, missing controls, defective cells & contaminated plates |
-| **Multi-Turn Figure Editing** | `multiturn_edit` | 6 | Targeted revisions to a prior figure: fixing definitions/units, switching baselines, linear-to-log conversion, adding hidden replicates, highlighting failing subsets |
-| **Multi-Surface Delivery** | `multi_surface` | 5 | Legibility across `450 px` narrow phone/IDE sidebars, `1280 px` presentation slides, dark dashboard cards, and 72-column SSH terminal sessions |
-| **BYO-Matplotlib Repair** | `byo_repair` | 5 | Repairing broken existing Matplotlib scripts with wrong headline numbers, `jet` colormaps, truncated bars, struck labels, and unlabelled CI bands |
+| Track | ID | Tasks | Splits (`dev`/`pt`/`held`) | What It Evaluates |
+| :--- | :--- | ---: | :---: | :--- |
+| **Science & Uncertainty** | `science_uncertainty` | 28 | 10 / 10 / 8 | Multi-seed ablations, dose-response, meta-analysis forests, survival curves, reliability diagrams, Bland–Altman agreement, XRD/Raman spectra, CRISPR ranks, climate ensembles, PK profiles, catalyst tradeoffs |
+| **SWE & Quantitative Coding** | `swe_coding` | 22 | 5 / 12 / 5 | Latency tails, GPU rooflines, DB query tails, cache MRCs, LLM serving SLAs, `hyperfine` & `pytest-benchmark` diffs, CI timelines & flake heatmaps, cloud cost waterfalls, GC pause tails, distributed scaling |
+| **Epistemic Traps & Refusals** | `epistemic_traps` | 18 | 4 / 10 / 4 | Overlapping CIs, no-effect traps, multiple testing, Simpson's paradox, ecological fallacy, survivorship bias, dual-axis spurious trends, heavy-tail means, denominator shifts, cherry-picked windows, truncated-bar bait |
+| **Multi-Turn Figure Editing** | `multiturn_edit` | 11 | 3 / 6 / 2 | Targeted revisions to a prior figure: per-capita normalization, splitting confounders, sorting & SLA lines, replacing pies, exposing bimodal tails, switching baselines, log-scale transforms, excluding QC faults |
+| **Multi-Surface Delivery** | `multi_surface` | 11 | 2 / 6 / 3 | Legible delivery across `450 px` narrow phone/IDE sidebars, `1280 px` slides, dark NOC/dashboard cards, HTML reports, and 72-column SSH terminal sessions |
+| **BYO-Matplotlib Repair** | `byo_repair` | 10 | 1 / 6 / 3 | Repairing broken existing Matplotlib scripts with wrong claims, `jet`/`rainbow` colormaps, truncated bars, dual-axis spaghetti, clipped pies, mislabelled SEM bars, and struck labels |
+
+### Timing Capture
+
+Every run captures full per-task and per-attempt timing automatically:
+- **Per attempt (`state.json` & `.bench/timing.json`):** `submitted_iso`, `finished_iso`, `think_s` (agent reasoning/coding time before submit), `render_s`, `script_exec_s`, `audit_s`, `mint_check_s`, `checks_s`, `delivery_check_s`, `submit_total_s`, and cumulative `elapsed_s`.
+- **Sweep & CLI telemetry (`sweep_timing.json`, `sweep_timings.json`, `results.json`):** `start_s`, `agent_wall_s`, `wall_s`, plus parsed agent CLI timing (`cli_duration_s`, `cli_api_duration_s`, `ttft_s`, `num_turns`, `total_cost_usd`, token counts) and full distribution summaries (`min`, `p25`, `median`, `mean`, `p75`, `p90`, `p95`, `max`, `total`) by run, split, and track.
 
 ---
 
@@ -55,8 +66,8 @@ dimensions plus optional blinded reader evaluation:
 1. **Visual Quality (`visual_quality`, 0–100):**
    - For Matplotlib-backed runs, `neutral.py` hooks `Figure.savefig` without importing
      `mintfig` and checks text legibility (`>= 11 px` at target display width), text overlap,
-     text crossed by lines, malformed text (`%%`, doubled words, ASCII hyphen minus,
-     `nan`/`None`), and canvas-edge clipping.
+     text crossed by lines, malformed text (`%%`, doubled words, `nan`/`None`; ASCII hyphen
+     minus is reported separately as an advisory in `text_advisories`), and canvas-edge clipping.
    - For any non-Matplotlib stack (`altair`, `plotly`, `ggplot2`, `d3`, etc.), `svg_audit.py`
      audits exported `figure.svg` vector geometry and `pixel_audit.py` inspects `figure.png`
      for display-width scaling, rainbow/jet hue sweeps, CVD/grayscale luminance contrast, and
@@ -76,22 +87,30 @@ dimensions plus optional blinded reader evaluation:
 
 ---
 
-## Full 60-Task Sweep Results (`v0.1`, 2026-11-26)
+## Full 100-Task Sweep Results (`v0.1`, 2026-11-26)
 
-180 fresh isolated Claude Sonnet 5.5 runs (`15 dev` + `30 public-test` + `15 heldout`; global hooks/MCP disabled):
+300 fresh isolated Claude Sonnet 5.5 runs (`25 dev` + `50 public-test` + `25 heldout`; global hooks/MCP disabled):
 
-| Submission (`all`, 60 tasks) | Library | Hook | Zero-Defect (Final) | Text >= 11 px | Right Headline # | Visual Quality | Claim Accuracy | Median Time | Composite |
-| :--- | :--- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `v01-all60-mintfig-sonnet55` | `mintfig` | ON | **57/60 (95.0%)** | **57/57 (100%)** | **53/60 (88.3%)** | **95.0** | **96.1** | **13.4 s** | **93.5** |
-| `v01-all60-matplotlib-hook-sonnet55` | `matplotlib` | ON | **48/60 (80.0%)** | **56/57 (98.2%)** | 39/60 (65.0%) | 91.6 | 87.6 | 17.4 s | **89.2** |
-| `v01-all60-matplotlib-plain-sonnet55` | `matplotlib` | OFF | **21/60 (35.0%)** | **28/60 (46.7%)** | 36/60 (60.0%) | 77.9 | 76.2 | 15.4 s | **81.6** |
+| Submission (`all`, 100 tasks) | Library | Hook | First-Submit Clean | Zero-Defect (Final) | Text >= 11 px | Right Headline # | Visual Quality | Claim Accuracy | Uncertainty | Median Time | Composite |
+| :--- | :--- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `v01-all100-mintfig-sonnet55` | `mintfig` | ON | **87/100 (87.0%)** | **100/100 (100%)** | **100/100 (100%)** | **97/100 (97.0%)** | **99.0** | **97.5** | **95.5** | **11.7 s** | **98.0** |
+| `v01-all100-matplotlib-hook-sonnet55` | `matplotlib` | ON | 57/100 (57.0%) | **91/100 (91.0%)** | **100/100 (100%)** | 73/100 (73.0%) | 98.0 | 87.0 | 92.5 | 13.9 s | **93.9** |
+| `v01-all100-matplotlib-plain-sonnet55` | `matplotlib` | OFF | 31/100 (31.0%) | 35/100 (35.0%) | 49/99 (49.5%) | 64/99 (64.6%) | 78.8 | 76.5 | 92.9 | **10.9 s** | **84.2** |
 
-Reproduce the full 60-task sweep and leaderboard export:
+### Timing Breakdown Across the 300 Runs (Median / Mean / p90)
+
+| Arm (100 tasks) | Total Task (s) | First Submit (s) | Agent Think (s) | Render + Audit (s) | CLI API (s) | TTFT (s) | Arm Wall (8w) | Mean Cost |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **`mintfig`** | **11.7** / 13.3 / 20.3 | 10.6 / 11.2 / 14.7 | 10.5 / 11.9 / 17.4 | 0.63 / 0.82 / 1.55 | 12.2 / 13.2 / 19.2 | 1.81 | 218.0 s | \$0.076 |
+| **`matplotlib-hook`** | 13.9 / 14.8 / 21.9 | 11.1 / 11.2 / 14.2 | 13.2 / 13.9 / 20.7 | 0.61 / 0.90 / 1.56 | 14.6 / 15.3 / 22.6 | 1.51 | 234.1 s | \$0.056 |
+| **`matplotlib-plain`** | **10.9** / 11.2 / 14.7 | 10.5 / 10.8 / 13.9 | 10.4 / 10.6 / 13.5 | 0.46 / 0.55 / 0.71 | 11.9 / 12.1 / 15.0 | 1.52 | 183.5 s | \$0.044 |
+
+Reproduce the full 100-task sweep and leaderboard export:
 
 ```bash
-python evals/figure_bench/run_sweep.py --arms mintfig,matplotlib-plain,matplotlib-hook \
-    --run-prefix evals/figure_bench/runs/v01_sonnet55 --split all --model sonnet --workers 8
-python evals/figure_bench/bench.py export-submission --run evals/figure_bench/runs/v01_sonnet55_mintfig \
+python evals/figure_bench/run_sweep.py --arms mintfig,matplotlib-plain,matplotlib-coached,matplotlib-hook \
+    --run-prefix evals/figure_bench/runs/v01_100_sonnet55 --split all --model sonnet --workers 8
+python evals/figure_bench/bench.py export-submission --run evals/figure_bench/runs/v01_100_sonnet55_mintfig \
     --out evals/figure_bench/leaderboard/submissions/my_run.json \
     --submission-id my-run --model "Claude Sonnet 5.5" --split all
 ```
@@ -124,9 +143,10 @@ Readers in that early run viewed full-resolution PNGs rather than display-width-
   attempt — `mintfig` (`r6`) avoided them upfront (14/15 clean on the first try).
 - **Message-first headlines:** `mintfig` stated the verified quantitative answer in the figure
   headline on 15/15 tasks vs 4/15 for both Matplotlib arms.
-- **What we still need to measure:** Full 60-task runs across multiple models, plotting
-  libraries (`seaborn`, `altair`, `plotly`, `ggplot2`, `matplotlib-hook`), and **display-width-locked
-  human blind reader studies** via [`human_study/index.html`](human_study/index.html).
+- **What we still need to measure:** Full 100-task runs across multiple models, the
+  `matplotlib-coached` prompt-only baseline, additional plotting libraries (`seaborn`,
+  `altair`, `plotly`, `ggplot2`), and **display-width-locked human blind reader studies**
+  via [`human_study/index.html`](human_study/index.html).
 
 ---
 
@@ -147,7 +167,7 @@ python evals/figure_bench/bench.py grade-dir my_outputs/ \
     --out evals/figure_bench/leaderboard/submissions/my_run.json
 ```
 
-### 3. Run built-in agent arms (`mintfig`, `matplotlib`, `matplotlib-hook`, `matplotlib-plain`, `custom`)
+### 3. Run built-in agent arms (`mintfig`, `matplotlib`, `matplotlib-coached`, `matplotlib-hook`, `matplotlib-plain`, `custom`)
 
 ```bash
 python evals/figure_bench/bench.py start 01_ablation --run runs/exp1 --arm mintfig

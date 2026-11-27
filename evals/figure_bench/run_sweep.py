@@ -1,13 +1,15 @@
-"""Parallel, resumable 60-task benchmark sweep harness for figure-bench v0.1.
+"""Parallel, resumable benchmark sweep harness for figure-bench v0.1 (100 tasks).
 
 Spawns one fresh, isolated headless Claude Code (``claude -p``) agent per task
 and arm inside each task's ``bench.py start`` working directory, with global
 hooks, MCP servers, and slash-command skills disabled so baseline arms
-(``matplotlib-plain``, ``matplotlib-hook``) stay completely uncontaminated.
+(``matplotlib-plain``, ``matplotlib-coached``, ``matplotlib-hook``) stay completely uncontaminated.
+Captures complete per-task and per-attempt timing (``sweep_timing.json`` and
+run-level ``sweep_timings.json``).
 
 Usage:
     python evals/figure_bench/run_sweep.py \\
-        --arms mintfig,matplotlib-plain,matplotlib-hook \\
+        --arms mintfig,matplotlib-plain,matplotlib-coached,matplotlib-hook \\
         --run-prefix evals/figure_bench/runs/v01_sonnet \\
         --split all --model sonnet --workers 6
 """
@@ -16,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import datetime
 import json
 import os
 import shutil
@@ -35,7 +38,13 @@ SKILL_DIR = REPO_ROOT / "src" / "mintfig" / "assets"
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+import bench as bench_mod
 import rubric
+
+
+def _iso_utc(ts: float | None = None) -> str:
+    dt = datetime.datetime.fromtimestamp(time.time() if ts is None else ts, tz=datetime.timezone.utc)
+    return dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _find_claude(explicit: str | None) -> str:
@@ -98,12 +107,15 @@ def _run_one_task(
 ) -> dict[str, Any]:
     work = run_dir / task
     t0 = time.time()
+    t0_mono = time.perf_counter()
+    started_at = _iso_utc(t0)
 
     if resume:
         done, state = _is_task_complete(work)
         if done and state is not None:
             atts = state.get("attempts") or []
             last = atts[-1]
+            timing_info = bench_mod.task_timing_from_state(work, state)
             return {
                 "task": task,
                 "arm": arm,
@@ -112,6 +124,7 @@ def _run_one_task(
                 "done": bool(last.get("done", last.get("passed"))),
                 "attempts": len(atts),
                 "seconds": round(last["finished"] - state["started"], 1),
+                "timing": timing_info,
             }
         if work.exists():
             shutil.rmtree(work)
@@ -135,8 +148,11 @@ def _run_one_task(
         start_cmd += ["--library", library]
     if skill:
         start_cmd += ["--skill", skill]
+    t_start_mono = time.perf_counter()
     start_proc = subprocess.run(start_cmd, capture_output=True, text=True, check=False)
+    start_s = round(time.perf_counter() - t_start_mono, 3)
     if start_proc.returncode != 0:
+        wall_s = round(time.perf_counter() - t0_mono, 3)
         return {
             "task": task,
             "arm": arm,
@@ -144,7 +160,15 @@ def _run_one_task(
             "passed": False,
             "done": False,
             "attempts": 0,
-            "seconds": round(time.time() - t0, 1),
+            "seconds": round(wall_s, 1),
+            "timing": {
+                "started_at": started_at,
+                "finished_at": _iso_utc(),
+                "start_s": start_s,
+                "agent_wall_s": 0.0,
+                "wall_s": wall_s,
+                "timed_out": False,
+            },
             "error": (start_proc.stderr or start_proc.stdout).strip()[:300],
         }
 
@@ -185,6 +209,7 @@ def _run_one_task(
     env["MPLCONFIGDIR"] = "/tmp/mpl-figbench"
 
     timed_out = False
+    t_agent_mono = time.perf_counter()
     try:
         proc = subprocess.run(
             cmd,
@@ -202,10 +227,29 @@ def _run_one_task(
         out_s = exc.stdout.decode("utf-8", errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
         err_s = exc.stderr.decode("utf-8", errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or "")
         log_body = f"TIMED OUT after {timeout_s}s\n{out_s}\n--- STDERR ---\n{err_s}"
+    agent_wall_s = round(time.perf_counter() - t_agent_mono, 3)
 
     log_path.write_text(log_body, encoding="utf-8")
 
-    # 3. Read final task state
+    wall_s = round(time.perf_counter() - t0_mono, 3)
+    finished_at = _iso_utc()
+    sweep_timing = {
+        "task": task,
+        "arm": arm,
+        "model": model,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "start_s": start_s,
+        "agent_wall_s": agent_wall_s,
+        "wall_s": wall_s,
+        "timed_out": timed_out,
+    }
+    (work / ".bench" / "sweep_timing.json").write_text(
+        json.dumps(sweep_timing, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    # 3. Read final task state & full timing breakdown
     done, state = _is_task_complete(work)
     atts = (state or {}).get("attempts") or []
     last = atts[-1] if atts else None
@@ -213,7 +257,16 @@ def _run_one_task(
     elapsed = (
         round(last["finished"] - state["started"], 1)
         if (last and state)
-        else round(time.time() - t0, 1)
+        else round(wall_s, 1)
+    )
+    timing_info = (
+        bench_mod.task_timing_from_state(work, state)
+        if state is not None
+        else {"sweep": sweep_timing, "agent_cli": bench_mod.parse_agent_log_timing(work)}
+    )
+    (work / ".bench" / "timing.json").write_text(
+        json.dumps(timing_info, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
     )
     return {
         "task": task,
@@ -223,6 +276,9 @@ def _run_one_task(
         "done": done,
         "attempts": len(atts),
         "seconds": elapsed,
+        "wall_s": wall_s,
+        "agent_wall_s": agent_wall_s,
+        "timing": timing_info,
         "failed_checks": [c["name"] for c in (last.get("checks") or []) if not c.get("passed")] if last else ["no_submission"],
     }
 
@@ -284,9 +340,38 @@ def _run_arm_sweep(
                     flush=True,
                 )
 
-    elapsed_arm = time.time() - t_arm0
+    elapsed_arm = round(time.time() - t_arm0, 2)
     passed_n = sum(1 for r in results if r["passed"])
     done_n = sum(1 for r in results if r["done"])
+    results.sort(key=lambda r: r["task"])
+
+    sweep_summary = {
+        "arm": arm,
+        "model": model,
+        "workers": workers,
+        "task_count": len(results),
+        "passed": passed_n,
+        "done": done_n,
+        "arm_wall_s": elapsed_arm,
+        "finished_at": _iso_utc(),
+        "timing_summary": {
+            "seconds": bench_mod.summarize_timings([r["seconds"] for r in results if isinstance(r.get("seconds"), (int, float))]),
+            "wall_s": bench_mod.summarize_timings([r["wall_s"] for r in results if isinstance(r.get("wall_s"), (int, float))]),
+            "agent_wall_s": bench_mod.summarize_timings([r["agent_wall_s"] for r in results if isinstance(r.get("agent_wall_s"), (int, float))]),
+            "total_think_s": bench_mod.summarize_timings(
+                [(r.get("timing") or {}).get("total_think_s") for r in results if isinstance((r.get("timing") or {}).get("total_think_s"), (int, float))]
+            ),
+            "total_render_s": bench_mod.summarize_timings(
+                [(r.get("timing") or {}).get("total_render_s") for r in results if isinstance((r.get("timing") or {}).get("total_render_s"), (int, float))],
+                decimals=3,
+            ),
+        },
+        "tasks": results,
+    }
+    (run_dir / "sweep_timings.json").write_text(
+        json.dumps(sweep_summary, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
     print(
         f"=== Finished arm={arm}: passed={passed_n}/{len(tasks)}, done={done_n}/{len(tasks)} in {elapsed_arm:.1f}s ===",
         flush=True,

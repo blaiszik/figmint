@@ -160,7 +160,7 @@ def _normalize_stages(
     )
 
 
-@_guarded("flow")
+@_guarded("flow", aliases={"measure": "label"})
 def flow(
     stages: (
         Mapping[str, float]

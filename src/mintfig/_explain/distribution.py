@@ -251,7 +251,7 @@ def _histogram_edges(
     )
 
 
-@_guarded("distribution")
+@_guarded("distribution", aliases={"measure": "label"})
 def distribution(
     groups: Mapping[str, Sequence[float]] | Sequence[float] | Sequence[Mapping[str, Any]],
     *,
@@ -360,6 +360,22 @@ def distribution(
         raise ExplainError(
             "distribution(groups) must map group names to lists of observations.",
             fix_hint='e.g. {"control": [4.1, 3.9, 4.4, ...], "treated": [...]}.',
+        )
+    elif (
+        isinstance(groups, Sequence)
+        and not isinstance(groups, (str, bytes))
+        and groups
+        and all(
+            isinstance(item, Sequence)
+            and not isinstance(item, (str, bytes))
+            and len(item) == 2
+            and isinstance(item[0], str)
+            for item in groups
+        )
+    ):
+        raise ExplainError(
+            "distribution(groups) expects a dict mapping group name -> list of observations, got a list of pairs.",
+            fix_hint='Pass a dict such as {"control": [4.1, 3.9, 4.4], "treated": [5.2, 5.5, 5.1]}.',
         )
     else:
         raw = {"": groups}
@@ -1301,7 +1317,7 @@ def distribution(
     )
 
 
-@_guarded("histogram")
+@_guarded("histogram", aliases={"measure": "label"})
 def histogram(
     values: Mapping[str, Sequence[float]] | Sequence[float] | Sequence[Mapping[str, Any]],
     *,

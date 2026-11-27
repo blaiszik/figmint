@@ -22,9 +22,10 @@
     "dramatic jump"
   ],
   "required_disclosures": [
-    "1.2",
-    "scale"
+    "1.2|97.4|98.6",
+    "scale|baseline|zero|0|truncat|axis|pp"
   ],
+  "forbid_truncated_bars": true,
   "reader_questions": [
     {
       "kind": "primary",

@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt44_edit_replace_pie_with_delta",
+  "split": "public-test",
+  "track": "multiturn_edit",
+  "domain": "Marketing Analytics",
+  "title": "Replace 7-slice dual pie chart with Q1→Q2 channel shift",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Organic Search fell -9.4 pp (38.6% -> 29.2%) while Paid Search rose +5.6 pp (14.2% -> 19.8%)",
+  "accept": [
+    -9.4,
+    9.4,
+    5.6,
+    29.2
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 0.3,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "organic",
+    "paid"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which channel lost the most traffic share from Q1 to Q2 and by how many percentage points?",
+      "expected": "Organic Search fell −9.4 pp (from 38.6% to 29.2%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Which channel gained the most share?",
+      "expected": "Paid Search rose +5.6 pp (from 14.2% to 19.8%)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why was the pie chart replaced?",
+      "expected": "Side-by-side 7-wedge pies make comparing exact percentage-point deltas across channels nearly impossible."
+    }
+  ]
+}

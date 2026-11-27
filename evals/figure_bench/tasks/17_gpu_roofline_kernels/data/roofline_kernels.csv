@@ -1,0 +1,7 @@
+kernel,arith_intensity_flop_per_byte,achieved_tflops,roof_tflops,roof_efficiency_pct,regime
+rmsnorm_v1,2.4,5.1,8.04,63.4,memory
+softmax_fused,5.8,16.4,19.43,84.4,memory
+rope_apply,1.9,5.4,6.37,84.8,memory
+flash_attn_fwd,118.0,342.0,395.3,86.5,memory
+gemm_fp16_tile,420.0,792.0,989.0,80.1,compute
+moe_grouped_gemm,340.0,488.0,989.0,49.3,compute

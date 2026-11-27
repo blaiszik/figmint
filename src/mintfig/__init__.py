@@ -8,8 +8,11 @@ in :mod:`mintfig.skill`.
 
 from __future__ import annotations
 
+import importlib
 import os
+import sys
 import tempfile
+import types
 from pathlib import Path
 
 
@@ -26,62 +29,29 @@ def _ensure_writable_mplconfigdir() -> None:
     probe = mpl_dir if mpl_dir.exists() else home
     if os.access(probe, os.W_OK):
         return
-    fallback = Path(tempfile.gettempdir()) / "mintfig-mpl"
-    try:
-        fallback.mkdir(parents=True, exist_ok=True)
-        os.environ["MPLCONFIGDIR"] = str(fallback)
-    except OSError:
-        pass
+    candidates = (
+        Path(tempfile.gettempdir()) / "mintfig-mpl",
+        Path("/tmp") / "mintfig-mpl",
+    )
+    seen: set[Path] = set()
+    for cand in candidates:
+        if cand in seen:
+            continue
+        seen.add(cand)
+        try:
+            cand.mkdir(parents=True, exist_ok=True)
+            # Verify actual writability with a real create+unlink probe (handles
+            # read-only dirs and macOS sandbox denials where os.access may mislead).
+            probe_file = cand / f".mintfig-probe-{os.getpid()}"
+            probe_file.write_bytes(b"")
+            probe_file.unlink(missing_ok=True)
+            os.environ["MPLCONFIGDIR"] = str(cand)
+            return
+        except OSError:
+            continue
 
 
 _ensure_writable_mplconfigdir()
-
-# Submodule homes for names that left the top level in 0.3.0 (reachable as mint.pub, ...).
-from . import audit as audit
-from . import byo as byo
-from . import inline
-from . import interactive as interactive
-from . import notebook as notebook
-from . import pub as pub
-from . import skill as skill
-from . import terminal as terminal
-from . import themes as themes
-from .brief import Brief, Session, brief
-from .byo import (
-    load_ipython_extension as load_ipython_extension,
-)
-from .byo import (
-    style,
-)
-from .byo import (
-    unload_ipython_extension as unload_ipython_extension,
-)
-from .edit import edit
-from .explainer import (
-    ExplainError,
-    Explanation,
-    Panel,
-    change,
-    compare,
-    custom,
-    distribution,
-    explain,
-    flow,
-    histogram,
-    lenient,
-    load,
-    matrix,
-    relate,
-    share,
-    table,
-    timeline,
-    trend,
-    waterfall,
-)
-from .figcheck import check
-from .inline import InlineGraphic
-from .inspect_data import auto_panel, inspect_data, load_table_file
-from .plate import Plate, figure
 
 __version__ = "0.3.0"
 
@@ -122,9 +92,106 @@ __all__ = [
     "waterfall",
 ]
 
+# Submodule homes (lazily imported via __getattr__ so CLI no-ops stay pure stdlib).
+_LAZY_SUBMODULES: frozenset[str] = frozenset(
+    {
+        "audit",
+        "byo",
+        "inline",
+        "interactive",
+        "notebook",
+        "pub",
+        "skill",
+        "terminal",
+        "themes",
+    }
+)
+
+# Top-level re-exports loaded on first access so `import mintfig` does not eagerly
+# pull in matplotlib, numpy, or PIL.
+_LAZY_ATTRS: dict[str, tuple[str, str]] = {
+    "Brief": (".brief", "Brief"),
+    "Session": (".brief", "Session"),
+    "brief": (".brief", "brief"),
+    "load_ipython_extension": (".byo", "load_ipython_extension"),
+    "style": (".byo", "style"),
+    "unload_ipython_extension": (".byo", "unload_ipython_extension"),
+    "edit": (".edit", "edit"),
+    "ExplainError": (".explainer", "ExplainError"),
+    "Explanation": (".explainer", "Explanation"),
+    "Panel": (".explainer", "Panel"),
+    "change": (".explainer", "change"),
+    "compare": (".explainer", "compare"),
+    "custom": (".explainer", "custom"),
+    "distribution": (".explainer", "distribution"),
+    "explain": (".explainer", "explain"),
+    "flow": (".explainer", "flow"),
+    "histogram": (".explainer", "histogram"),
+    "lenient": (".explainer", "lenient"),
+    "load": (".explainer", "load"),
+    "matrix": (".explainer", "matrix"),
+    "relate": (".explainer", "relate"),
+    "share": (".explainer", "share"),
+    "table": (".explainer", "table"),
+    "timeline": (".explainer", "timeline"),
+    "trend": (".explainer", "trend"),
+    "waterfall": (".explainer", "waterfall"),
+    "check": (".figcheck", "check"),
+    "InlineGraphic": (".inline", "InlineGraphic"),
+    "auto_panel": (".inspect_data", "auto_panel"),
+    "inspect_data": (".inspect_data", "inspect_data"),
+    "load_table_file": (".inspect_data", "load_table_file"),
+    "Plate": (".plate", "Plate"),
+    "figure": (".plate", "figure"),
+}
+
+_PUB_MOVED: tuple[str, ...] = (
+    "BANNED_COLORMAPS",
+    "EDITORIAL_COLORMAPS",
+    "JOURNALS",
+    "MM_PER_INCH",
+    "PALETTES",
+    "BundleResult",
+    "CheckResult",
+    "JournalSpec",
+    "PreflightReport",
+    "RunResult",
+    "apply",
+    "bundle_figure",
+    "despine",
+    "direct_labels",
+    "emphasize",
+    "get_palette",
+    "get_spec",
+    "ghost_context",
+    "in_to_mm",
+    "mm_to_in",
+    "preflight_figure",
+    "preflight_pdf",
+    "range_frame",
+    "rasterize_heavy",
+    "rc_params",
+    "register_colormaps",
+    "render_proof_sheet",
+    "resolved_font_name",
+    "run_script",
+    "save_figure",
+    "scalebar",
+    "sig_bracket",
+    "simulate_cvd",
+    "slopegraph",
+    "sparkline",
+    "style_colorbar",
+    "style_heatmap",
+    "subtle_grid",
+    "tufte_boxplot",
+    "use",
+    "zoom_inset",
+)
+
 # Names removed from the top level in 0.3.0 (clean break, no aliases) -> new home.
 _MOVED: dict[str, str] = {
-    **{name: f"mintfig.pub.{name}" for name in pub.__all__ if name not in {"Plate", "figure"}},
+    **{name: f"mintfig.pub.{name}" for name in _PUB_MOVED},
     **{
         name: f"mintfig.themes.{name}"
         for name in (
@@ -136,7 +203,10 @@ _MOVED: dict[str, str] = {
             "get_explain_palette",
         )
     },
-    **{name: f"mintfig.audit.{name}" for name in audit.__all__},
+    **{
+        name: f"mintfig.audit.{name}"
+        for name in ("audit_epistemic", "audit_figure", "audit_layout", "build_narrative")
+    },
     **{
         name: f"mintfig.skill.{name}"
         for name in ("install_skill", "get_skill_markdown", "get_agents_snippet", "VALID_TARGETS")
@@ -156,10 +226,42 @@ _HINTS: dict[str, str] = {
 }
 
 
+_CALLABLE_SUBMODULE_NAMES: frozenset[str] = frozenset(
+    {"brief", "edit", "inspect_data", "style"}
+)
+
+
+class _MintfigModule(types.ModuleType):
+    """Module subclass that prevents submodule loads from shadowing top-level callables."""
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name in _CALLABLE_SUBMODULE_NAMES and isinstance(value, types.ModuleType):
+            return
+        super().__setattr__(name, value)
+
+
+sys.modules[__name__].__class__ = _MintfigModule
+
+
 def __getattr__(name: str) -> object:
+    target = _LAZY_ATTRS.get(name)
+    if target is not None:
+        mod_name, attr_name = target
+        module = importlib.import_module(mod_name, __name__)
+        value = getattr(module, attr_name)
+        globals()[name] = value
+        return value
+    if name in _LAZY_SUBMODULES:
+        module = importlib.import_module(f".{name}", __name__)
+        globals()[name] = module
+        return module
     new_home = _MOVED.get(name)
     if new_home is not None:
         raise AttributeError(
             f"mintfig.{name} moved to {new_home} in 0.3.0{_HINTS.get(name, '')}"
         )
     raise AttributeError(f"module 'mintfig' has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__) | set(_LAZY_SUBMODULES))

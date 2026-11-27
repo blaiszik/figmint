@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1",
+  "id": "h20_trap_ecological_fallacy",
+  "split": "heldout",
+  "track": "epistemic_traps",
+  "domain": "Education Statistics",
+  "title": "Ecological fallacy: positive district correlation vs negative within-district slope",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "District means correlate positively (r = +1.00), but within every district student slope is negative (mean r = -0.77)",
+  "accept": [
+    -0.774451,
+    0.774451,
+    0.996521,
+    -2.6,
+    2.6
+  ],
+  "rel_tol": 0.18,
+  "abs_tol": 0.08,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "tutoring causes higher scores",
+    "each extra hour raises"
+  ],
+  "required_disclosures": [
+    "district|within|group|stratif",
+    "ecological|revers|negative|simpson|aggregate"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How does the within-district correlation compare to the district-aggregate correlation?",
+      "expected": "Aggregate r is +1.00, but within every district student-level correlation reverses to r ≈ -0.77."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Why does the sign flip between district and student levels?",
+      "expected": "Affluent districts have both higher baseline scores and more tutoring, while struggling students within each district take more tutoring."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why would plotting only 5 district averages mislead policy?",
+      "expected": "It commits the ecological fallacy, inferring an individual-level positive effect from a group-level correlation."
+    }
+  ]
+}

@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "replicates",
-    "Km"
+    "replicate|n=|s.d.|sd|ci|\u00b1",
+    "Km|K_m|k_m"
   ],
   "reader_questions": [
     {

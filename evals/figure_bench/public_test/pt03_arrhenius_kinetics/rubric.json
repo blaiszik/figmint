@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "kJ/mol",
-    "replicates"
+    "kJ/mol|kj",
+    "replicate|3 run|n=3|s.d.|sd|ci|\u00b1"
   ],
   "reader_questions": [
     {

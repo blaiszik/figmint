@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "24_surface_html_interactive_report",
+  "split": "dev",
+  "track": "multi_surface",
+  "domain": "ML Monitoring",
+  "title": "HTML report 6-month model drift across traffic slices",
+  "display_width_px": 700,
+  "surface": "html",
+  "what": "android_app F1 fell -9.4 pp from May to October (to 77.4%), while web/iOS stayed flat within 95% CI",
+  "accept": [
+    9.4,
+    -9.4,
+    77.4
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "android",
+    "95% ci|ci|±|2,000|2000"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which slice suffered F1 drift and how many points did it drop from May to October?",
+      "expected": "android_app dropped 9.4 percentage points (from 86.8% down to 77.4%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is evaluation uncertainty shown?",
+      "expected": "95% confidence bands across n = 2,000 samples per slice-month."
+    },
+    {
+      "kind": "nuance",
+      "question": "How did the other three slices behave?",
+      "expected": "us_web, eu_web, and ios_app stayed flat within ~1 point."
+    }
+  ]
+}

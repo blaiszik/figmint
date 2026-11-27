@@ -1,0 +1,45 @@
+{
+  "schema_version": "0.1",
+  "id": "21_edit_normalize_per_capita",
+  "split": "dev",
+  "track": "multiturn_edit",
+  "domain": "Public Health",
+  "title": "Revise raw county admissions to per-100k rate with 95% Poisson CI",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Cedar-Flats leads at 154.8/100k (3.5x Metro-North's 44.8/100k)",
+  "accept": [
+    154.83871,
+    3.457563,
+    138.823529,
+    44.782609
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "Metro-North has the highest rate"
+  ],
+  "required_disclosures": [
+    "100k|100,000|per capita",
+    "95% ci|poisson|ci|±"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which county has the highest per-capita admission rate and what is it?",
+      "expected": "Cedar-Flats at 154.8 per 100k residents (followed by Pine-Ridge at 138.8/100k)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is count uncertainty represented for small rural counties?",
+      "expected": "95% Poisson confidence intervals showing wider bars for smaller populations."
+    },
+    {
+      "kind": "nuance",
+      "question": "How does the ranking change compared to the prior raw-count figure?",
+      "expected": "Metro-North drops from #1 in raw counts to the lowest per-capita rate (44.8/100k)."
+    }
+  ]
+}

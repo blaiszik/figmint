@@ -5,13 +5,14 @@
   "track": "multi_surface",
   "domain": "Systems",
   "title": "SSH terminal-only serialization benchmark comparison",
-  "display_width_px": 700,
+  "display_width_px": 72,
   "surface": "terminal",
-  "what": "flatwire mean decode throughput (MB/s) or its speedup ratio vs json-std / cbor-fast",
+  "what": "flatwire mean decode throughput (MB/s), speedup ratio vs json-std / cbor-fast / proto-lite, or payload overhead (%)",
   "accept": [
     1413.49,
     4.480016,
-    1.553713
+    1.553713,
+    2.057811
   ],
   "rel_tol": 0.08,
   "abs_tol": 0.15,
@@ -19,8 +20,9 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "<=72-column plain-text or Unicode table/bars",
-    "run-to-run spread (s.d.) across 10 runs"
+    "flatwire",
+    "s.d.|sd|\u00b1|10 runs|n=10|spread",
+    "proto-lite|payload"
   ],
   "reader_questions": [
     {

@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt33_crispr_screen_rank",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Functional Genomics",
+  "title": "CRISPR synthetic-lethality rank-order screen with guide SD",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "4 hits pass FDR < 0.05; PRMT5 is the top dropout at log2FC = -3.45 (±0.21 SD across 4 guides)",
+  "accept": [
+    -3.45,
+    3.45,
+    4.0
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.15,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "prmt5",
+    "fdr|0.05",
+    "4 guide|n=4|s.d.|sd|±"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which gene is the top synthetic-lethal hit and what is its log2 fold change?",
+      "expected": "PRMT5 at log2FC = −3.45 (with 4 total genes passing FDR < 0.05)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is sgRNA variability reported?",
+      "expected": "Guide-level SD across 4 sgRNAs per gene."
+    },
+    {
+      "kind": "nuance",
+      "question": "Which other three genes pass FDR < 0.05?",
+      "expected": "WRN (−2.92), POLQ (−2.38), and AURKB (−1.96)."
+    }
+  ]
+}

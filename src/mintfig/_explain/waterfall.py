@@ -66,7 +66,7 @@ def _parse_start(start: object) -> tuple[str, float] | None:
     )
 
 
-@_guarded("waterfall")
+@_guarded("waterfall", aliases={"measure": "label"})
 def waterfall(
     steps: Mapping[str, float] | Sequence[tuple[str, float]] | Sequence[Mapping[str, Any]],
     *,

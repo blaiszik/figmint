@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "h22_edit_add_control_and_exclude_drift",
+  "split": "heldout",
+  "track": "multiturn_edit",
+  "domain": "Assay QC",
+  "title": "Add sham control and exclude documented temp-drift run R07",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Clean treated lift over sham control is +6.0 a.u. (+48%, 18.5 vs 12.5 a.u.) after excluding faulty R07",
+  "accept": [
+    6.0,
+    48.0,
+    18.5
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.4,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "23.1 a.u."
+  ],
+  "required_disclosures": [
+    "r07",
+    "exclud|drift|fault|qc|omitted",
+    "sham|control",
+    "n=4|4 run|s.d.|sd|ci|±"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the corrected net lift of treated over sham control after excluding R07?",
+      "expected": "+6.0 a.u. (+48%, from 12.5 to 18.5 a.u.)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many valid runs remain per arm?",
+      "expected": "4 valid runs per arm (R07 excluded due to temp_drift_fault)."
+    },
+    {
+      "kind": "nuance",
+      "question": "How did R07 distort the prior figure?",
+      "expected": "Its 41.5 a.u. fault inflated the treated mean from 18.5 to 23.1 a.u."
+    }
+  ]
+}

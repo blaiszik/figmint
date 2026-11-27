@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1",
+  "id": "04_battery_fade",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Materials / Energy",
+  "title": "Electrolyte additive coin-cell cycle-life retention",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "cycle at which the baseline reaches 80% retention",
+  "accept": [
+    457.794895
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "80%|eol|end of life"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "At about which cycle number does the baseline electrolyte reach 80% capacity retention?",
+      "expected": "Around cycle 458 (~450–460 cycles)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many cells per electrolyte are summarized?",
+      "expected": "4 coin cells per electrolyte (BL-1..4, FEC-1..4, VC-1..4)."
+    },
+    {
+      "kind": "nuance",
+      "question": "How do the FEC and VC additives compare to baseline?",
+      "expected": "Both additives extend cycle life well past baseline's 80% end-of-life threshold."
+    }
+  ]
+}

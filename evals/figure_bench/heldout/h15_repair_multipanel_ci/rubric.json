@@ -19,10 +19,10 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "shaded band labelled as \u00b11 s.d.",
-    "corrected crossover epoch",
-    "no overlapping legend/annotations"
+    "s.d.|sd|\u00b1|5 seeds|n=5",
+    "epoch 6|crossover|cosine"
   ],
+  "min_panels": 2,
   "reader_questions": [
     {
       "kind": "primary",

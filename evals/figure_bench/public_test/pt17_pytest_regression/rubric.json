@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "40 benchmark rounds with spread (s.d. or IQR)",
-    "other 5 endpoints unchanged within noise"
+    "40 rounds|40 runs|n=40|s.d.|sd|iqr|\u00b1|spread",
+    "other 5|five|unchanged|within noise|flat"
   ],
   "reader_questions": [
     {

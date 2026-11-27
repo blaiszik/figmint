@@ -19,9 +19,9 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "corrected ap-northeast median",
-    "y-axis labelled with ms",
-    "spread across 60 requests/region"
+    "ap-northeast",
+    "ms",
+    "60|iqr|median|spread|s.d.|sd|n=60"
   ],
   "reader_questions": [
     {

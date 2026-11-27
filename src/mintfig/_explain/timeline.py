@@ -160,7 +160,7 @@ def _max_concurrency(records: Sequence[Mapping[str, Any]]) -> int:
     return peak
 
 
-@_guarded("timeline")
+@_guarded("timeline", aliases={"measure": "label"})
 def timeline(
     spans: (
         Mapping[str, tuple[float, float]]

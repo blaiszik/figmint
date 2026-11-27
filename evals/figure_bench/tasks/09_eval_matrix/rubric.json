@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "09_eval_matrix",
+  "split": "dev",
+  "track": "swe_coding",
+  "domain": "ML Evaluation",
+  "title": "Multilingual 6×5 checkpoint evaluation matrix",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Swahili × math now (%), its gain over the previous checkpoint, or before",
+  "accept": [
+    45.4,
+    16.8,
+    28.6
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 1.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "swahili",
+    "math"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the new checkpoint's accuracy on Swahili math, in %?",
+      "expected": "45.4% (+16.8 points up from 28.6%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How are gains over the previous checkpoint shown?",
+      "expected": "Comparing new vs previous checkpoint across all 30 language × task cells."
+    },
+    {
+      "kind": "nuance",
+      "question": "Did the new checkpoint regress on any language-task cell?",
+      "expected": "No major regression; Swahili math had the biggest gain from the previous blocker."
+    }
+  ]
+}

@@ -13,6 +13,7 @@ sketch jitter. It never changes the information-design rules enforced by
 
 from __future__ import annotations
 
+import importlib
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field, replace
 from typing import Any
@@ -20,8 +21,9 @@ from typing import Any
 import matplotlib as mpl
 from matplotlib.colors import to_rgb
 
-from . import style
 from .specs import JournalSpec
+
+style = importlib.import_module("mintfig.style")
 
 
 @dataclass(frozen=True)
@@ -44,7 +46,7 @@ class Theme:
 
     # Categorical & matrix palettes (strictly 4 series + 3 accents, CVD/grayscale verified)
     series_colors: tuple[str, ...] = ("#1F5A9D", "#CD4324", "#0F9478", "#CC8800")
-    accent_colors: tuple[str, ...] = ("#CD4324", "#1F5A9D", "#0F9478")
+    accent_colors: tuple[str, ...] = ("#1F5A9D", "#CD4324", "#0F9478")
     seq_stops: tuple[str, ...] = (
         "#F4F7FB",
         "#C9DBEF",
@@ -636,8 +638,10 @@ def apply_accent(theme: Theme, accent: str | None) -> tuple[Theme, str | None]:
                 hex_col = cand
                 break
     series = list(theme.series_colors)
-    if len(series) >= 2:
-        series[1] = hex_col  # highlight slot 0 ("red")
+    if theme.accent_colors and theme.accent_colors[0] in series:
+        series[series.index(theme.accent_colors[0])] = hex_col
+    elif len(series) >= 2:
+        series[1] = hex_col
     else:
         series[0] = hex_col
     accents = (hex_col, *theme.accent_colors[1:])

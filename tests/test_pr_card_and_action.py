@@ -216,6 +216,71 @@ class TestSavePrCard:
         assert "<summary>Numbers (mintfig)</summary>" in facts_only["markdown"]
         assert "mintfig explain" not in facts_only["markdown"]
 
+    def test_cli_pr_card_flag_on_explain_plot_and_diff(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        from mintfig.cli import main as cli_main
+
+        # 1. mintfig explain --pr-card
+        spec = {
+            "takeaway": "Full model leads by 8 points",
+            "panels": [
+                {
+                    "kind": "compare",
+                    "values": {"full model": 0.82, "no retrieval": 0.74},
+                    "label": "Test accuracy",
+                }
+            ],
+            "source": "ablation",
+        }
+        spec_path = tmp_path / "spec.json"
+        spec_path.write_text(json.dumps(spec), encoding="utf-8")
+        explain_dir = tmp_path / "pr_explain"
+        rc_exp = cli_main(["explain", str(spec_path), "--pr-card", str(explain_dir)])
+        out_exp = json.loads(capsys.readouterr().out)
+        assert rc_exp == 0
+        assert out_exp["ship"] is True
+        assert (explain_dir / "figure.light.png").is_file()
+        assert (explain_dir / "figure.dark.png").is_file()
+        assert (explain_dir / "figure.md").is_file()
+
+        # 2. mintfig plot --pr-card
+        csv_path = tmp_path / "scores.csv"
+        csv_path.write_text("variant,score\nA,10\nB,25\nC,18\n", encoding="utf-8")
+        plot_dir = tmp_path / "pr_plot"
+        rc_plot = cli_main(
+            [
+                "plot",
+                str(csv_path),
+                "--kind",
+                "compare",
+                "--takeaway",
+                "B scores 25, ahead of A",
+                "--pr-card",
+                str(plot_dir),
+            ]
+        )
+        out_plot = json.loads(capsys.readouterr().out)
+        assert rc_plot == 0
+        assert out_plot["ship"] is True
+        assert (plot_dir / "scores.light.png").is_file()
+        assert (plot_dir / "scores.dark.png").is_file()
+        assert (plot_dir / "scores.md").is_file()
+
+        # 3. mintfig diff --pr-card
+        base_csv = tmp_path / "base.csv"
+        head_csv = tmp_path / "head.csv"
+        base_csv.write_text("bench,latency_ms\nparse,100\nrender,200\n", encoding="utf-8")
+        head_csv.write_text("bench,latency_ms\nparse,80\nrender,160\n", encoding="utf-8")
+        diff_dir = tmp_path / "pr_diff"
+        rc_diff = cli_main(["diff", str(base_csv), str(head_csv), "--pr-card", str(diff_dir)])
+        out_diff = capsys.readouterr().out
+        assert rc_diff == 0
+        assert "<picture>" in out_diff
+        assert (diff_dir / "diff.light.png").is_file()
+        assert (diff_dir / "diff.dark.png").is_file()
+        assert (diff_dir / "diff.md").is_file()
+
 
 # --------------------------------------------------------------------------- #
 # format_check_pr_comment
@@ -437,10 +502,12 @@ class TestActionAndDocs:
             "strict",
             "fail-on-fix",
             "python-version",
+            "use-existing-python",
             "mintfig-version",
             "write-summary",
         }
         assert expected_inputs <= input_keys
+        assert "git" in text and "fetch" in text and "GITHUB_BASE_REF" in text
 
         output_keys = set(_extract_indented_keys(blocks["outputs"], indent=2))
         expected_outputs = {"passed", "checked-count", "failed-count", "report-markdown"}

@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1",
+  "id": "06_energy_mix",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Climate / Grid",
+  "title": "Regional 2025 grid generation mix excluding biomass",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "renewable share of generation without biomass (%)",
+  "accept": [
+    33.700608
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 1.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "biomass",
+    "wind|solar|hydro|renewable"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What share of generation is renewable when only wind, solar and hydro count (biomass excluded), in %?",
+      "expected": "33.7% (about 34%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Which generation sources make up the non-biomass renewable share?",
+      "expected": "Wind, solar, and hydro combined."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why did the figure have to be revised from the prior draft?",
+      "expected": "The prior draft counted biomass as renewable, inflating the renewable share."
+    }
+  ]
+}

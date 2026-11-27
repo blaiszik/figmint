@@ -1,0 +1,10 @@
+run_id,arm,qc_status,response_au
+R01,sham_control,valid,12.1
+R02,sham_control,valid,13.4
+R03,sham_control,valid,11.8
+R04,sham_control,valid,12.7
+R05,treated,valid,18.6
+R06,treated,valid,19.2
+R07,treated,temp_drift_fault,41.5
+R08,treated,valid,17.9
+R09,treated,valid,18.3

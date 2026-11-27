@@ -1,0 +1,9 @@
+category,count,share_pct
+Timeouts,314,31.4
+Auth Expired,218,21.8
+Rate Limited,162,16.2
+Bad Payload,114,11.4
+DB Lock,82,8.2
+DNS Reset,54,5.4
+TLS Handshake,34,3.4
+Other,22,2.2

@@ -1,0 +1,11 @@
+endpoint,stage,n_queries,p50_ms,p95_ms,p99_ms
+orders_join,before_index,500,26.36,99.92,150.5
+orders_join,after_index,500,11.61,20.69,24.62
+user_profile,before_index,500,8.28,13.83,15.96
+user_profile,after_index,500,8.0,13.58,17.15
+invoice_search,before_index,500,22.85,58.59,89.1
+invoice_search,after_index,500,11.3,20.35,26.9
+audit_export,before_index,500,39.8,75.82,109.71
+audit_export,after_index,500,39.88,80.42,90.84
+order_insert,before_index,500,7.03,10.79,13.19
+order_insert,after_index,500,11.13,17.59,20.7

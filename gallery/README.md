@@ -4,7 +4,7 @@ Every primary function, visual theme, color palette, and publication plate in `m
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#fmexplain--multi-panel-arguments) · [`mint.compare`](#fmcompare--size-and-intervals) · [`mint.trend`](#fmtrend--change-over-time-dose-or-scale) · [`mint.change`](#fmchange--paired-before-and-after) · [`mint.distribution`](#fmdistribution--raw-observations-and-spread) · [`mint.histogram`](#fmhistogram--binned-distributions) · [`mint.relate`](#fmrelate--two-continuous-measures) · [`mint.share`](#fmshare--part-of-a-whole) · [`mint.matrix`](#fmmatrix--two-categorical-dimensions) · [`mint.table`](#fmtable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#mintexplain--multi-panel-arguments) · [`mint.compare`](#mintcompare--size-and-intervals) · [`mint.trend`](#minttrend--change-over-time-dose-or-scale) · [`mint.change`](#mintchange--paired-before-and-after) · [`mint.distribution`](#mintdistribution--raw-observations-and-spread) · [`mint.histogram`](#minthistogram--binned-distributions) · [`mint.relate`](#mintrelate--two-continuous-measures) · [`mint.share`](#mintshare--part-of-a-whole) · [`mint.matrix`](#mintmatrix--two-categorical-dimensions) · [`mint.table`](#minttable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
 | **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
@@ -387,7 +387,7 @@ The same two-panel comparison + trend rendered across all seven built-in surface
 
 | `style="mintfig"` (default) | `style="editorial"` |
 | :---: | :---: |
-| ![mintfig theme](output/explain_themes/style_figmint.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
+| ![mintfig theme](output/explain_themes/style_mintfig.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
 | **`style="paper"`** (warm ivory + serif) | **`style="bold"`** (matte gray + heavy strokes) |
 | ![paper theme](output/explain_themes/style_paper.png) | ![bold theme](output/explain_themes/style_bold.png) |
 | **`style="dark"`** (slate charcoal for dark UIs & slides) | **`style="mono"`** (monochrome print + single accent) |

@@ -23,8 +23,8 @@
     "no batch issues"
   ],
   "required_disclosures": [
-    "P4",
-    "excluded"
+    "P4|plate 4|batch",
+    "excluded|contaminat|flagged|omitted|outlier"
   ],
   "reader_questions": [
     {

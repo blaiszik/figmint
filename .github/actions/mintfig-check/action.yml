@@ -33,6 +33,10 @@ inputs:
     description: "Python version to set up for running mintfig."
     required: false
     default: "3.12"
+  use-existing-python:
+    description: "Skip actions/setup-python and reuse the Python already on PATH (true/false)."
+    required: false
+    default: "false"
   mintfig-version:
     description: >-
       Optional mintfig version to install (e.g. "0.3.0" or ">=0.3,<1.0").
@@ -63,6 +67,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up Python
+      if: ${{ inputs.use-existing-python != 'true' }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
@@ -142,8 +147,31 @@ runs:
             base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
             diff_ranges: list[list[str]] = []
             if base_ref:
+                verify = subprocess.run(
+                    ["git", "rev-parse", "--verify", f"origin/{base_ref}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if verify.returncode != 0:
+                    subprocess.run(
+                        [
+                            "git",
+                            "fetch",
+                            "--no-tags",
+                            "--depth=1",
+                            "origin",
+                            f"{base_ref}:refs/remotes/origin/{base_ref}",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
                 diff_ranges.append(
                     ["git", "diff", "--name-only", "--diff-filter=ACMR", f"origin/{base_ref}...HEAD"]
+                )
+                diff_ranges.append(
+                    ["git", "diff", "--name-only", "--diff-filter=ACMR", f"origin/{base_ref}..HEAD"]
                 )
             diff_ranges.append(
                 ["git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD~1...HEAD"]
