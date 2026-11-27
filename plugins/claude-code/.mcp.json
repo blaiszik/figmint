@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mintfig": {
+      "command": "uvx",
+      "args": ["mintfig", "mcp"]
+    }
+  }
+}

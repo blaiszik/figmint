@@ -242,11 +242,14 @@ class Plate:
         self.panel_keys: list[str] = list(self.axes.keys())
         self._key_lookup: dict[str, str] = {k.lower(): k for k in self.panel_keys}
 
-        # Tag figure and panel axes so preflight and bundle can attribute panels and journal.
+        # Tag figure and panel axes so preflight, bundle, and Illustrator/Inkscape SVG
+        # exports can attribute panels, journal, and semantic layers.
         self.fig._mintfig_journal = self.spec.name  # type: ignore[attr-defined]
         self.fig._mintfig_plate = self  # type: ignore[attr-defined]
         for key, ax in self.axes.items():
             ax._mintfig_panel_key = key  # type: ignore[attr-defined]
+            if ax.get_gid() is None:
+                ax.set_gid(f"panel-{str(key).lower()}/axes")
 
         # Configure constrained_layout padding in physical mm without altering MediaBox.
         engine = self.fig.get_layout_engine()
@@ -678,6 +681,8 @@ class Plate:
                 color="#000000",
             )
             txt._mintfig_panel_label = True  # type: ignore[attr-defined]
+            txt._mintfig_panel_key = key  # type: ignore[attr-defined]
+            txt.set_gid(f"panel-{str(key).lower()}/labels")
             self._panel_label_artists[key] = txt
 
         return dict(self._panel_label_artists)

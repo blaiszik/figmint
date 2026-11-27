@@ -58,7 +58,7 @@ def test_top_level_all_is_the_frozen_list() -> None:
     assert set(mint.__all__) == TOP_LEVEL
     for name in mint.__all__:
         assert hasattr(mint, name), name
-    assert mint.__version__ == "0.3.1"
+    assert mint.__version__ == "0.3.2"
 
 
 @pytest.mark.parametrize("name", sorted(MOVED))
@@ -78,7 +78,12 @@ def test_new_home_resolves(name: str) -> None:
 
 
 def test_pub_exports_resolve() -> None:
-    assert set(mint.pub.__all__) == set(PUB) | {"Plate", "figure"}
+    assert set(mint.pub.__all__) == set(PUB) | {
+        "Plate",
+        "figure",
+        "place_labels",
+        "to_publication",
+    }
     for name in mint.pub.__all__:
         assert getattr(mint.pub, name) is not None
     assert mint.pub.Plate is mint.Plate

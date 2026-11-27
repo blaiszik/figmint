@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
@@ -38,12 +39,12 @@ from .core import (
     _formatter,
     _guarded,
     _has_items,
-    _inline_unit,
     _is_number,
     _is_one_dimensional,
     _is_strict,
     _jsonable,
     _keep_inside_x,
+    _labels_collide,
     _measure_text,
     _names,
     _narrow_log_ticks,
@@ -57,6 +58,7 @@ from .core import (
     _Sizes,
     _small_n_caution,
     _tick_label,
+    _tick_label_boxes,
     _value_axis,
     _values_array,
     _vs_text,
@@ -174,6 +176,115 @@ def _wilkinson_stack(sorted_vals: np.ndarray, bin_width: float) -> list[tuple[fl
     return [(0.5 * (grp[0] + grp[-1]), len(grp)) for grp in merged]
 
 
+def _beeswarm_pack(u_pt: np.ndarray, sep_pt: float) -> np.ndarray:
+    """Deterministic symmetric exact circle-packing beeswarm in display points.
+
+    Places each observation at its exact horizontal coordinate ``u_pt[i]`` and finds
+    the vertical offset ``v_pt[i]`` closest to 0 such that every pair ``(i, j)`` has
+    Euclidean distance ``>= sep_pt``. Ties between ``+v`` and ``-v`` break symmetrically
+    around the baseline to form balanced violin-like silhouettes.
+    """
+    m = u_pt.size
+    if m == 0:
+        return np.empty(0, dtype=float)
+    sep = max(float(sep_pt), 1e-6)
+    sep2 = sep * sep
+    eps = 1e-6 * sep
+    order = np.argsort(u_pt, kind="mergesort")
+    u_sorted = u_pt[order]
+    v_sorted = np.zeros(m, dtype=float)
+
+    left = 0
+    balance = 0.0
+    for i in range(m):
+        ui = float(u_sorted[i])
+        while left < i and ui - float(u_sorted[left]) >= sep:
+            left += 1
+        if left == i:
+            v_sorted[i] = 0.0
+            continue
+
+        du = ui - u_sorted[left:i]
+        h = np.sqrt(np.maximum(0.0, sep2 - du * du))
+        vn = v_sorted[left:i]
+        lo = vn - h
+        hi = vn + h
+
+        if not np.any((lo < 0.0) & (0.0 < hi)):
+            v_sorted[i] = 0.0
+            continue
+
+        cands = np.concatenate((hi + eps, lo - eps))
+        blocked = np.any((lo[None, :] < cands[:, None]) & (cands[:, None] < hi[None, :]), axis=1)
+        valid = cands[~blocked]
+        if valid.size == 0:
+            best = float(hi.max() + eps) if balance <= 0.0 else float(lo.min() - eps)
+        else:
+            abs_v = np.abs(valid)
+            min_abs = float(abs_v.min())
+            near = valid[abs_v <= min_abs + 1e-4 * sep]
+            if near.size == 1:
+                best = float(near[0])
+            else:
+                local_bal = float(vn.sum())
+                if abs(local_bal) > 1e-6 * sep:
+                    want_pos = local_bal < 0.0
+                elif abs(balance) > 1e-6 * sep:
+                    want_pos = balance <= 0.0
+                else:
+                    want_pos = (i % 2) == 1
+                preferred = near[near >= 0.0] if want_pos else near[near <= 0.0]
+                pool = preferred if preferred.size > 0 else near
+                best = float(pool[np.argmin(np.abs(pool))])
+
+        v_sorted[i] = best
+        balance += best
+
+    out = np.empty(m, dtype=float)
+    out[order] = v_sorted
+    return out
+
+
+def _bracket_swarm_xlim(
+    fig: Any, ax: Axes, lo: float, hi: float, max_ticks: int, minus: str
+) -> None:
+    """Apply the final round-tick bracketing limits before swarm packing so horizontal
+    data-to-point coordinates match the rendered axis limits after ``_fit_ticks``."""
+    axis = ax.xaxis
+    span = (hi - lo) or abs(hi) or 1.0
+    renderer = fig.canvas.get_renderer()
+    size = max((t.label1.get_fontsize() for t in axis.get_major_ticks()[:1]), default=8.0)
+    gap = 0.55 * size * fig.dpi / 72.0
+    base = 10.0 ** math.floor(math.log10(span / max_ticks))
+    steps = [m * base * 10**k for k in (-1, 0, 1, 2) for m in (1, 2, 2.5, 5)]
+    old_lim = axis.get_view_interval()
+    old_locator, old_formatter = axis.get_major_locator(), axis.get_major_formatter()
+    for step in sorted(steps):
+        k0 = math.floor(lo / step + 1e-9)
+        k1 = math.ceil(hi / step - 1e-9)
+        if k1 - k0 + 1 > max_ticks:
+            continue
+        while k1 - k0 + 1 < 3:
+            if (lo - k0 * step) <= (k1 * step - hi) or (k0 - 1) * step < 0 <= lo:
+                k1 += 1
+            else:
+                k0 -= 1
+        count = k1 - k0 + 1
+        ticks = [float(f"{k * step:.12g}") for k in range(k0, k1 + 1)]
+        axis.set_major_locator(FixedLocator(ticks))
+        axis.set_major_formatter(
+            FuncFormatter(lambda v, _p, m=minus, a=axis: _tick_label(v, m, a))
+        )
+        margin = 0.03 * span
+        ax.set_xlim(min(ticks[0], lo - margin), max(ticks[-1], hi + margin))
+        boxes = _tick_label_boxes(axis, renderer)
+        if len(boxes) == count and not _labels_collide(boxes, True, gap):
+            return
+    axis.set_major_locator(old_locator)
+    axis.set_major_formatter(old_formatter)
+    ax.set_xlim(*old_lim)
+
+
 _HIST_ESTIMATORS = frozenset({"auto", "fd", "doane", "scott", "stone", "rice", "sturges", "sqrt"})
 MAX_HIST_GROUPS = 4
 
@@ -274,13 +385,15 @@ def distribution(
     quantiles: int | Sequence[float] | None = None,
     facet: bool | str = False,
 ) -> Panel:
-    """How are values spread within groups? Every observation as a dot, quantile dotplot, ECDF, or histogram.
+    """How are values spread within groups? Every observation as a dot, beeswarm, quantile dotplot, ECDF, or histogram.
 
     ``groups`` maps a group name to its raw observations (or pass one list/array
     for a single variable, or row-shaped data / DataFrame with ``group=`` and
     ``value=``). By default (``mode="dots"``) every observation is drawn as a dot with
     a ``stat="median"`` (median and middle half / IQR) or ``stat="mean"`` (mean
-    and \N{PLUS-MINUS SIGN} 1 s.d.) mark. Pass ``mode="quantile"`` (with optional
+    and \N{PLUS-MINUS SIGN} 1 s.d.) mark. Pass ``mode="swarm"`` for a deterministic,
+    non-overlapping symmetric beeswarm that places every observation at its exact
+    value with the same haloed summary mark on top. Pass ``mode="quantile"`` (with optional
     ``quantiles=20``, 5–50) for Wilkinson-stacked countable quantile dotplots
     (Kay & Hullman) where each dot represents ``100 / quantiles``% probability.
     Pass ``mode="ecdf"`` (with optional ``quantiles=(0.5, 0.95, 0.99)``) for
@@ -303,11 +416,12 @@ def distribution(
             fix_hint='Use stat="median" (median and middle half) or stat="mean" (mean and '
             "\N{PLUS-MINUS SIGN} 1 s.d.).",
         )
-    if not isinstance(mode, str) or mode not in {"dots", "quantile", "ecdf"}:
+    if not isinstance(mode, str) or mode not in {"dots", "swarm", "quantile", "ecdf"}:
         raise ExplainError(
             f"distribution(mode={mode!r}) is not a recognised mode.",
-            fix_hint='Use mode="dots" (raw observations), mode="quantile" (stacked countable '
-            'quantile dotplot), or mode="ecdf" (empirical CDF step curves).',
+            fix_hint='Use mode="dots" (raw observations), mode="swarm" (non-overlapping '
+            'beeswarm), mode="quantile" (stacked countable quantile dotplot), or '
+            'mode="ecdf" (empirical CDF step curves).',
         )
     q = 20
     ecdf_qs: tuple[float, ...] = (0.5, 0.95, 0.99)
@@ -369,7 +483,7 @@ def distribution(
             f"histogram(facet={facet!r}) must be True or False: each group becomes one histogram.",
             fix_hint="Pass facet=True with {group: [observations]} (2-12 groups).",
         )
-    if mode in {"quantile", "ecdf"} and bins is not None:
+    if mode in {"swarm", "quantile", "ecdf"} and bins is not None:
         raise ExplainError(
             f'distribution(mode={mode!r}) cannot be combined with bins=.',
             fix_hint=f'Drop bins= for mode={mode!r}, or use mode="dots" with bins= for a histogram.',
@@ -1054,7 +1168,12 @@ def distribution(
                 linewidth=theme.grid_lw,
             )
             ax.grid(axis="y", visible=False)
-        ax.set_ylim((n - 0.35, -0.65) if mode == "quantile" else (n - 0.45, -0.6))
+        if mode == "quantile":
+            ax.set_ylim(n - 0.35, -0.65)
+        elif mode == "swarm":
+            ax.set_ylim(n - 0.52, -0.58)
+        else:
+            ax.set_ylim(n - 0.45, -0.6)
         lo, hi = float(everything.min()), float(everything.max())
         if ref is not None:
             lo, hi = min(lo, ref[0]), max(hi, ref[0])
@@ -1079,13 +1198,22 @@ def distribution(
             _cover_with_ticks(ax.xaxis, lo, hi)
         ax.set_yticks(range(n), [""] * n)
         ax.tick_params(axis="y", length=0)
+        readout_values = [_with_unit(fmt_fn(stats[nm][1]), unit) for nm in names]
+        readout_w = max(
+            ctx.measure.width_pt(stat, sz.small, "normal"),
+            *(
+                ctx.measure.width_pt(val, sz.small, "bold" if nm in accent else "normal")
+                for nm, val in zip(names, readout_values, strict=True)
+            ),
+        )
+        readout_x = 8.0 + readout_w
         ax.annotate(
             stat,
             (1.0, 1.0),
             xycoords="axes fraction",
-            xytext=(6.0, 2.5),
+            xytext=(readout_x, 2.5),
             textcoords="offset points",
-            ha="left",
+            ha="right",
             va="bottom",
             fontsize=sz.small,
             color=theme.muted,
@@ -1161,16 +1289,14 @@ def distribution(
                     fontweight=weight,
                     annotation_clip=False,
                 )
-            value = (
-                _with_unit(fmt_fn(med), unit) if (row == 0 or _inline_unit(unit)) else fmt_fn(med)
-            )
+            value = readout_values[row]
             ax.annotate(
                 _plain(value, theme),
                 (1.0, row),
                 xycoords=("axes fraction", "data"),
-                xytext=(6.0, 0.0),
+                xytext=(readout_x, 0.0),
                 textcoords="offset points",
-                ha="left",
+                ha="right",
                 va="center",
                 fontsize=sz.small,
                 color=theme.ink,
@@ -1193,6 +1319,127 @@ def distribution(
                     color=theme.muted,
                     annotation_clip=False,
                 )
+        if mode == "swarm":
+
+            def _finish_swarm() -> None:
+                if ref_note is not None:
+                    _keep_inside_x(ctx, ax, ref_note)
+                if not log and hasattr(ax, "_mintfig_bracket"):
+                    _bracket_swarm_xlim(ctx.fig, ax, *ax._mintfig_bracket)  # type: ignore[attr-defined]
+                renderer = ctx.fig.canvas.get_renderer()
+                frame = ax.get_window_extent(renderer)
+                w_pt = max(30.0, frame.width * ctx.pt_per_px)
+                h_pt = max(20.0, frame.height * ctx.pt_per_px)
+                y_lo, y_hi = ax.get_ylim()
+                pt_per_y = h_pt / max(abs(y_hi - y_lo), 1e-6)
+                lane_half_pt = 0.40 * pt_per_y
+                x0_v, x1_v = sorted(ax.get_xlim())
+                x_lo_s = float(np.log10(max(x0_v, 1e-300))) if log else float(x0_v)
+                x_hi_s = float(np.log10(max(x1_v, 1e-300))) if log else float(x1_v)
+                x_span = (x_hi_s - x_lo_s) or 1.0
+
+                u_map: dict[str, np.ndarray] = {}
+                for nm in names:
+                    arr_nm = data[nm]
+                    xs_s = np.log10(arr_nm) if log else arr_nm
+                    u_map[nm] = ((xs_s - x_lo_s) / x_span) * w_pt
+
+                max_n = max(data[nm].size for nm in names)
+                if max_n <= 30:
+                    d_pt = 4.2 * sz.scale
+                    d_min = 2.3 * sz.scale
+                elif max_n <= 80:
+                    d_pt = 3.6 * sz.scale
+                    d_min = 2.1 * sz.scale
+                elif max_n <= 150:
+                    d_pt = 3.0 * sz.scale
+                    d_min = 1.75 * sz.scale
+                else:
+                    d_pt = 2.4 * sz.scale
+                    d_min = 1.45 * sz.scale
+                v_map: dict[str, np.ndarray] = {}
+                lw_pt = 0.0
+                for _ in range(10):
+                    lw_pt = (0.35 * sz.scale) if d_pt >= 2.2 * sz.scale else 0.0
+                    outer_d = d_pt + lw_pt
+                    sep_pt = outer_d * 1.06
+                    v_map = {nm: _beeswarm_pack(u_map[nm], sep_pt) for nm in names}
+                    peak_half = max(
+                        (float(np.abs(v).max()) + 0.5 * outer_d for v in v_map.values() if v.size),
+                        default=0.0,
+                    )
+                    if peak_half <= lane_half_pt or d_pt <= d_min + 1e-6:
+                        break
+                    ratio = lane_half_pt / max(peak_half, 1e-6)
+                    d_pt = max(d_min, d_pt * max(0.70, min(0.92, ratio**0.72)))
+
+                outer_d = d_pt + lw_pt
+                avail_center_pt = max(0.5, lane_half_pt - 0.5 * outer_d)
+                halo = [
+                    patheffects.withStroke(
+                        linewidth=2.6 * sz.scale, foreground=theme.background, alpha=0.92
+                    )
+                ]
+                for row, name in enumerate(names):
+                    arr_nm = data[name]
+                    col = row_colors[name]
+                    v_pt = v_map[name]
+                    max_v = float(np.abs(v_pt).max()) if v_pt.size else 0.0
+                    clamped = max_v > avail_center_pt + 1e-6
+                    if clamped:
+                        v_pt = v_pt * (avail_center_pt / max_v)
+                    dot_y = row + (v_pt / pt_per_y)
+                    if clamped:
+                        dot_alpha = 0.58
+                        edge_col: Any = "none"
+                        edge_lw = 0.0
+                    else:
+                        dot_alpha = 0.90 if arr_nm.size <= 60 else 0.84
+                        edge_col = theme.background if lw_pt > 0.0 else "none"
+                        edge_lw = lw_pt
+                    q1, med, q3 = stats[name]
+                    if log:
+                        q1 = max(q1, ax.get_xlim()[0])
+                    tag_mark(
+                        ctx,
+                        ax.scatter(
+                            arr_nm,
+                            dot_y,
+                            s=d_pt**2,
+                            color=col,
+                            edgecolor=edge_col,
+                            linewidth=edge_lw,
+                            alpha=dot_alpha,
+                            zorder=2.5,
+                        ),
+                        name=name,
+                        value=med,
+                        lo=q1,
+                        hi=q3,
+                        n=arr_nm.size,
+                        unit=unit,
+                    )
+                    if arr_nm.size >= 5:
+                        ax.hlines(
+                            row,
+                            q1,
+                            q3,
+                            color=theme.ink,
+                            linewidth=1.15 * sz.scale,
+                            zorder=4,
+                            path_effects=halo,
+                        )
+                    ax.vlines(
+                        med,
+                        row - 0.34,
+                        row + 0.34,
+                        color=theme.ink,
+                        linewidth=2.0 * sz.scale,
+                        zorder=5,
+                        path_effects=halo,
+                    )
+
+            return _finish_swarm
         if mode == "quantile":
 
             def _finish_quantile() -> None:
@@ -1304,8 +1551,9 @@ def distribution(
         height_fn = lambda _w, _m, _s, _t: max(26.0, 14.5 * len(names) + 12.0)
         min_height_fn = lambda _w, _m, _s, _t: max(22.0, 11.5 * len(names) + 11.0)
     else:
+        lead_noun = "Beeswarm" if mode == "swarm" else "Dot strips"
         panel_describe = (
-            f"Dot strips of {label or 'values'}"
+            f"{lead_noun} of {label or 'values'}"
             + (f" ({unit})" if unit else "")
             + f" for {len(names)} group(s), each with "
             + (
@@ -1331,8 +1579,12 @@ def distribution(
                 else " (n \N{GREATER-THAN OR EQUAL TO} 5)"
             )
         )
-        height_fn = lambda _w, _m, _s, _t: 8.5 * len(names) + 11.0
-        min_height_fn = lambda _w, _m, _s, _t: 6.5 * len(names) + 11.0
+        if mode == "swarm":
+            height_fn = lambda _w, _m, _s, _t: max(24.0, 12.0 * len(names) + 12.0)
+            min_height_fn = lambda _w, _m, _s, _t: max(20.0, 9.5 * len(names) + 11.0)
+        else:
+            height_fn = lambda _w, _m, _s, _t: 8.5 * len(names) + 11.0
+            min_height_fn = lambda _w, _m, _s, _t: 6.5 * len(names) + 11.0
 
     return Panel(
         kind="distribution",

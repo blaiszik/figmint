@@ -611,6 +611,7 @@ def _names(highlight: object, valid: Sequence[str], what: str = "highlight") -> 
 #: Valid keyword arguments of each guarded callable, filled in by ``_guarded``.
 _FORM_ARGS: dict[str, tuple[str, ...]] = {}
 _EXPLAIN_ARGS = (
+    "kicker",
     "subtitle",
     "source",
     "note",
@@ -1440,6 +1441,7 @@ class _Measure:
     def __init__(self, theme: Theme | None = None) -> None:
         self._renderer = FigureCanvasAgg(Figure(figsize=(1, 1), dpi=self._DPI)).get_renderer()
         self.theme = theme
+        self._width_cache: dict[tuple[Any, ...], float] = {}
 
     def width_pt(
         self,
@@ -1450,6 +1452,15 @@ class _Measure:
     ) -> float:
         if not text:
             return 0.0
+        fam_key = (
+            tuple(family)
+            if (family is not None and not isinstance(family, str))
+            else family
+        )
+        cache_key = (text, float(size), weight, fam_key)
+        cached = self._width_cache.get(cache_key)
+        if cached is not None:
+            return cached
         if family is None:
             prop = FontProperties(size=size, weight=weight)
         else:
@@ -1464,7 +1475,102 @@ class _Measure:
         if not ismath:
             shown = shown.replace(r"\$", "$")
         width, _, _ = self._renderer.get_text_width_height_descent(shown, prop, ismath=ismath)
-        return float(width) * 72.0 / self._DPI
+        out = float(width) * 72.0 / self._DPI
+        self._width_cache[cache_key] = out
+        return out
+
+    def _wrap_greedy(
+        self,
+        words: list[str],
+        max_pt: float,
+        size: float,
+        weight: str,
+        family: Sequence[str] | str | None,
+    ) -> list[str]:
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            trial = f"{current} {word}".strip()
+            if current and self.width_pt(trial, size, weight, family) > max_pt:
+                lines.append(current)
+                current = word
+            else:
+                current = trial
+        lines.append(current)
+        return lines
+
+    def _wrap_balanced(
+        self,
+        words: list[str],
+        k: int,
+        max_pt: float,
+        size: float,
+        weight: str,
+        family: Sequence[str] | str | None,
+    ) -> list[str]:
+        """Partition ``words`` into ``k`` lines minimizing line-width raggedness."""
+        n = len(words)
+        span_w: dict[tuple[int, int], float] = {}
+        for i in range(n):
+            acc = words[i]
+            w = self.width_pt(acc, size, weight, family)
+            span_w[(i, i + 1)] = w
+            for j in range(i + 2, n + 1):
+                acc = f"{acc} {words[j - 1]}"
+                w = self.width_pt(acc, size, weight, family)
+                if w > max_pt:
+                    break
+                span_w[(i, j)] = w
+
+        full_w = self.width_pt(" ".join(words), size, weight, family)
+        space_w = max(
+            self.width_pt("a b", size, weight, family) - self.width_pt("ab", size, weight, family),
+            0.0,
+        )
+        target = min(max_pt, max((full_w - (k - 1) * space_w) / k, 1.0))
+
+        inf = float("inf")
+        dp = [[inf] * (n + 1) for _ in range(k + 1)]
+        parent = [[-1] * (n + 1) for _ in range(k + 1)]
+        dp[0][0] = 0.0
+
+        for line_idx in range(1, k + 1):
+            max_j = n - (k - line_idx)
+            for j in range(line_idx, max_j + 1):
+                best = inf
+                best_i = -1
+                for i in range(line_idx - 1, j):
+                    prev = dp[line_idx - 1][i]
+                    if prev == inf:
+                        continue
+                    w = span_w.get((i, j))
+                    if w is None:
+                        continue
+                    diff = w - target
+                    cost = prev + diff * diff
+                    # Penalize 1-word orphan on the last line when narrower than target.
+                    if line_idx == k and j == n and (j - i) == 1 and w < 0.65 * target:
+                        cost += 0.35 * target * target
+                    # Gentle editorial preference for a fuller top line on near-ties.
+                    if line_idx == 1 and w < target:
+                        cost += 0.06 * diff * diff
+                    if cost < best:
+                        best = cost
+                        best_i = i
+                dp[line_idx][j] = best
+                parent[line_idx][j] = best_i
+
+        if dp[k][n] == inf:
+            return []
+
+        out: list[str] = []
+        cur = n
+        for line_idx in range(k, 0, -1):
+            prev_i = parent[line_idx][cur]
+            out.append(" ".join(words[prev_i:cur]))
+            cur = prev_i
+        out.reverse()
+        return out
 
     def wrap(
         self,
@@ -1473,18 +1579,22 @@ class _Measure:
         size: float,
         weight: str = "normal",
         family: Sequence[str] | str | None = None,
+        balance: bool = False,
     ) -> list[str]:
         lines: list[str] = []
         for paragraph in str(text).splitlines() or [""]:
-            current = ""
-            for word in paragraph.split():
-                trial = f"{current} {word}".strip()
-                if current and self.width_pt(trial, size, weight, family) > max_pt:
-                    lines.append(current)
-                    current = word
-                else:
-                    current = trial
-            lines.append(current)
+            words = paragraph.split()
+            if not words:
+                lines.append("")
+                continue
+            greedy = self._wrap_greedy(words, max_pt, size, weight, family)
+            k = len(greedy)
+            if balance and 2 <= k < len(words) <= 60:
+                balanced = self._wrap_balanced(words, k, max_pt, size, weight, family)
+                if balanced:
+                    lines.extend(balanced)
+                    continue
+            lines.extend(greedy)
         return lines
 
 
@@ -1712,11 +1822,16 @@ def _apply_inline_y_ticks(
     """Editorial-style inline y-tick labels sitting directly above each horizontal gridline.
 
     Hides the left-gutter y-tick labels, ensures headroom above the highest tick,
-    and prints the unit on the topmost tick only.
+    and prints the unit on the topmost tick only. Every tick carries a subtle
+    ``theme.background`` halo so curves never obscure numbers.
     """
     y0, y1 = ax.get_ylim()
     span = (y1 - y0) or 1.0
-    ticks = [float(t) for t in ax.yaxis.get_majorticklocs() if y0 + 0.01 * span <= t <= y1]
+    ticks = [
+        float(t)
+        for t in ax.yaxis.get_majorticklocs()
+        if y0 - 1e-9 * span <= t <= y1 + 1e-9 * span
+    ]
     if not ticks:
         return
     # Ensure room above the highest gridline so its inline label stays inside the axes.
@@ -1725,13 +1840,18 @@ def _apply_inline_y_ticks(
         ax.set_ylim(y0, top_tick + 0.16 * span)
         y0, y1 = ax.get_ylim()
         span = (y1 - y0) or 1.0
-        ticks = [float(t) for t in ax.yaxis.get_majorticklocs() if y0 + 0.01 * span <= t <= y1]
+        ticks = [
+            float(t)
+            for t in ax.yaxis.get_majorticklocs()
+            if y0 - 1e-9 * span <= t <= y1 + 1e-9 * span
+        ]
         if not ticks:
             return
     ax.tick_params(axis="y", labelleft=False)
     minus = theme.minus_sign
     inline: list[tuple[Any, bool]] = []
     ax._mintfig_inline_ticks = inline  # type: ignore[attr-defined]
+    halo_alpha = max(theme.halo_alpha, 0.92)
     for idx, tick in enumerate(ticks):
         raw = _tick_text(tick, minus, ax.yaxis)
         top = idx == len(ticks) - 1
@@ -1746,34 +1866,98 @@ def _apply_inline_y_ticks(
             va="bottom",
             fontsize=sizes.small,
             color=theme.muted,
-            zorder=3,
+            zorder=6,
             bbox={
-                "boxstyle": "square,pad=0.05",
+                "boxstyle": "square,pad=0.08",
                 "facecolor": theme.background,
                 "edgecolor": "none",
-                "alpha": theme.halo_alpha,
+                "alpha": halo_alpha,
             },
         )
         inline.append((note, top and bool(unit)))
 
 
 def _clear_inline_ticks(ctx: _Ctx, ax: Axes) -> None:
-    """Keep inline y-tick labels off the data lines (runs after layout).
+    """Keep every inline y-tick label readable and clear of data lines (runs after layout).
 
-    A label a data line passes through is dropped (its gridline still marks the
-    value, and the labels above and below give the scale). The top label carries
-    the unit, so it is kept and lifted above the lines on its halo instead.
+    When a data curve starts near the left edge and would pass through a lower
+    inline y-tick label, widens ``xlim`` on the left just enough for the inline
+    tick column to sit cleanly above the left stub of the horizontal gridlines
+    while preserving the original x-axis ticks. That keeps every y-tick (such as
+    ``50`` and ``25``) visible on its ``theme.background`` halo with zero curve
+    crossings.
     """
     inline = getattr(ax, "_mintfig_inline_ticks", None)
     if not inline:
         return
     renderer = ctx.fig.canvas.get_renderer()
-    # Horizontal rules (reference, zero line) sit on a tick by design: not data.
-    paths = [
-        path
-        for path in _data_paths(ax, [])
-        if len(path.vertices) and np.ptp(path.vertices[:, 1]) > 0.5
+
+    def _active_paths() -> list[Any]:
+        # Horizontal rules (reference, zero line) sit on a tick by design: not data.
+        return [
+            path
+            for path in _data_paths(ax, [])
+            if len(path.vertices) and np.ptp(path.vertices[:, 1]) > 0.5
+        ]
+
+    paths = _active_paths()
+    colliding = [
+        (note, carries_unit, note.get_window_extent(renderer))
+        for note, carries_unit in inline
+        if note.get_visible()
+        and any(
+            path.intersects_bbox(note.get_window_extent(renderer), filled=False)
+            for path in paths
+        )
     ]
+    if colliding:
+        ax_box = ax.get_window_extent(renderer)
+        if ax_box.width > 10.0:
+            need_px = max(box.x1 - ax_box.x0 for _, _, box in colliding) + 6.5
+            frac = min(max(need_px / ax_box.width, 0.0), 0.28)
+            x0, x1 = ax.get_xlim()
+            if frac > 0.0 and x1 > x0:
+                xspan = x1 - x0
+                # Freeze existing in-range x-ticks before widening left so the
+                # empty inline-tick gutter never sprouts a spurious tick.
+                locator = ax.xaxis.get_major_locator()
+                if ax.get_xscale() == "linear" and not isinstance(locator, FixedLocator):
+                    in_range = [
+                        float(t)
+                        for t in ax.xaxis.get_majorticklocs()
+                        if x0 - 1e-9 * xspan <= t <= x1 + 1e-9 * xspan
+                    ]
+                    if in_range:
+                        if isinstance(locator, mdates.AutoDateLocator):
+                            old_fmt = ax.xaxis.get_major_formatter()
+                            labels = (
+                                old_fmt.format_ticks(in_range)
+                                if hasattr(old_fmt, "format_ticks")
+                                else [old_fmt(v, i) for i, v in enumerate(in_range)]
+                            )
+                            ax.xaxis.set_major_locator(FixedLocator(in_range))
+                            ax.xaxis.set_major_formatter(
+                                FuncFormatter(
+                                    lambda v, _p, ticks=in_range, lbls=labels, sp=xspan: next(
+                                        (
+                                            lbl
+                                            for t, lbl in zip(ticks, lbls, strict=True)
+                                            if abs(v - t) <= 1e-9 * max(abs(t), sp)
+                                        ),
+                                        "",
+                                    )
+                                )
+                            )
+                        else:
+                            ax.xaxis.set_major_locator(FixedLocator(in_range))
+                if ax.get_xscale() == "log" and x0 > 0.0:
+                    lx0, lx1 = math.log10(x0), math.log10(x1)
+                    new_x0 = 10.0 ** ((lx0 - frac * lx1) / (1.0 - frac))
+                else:
+                    new_x0 = (x0 - frac * x1) / (1.0 - frac)
+                ax.set_xlim(new_x0, x1)
+                paths = _active_paths()
+
     for note, carries_unit in inline:
         if not note.get_visible():
             continue

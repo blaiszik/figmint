@@ -660,7 +660,7 @@ class TestClaudeCodePluginPackage:
         assert manifest_path.is_file()
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["name"] == "mintfig"
-        assert manifest["version"] == "0.3.1"
+        assert manifest["version"] == "0.3.2"
         assert manifest["license"] == "MIT"
         assert manifest["repository"] == "https://github.com/blaiszik/mintfig"
         assert manifest["author"]["name"] == "Ben Blaiszik"

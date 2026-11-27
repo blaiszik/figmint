@@ -96,10 +96,14 @@ class Theme:
     bar_edgecolor: str | None = None
     bar_edge_lw: float = 0.0
 
-    # Editorial chrome (header & footer rules)
+    # Editorial chrome (header & footer rules + Economist/FT top accent flag)
     top_rule: bool = False
     top_rule_color: str | None = None
     top_rule_lw: float = 1.2
+    top_flag: bool = False
+    top_flag_color: str | None = None
+    top_flag_width_mm: float = 14.0
+    top_flag_lw: float = 3.2
     footer_rule: bool = False
     footer_rule_color: str | None = None
     footer_rule_lw: float = 0.7
@@ -138,9 +142,12 @@ class Theme:
         if self.name == "mintfig" and not self.extra_rc:
             return params
 
+        require_bold = self.sketch is None
         if self.body_family is not None:
-            font_name = style._resolve_font_tuple(self.body_family)
-            params["font.sans-serif"] = list(self.body_family)
+            font_name = style._resolve_font_tuple(self.body_family, require_bold=require_bold)
+            params["font.sans-serif"] = style._ordered_font_stack(
+                self.body_family, require_bold=require_bold
+            )
             params["mathtext.rm"] = font_name
             params["mathtext.it"] = f"{font_name}:italic"
             params["mathtext.bf"] = f"{font_name}:bold"
@@ -148,7 +155,9 @@ class Theme:
             params["mathtext.cal"] = font_name
 
         if self.title_family is not None:
-            params["font.serif"] = list(self.title_family)
+            params["font.serif"] = style._ordered_font_stack(
+                self.title_family, require_bold=require_bold
+            )
 
         params["text.color"] = self.ink
         params["axes.labelcolor"] = self.ink
@@ -222,7 +231,7 @@ BOLD_THEME = Theme(
     div_low=("#005B8C", "#008FD5", "#94CDEB"),
     div_high=("#F0B0A1", "#E36249", "#B82910"),
     div_mid="#E4E4E4",
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.42,
     title_weight="bold",
     panel_tag_color="#D6381C",
@@ -267,8 +276,8 @@ EDITORIAL_THEME = Theme(
     div_low=("#1A476A", "#4A7FA8", "#A7C4DA"),
     div_high=("#F0B8A5", "#DF7452", "#B83B19"),
     div_mid="#F2F2F2",
-    title_family=("Georgia", "Charter", "DejaVu Serif", "serif"),
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_family=style.EDITORIAL_SERIF_FONTS,
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.42,
     title_weight="bold",
     allow_serif_title=True,
@@ -289,7 +298,11 @@ EDITORIAL_THEME = Theme(
     bar_height=0.64,
     top_rule=True,
     top_rule_color="#121212",
-    top_rule_lw=1.3,
+    top_rule_lw=0.65,
+    top_flag=True,
+    top_flag_color="#CD4324",
+    top_flag_width_mm=14.0,
+    top_flag_lw=3.2,
     footer_rule=True,
     footer_rule_color="#DCDCDC",
     footer_rule_lw=0.6,
@@ -373,8 +386,8 @@ PAPER_THEME = Theme(
     div_low=("#153559", "#4B7CA8", "#A8C3DA"),
     div_high=("#EBB4A2", "#D96B4D", "#A32F14"),
     div_mid="#EFEAE0",
-    title_family=("Georgia", "Charter", "DejaVu Serif", "serif"),
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_family=style.EDITORIAL_SERIF_FONTS,
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.38,
     title_weight="bold",
     allow_serif_title=True,
@@ -414,7 +427,7 @@ DARK_THEME = Theme(
     div_low=("#78B8F5", "#4381C4", "#233C59"),
     div_high=("#5B2B24", "#B84C3B", "#F4866C"),
     div_mid="#222936",
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.32,
     title_weight="bold",
     panel_tag_color="#9AA5B4",
@@ -447,7 +460,7 @@ MONO_THEME = Theme(
     div_low=("#222222", "#666666", "#B8B8B8"),
     div_high=("#F0B8AE", "#DE6A56", "#B82814"),
     div_mid="#F0F0F0",
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.32,
     title_weight="bold",
     panel_tag_color="#C8321E",
@@ -481,7 +494,7 @@ MINT_THEME = Theme(
     div_low=("#5C1B47", "#99497E", "#D6A9C7"),
     div_high=("#A7DFCD", "#42B290", "#0B6B53"),
     div_mid="#F2F6F4",
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.34,
     title_weight="bold",
     panel_tag_color="#0F8B6D",
@@ -493,8 +506,12 @@ MINT_THEME = Theme(
     context_line_lw=0.9,
     facet_line_lw=1.5,
     top_rule=True,
-    top_rule_color="#0F8B6D",
-    top_rule_lw=1.4,
+    top_rule_color="#BFD6CD",
+    top_rule_lw=0.7,
+    top_flag=True,
+    top_flag_color="#0F8B6D",
+    top_flag_width_mm=14.0,
+    top_flag_lw=3.2,
     footer_rule=True,
     footer_rule_color="#DCE7E2",
     footer_rule_lw=0.6,
@@ -521,7 +538,7 @@ PINE_THEME = Theme(
     div_low=("#E08AC8", "#A84E90", "#542449"),
     div_high=("#1C4A3C", "#259173", "#5CE3B9"),
     div_mid="#1A2622",
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.32,
     title_weight="bold",
     panel_tag_color="#38DDA9",
@@ -554,8 +571,8 @@ BOTANICAL_THEME = Theme(
     div_low=("#751A34", "#B24F6B", "#E2B2C0"),
     div_high=("#B6D8BE", "#6CA97B", "#346D44"),
     div_mid="#F1F4F0",
-    title_family=("Georgia", "Charter", "DejaVu Serif", "serif"),
-    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_family=style.EDITORIAL_SERIF_FONTS,
+    body_family=style.EDITORIAL_SANS_FONTS,
     title_scale=1.38,
     title_weight="bold",
     allow_serif_title=True,
@@ -962,7 +979,7 @@ def render_themes_swatch_card(out_path: str | Path) -> Path:
     with mpl.rc_context(
         {
             "font.family": "sans-serif",
-            "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
+            "font.sans-serif": style._ordered_font_stack(style.EDITORIAL_SANS_FONTS, require_bold=True),
             "figure.facecolor": "#FFFFFF",
             "savefig.facecolor": "#FFFFFF",
         }
@@ -1038,13 +1055,22 @@ def render_themes_swatch_card(out_path: str | Path) -> Path:
             )
             ax.add_patch(card)
 
-            # Optional theme top accent stripe inside card
+            # Optional theme top accent stripe + Economist/FT top flag inside card
             if theme.top_rule and theme.top_rule_color:
                 ax.plot(
                     [x0 + 0.08, x0 + card_w - 0.08],
                     [y0 + card_h - 0.08, y0 + card_h - 0.08],
                     color=theme.top_rule_color,
-                    linewidth=1.6,
+                    linewidth=1.0 if theme.top_flag else 1.6,
+                )
+            if theme.top_flag:
+                flag_col = theme.top_flag_color or theme.top_rule_color or theme.ink
+                ax.plot(
+                    [x0 + 0.08, x0 + 0.08 + min(0.32, card_w * 0.28)],
+                    [y0 + card_h - 0.065, y0 + card_h - 0.065],
+                    color=flag_col,
+                    linewidth=2.6,
+                    solid_capstyle="butt",
                 )
 
             alias_list = aliases_by_theme.get(name, [])

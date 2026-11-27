@@ -127,6 +127,28 @@ def _parse_width_arg(raw: str | None) -> str | float | None:
         return raw
 
 
+def _resolve_term_width(raw: str | int | None, default: int = 78) -> int:
+    """Resolve a terminal width (integer, numeric string, or ``"auto"``) to columns."""
+    import shutil
+
+    if raw is None:
+        return default
+    if isinstance(raw, str):
+        cleaned = raw.strip().lower()
+        if cleaned == "auto":
+            cols = shutil.get_terminal_size((80, 24)).columns
+            return max(56, min(132, int(cols)))
+        return max(40, int(float(cleaned)))
+    return max(40, int(raw))
+
+
+def _resolve_term_color(no_color: bool = False) -> bool:
+    """Return True unless ``--no-color`` or a non-empty ``NO_COLOR`` env var is set."""
+    if no_color:
+        return False
+    return not bool(os.environ.get("NO_COLOR"))
+
+
 def _parse_targets_arg(raw_targets: Sequence[str] | None) -> list[str]:
     """Parse comma-separated or repeated --target values."""
     if not raw_targets:
@@ -431,12 +453,27 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out",
         type=Path,
         default=None,
-        help="Output image path (.png, .svg, .pdf, or .html). Required unless --example.",
+        help="Output image path (.png, .svg, .pdf, or .html). Required unless --example or --braille.",
+    )
+    explain_parser.add_argument(
+        "--braille",
+        action="store_true",
+        help="Print a high-resolution 2×4 Unicode Braille ANSI chart straight to stdout (no --out required).",
+    )
+    explain_parser.add_argument(
+        "--show-width",
+        default="78",
+        help="Terminal column width or 'auto' when --braille is set (default: 78).",
+    )
+    explain_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color escape sequences when --braille is set.",
     )
     explain_parser.add_argument(
         "--style",
         default=None,
-        help="Visual style override: mintfig (default), bold, editorial, paper, dark, mono, or sketch.",
+        help="Visual style override: mintfig (default), mint, pine, botanical, bold, editorial, paper, dark, mono, or sketch.",
     )
     explain_parser.add_argument(
         "--palette",
@@ -474,31 +511,40 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_density_args(explain_parser)
     _add_summary_arg(explain_parser)
 
-    # `mintfig show <path_or_spec> [--mode auto|kitty|iterm2|unicode|ascii] [--width 78] [--no-color]`
+    # `mintfig show <path_or_spec> [--braille] [--mode auto|kitty|iterm2|braille|unicode|ascii] [--style pine] [--width 78|auto] [--no-color]`
     show_parser = subparsers.add_parser(
         "show",
-        help="Display a mintfig spec or PNG in the terminal (Kitty/iTerm2 graphics or Unicode/ASCII).",
+        help="Display a mintfig spec or PNG in the terminal (Kitty/iTerm2 graphics or Braille/Unicode/ASCII).",
     )
     show_parser.add_argument(
         "path_or_spec",
         help="Path to a JSON spec, a PNG file, or '-' to read a JSON spec from stdin.",
     )
     show_parser.add_argument(
+        "--braille",
+        action="store_true",
+        help="Render high-resolution 2×4 Unicode Braille with 24-bit ANSI colors (shorthand for --mode braille).",
+    )
+    show_parser.add_argument(
         "--mode",
-        choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
+        choices=("auto", "kitty", "iterm2", "braille", "unicode", "ascii"),
         default="auto",
         help="Rendering mode (default: auto).",
     )
     show_parser.add_argument(
+        "--style",
+        default=None,
+        help="Optional visual theme override when rendering a spec or mintfig PNG (e.g. pine, mint, editorial).",
+    )
+    show_parser.add_argument(
         "--width",
-        type=int,
-        default=78,
-        help="Target text width in columns for unicode/ascii modes (default: 78).",
+        default="78",
+        help="Target text width in columns or 'auto' for braille/unicode/ascii modes (default: 78).",
     )
     show_parser.add_argument(
         "--no-color",
         action="store_true",
-        help="Disable ANSI color sequences in unicode/ascii output.",
+        help="Disable ANSI color sequences in braille/unicode/ascii output.",
     )
 
     # `mintfig inspect <data.csv|tsv|json|jsonl> [--json]`
@@ -527,7 +573,7 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_parser.add_argument(
         "--kind",
         "-k",
-        required=True,
+        default="auto",
         choices=(
             "auto",
             "compare",
@@ -543,11 +589,26 @@ def _build_parser() -> argparse.ArgumentParser:
             "timeline",
             "flow",
         ),
-        help="Chart form to render (use 'auto' to pick the top recommended form).",
+        help="Chart form to render (default: 'auto' to pick the top recommended form).",
     )
-    plot_parser.add_argument("--takeaway", "-t", required=True, help="One-sentence takeaway title.")
+    plot_parser.add_argument(
+        "--takeaway",
+        "-t",
+        default=None,
+        help="One-sentence takeaway title (auto-derived from top fact when --braille is set).",
+    )
     plot_parser.add_argument("--out", "-o", type=Path, default=None, help="Output path (.png, .svg, .pdf, or .html).")
     plot_parser.add_argument("--show", action="store_true", help="Display the figure in the terminal.")
+    plot_parser.add_argument(
+        "--braille",
+        action="store_true",
+        help="Print a high-resolution 2×4 Unicode Braille ANSI chart straight to stdout (no --out required).",
+    )
+    plot_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color escape sequences in --braille output.",
+    )
     plot_parser.add_argument(
         "--text",
         action="store_true",
@@ -560,11 +621,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     plot_parser.add_argument(
         "--show-mode",
-        choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
+        choices=("auto", "kitty", "iterm2", "braille", "unicode", "ascii"),
         default="auto",
         help="Terminal rendering mode when --show is set (default: auto).",
     )
-    plot_parser.add_argument("--show-width", type=int, default=78, help="Terminal text width when --show is set.")
+    plot_parser.add_argument(
+        "--show-width",
+        default="78",
+        help="Terminal text width in columns or 'auto' when --show or --braille is set (default: 78).",
+    )
     plot_parser.add_argument("--subtitle", default=None, help="Figure subtitle.")
     plot_parser.add_argument("--source", default=None, help="Data source line.")
     plot_parser.add_argument("--note", default=None, help="Figure footer note.")
@@ -627,6 +692,21 @@ def _build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("base", type=Path, help="Base run file (hyperfine, pytest-benchmark, go/cargo bench, CSV/JSON/JSONL).")
     diff_parser.add_argument("head", type=Path, help="Head run file to compare against base.")
     diff_parser.add_argument("--out", "-o", type=Path, default=None, help="Optional figure output path (.png, .svg, .pdf, or .html).")
+    diff_parser.add_argument(
+        "--braille",
+        action="store_true",
+        help="Print a high-resolution 2×4 Unicode Braille ANSI diff chart straight to stdout.",
+    )
+    diff_parser.add_argument(
+        "--show-width",
+        default="78",
+        help="Terminal column width or 'auto' when --braille is set (default: 78).",
+    )
+    diff_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color escape sequences when --braille is set.",
+    )
     diff_parser.add_argument(
         "--text",
         action="store_true",
@@ -709,11 +789,15 @@ def _build_parser() -> argparse.ArgumentParser:
     edit_parser.add_argument("--show", action="store_true", help="Display the edited figure in the terminal.")
     edit_parser.add_argument(
         "--show-mode",
-        choices=("auto", "kitty", "iterm2", "unicode", "ascii"),
+        choices=("auto", "kitty", "iterm2", "braille", "unicode", "ascii"),
         default="auto",
         help="Terminal rendering mode when --show is set (default: auto).",
     )
-    edit_parser.add_argument("--show-width", type=int, default=78, help="Terminal text width when --show is set.")
+    edit_parser.add_argument(
+        "--show-width",
+        default="78",
+        help="Terminal text width or 'auto' when --show is set.",
+    )
     edit_parser.add_argument("--takeaway", "-t", default=None, help="New takeaway title.")
     edit_parser.add_argument("--subtitle", default=None, help="New subtitle (pass '' to clear).")
     edit_parser.add_argument("--source", default=None, help="New source line (pass '' to clear).")
@@ -939,11 +1023,132 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Render a visual swatch card of all styles and palettes to PATH (.png, .svg, or .pdf).",
     )
 
-    # `mintfig card spec.json --out card.png [--pair]`
+    # `mintfig card spec.json --out card.png [--pair] [--terminal]`
     subparsers.add_parser(
         "card",
-        help="Render a PR / release KPI summary card (PNG, SVG, HTML, or light/dark pair).",
+        help="Render a PR / release KPI summary card (terminal Braille, PNG, SVG, HTML, or light/dark pair).",
     )
+
+    # `mintfig mcp [--install] [--status] [--print-config]`
+    subparsers.add_parser(
+        "mcp",
+        help="Run the mintfig MCP server over stdio or install MCP host configs.",
+    )
+
+    # `mintfig demo [--html PATH] [--style pine] [--width 72|auto] [--no-color] [--ascii]`
+    demo_parser = subparsers.add_parser(
+        "demo",
+        help="Run the 15-second live terminal demo (and optional 6-surface showcase HTML).",
+    )
+    demo_parser.add_argument(
+        "--html",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help="Write the self-contained 'One Dataset, Six Surfaces' showcase HTML to PATH.",
+    )
+    demo_parser.add_argument(
+        "--style",
+        default="pine",
+        help="Visual theme for the live terminal demo (default: pine).",
+    )
+    demo_parser.add_argument(
+        "--width",
+        default="72",
+        help="Terminal column width or 'auto' (default: 72).",
+    )
+    demo_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color escape sequences.",
+    )
+    demo_parser.add_argument(
+        "--ascii",
+        action="store_true",
+        help="Use pure ASCII output instead of Unicode Braille and box borders.",
+    )
+
+    # `mintfig watch <path> [--braille] [--kind auto] [--takeaway "..."] [--style pine] [--interval 1.0] [--width auto] [--once]`
+    watch_parser = subparsers.add_parser(
+        "watch",
+        help="Live-tail a CSV/TSV/JSON/JSONL metrics file and re-render a Braille ANSI chart on every update.",
+    )
+    watch_parser.add_argument(
+        "data_path",
+        type=Path,
+        help="Path to a .csv, .tsv, .json, or .jsonl data file to watch.",
+    )
+    watch_parser.add_argument(
+        "--braille",
+        action="store_true",
+        help="Render high-resolution 2×4 Unicode Braille ANSI output (enabled by default unless --ascii).",
+    )
+    watch_parser.add_argument(
+        "--ascii",
+        action="store_true",
+        help="Use plain ASCII output instead of Unicode Braille.",
+    )
+    watch_parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color escape sequences.",
+    )
+    watch_parser.add_argument(
+        "--kind",
+        "-k",
+        default="auto",
+        choices=(
+            "auto",
+            "compare",
+            "trend",
+            "change",
+            "distribution",
+            "histogram",
+            "relate",
+            "share",
+            "matrix",
+            "table",
+            "waterfall",
+            "timeline",
+            "flow",
+        ),
+        help="Chart form to render (default: auto).",
+    )
+    watch_parser.add_argument(
+        "--takeaway",
+        "-t",
+        default=None,
+        help="Optional takeaway headline (defaults to top computed fact from the file).",
+    )
+    watch_parser.add_argument("--style", default="pine", help="Visual theme name (default: pine).")
+    watch_parser.add_argument("--palette", default=None, help="Optional color palette override.")
+    watch_parser.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        help="Polling interval in seconds (default: 1.0).",
+    )
+    watch_parser.add_argument(
+        "--width",
+        default="auto",
+        help="Terminal column width or 'auto' (default: auto).",
+    )
+    watch_parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Render a single snapshot and exit 0 without looping.",
+    )
+    watch_parser.add_argument("--title", default=None, help="Optional panel headline.")
+    watch_parser.add_argument("--label", default=None, help="Optional measured quantity label.")
+    watch_parser.add_argument("--unit", default=None, help="Optional unit symbol.")
+    watch_parser.add_argument("--x", default=None, help="Optional X column (trend/relate).")
+    watch_parser.add_argument("--y", default=None, help="Optional Y column (trend/relate).")
+    watch_parser.add_argument("--series", default=None, help="Optional series column (trend).")
+    watch_parser.add_argument("--name", default=None, help="Optional item name column.")
+    watch_parser.add_argument("--value", default=None, help="Optional value column.")
+    watch_parser.add_argument("--group", default=None, help="Optional group column.")
+    watch_parser.add_argument("--highlight", action="append", default=None, help="Optional highlight name(s).")
+    watch_parser.add_argument("--baseline", default=None, help="Optional baseline item name.")
 
     return parser
 
@@ -973,11 +1178,14 @@ def _run_explain(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 2
 
-    if args.spec_path is None or (args.out is None and args.pr_card is None and not args.show_spec):
+    if (
+        args.spec_path is None
+        or (args.out is None and args.pr_card is None and not args.show_spec and not args.braille)
+    ):
         return _reject(
-            "mintfig explain needs a spec and --out (or --pr-card).",
-            "Run `mintfig explain spec.json --out fig.png` (or `--pr-card dir/`, or `-` to read "
-            "stdin, or a PNG saved by mintfig); `mintfig explain --example` prints a spec to start from.",
+            "mintfig explain needs a spec and --out (or --braille / --pr-card).",
+            "Run `mintfig explain spec.json --out fig.png` (or `--braille`, `--pr-card dir/`, "
+            "`-` to read stdin, or a PNG saved by mintfig); `mintfig explain --example` prints a spec to start from.",
         )
     try:
         if args.spec_path != "-" and Path(args.spec_path).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n":
@@ -1033,6 +1241,17 @@ def _run_explain(args: argparse.Namespace) -> int:
             name=_pr_card_stem(args, "figure"),
             repo_prefix=args.pr_card_prefix,
         )
+    if args.braille:
+        if args.out is not None:
+            explanation.save(args.out, write_spec=args.write_spec)
+        print(
+            explanation.to_text(
+                width=_resolve_term_width(args.show_width, 78),
+                color=_resolve_term_color(args.no_color),
+                mode="braille",
+            )
+        )
+        return 0 if (explanation.ok and (card is None or card["ok"])) else 1
     if args.out is not None:
         summary = explanation.save(args.out, write_spec=args.write_spec)
         if card is not None:
@@ -1051,7 +1270,7 @@ def _run_explain(args: argparse.Namespace) -> int:
 
 def _run_show(args: argparse.Namespace) -> int:
     """Render a mintfig spec or PNG to the terminal."""
-    from .explainer import ExplainError
+    from .explainer import ExplainError, read_png_text
     from .terminal import show_in_terminal
 
     try:
@@ -1063,11 +1282,29 @@ def _run_show(args: argparse.Namespace) -> int:
                 raise ValueError("JSON spec from stdin must be a JSON object.")
         else:
             target = Path(args.path_or_spec)
+
+        if args.style is not None:
+            if isinstance(target, dict):
+                target = {**target, "style": args.style}
+            elif isinstance(target, Path):
+                raw_bytes = target.read_bytes()
+                if raw_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+                    embedded = read_png_text(target)
+                    if "mintfig:spec" in embedded:
+                        spec_obj = json.loads(embedded["mintfig:spec"])
+                        if isinstance(spec_obj, dict):
+                            target = {**spec_obj, "style": args.style}
+                else:
+                    spec_obj = json.loads(raw_bytes.decode("utf-8"))
+                    if isinstance(spec_obj, dict):
+                        target = {**spec_obj, "style": args.style}
+
+        effective_mode = "braille" if args.braille else args.mode
         rendered = show_in_terminal(
             target,
-            mode=args.mode,
-            width=args.width,
-            color=not args.no_color,
+            mode=effective_mode,
+            width=_resolve_term_width(args.width, 78),
+            color=_resolve_term_color(args.no_color),
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, ExplainError, ValueError, TypeError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
@@ -1083,7 +1320,7 @@ def _emit_explanation(
     write_spec: bool,
     show: bool,
     show_mode: str,
-    show_width: int,
+    show_width: int | str,
     summary_view: str = "compact",
 ) -> int:
     """Save ``explanation`` to ``out`` (PNG/SVG/PDF/HTML) and/or render to terminal."""
@@ -1095,7 +1332,13 @@ def _emit_explanation(
     if show:
         from .terminal import show_in_terminal
 
-        print(show_in_terminal(explanation, mode=show_mode, width=show_width))
+        print(
+            show_in_terminal(
+                explanation,
+                mode=show_mode,
+                width=_resolve_term_width(show_width, 78),
+            )
+        )
     else:
         _print_summary(summary, summary_view)
     return 0 if summary["ok"] else 1
@@ -1200,10 +1443,23 @@ def _run_plot(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 2
 
-    if args.out is None and args.pr_card is None and not args.show and not args.text and not args.markdown:
+    if (
+        args.out is None
+        and args.pr_card is None
+        and not args.show
+        and not args.braille
+        and not args.text
+        and not args.markdown
+    ):
         return _reject(
-            "mintfig plot needs --out <path>, --pr-card <dir>, --show, --text, or --markdown.",
-            "Pass --out fig.png (or fig.html), --pr-card dir/, --show, --text (terminal), or --markdown.",
+            "mintfig plot needs --out <path>, --pr-card <dir>, --braille, --show, --text, or --markdown.",
+            "Pass --out fig.png (or fig.html), --braille, --pr-card dir/, --show, --text (terminal), or --markdown.",
+        )
+
+    if args.takeaway is None and not args.braille:
+        return _reject(
+            "mintfig plot needs --takeaway \"...\" (or pass --braille to auto-derive from the top fact).",
+            'Pass --takeaway "One-sentence conclusion from the data" (or --braille for quick terminal preview).',
         )
 
     try:
@@ -1411,8 +1667,16 @@ def _run_plot(args: argparse.Namespace) -> int:
             else:
                 raise ExplainError(f"Unsupported kind {kind!r}.", fix_hint="Choose a valid form.")
 
+            takeaway_text = args.takeaway
+            if not takeaway_text:
+                takeaway_text = (
+                    panel.facts[0]
+                    if panel.facts
+                    else f"{args.data_path.name}: {panel.describe or f'{len(rows)} rows'}"
+                )
+
             explanation = fm_exp.explain(
-                args.takeaway,
+                takeaway_text,
                 panel,
                 subtitle=args.subtitle,
                 source=args.source,
@@ -1421,7 +1685,7 @@ def _run_plot(args: argparse.Namespace) -> int:
                 palette=args.palette,
                 accent=args.accent,
                 width=_parse_width_arg(args.width) or "chat",
-                strict=not args.lenient,
+                strict=(not args.lenient and not (args.braille and args.takeaway is None)),
                 **_density_overrides(args),
             )
     except ExplainError as exc:
@@ -1439,6 +1703,18 @@ def _run_plot(args: argparse.Namespace) -> int:
             name=_pr_card_stem(args, args.data_path.stem or "figure"),
             repo_prefix=args.pr_card_prefix,
         )
+
+    if args.braille:
+        if args.out is not None:
+            explanation.save(args.out, write_spec=args.write_spec)
+        print(
+            explanation.to_text(
+                width=_resolve_term_width(args.show_width, 78),
+                color=_resolve_term_color(args.no_color),
+                mode="braille",
+            )
+        )
+        return 0 if (explanation.ok and (card is None or card["ok"])) else 1
 
     if args.text or args.markdown:
         if args.out is not None:
@@ -1530,6 +1806,14 @@ def _run_diff(args: argparse.Namespace) -> int:
                 "ship": card["ship"],
             }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
+    elif args.braille:
+        print(
+            result.explanation.to_text(
+                width=_resolve_term_width(args.show_width, 78),
+                color=_resolve_term_color(args.no_color),
+                mode="braille",
+            )
+        )
     elif args.markdown:
         print(result.markdown)
     elif args.text:
@@ -1679,6 +1963,80 @@ def _run_brief(args: argparse.Namespace) -> int:
     return 0 if meta["ship_all"] else 1
 
 
+def _stdout_supports_braille() -> bool:
+    """Return True when stdout's encoding can represent Unicode Braille glyphs."""
+    enc = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        "\u2800\u28ff".encode(enc)
+    except (LookupError, UnicodeEncodeError):
+        return False
+    return True
+
+
+def _doctor_surface_info(protocol: str, tty: bool, notebook: bool) -> dict[str, Any]:
+    """Gather detected surface/harness metadata from ``mintfig.surface`` with graceful fallback."""
+    try:
+        from .surface import detect_surface
+
+        info = detect_surface()
+        if hasattr(info, "to_dict"):
+            return dict(info.to_dict())
+        return {
+            "surface": str(getattr(info, "surface", "terminal_braille")),
+            "harness": str(getattr(info, "harness", "terminal")),
+            "protocol": str(getattr(info, "protocol", protocol)),
+            "color": bool(getattr(info, "color", not bool(os.environ.get("NO_COLOR")))),
+            "truecolor": bool(getattr(info, "truecolor", False)),
+            "in_tmux": bool(getattr(info, "in_tmux", bool(os.environ.get("TMUX")))),
+            "width_cols": int(getattr(info, "width_cols", 72)),
+            "prefers_dark": bool(getattr(info, "prefers_dark", True)),
+            "supports_images": bool(getattr(info, "supports_images", protocol in {"kitty", "iterm2"})),
+            "supports_html": bool(getattr(info, "supports_html", notebook)),
+            "reason": str(getattr(info, "reason", "")),
+        }
+    except ImportError:
+        env = os.environ
+        in_tmux = bool(env.get("TMUX"))
+        colorterm = env.get("COLORTERM", "").lower()
+        truecolor = colorterm in {"truecolor", "24bit"}
+        no_color = bool(env.get("NO_COLOR"))
+        force_color = bool(env.get("FORCE_COLOR"))
+        if notebook:
+            surface, harness = "notebook_html", "jupyter"
+        elif protocol in {"kitty", "iterm2"} and tty:
+            surface, harness = "terminal_image", protocol
+        elif tty or force_color:
+            surface, harness = "terminal_braille", "terminal"
+        else:
+            surface, harness = "ci_plain", "unknown"
+        return {
+            "surface": surface,
+            "harness": harness,
+            "protocol": protocol,
+            "color": (not no_color) and (tty or force_color),
+            "truecolor": truecolor,
+            "in_tmux": in_tmux,
+            "width_cols": 72,
+            "prefers_dark": True,
+            "supports_images": protocol in {"kitty", "iterm2"},
+            "supports_html": notebook,
+            "reason": f"protocol={protocol}, tty={tty}",
+        }
+
+
+def _doctor_mcp_status() -> dict[str, Any]:
+    """Query ``mintfig.mcp_server.mcp_status()`` with graceful fallback if unavailable."""
+    try:
+        from .mcp_server import mcp_status
+
+        raw = mcp_status()
+        if isinstance(raw, dict):
+            return raw
+        return {"available": True, "hosts": {}}
+    except ImportError:
+        return {"available": False, "hosts": {}}
+
+
 def _run_doctor(args: argparse.Namespace) -> int:
     """Report the delivery surfaces available here and render the example spec."""
     import importlib
@@ -1686,6 +2044,7 @@ def _run_doctor(args: argparse.Namespace) -> int:
 
     import matplotlib.pyplot as plt
 
+    from ._chip_bridge import import_mintchip
     from .explainer import EXAMPLE_SPEC, explain_from_spec
     from .terminal import detect_graphics_protocol, in_notebook
 
@@ -1707,12 +2066,30 @@ def _run_doctor(args: argparse.Namespace) -> int:
     )
     protocol = detect_graphics_protocol()
     tty = sys.stdout.isatty()
+    notebook = in_notebook()
     surfaces = {
         "inline_image_protocol": protocol if protocol in {"kitty", "iterm2"} else None,
         "body_font": font,
         "stdout_is_tty": tty,
-        "notebook": in_notebook(),
+        "notebook": notebook,
     }
+    surface_info = _doctor_surface_info(protocol, tty, notebook)
+    in_tmux = bool(surface_info.get("in_tmux", bool(os.environ.get("TMUX"))))
+    tmux_passthrough = {
+        "in_tmux": in_tmux,
+        "supported": True,
+        "active": bool(in_tmux and protocol in {"kitty", "iterm2"}),
+    }
+    truecolor = bool(surface_info.get("truecolor", False))
+    braille = _stdout_supports_braille()
+
+    mc_mod = import_mintchip()
+    mintchip_info = {
+        "available": mc_mod is not None,
+        "version": getattr(mc_mod, "__version__", None) if mc_mod is not None else None,
+    }
+    mcp_info = _doctor_mcp_status()
+
     if surfaces["notebook"]:
         show_uses = "notebook display"
     elif surfaces["inline_image_protocol"] and tty:
@@ -1720,6 +2097,15 @@ def _run_doctor(args: argparse.Namespace) -> int:
     else:
         show_uses = "plain text (fig.to_text())"
     report = {
+        "surface": surface_info["surface"],
+        "harness": surface_info["harness"],
+        "surface_info": surface_info,
+        "graphics_protocol": surface_info.get("protocol", protocol),
+        "tmux_passthrough": tmux_passthrough,
+        "truecolor": truecolor,
+        "braille": braille,
+        "mintchip": mintchip_info,
+        "mcp": mcp_info,
         "surfaces": surfaces,
         "show_uses": show_uses,
         "out_dir": str(out_dir.resolve()),
@@ -1730,7 +2116,41 @@ def _run_doctor(args: argparse.Namespace) -> int:
         return 0
     yes_no = {True: "yes", False: "no"}
     print("mintfig doctor")
+    print(f"  detected surface:      {report['surface']}")
+    print(f"  detected harness:      {report['harness']}")
+    print(f"  graphics protocol:     {report['graphics_protocol']}")
     print(f"  inline image protocol: {surfaces['inline_image_protocol'] or 'none'}")
+    tmux_state = (
+        "active (in tmux)"
+        if tmux_passthrough["active"]
+        else ("in tmux (text mode)" if tmux_passthrough["in_tmux"] else "not in tmux (supported)")
+    )
+    print(f"  tmux passthrough:      {tmux_state}")
+    print(f"  truecolor:             {yes_no[truecolor]}")
+    print(f"  braille support:       {yes_no[braille]}")
+    mc_str = (
+        f"yes ({mintchip_info['version']})"
+        if mintchip_info["available"] and mintchip_info["version"]
+        else yes_no[mintchip_info["available"]]
+    )
+    print(f"  mintchip:              {mc_str}")
+    if isinstance(mcp_info, dict) and mcp_info:
+        hosts_map = mcp_info.get("hosts") if isinstance(mcp_info.get("hosts"), dict) else mcp_info
+        configured = [
+            k
+            for k, v in hosts_map.items()
+            if k != "available"
+            and (v is True or (isinstance(v, dict) and bool(v.get("configured") or v.get("installed"))))
+        ]
+        if configured:
+            mcp_str = f"configured ({', '.join(sorted(configured))})"
+        elif mcp_info.get("available") is False:
+            mcp_str = "not available"
+        else:
+            mcp_str = "not configured (run `mintfig mcp --install`)"
+    else:
+        mcp_str = "not configured (run `mintfig mcp --install`)"
+    print(f"  mcp hosts:             {mcp_str}")
     print(f"  body font:             {font}")
     print(f"  stdout is a terminal:  {yes_no[tty]}")
     print(f"  notebook:              {yes_no[surfaces['notebook']]}")
@@ -1745,6 +2165,21 @@ def _run_doctor(args: argparse.Namespace) -> int:
     print(f"  html:     {deliver['html']}")
     print("  text:")
     print(textwrap.indent(deliver["text"], "    "))
+    return 0
+
+
+def _run_demo(args: argparse.Namespace) -> int:
+    """Run the 15-second live terminal demo (and optional 6-surface showcase HTML)."""
+    from .demo import run_demo
+
+    use_color = False if (args.no_color or args.ascii) else _resolve_term_color(args.no_color)
+    run_demo(
+        width=args.width,
+        color=use_color,
+        style=args.style,
+        ascii_only=bool(args.ascii),
+        html_out=args.html,
+    )
     return 0
 
 
@@ -1822,11 +2257,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(output)
         return rc
 
-    raw_argv = list(argv) if argv is not None else sys.argv[1:]
     if raw_argv[:1] == ["card"]:
         from .card import cli_card
 
         return cli_card(raw_argv[1:])
+
+    if raw_argv[:1] == ["mcp"]:
+        from .mcp_server import cli_mcp
+
+        return cli_mcp(raw_argv[1:])
 
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -1991,7 +2430,192 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "themes":
         return _run_themes(args)
 
+    if args.command == "watch":
+        return _run_watch(args)
+
+    if args.command == "demo":
+        return _run_demo(args)
+
     return 1
+
+
+def _build_watch_panel(args: argparse.Namespace) -> tuple[Any, list[dict[str, Any]]]:
+    """Load data from ``args.data_path`` and build a Panel for ``mintfig watch``."""
+    from . import explainer as fm_exp
+    from .inspect_data import auto_panel, load_table_file
+
+    rows = load_table_file(args.data_path)
+    hl = _parse_list_arg(args.highlight)
+    common: dict[str, Any] = {}
+    if args.title is not None:
+        common["title"] = args.title
+    if args.label is not None:
+        common["label"] = args.label
+    if args.unit is not None:
+        common["unit"] = args.unit
+    if hl is not None:
+        common["highlight"] = hl if len(hl) > 1 else hl[0]
+
+    kind = args.kind
+    if kind == "auto":
+        panel = auto_panel(
+            args.data_path,
+            title=args.title,
+            label=args.label,
+            unit=args.unit,
+            highlight=common.get("highlight"),
+            baseline=args.baseline,
+        )
+        return panel, rows
+
+    if kind == "compare":
+        kw = {**common}
+        if args.name:
+            kw["name"] = args.name
+        if args.group:
+            kw["group"] = args.group
+        if args.value:
+            kw["value"] = args.value
+        if args.baseline:
+            kw["baseline"] = args.baseline
+        return fm_exp.compare(rows, **kw), rows
+    if kind == "trend":
+        if not args.x:
+            return auto_panel(
+                args.data_path,
+                title=args.title,
+                label=args.label,
+                unit=args.unit,
+                highlight=common.get("highlight"),
+                baseline=args.baseline,
+            ), rows
+        kw = {**common, "data": rows}
+        if args.y:
+            kw["y"] = args.y
+        if args.baseline:
+            kw["baseline"] = args.baseline
+        return fm_exp.trend(args.x, args.series, **kw), rows
+    if kind in {"distribution", "histogram"}:
+        kw = {**common}
+        if args.group:
+            kw["group"] = args.group
+        if args.value:
+            kw["value"] = args.value
+        if args.baseline:
+            kw["baseline"] = args.baseline
+        builder = fm_exp.histogram if kind == "histogram" else fm_exp.distribution
+        return builder(rows, **kw), rows
+    if kind == "relate" and args.x and args.y:
+        kw = {**common, "data": rows, "x_label": args.x, "y_label": args.y}
+        return fm_exp.relate(args.x, args.y, **kw), rows
+    if kind == "share":
+        kw = {**common}
+        if args.name:
+            kw["name"] = args.name
+        if args.value:
+            kw["value"] = args.value
+        return fm_exp.share(rows, **kw), rows
+    if kind == "table":
+        kw = {**common}
+        if args.baseline:
+            kw["baseline"] = args.baseline
+        return fm_exp.table(rows, **kw), rows
+    if kind == "waterfall":
+        kw = {**common}
+        if args.name:
+            kw["name"] = args.name
+        if args.value:
+            kw["value"] = args.value
+        return fm_exp.waterfall(rows, **kw), rows
+    if kind == "flow":
+        kw = {**common}
+        if args.name:
+            kw["name"] = args.name
+        if args.value:
+            kw["value"] = args.value
+        return fm_exp.flow(rows, **kw), rows
+
+    panel = auto_panel(
+        args.data_path,
+        title=args.title,
+        label=args.label,
+        unit=args.unit,
+        highlight=common.get("highlight"),
+        baseline=args.baseline,
+    )
+    return panel, rows
+
+
+def _run_watch(args: argparse.Namespace) -> int:
+    """Live-tail a data file and render Braille ANSI charts whenever it updates."""
+    import time
+
+    import matplotlib.pyplot as plt
+
+    from . import explainer as fm_exp
+    from .explainer import ExplainError
+
+    path: Path = args.data_path
+    if not path.exists():
+        print(f"Error: {path} does not exist.", file=sys.stderr)
+        return 2
+
+    def _render_frame() -> str:
+        with fm_exp.lenient():
+            panel, rows = _build_watch_panel(args)
+            takeaway = args.takeaway
+            if not takeaway:
+                takeaway = (
+                    panel.facts[0]
+                    if panel.facts
+                    else f"{path.name}: {panel.describe or f'{len(rows)} rows'}"
+                )
+            exp = fm_exp.explain(
+                takeaway,
+                panel,
+                style=args.style,
+                palette=args.palette,
+                strict=False,
+            )
+        try:
+            mode = "ascii" if args.ascii else "braille"
+            use_color = False if args.ascii else _resolve_term_color(args.no_color)
+            term_w = _resolve_term_width(args.width, 78)
+            return exp.to_text(width=term_w, color=use_color, mode=mode)
+        finally:
+            plt.close(exp.fig)
+
+    if args.once:
+        try:
+            print(_render_frame())
+        except (ExplainError, OSError, ValueError, TypeError, KeyError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 2
+        return 0
+
+    interval = max(0.05, float(args.interval))
+    last_sig: tuple[int, int] | None = None
+    try:
+        while True:
+            try:
+                st = path.stat()
+                sig = (st.st_mtime_ns, st.st_size)
+            except OSError:
+                time.sleep(interval)
+                continue
+            if sig != last_sig:
+                try:
+                    frame = _render_frame()
+                except (ExplainError, OSError, ValueError, TypeError, KeyError):
+                    # File may be mid-write; retry on the next poll tick.
+                    time.sleep(interval)
+                    continue
+                sys.stdout.write("\x1b[H\x1b[2J" + frame + "\n")
+                sys.stdout.flush()
+                last_sig = sig
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        return 0
 
 
 def _run_hook(args: argparse.Namespace) -> int:

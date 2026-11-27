@@ -20,8 +20,11 @@ import io
 import json
 import math
 import numbers
+import os
 import re
+import shutil
 import sys
+import textwrap
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -1096,6 +1099,302 @@ class SummaryCard:
             lines.extend(["", f"*Source: {self.source}*"])
         return "\n".join(lines)
 
+    def to_terminal(
+        self,
+        width: int | str = 76,
+        color: bool | None = True,
+        ascii_only: bool = False,
+        style: str | Theme | None = None,
+    ) -> str:
+        """Render the KPI summary card for terminals with box-drawn tiles and Braille sparklines.
+
+        Parameters
+        ----------
+        width:
+            Target column width (``>= 40``) or ``"auto"`` to query the active terminal.
+        color:
+            Enable 24-bit ANSI true-color styling. Pass ``False`` for plain text or
+            ``None`` to respect ``NO_COLOR`` / ``FORCE_COLOR``.
+        ascii_only:
+            Use pure ASCII box borders (``+---+``) and ASCII sparklines instead of
+            Unicode rounded boxes and Braille sub-pixel curves.
+        style:
+            Optional visual theme override (e.g. ``"pine"``, ``"mint"``, ``"editorial"``).
+        """
+        import matplotlib.pyplot as plt
+
+        from ._explain.layout import explain_from_spec
+        from .terminal import _to_ascii, render_terminal
+
+        if isinstance(width, str) and width.strip().lower() == "auto":
+            cols = shutil.get_terminal_size((80, 24)).columns
+            w = max(56, min(132, int(cols)))
+        else:
+            w = max(40, int(width))
+
+        if color is None:
+            if os.environ.get("NO_COLOR"):
+                use_color = False
+            elif os.environ.get("FORCE_COLOR"):
+                use_color = True
+            else:
+                use_color = True
+        else:
+            use_color = bool(color)
+
+        if style is not None:
+            theme = get_theme(style)
+            theme, _ = apply_palette(theme, self.palette)
+            if self.accent is not None:
+                theme, _ = apply_accent(theme, self.accent)
+            accent_hex = (
+                theme.top_flag_color
+                or (theme.accent_colors[0] if theme.accent_colors else DEFAULT_ACCENT_LIGHT)
+            )
+        else:
+            theme = self.theme
+            accent_hex = theme.top_flag_color or self.resolved_accent
+
+        is_dark = relative_luminance(theme.background) < 0.2
+        good_hex = _GOOD_DARK if is_dark else _GOOD_LIGHT
+        bad_hex = _BAD_DARK if is_dark else _BAD_LIGHT
+        if theme.name == "pine":
+            good_hex = "#38DDA9"
+
+        ansi_re = re.compile(r"\x1b\[[0-9;]*m")
+
+        def _fg(hex_col: str, *, bold: bool = False) -> str:
+            r, g, b = (round(c * 255) for c in to_rgb(hex_col))
+            prefix = "1;" if bold else ""
+            return f"\x1b[{prefix}38;2;{r};{g};{b}m"
+
+        def _paint(text: str, hex_col: str | None = None, *, bold: bool = False, dim: bool = False) -> str:
+            if not use_color or not text:
+                return text
+            if hex_col is not None:
+                return f"{_fg(hex_col, bold=bold)}{text}\x1b[0m"
+            if bold:
+                return f"\x1b[1m{text}\x1b[0m"
+            if dim:
+                return f"\x1b[2m{text}\x1b[0m"
+            return text
+
+        def _clip(text: str, max_len: int) -> str:
+            cleaned = _to_ascii(text) if ascii_only else text
+            if len(cleaned) <= max_len:
+                return cleaned
+            if max_len <= 1:
+                return cleaned[:max_len]
+            ell = "." if ascii_only else "\N{HORIZONTAL ELLIPSIS}"
+            return cleaned[: max_len - 1].rstrip() + ell
+
+        def _pad_cell(rendered: str, plain_len: int, target_w: int) -> str:
+            if plain_len >= target_w:
+                return rendered
+            return rendered + (" " * (target_w - plain_len))
+
+        def _tile_spark(values: Sequence[float], cols_w: int, sp_hex: str) -> list[str]:
+            """Render an exact-1ch-per-cell sparkline inside boxed KPI tiles.
+
+            Uses native monospace eighth-block glyphs (``▁..█``) instead of Braille inside
+            multi-column box borders so right-hand ``│`` walls never shift in fonts where
+            fallback Braille glyphs are wider than standard monospace cells.
+            """
+            if cols_w < 1:
+                return [""]
+            if not values:
+                return [" " * cols_w]
+            n_vals = len(values)
+            if n_vals == cols_w:
+                sampled = list(values)
+            elif n_vals == 1:
+                sampled = [values[0]] * cols_w
+            else:
+                sampled = [
+                    values[round(i * (n_vals - 1) / max(1, cols_w - 1))]
+                    for i in range(cols_w)
+                ]
+            raw_spark = _unicode_sparkline(sampled, ascii_only=ascii_only)[:cols_w]
+            return [_pad_cell(_paint(raw_spark, sp_hex), len(raw_spark), cols_w)]
+
+        out: list[str] = []
+
+        # 1. Editorial Economist/mint top accent bar + bold takeaway + dim subtitle
+        flag_w = max(4, min(10, w // 10))
+        rest_w = max(0, w - flag_w)
+        if ascii_only:
+            out.append(_paint("=" * flag_w, accent_hex, bold=True) + _paint("-" * rest_w, dim=True))
+        else:
+            out.append(_paint("━" * flag_w, accent_hex, bold=True) + _paint("─" * rest_w, dim=True))
+
+        takeaway_txt = _to_ascii(self.takeaway) if ascii_only else self.takeaway
+        for line in textwrap.wrap(takeaway_txt, width=w):
+            out.append(_paint(line, bold=True))
+
+        if self.subtitle:
+            sub_txt = _to_ascii(self.subtitle) if ascii_only else self.subtitle
+            for line in textwrap.wrap(sub_txt, width=w):
+                out.append(_paint(line, dim=True))
+
+        out.append("")
+
+        # 2. Horizontal box-drawn KPI tiles (auto-wrapping to 2+ balanced rows when narrow)
+        gap = 1
+        min_tile_w = 16
+        max_cols = max(1, min(5, (w + gap) // (min_tile_w + gap)))
+        n_metrics = len(self.metrics)
+        if n_metrics <= max_cols:
+            metric_rows = [self.metrics]
+        else:
+            n_rows = math.ceil(n_metrics / max_cols)
+            cols_per_row = math.ceil(n_metrics / n_rows)
+            metric_rows = [
+                self.metrics[i : i + cols_per_row] for i in range(0, n_metrics, cols_per_row)
+            ]
+
+        if ascii_only:
+            tl, tr, bl, br, hbar, vbar = "+", "+", "+", "+", "-", "|"
+        else:
+            tl, tr, bl, br, hbar, vbar = "╭", "╮", "╰", "╯", "─", "│"
+
+        for r_idx, row_metrics in enumerate(metric_rows):
+            if r_idx > 0:
+                out.append("")
+            k = len(row_metrics)
+            tile_w = max(12, (w - gap * (k - 1)) // k)
+            inner_w = tile_w - 4
+            has_delta = any(m.get("delta") for m in row_metrics)
+            has_note = any(m.get("note") for m in row_metrics)
+            has_spark = any(m.get("spark") for m in row_metrics)
+            spark_rows_n = 1
+
+            top_edge = _paint(f"{tl}{hbar * (tile_w - 2)}{tr}", dim=True)
+            bot_edge = _paint(f"{bl}{hbar * (tile_w - 2)}{br}", dim=True)
+            v_left = _paint(vbar, dim=True)
+            v_right = _paint(vbar, dim=True)
+
+            tile_blocks: list[list[str]] = []
+            for m in row_metrics:
+                body: list[str] = []
+
+                lbl_plain = _clip(m["label"], inner_w)
+                body.append(_pad_cell(_paint(lbl_plain, dim=True), len(lbl_plain), inner_w))
+
+                val_plain = _clip(m["value"], inner_w)
+                body.append(_pad_cell(_paint(val_plain, bold=True), len(val_plain), inner_w))
+
+                if has_delta:
+                    delta = m.get("delta")
+                    if delta:
+                        good = m.get("good")
+                        if good is True:
+                            prefix = "+ " if ascii_only else "▲ "
+                            d_plain = _clip(f"{prefix}{delta}", inner_w)
+                            d_styled = _paint(d_plain, good_hex, bold=True)
+                        elif good is False:
+                            prefix = "! " if ascii_only else "▼ "
+                            d_plain = _clip(f"{prefix}{delta}", inner_w)
+                            d_styled = _paint(d_plain, bad_hex, bold=True)
+                        else:
+                            d_plain = _clip(str(delta), inner_w)
+                            d_styled = _paint(d_plain, dim=True)
+                        body.append(_pad_cell(d_styled, len(d_plain), inner_w))
+                    else:
+                        body.append(" " * inner_w)
+
+                if has_note:
+                    note = m.get("note")
+                    if note:
+                        n_plain = _clip(note, inner_w)
+                        body.append(_pad_cell(_paint(n_plain, dim=True), len(n_plain), inner_w))
+                    else:
+                        body.append(" " * inner_w)
+
+                if has_spark:
+                    spark_vals = m.get("spark")
+                    if spark_vals:
+                        good = m.get("good")
+                        sp_hex = (
+                            good_hex
+                            if good is True
+                            else (bad_hex if good is False else accent_hex)
+                        )
+                        body.extend(_tile_spark(spark_vals, inner_w, sp_hex))
+                    else:
+                        body.extend([" " * inner_w] * spark_rows_n)
+
+                tile_lines = [top_edge]
+                for b_line in body:
+                    vis_len = len(ansi_re.sub("", b_line))
+                    if vis_len < inner_w:
+                        b_line = b_line + (" " * (inner_w - vis_len))
+                    tile_lines.append(f"{v_left} {b_line} {v_right}")
+                tile_lines.append(bot_edge)
+                tile_blocks.append(tile_lines)
+
+            sep = " " * gap
+            for line_idx in range(len(tile_blocks[0])):
+                out.append(sep.join(block[line_idx] for block in tile_blocks))
+
+        # 3. Optional attached panel rendered via render_terminal(..., high_res=not ascii_only)
+        rule_line = _paint(("-" if ascii_only else "─") * w, dim=True)
+        if self.panel is not None:
+            sentinel = "MINTFIGCARDPANEL"
+            panel_spec: dict[str, Any] = {
+                "takeaway": sentinel,
+                "style": theme.name,
+                "panels": [self.panel.to_spec()],
+            }
+            if self.palette is not None:
+                panel_spec["palette"] = self.palette
+            if self.accent is not None:
+                panel_spec["accent"] = self.accent
+            elif style is None and theme.name in {"mintfig", "dark"}:
+                panel_spec["accent"] = self.resolved_accent
+
+            panel_exp = explain_from_spec(panel_spec, strict=False)
+            try:
+                panel_rendered = render_terminal(
+                    panel_exp,
+                    width=w,
+                    color=use_color,
+                    ascii_only=ascii_only,
+                    high_res=not ascii_only,
+                )
+            finally:
+                plt.close(panel_exp.fig)
+
+            p_lines = panel_rendered.splitlines()
+            start_idx = 0
+            for idx, ln in enumerate(p_lines):
+                if sentinel in ansi_re.sub("", ln):
+                    start_idx = idx + 1
+            while start_idx < len(p_lines):
+                stripped = ansi_re.sub("", p_lines[start_idx]).strip()
+                if not stripped or all(ch in "─-━═" for ch in stripped):
+                    start_idx += 1
+                else:
+                    break
+            body_lines = p_lines[start_idx:]
+            if body_lines:
+                out.append("")
+                out.append(rule_line)
+                out.extend(body_lines)
+
+        # 4. Optional dim source footer
+        if self.source:
+            src_txt = f"Source: {self.source}"
+            if ascii_only:
+                src_txt = _to_ascii(src_txt)
+            out.append(rule_line)
+            for fl in textwrap.wrap(src_txt, width=w):
+                out.append(_paint(fl, dim=True))
+
+        rendered = "\n".join(out)
+        if ascii_only:
+            rendered = _to_ascii(rendered)
+        return rendered
+
     def to_html(self) -> str:
         """Render a self-contained responsive light/dark HTML document for this card."""
         esc = html.escape
@@ -2128,12 +2427,27 @@ def cli_card(argv: Sequence[str] | None = None) -> int:
     parser.add_argument(
         "--width",
         default=None,
-        help="Target width preset ('narrow', 'chat', 'slide') or mm.",
+        help="Target width preset ('narrow', 'chat', 'slide'), mm, or terminal columns / 'auto' with --terminal.",
     )
     parser.add_argument(
         "--repo-prefix",
         default=None,
         help="Optional repo path or URL prefix for --pair Markdown srcset/src attributes.",
+    )
+    parser.add_argument(
+        "--terminal",
+        action="store_true",
+        help="Print a box-drawn Unicode KPI summary card with Braille sparklines to stdout.",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable ANSI color escape sequences in --terminal output.",
+    )
+    parser.add_argument(
+        "--ascii",
+        action="store_true",
+        help="Use pure ASCII characters in --terminal or --markdown output.",
     )
     parser.add_argument(
         "--markdown",
@@ -2173,10 +2487,16 @@ def cli_card(argv: Sequence[str] | None = None) -> int:
             "Run `mintfig card --example` to see the expected JSON format.",
         )
 
-    if args.out is None and args.pair is None and not args.markdown and not args.html:
+    if (
+        args.out is None
+        and args.pair is None
+        and not args.markdown
+        and not args.html
+        and not args.terminal
+    ):
         return _reject(
-            "mintfig card needs --out <path>, --pair [stem_or_dir], --markdown, or --html.",
-            "Pass --out card.png, --out card.png --pair, --markdown, or --html.",
+            "mintfig card needs --out <path>, --pair [stem_or_dir], --terminal, --markdown, or --html.",
+            "Pass --out card.png, --out card.png --pair, --terminal, --markdown, or --html.",
         )
 
     try:
@@ -2197,7 +2517,7 @@ def cli_card(argv: Sequence[str] | None = None) -> int:
             spec_dict["palette"] = args.palette
         if args.accent is not None:
             spec_dict["accent"] = args.accent
-        if args.width is not None:
+        if args.width is not None and not args.terminal:
             spec_dict["width"] = _parse_width(args.width)
 
         summary_card = card_from_json(spec_dict)
@@ -2209,8 +2529,35 @@ def cli_card(argv: Sequence[str] | None = None) -> int:
     import matplotlib.pyplot as plt
 
     try:
+        if args.terminal:
+            if args.width is None:
+                term_width: int | str = 76
+            elif args.width.strip().lower() == "auto":
+                term_width = "auto"
+            else:
+                preset_cols = {"narrow": 60, "chat": 76, "slide": 100}
+                low_w = args.width.strip().lower()
+                term_width = preset_cols[low_w] if low_w in preset_cols else int(float(args.width))
+            term_color = False if args.no_color else (not bool(os.environ.get("NO_COLOR")))
+            if args.out is not None:
+                summary_card.save(args.out)
+            if args.pair is not None:
+                pair_target_t: str | Path = (
+                    args.out if (args.pair is True and args.out is not None) else (
+                        Path("card") if args.pair is True else args.pair
+                    )
+                )
+                summary_card.save_pair(pair_target_t, repo_prefix=args.repo_prefix)
+            print(
+                summary_card.to_terminal(
+                    width=term_width,
+                    color=term_color,
+                    ascii_only=args.ascii,
+                )
+            )
+            return 0
         if args.markdown and args.out is None and args.pair is None:
-            print(summary_card.to_markdown())
+            print(summary_card.to_markdown(ascii_only=args.ascii))
             return 0
         if args.html and args.out is None and args.pair is None:
             print(summary_card.to_html())

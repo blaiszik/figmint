@@ -16,6 +16,7 @@ from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure, SubFigure
 from matplotlib.lines import Line2D
+from matplotlib.patches import Rectangle
 from matplotlib.ticker import (
     FixedLocator,
     FuncFormatter,
@@ -24,6 +25,7 @@ from matplotlib.ticker import (
 from matplotlib.transforms import Bbox
 
 from ..specs import JournalSpec, get_spec, mm_to_in
+from ..style import _installed_font_stack
 from ..themes import (
     EXPLAIN_PALETTES,
     MINTFIG_THEME,
@@ -943,6 +945,7 @@ class Explanation:
         palette: str | None = None,
         accent: str | None = None,
         takeaway: str,
+        kicker: str | None = None,
         subtitle: str | None,
         source: str | None,
         note: str | None,
@@ -970,6 +973,7 @@ class Explanation:
         self.palette = palette
         self.accent = accent
         self.takeaway = takeaway
+        self.kicker = kicker
         self.subtitle = subtitle
         self.source = source
         self.note = note
@@ -1069,7 +1073,7 @@ class Explanation:
     def to_spec(self) -> dict[str, Any]:
         """JSON-serialisable spec that ``mintfig explain`` renders back to the same figure."""
         out: dict[str, Any] = {"takeaway": self.takeaway}
-        for key in ("subtitle", "source", "note"):
+        for key in ("kicker", "subtitle", "source", "note"):
             if getattr(self, key):
                 out[key] = getattr(self, key)
         if self.theme.name != "mintfig":
@@ -1159,29 +1163,138 @@ class Explanation:
             "html": _reader_path(html) if html is not None else None,
         }
 
-    def to_text(self, width: int = 72, ascii_only: bool = False) -> str:
-        """Plain rendering (no escape codes, at most ``width`` columns) for a code block."""
+    def to_text(
+        self,
+        width: int | str = 72,
+        ascii_only: bool = False,
+        *,
+        color: bool | None = None,
+        mode: str | None = None,
+        high_res: bool = False,
+    ) -> str:
+        """Render a terminal/text view of this figure.
+
+        Defaults (``width=72, color=False, high_res=False``) emit plain, escape-free
+        text safe for Markdown code blocks. Pass ``mode="braille"`` for high-resolution
+        2×4 Unicode Braille charts with 24-bit ANSI colors (respecting ``NO_COLOR``),
+        ``mode="ascii"`` for pure ASCII, or ``width="auto"`` to match the active terminal.
+        """
+        import os
+        import shutil
+
         from ..terminal import render_terminal
 
-        return render_terminal(self, width=width, color=False, ascii_only=ascii_only)
+        if isinstance(width, str) and width.strip().lower() == "auto":
+            cols = shutil.get_terminal_size((80, 24)).columns
+            resolved_width = max(56, min(132, int(cols)))
+        else:
+            resolved_width = int(width)
 
-    def show(self) -> None:
+        use_ascii = bool(ascii_only)
+        use_high_res = bool(high_res)
+        use_color: bool
+
+        if mode is not None:
+            mode_norm = mode.strip().lower()
+            if mode_norm not in {"braille", "unicode", "ascii"}:
+                raise ValueError(
+                    f"Unknown text mode {mode!r}. Choose one of: 'braille', 'unicode', 'ascii'."
+                )
+            if mode_norm == "braille":
+                use_high_res = True
+                use_ascii = False
+                if color is None:
+                    use_color = not bool(os.environ.get("NO_COLOR"))
+                else:
+                    use_color = bool(color)
+            elif mode_norm == "ascii":
+                use_ascii = True
+                use_high_res = False
+                use_color = bool(color) if color is not None else False
+            else:
+                use_high_res = bool(high_res) and not use_ascii
+                use_color = bool(color) if color is not None else False
+        else:
+            use_high_res = bool(high_res) and not use_ascii
+            use_color = bool(color) if color is not None else False
+
+        return render_terminal(
+            self,
+            width=resolved_width,
+            color=use_color,
+            ascii_only=use_ascii,
+            high_res=use_high_res,
+        )
+
+    def show(
+        self,
+        *,
+        mode: str = "auto",
+        width: int | str | None = None,
+        color: bool | None = None,
+        high_res: bool | None = None,
+    ) -> None:
         """Show the figure where it runs: rich display in a notebook, an inline PNG in a
-        terminal with an image protocol (Kitty, iTerm2, WezTerm, Ghostty), else ``to_text()``."""
+        terminal with an image protocol (Kitty, iTerm2, WezTerm, Ghostty), Braille/ANSI
+        (``mode="braille"``), or ``to_text()``."""
+        import os
+        import shutil
         import sys
 
         from ..terminal import detect_graphics_protocol, in_notebook, show_in_terminal
 
-        if in_notebook():
+        if mode == "auto" and in_notebook():
             from IPython.display import display
 
             display(self)
             return
-        protocol = detect_graphics_protocol()
-        if protocol in {"kitty", "iterm2"} and sys.stdout.isatty():
-            print(show_in_terminal(self, mode=protocol))
+
+        if width is None:
+            resolved_width = 78 if mode != "auto" else 72
+        elif isinstance(width, str) and width.strip().lower() == "auto":
+            cols = shutil.get_terminal_size((80, 24)).columns
+            resolved_width = max(56, min(132, int(cols)))
+        else:
+            resolved_width = int(width)
+
+        if mode == "auto":
+            protocol = detect_graphics_protocol()
+            if protocol in {"kitty", "iterm2"} and sys.stdout.isatty():
+                print(show_in_terminal(self, mode=protocol))
+                return
+            if color is None and high_res is None and width is None:
+                print(self.to_text())
+                return
+            use_color = (
+                bool(color)
+                if color is not None
+                else (sys.stdout.isatty() and not bool(os.environ.get("NO_COLOR")))
+            )
+            print(
+                show_in_terminal(
+                    self,
+                    mode="auto",
+                    width=resolved_width,
+                    color=use_color,
+                    high_res=high_res,
+                )
+            )
             return
-        print(self.to_text())
+
+        if color is None:
+            use_color = False if mode == "ascii" else not bool(os.environ.get("NO_COLOR"))
+        else:
+            use_color = bool(color)
+
+        print(
+            show_in_terminal(
+                self,
+                mode=mode,
+                width=resolved_width,
+                color=use_color,
+                high_res=high_res,
+            )
+        )
 
     def save(
         self,
@@ -1328,14 +1441,29 @@ class Explanation:
 
     def to_terminal(
         self,
-        width: int = 78,
+        width: int | str = 78,
         color: bool = True,
         ascii_only: bool = False,
+        *,
+        high_res: bool = False,
     ) -> str:
-        """Render a terminal-friendly Unicode or ASCII view of this figure."""
+        """Render a terminal-friendly Unicode, Braille, or ASCII view of this figure."""
+        import shutil
+
         from ..terminal import render_terminal
 
-        return render_terminal(self, width=width, color=color, ascii_only=ascii_only)
+        if isinstance(width, str) and width.strip().lower() == "auto":
+            cols = shutil.get_terminal_size((80, 24)).columns
+            resolved_width = max(56, min(132, int(cols)))
+        else:
+            resolved_width = int(width)
+        return render_terminal(
+            self,
+            width=resolved_width,
+            color=color,
+            ascii_only=ascii_only,
+            high_res=high_res,
+        )
 
     def _repr_html_(self) -> str:
         """Rich interactive HTML fragment for Jupyter and notebook outputs."""
@@ -1755,6 +1883,7 @@ def _too_tall_issue(
 def explain(
     takeaway: str,
     *panels: Panel | Mapping[str, Any] | Figure | Axes | SubFigure,
+    kicker: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
     note: str | None = None,
@@ -1781,6 +1910,9 @@ def explain(
         :func:`distribution`, :func:`relate`, :func:`share`, :func:`matrix` or
         :func:`custom` (or their dict specs). Use several only when the argument
         has steps; panels are keyed ``a``, ``b``, ``c`` in order.
+    kicker:
+        Optional short editorial eyebrow label rendered in crisp uppercase above
+        the takeaway headline (e.g. ``"Performance · Checkout Service"``).
     subtitle:
         Optional context line under the title (scope, period, population).
     source, note:
@@ -1828,6 +1960,7 @@ def explain(
             return _explain_impl(
                 takeaway,
                 *panels,
+                kicker=kicker,
                 subtitle=subtitle,
                 source=source,
                 note=note,
@@ -1850,6 +1983,7 @@ def explain(
     return _explain_impl(
         takeaway,
         *panels,
+        kicker=kicker,
         subtitle=subtitle,
         source=source,
         note=note,
@@ -1871,6 +2005,7 @@ def explain(
 def _explain_impl(
     takeaway: str,
     *panels: Panel | Mapping[str, Any] | Figure | Axes | SubFigure,
+    kicker: str | None = None,
     subtitle: str | None = None,
     source: str | None = None,
     note: str | None = None,
@@ -1987,6 +2122,7 @@ def _explain_impl(
                 rule="takeaway_missing",
             )
     takeaway = " ".join(takeaway.split())
+    kicker_clean = " ".join(str(kicker).split()) if (kicker is not None and str(kicker).strip()) else None
 
     pinned = _pinned_colors(colors, theme)
     panel_colors, uniform_color, colour_issues = _colour_registry(built, theme, pinned)
@@ -2004,7 +2140,7 @@ def _explain_impl(
         rows = _auto_layout(keys)
 
     issues: list[dict[str, Any]] = list(_takeaway_issues(takeaway))
-    issues.extend(_latex_issues((takeaway, subtitle, source, note), panel_map))
+    issues.extend(_latex_issues((kicker_clean, takeaway, subtitle, source, note), panel_map))
     issues.extend(colour_issues)
     if len(built) > COMFORTABLE_PANELS:
         issues.append(
@@ -2057,12 +2193,18 @@ def _explain_impl(
         def _line_mm(size: float) -> float:
             return size * _LINE * PT_TO_MM
 
+        title_family = (
+            _installed_font_stack(theme.title_family, require_bold=(theme.sketch is None))
+            if theme.title_family is not None
+            else None
+        )
         title_lines = measure.wrap(
             takeaway,
             content_pt,
             sizes.title,
             theme.title_weight,
-            family=theme.title_family,
+            family=title_family,
+            balance=True,
         )
         if len(title_lines) > MAX_TITLE_LINES:
             # Gently nudge headline font size down by 0.5-1.0 pt (staying within the
@@ -2087,7 +2229,8 @@ def _explain_impl(
                     content_pt,
                     cand_pt,
                     theme.title_weight,
-                    family=theme.title_family,
+                    family=title_family,
+                    balance=True,
                 )
                 if len(cand_lines) <= MAX_TITLE_LINES:
                     sizes = _Sizes(
@@ -2116,13 +2259,30 @@ def _explain_impl(
                     "note=.",
                     rule="takeaway_too_long",
                 )
+        kicker_display = kicker_clean.upper() if kicker_clean else None
+        kicker_lines = (
+            measure.wrap(kicker_display, content_pt, sizes.foot, "bold")
+            if kicker_display
+            else []
+        )
         subtitle_lines = measure.wrap(subtitle, content_pt, sizes.body) if subtitle else []
         footer_text = [t for t in (note, f"Source: {source}" if source else None) if t]
         footer_lines = [ln for t in footer_text for ln in measure.wrap(t, content_pt, sizes.foot)]
 
-        top_rule_pad = 2.2 * s if theme.top_rule else 0.0
+        flag_h_mm = (theme.top_flag_lw * s * PT_TO_MM) if theme.top_flag else 0.0
+        top_rule_pad = (
+            (flag_h_mm + 2.2 * s)
+            if theme.top_flag
+            else (2.2 * s if theme.top_rule else 0.0)
+        )
+        kicker_mm = (
+            len(kicker_lines) * _line_mm(sizes.foot) + (0.6 if compact else 0.9) * s
+            if kicker_lines
+            else 0.0
+        )
         header_mm = (
             top_rule_pad
+            + kicker_mm
             + len(title_lines) * _line_mm(sizes.title)
             + len(subtitle_lines) * _line_mm(sizes.body)
         )
@@ -2146,7 +2306,13 @@ def _explain_impl(
                 cell_w = unit_mm * span + _COL_GAP_MM * s * (span - 1)
                 panel = panel_map[key]
                 head_lines = (
-                    measure.wrap(panel.title, cell_w / PT_TO_MM - letter_pt, sizes.body, "bold")
+                    measure.wrap(
+                        panel.title,
+                        cell_w / PT_TO_MM - letter_pt,
+                        sizes.body,
+                        "bold",
+                        balance=True,
+                    )
                     if panel.title
                     else ([""] if multi else [])
                 )
@@ -2249,19 +2415,57 @@ def _explain_impl(
             return 1.0 - mm_from_top / height_mm
 
         cursor = margin_y
-        if theme.top_rule:
-            rule_y = _fy(cursor + 0.3 * s)
-            fig.add_artist(
-                Line2D(
-                    [_fx(margin), _fx(width_mm - margin)],
-                    [rule_y, rule_y],
-                    transform=fig.transFigure,
-                    color=theme.top_rule_color or theme.ink,
-                    linewidth=theme.top_rule_lw * s,
-                    solid_capstyle="butt",
+        if theme.top_rule or theme.top_flag:
+            rule_y = _fy(cursor + flag_h_mm) if theme.top_flag else _fy(cursor + 0.3 * s)
+            if theme.top_rule:
+                fig.add_artist(
+                    Line2D(
+                        [_fx(margin), _fx(width_mm - margin)],
+                        [rule_y, rule_y],
+                        transform=fig.transFigure,
+                        color=theme.top_rule_color or theme.ink,
+                        linewidth=theme.top_rule_lw * s,
+                        solid_capstyle="butt",
+                    )
                 )
-            )
+            if theme.top_flag:
+                flag_w_mm = min(max(theme.top_flag_width_mm * s, 0.0), content_mm)
+                flag_patch = Rectangle(
+                    (_fx(margin), rule_y),
+                    flag_w_mm / width_mm,
+                    flag_h_mm / height_mm,
+                    transform=fig.transFigure,
+                    facecolor=theme.top_flag_color or theme.top_rule_color or theme.ink,
+                    edgecolor="none",
+                    clip_on=False,
+                    zorder=5,
+                )
+                flag_patch.set_figure(fig)
+                flag_patch._mintfig_top_flag = True  # type: ignore[attr-defined]
+                fig.patches.append(flag_patch)
             cursor += top_rule_pad
+
+        if kicker_lines:
+            kicker_base_color = theme.top_flag_color or theme.panel_tag_color or theme.muted
+            kicker_color = _text_color(
+                kicker_base_color,
+                background=theme.background,
+                ink=theme.ink,
+            )
+            for line in kicker_lines:
+                k_art = fig.text(
+                    _fx(margin),
+                    _fy(cursor),
+                    _plain(line, theme),
+                    ha="left",
+                    va="top",
+                    fontsize=sizes.foot,
+                    fontweight="bold",
+                    color=kicker_color,
+                )
+                k_art._mintfig_kicker = True  # type: ignore[attr-defined]
+                cursor += _line_mm(sizes.foot)
+            cursor += (0.6 if compact else 0.9) * s
 
         for line in title_lines:
             title_kw: dict[str, Any] = {
@@ -2271,8 +2475,8 @@ def _explain_impl(
                 "fontweight": theme.title_weight,
                 "color": theme.ink,
             }
-            if theme.title_family is not None:
-                title_kw["fontfamily"] = list(theme.title_family)
+            if title_family is not None:
+                title_kw["fontfamily"] = list(title_family)
             for t_art in _text_line(fig, _fx(margin), _fy(cursor), line, theme, word_colours, **title_kw):
                 if theme.allow_serif_title:
                     t_art._mintfig_allow_serif = True  # type: ignore[attr-defined]
@@ -2389,6 +2593,7 @@ def _explain_impl(
                         return _explain_impl(
                             takeaway,
                             *built,
+                            kicker=kicker_clean,
                             subtitle=subtitle,
                             source=source,
                             note=note,
@@ -2482,6 +2687,7 @@ def _explain_impl(
                     return _explain_impl(
                         takeaway,
                         *built,
+                        kicker=kicker_clean,
                         subtitle=subtitle,
                         source=source,
                         note=note,
@@ -2515,6 +2721,7 @@ def _explain_impl(
             palette=palette_name,
             accent=accent_hex,
             takeaway=takeaway,
+            kicker=kicker_clean,
             subtitle=subtitle,
             source=source,
             note=note,
@@ -2709,6 +2916,7 @@ def explain_from_spec(
             fix_hint='e.g. {"takeaway": "...", "panels": [{"kind": "compare", "values": {...}}]}.',
         )
     allowed = {
+        "kicker",
         "subtitle",
         "source",
         "note",
