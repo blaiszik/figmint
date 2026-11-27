@@ -11,12 +11,12 @@ Install: `pip install mintfig`, `mintfig skill --install --global`, and optional
 | :--- | :--- |
 | A figure or table for a person (most tasks) | This file, down to "Publication Figures", then stop |
 | Intervals, replicates, log axes, units, small n, height budgets, colours across figures, styles | `references/science.md` |
-| Worked code: tidy rows, scorecards, model-release charts, waterfall/timeline/flow, `mint.edit`, `mint.Session`, `mint.brief`, HTML/terminal | `references/recipes.md` |
+| Worked code: tidy rows, scorecards, release charts, `mint.edit`, `Session`, `brief`, HTML/terminal | `references/recipes.md` |
 | A manuscript or journal plate | `references/publication.md` |
 
 ## Explain in a Conversation (`mint.explain`)
 
-Draw a chart for five or more numbers or any comparison, trend, spread, or relationship. Use `mint.table` for exact lookups. Do NOT plot for 1–3 scalar numbers or routine coding tasks (bug fixes, refactors, tests, git, stack traces, config) — reply in prose.
+Draw a chart for five or more numbers or any comparison, trend, spread, or relationship; use `mint.table` for exact lookups. Use `mintchip` for inline word-sized chips in prose or quick zero-dep terminal/PR tables; escalate to `mintfig` for full figures, multi-panel arguments, publication plates, and Matplotlib audits. Do NOT plot for 1–3 scalar numbers or routine coding tasks — reply in prose.
 
 **1. Write the takeaway first.** One sentence with its number ("Removing retrieval costs 8 points of accuracy", not "Ablation results") becomes the title. Each figure gets one takeaway.
 
@@ -64,10 +64,10 @@ print(summary)
 Without Python: `mintfig inspect data.csv` recommends forms, and `mintfig plot data.csv --kind auto --takeaway "..." --out fig.png` draws one.
 
 **4. Check the summary, then ship.**
-- Read `summary["panels"][i]["facts"]` instead of recomputing (rankings, baseline gaps, interval overlap, `P(A > B)`, slopes, crossings). The takeaway must agree with them.
-- If `summary["ship"]` is `true` (no errors, overlaps, struck/malformed text, or text < 11 px), send it now and ignore advisory warnings. Otherwise apply each `fix_hint` (at most 2 rounds). `summary["advisories"]` (`low_density`) are suggestions, not blockers.
-- An `ExplainError` names its rule and fix. For quick charts, `strict=False` or `with mint.lenient():` auto-adjusts soft limits and lists changes in `summary["adjustments"]`.
-- `print(summary)` is compact; `json.dumps(summary)` holds every key (`narrative`, `alt_text`, `colors`, `display`).
+- Read `summary["panels"][i]["facts"]` instead of recomputing (ranks, baseline gaps, CI overlap, `P(A > B)`, slopes, crossings); the takeaway must match them.
+- Ship when `summary["ship"]` is `true` (no errors, overlaps, clipped text, or text < 11 px); ignore advisories (`low_density`). Otherwise apply `fix_hint` (max 2 rounds).
+- `ExplainError` names its rule and fix; `strict=False` or `with mint.lenient():` auto-adjusts soft limits (`summary["adjustments"]`).
+- `print(summary)` is compact; `json.dumps(summary)` holds all keys (`narrative`, `alt_text`, `colors`, `display`).
 
 **5. Put it in front of the reader.** `summary["deliver"]` holds `markdown` (relative image line), `caption` (fact behind the takeaway), `text` (plain, ≤ 72 cols), and `html` (once saved as `.html`).
 
@@ -76,6 +76,7 @@ Without Python: `mintfig inspect data.csv` recommends forms, and `mintfig plot d
 | Chat that renders images | default `width="chat"` (700 px) | `deliver["markdown"]` |
 | Phone or IDE sidebar (~450 px) | `width="narrow"` (panels stack) | `deliver["markdown"]` |
 | Artifact host or review page | `fig.save("fig.html")` | file at `deliver["html"]` |
+| Inline HTML embed (Antigravity / webview) | `fig.save("fig.html", compact=True)` | lean single-SVG HTML, flush bg, `themechange` sync; never hand-write SVG |
 | Plain terminal or unknown | (any) | `deliver["text"]` in a code fence |
 | Notebook | (any) | return `fig` |
 | Slide or PR | `width="slide"` (1280 px) for slides | PNG (by repo path in a PR) |
@@ -94,7 +95,7 @@ If unsure which surface you're on, `fig.show()` picks one and `mintfig doctor` r
 
 ### Already drawn with Matplotlib (`mint.check`)
 
-Before sharing any plain Matplotlib figure, script, or notebook, check it: `report = mint.check(fig, "claim sentence", dpi=<dpi>)`, `mintfig check plot.py --python .venv/bin/python`, or `mintfig check analysis.ipynb` (exit `0` ship, `1` fix, `2` error; `--python` auto-detects project `.venv`). It reads plotted values back from bars, lines, heatmaps, histograms, bands, and boxplots, checks claim numbers against them, and measures text at `width=` (`"chat"` 700 px, `"narrow"`, `"slide"`). Apply each `fix_hint` until `report["ship"]` is `true`. Use `mintfig hook --install` to run this automatically after agent plot writes.
+Before sharing any plain Matplotlib figure, script, or notebook, run `mint.check(fig, "claim", dpi=...)`, `mintfig check plot.py`, or `mintfig check analysis.ipynb` (exit `0` ship, `1` fix, `2` error; `--python` auto-detects `.venv`). It checks claim numbers against plotted data and text legibility at `width=`; apply `fix_hint` until `ship` is `true`. Use `mintfig hook --install` to run automatically.
 
 ### Every argument (unknown arguments raise `ExplainError` naming valid ones)
 
@@ -161,9 +162,9 @@ mint.custom(draw_fn, height_mm=48.0, describe="...")  # escape hatch: draw_fn(ax
 
 ### Limits
 
-- **Strict limits** (`ExplainError` in strict mode): `compare`/`timeline`/`table` ≤ 20 items, `change`/`waterfall` ≤ 14, `flow` ≤ 12, `distribution` ≤ 8 groups (≥ 3 obs each), `matrix` ≤ 16×12, `table` ≤ 8 columns, `relate(groups=)` ≤ 4 (12 with `facet=True`), `trend` ≤ 4 coloured series (use `highlight=` or `facet=True`, up to 12). Max 3 highlights, 4 shared colours, 6 panels; `too_tall` warns > 135 mm.
+- **Strict limits** (`ExplainError`): `compare`/`timeline`/`table` ≤ 20, `change`/`waterfall` ≤ 14, `flow` ≤ 12, `distribution` ≤ 8 groups (≥ 3 obs), `matrix` ≤ 16×12, `table` ≤ 8 cols, `relate(groups=)` ≤ 4 (12 with `facet=True`), `trend` ≤ 4 coloured series (12 faceted). Max 3 highlights, 4 colours, 6 panels; `too_tall` > 135 mm.
 - `scales_differ` means two panels share a measure on different ranges — merge into one `facet=` panel.
-- Revise with `mint.edit("fig.png", highlight=..., drop=..., out="v2.png")`, keep colours across turns with `mint.Session`, and combine into reports with `mint.brief(...)` (`references/recipes.md`).
+- Revise with `mint.edit("fig.png", ...)`, persist colours with `mint.Session`, and combine into reports with `mint.brief(...)` (`references/recipes.md`).
 
 ## Publication Figures
 

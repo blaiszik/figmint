@@ -24,6 +24,8 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
+from ._chip_bridge import render_notebook_strip
+
 NOTEBOOK_DIRNAME = ".mintfig"
 CONFIG_FILENAME = "config.json"
 INDEX_FILENAME = "index.jsonl"
@@ -562,7 +564,9 @@ def build_index_html(
         except (OSError, json.JSONDecodeError):
             pass
 
-    entries = list(reversed(list_entries(nb_dir)))  # newest first
+    chronological = list_entries(nb_dir)
+    entries = list(reversed(chronological))  # newest first
+    strip_html, strip_css = render_notebook_strip(chronological)
     payload_rows: list[dict[str, Any]] = []
     for e in entries:
         row = dict(e)
@@ -620,7 +624,7 @@ def build_index_html(
   ul.facts {{ margin: 6px 0 2px; padding-left: 18px; }}
   .empty {{ padding: 48px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 12px; }}
   .copy-msg {{ color: var(--accent); font-family: var(--mono); font-size: 11px; }}
-</style>
+{strip_css}</style>
 </head>
 <body>
 <div class="wrap">
@@ -628,6 +632,7 @@ def build_index_html(
     <div>
       <h1 id="nb-title"></h1>
       <div class="sub" id="nb-sub"></div>
+      {strip_html}
     </div>
     <button id="theme-btn" class="btn" type="button">Toggle theme</button>
   </header>
@@ -644,16 +649,20 @@ def build_index_html(
 (function() {{
   const DATA = JSON.parse(document.getElementById("nb-data").textContent);
   const root = document.documentElement;
+  function applyTheme(t) {{
+    root.setAttribute("data-theme", t);
+    root.setAttribute("data-mc-scheme", t);
+  }}
   function syncTheme() {{
     const cls = root.classList;
-    if (cls.contains("light")) root.setAttribute("data-theme", "light");
-    else if (cls.contains("dark")) root.setAttribute("data-theme", "dark");
-    else if (window.matchMedia) root.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    if (cls.contains("light")) applyTheme("light");
+    else if (cls.contains("dark")) applyTheme("dark");
+    else if (window.matchMedia) applyTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   }}
   syncTheme();
   window.addEventListener("themechange", syncTheme);
   document.getElementById("theme-btn").onclick = () => {{
-    root.setAttribute("data-theme", root.getAttribute("data-theme") === "dark" ? "light" : "dark");
+    applyTheme(root.getAttribute("data-theme") === "dark" ? "light" : "dark");
   }};
 
   const esc = (s) => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");

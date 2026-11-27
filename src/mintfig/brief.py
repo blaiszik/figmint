@@ -23,6 +23,15 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from ._chip_bridge import (
+    SCHEME_SYNC_CSS,
+    chip_css,
+    is_chip,
+    is_chip_item,
+    is_table,
+    render_prose_html,
+    render_prose_markdown,
+)
 from ._explain.core import ExplainError, Panel
 from ._explain.layout import (
     Explanation,
@@ -92,9 +101,12 @@ def _names_figure(item: str) -> bool:
 
 
 def _resolve_item(
-    item: Explanation | str | Path | Mapping[str, Any],
-) -> Explanation | str | None:
-    """A figure, a prose block (paragraph or ``## `` heading), or None for an empty string."""
+    item: Any,
+) -> Any:
+    """A figure, a ``mintchip`` Chip/Table, a prose block (paragraph or ``## `` heading),
+    or None for an empty string."""
+    if is_chip_item(item):
+        return item
     if isinstance(item, str) and not _names_figure(item):
         text = item.strip()
         return text if text not in {"", _HEADING_PREFIX.strip()} else None
@@ -107,10 +119,6 @@ def _is_heading(block: str) -> bool:
 
 def _heading_text(block: str) -> str:
     return block[len(_HEADING_PREFIX) :].strip()
-
-
-def _paragraphs(block: str) -> list[str]:
-    return [p.strip() for p in re.split(r"\n\s*\n", block) if p.strip()]
 
 
 def _md_slug(text: str, seen: dict[str, int]) -> str:
@@ -252,6 +260,8 @@ body{padding:32px 20px 64px;font:16px/1.55 system-ui,-apple-system,"Segoe UI",He
 .mf-tk{display:block;font-size:.875rem;line-height:1.35}
 .mf-n{margin-right:.4em;color:var(--mf-page-muted);font-variant-numeric:tabular-nums}
 .mf-bprose{margin:0 0 1em}
+.mf-mc-chip{margin:0 0 1em}
+.mf-mc-wide{margin:1.25em 0;overflow-x:auto}
 .mf-bh{margin:2em 0 .6em;font-size:1.4rem;line-height:1.25}
 .mf-bfind{margin:1.5em 0 2.5em}
 .mf-sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
@@ -403,7 +413,7 @@ class Session:
     def brief(
         self,
         title: str,
-        *items: Explanation | str | Path | Mapping[str, Any],
+        *items: Any,
         subtitle: str | None = None,
         summary: Sequence[str] | str | None = None,
         source: str | None = None,
@@ -411,11 +421,17 @@ class Session:
         """Compose this session's figures into a cohesive :class:`Brief`.
 
         With no ``items``, every figure in the session, in order. ``items`` that
-        include figures are the briefing as given (prose and figures in order); items
-        that are only prose come first, followed by every figure in the session.
+        include figures are the briefing as given (prose, ``mintchip`` items, and
+        figures in order); items without figures come first, followed by every
+        figure in the session.
         """
-        has_figure = any(not isinstance(it, str) or _names_figure(it) for it in items)
-        if not self.figures and not has_figure:
+        has_figure = any(
+            (not isinstance(it, str) and not is_chip_item(it))
+            or (isinstance(it, str) and _names_figure(it))
+            for it in items
+        )
+        has_chip = any(is_chip_item(it) for it in items)
+        if not self.figures and not has_figure and not has_chip:
             raise ExplainError(
                 "Session has no figures yet.",
                 fix_hint="Call session.explain(...) at least once before session.brief(...).",
@@ -433,14 +449,15 @@ class Session:
 class Brief:
     """A cohesive multi-figure investigation briefing exportable to HTML or Markdown.
 
-    ``figures`` holds the briefing in reading order: figures, prose paragraphs (other
-    strings) and section headings (strings starting with ``"## "``).
+    ``blocks`` holds the briefing in reading order: figures, ``mintchip`` chips and
+    tables, prose paragraphs (other strings), and section headings (strings starting
+    with ``"## "``).
     """
 
     def __init__(
         self,
         title: str,
-        figures: Sequence[Explanation | str],
+        figures: Sequence[Any],
         *,
         subtitle: str | None = None,
         summary: Sequence[str] | str | None = None,
@@ -448,7 +465,7 @@ class Brief:
         style: str | Theme | None = None,
     ) -> None:
         self.title = title
-        self.blocks: list[Explanation | str] = [
+        self.blocks: list[Any] = [
             b.strip() if isinstance(b, str) else b
             for b in figures
             if not isinstance(b, str) or b.strip()
@@ -462,15 +479,20 @@ class Brief:
         else:
             self.summary_points = []
         self.source = source
-        self.theme = get_theme(style) if style is not None else self.figures[0].theme
+        if style is not None:
+            self.theme = get_theme(style)
+        elif self.figures:
+            self.theme = self.figures[0].theme
+        else:
+            self.theme = get_theme("mintfig")
 
     @property
     def ship_all(self) -> bool:
         return all(fig.ship for fig in self.figures)
 
-    def _pages(self) -> list[list[Explanation | str]]:
+    def _pages(self) -> list[list[Any]]:
         """Blocks grouped so each group ends at a figure; trailing prose joins the last group."""
-        pages: list[list[Explanation | str]] = [[]]
+        pages: list[list[Any]] = [[]]
         for block in self.blocks:
             pages[-1].append(block)
             if isinstance(block, Explanation):
@@ -488,7 +510,7 @@ class Brief:
         for block in self.blocks:
             if isinstance(block, Explanation):
                 levels.append(level)
-            elif _is_heading(block):
+            elif isinstance(block, str) and _is_heading(block):
                 level = 3
         return levels
 
@@ -497,12 +519,14 @@ class Brief:
 
         The page follows the reader's light or dark preference when the briefing uses
         the default style; an explicit style pins page and figures to that style's
-        scheme (``data-mf-scheme`` on the root).
+        scheme (``data-mf-scheme`` on the root, plus ``data-mc-scheme`` when
+        ``mintchip`` content is present).
         """
         esc = html.escape
         theme = self.theme
         auto = theme.name == "mintfig"
         scheme = "dark" if relative_luminance(theme.background) < 0.2 else "light"
+        chip_theme = "auto" if auto else scheme
         light = _token_css(_page_tokens(theme))
         tokens = [f":root{{{light}color-scheme: {'light dark' if auto else scheme}}}"]
         if auto:
@@ -512,7 +536,6 @@ class Brief:
                 f':root[data-mf-scheme="dark"]{{{dark}color-scheme: dark}}',
                 f':root[data-mf-scheme="light"]{{{light}color-scheme: light}}',
             ]
-        root_attr = "" if auto else f' data-mf-scheme="{scheme}"'
 
         head = [f"<h1>{esc(self.title)}</h1>"]
         if self.subtitle:
@@ -532,6 +555,7 @@ class Brief:
 
         levels = self._finding_levels()
         pages: list[str] = []
+        used_mintchip = False
         n = 0
         for p, page in enumerate(self._pages()):
             parts: list[str] = []
@@ -540,11 +564,33 @@ class Brief:
                     if _is_heading(block):
                         parts.append(f'<h2 class="mf-bh">{esc(_heading_text(block))}</h2>')
                     else:
-                        parts.extend(f'<p class="mf-bprose">{esc(t)}</p>' for t in _paragraphs(block))
+                        paras, used_dir = render_prose_html(block, theme=chip_theme)
+                        used_mintchip = used_mintchip or used_dir
+                        parts.extend(f'<p class="mf-bprose">{t}</p>' for t in paras)
+                    continue
+                if is_table(block):
+                    used_mintchip = True
+                    parts.append(f'<div class="mf-mc-wide">{block.html(theme=chip_theme)}</div>')
+                    continue
+                if is_chip(block):
+                    used_mintchip = True
+                    parts.append(f'<p class="mf-bprose mf-mc-chip">{block.html(theme=chip_theme)}</p>')
                     continue
                 n += 1
                 parts.append(_finding_html(block, n, f"h{levels[n - 1]}"))
             pages.append(f'<div class="mf-bpage{" mf-bfirst" if p == 0 else ""}">{"".join(parts)}</div>')
+
+        if auto:
+            root_attr = ""
+        elif used_mintchip:
+            root_attr = f' data-mf-scheme="{scheme}" data-mc-scheme="{scheme}"'
+        else:
+            root_attr = f' data-mf-scheme="{scheme}"'
+
+        mc_style = ""
+        if used_mintchip:
+            raw_mc_css = chip_css()
+            mc_style = f"{raw_mc_css}\n{SCHEME_SYNC_CSS}" if raw_mc_css else SCHEME_SYNC_CSS
 
         foot = f'<footer class="mf-bfoot">Source: {esc(self.source)}</footer>' if self.source else ""
         return (
@@ -555,7 +601,7 @@ class Brief:
             '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
             f'<meta name="color-scheme" content="{"light dark" if auto else scheme}">\n'
             f"<title>{esc(self.title)}</title>\n"
-            f"<style>\n{chr(10).join(tokens)}\n{_PAGE_CSS}</style>\n"
+            f"<style>\n{chr(10).join(tokens)}\n{_PAGE_CSS}{mc_style}</style>\n"
             "</head>\n"
             "<body>\n"
             '<main class="mf-brief">\n'
@@ -575,14 +621,15 @@ class Brief:
     ) -> str:
         """Render a Markdown briefing: a numbered list of takeaways, then for each finding
         its takeaway as heading, the image, the caption in italics and the source (plus
-        the table of any ``mint.table`` panel). Prose and ``## `` headings stay in place."""
+        the table of any ``mint.table`` panel). Prose, ``## `` headings, and ``mintchip``
+        chips/tables stay in place."""
         seen: dict[str, int] = {}
         _md_slug(self.title, seen)
         slugs: list[str] = []
         for block in self.blocks:
             if isinstance(block, Explanation):
                 slugs.append(_md_slug(block.takeaway, seen))
-            elif _is_heading(block):
+            elif isinstance(block, str) and _is_heading(block):
                 _md_slug(_heading_text(block), seen)
 
         lines: list[str] = [f"# {self.title}"]
@@ -603,7 +650,14 @@ class Brief:
         for block in self.blocks:
             lines.append("")
             if isinstance(block, str):
-                lines.append(f"## {_heading_text(block)}" if _is_heading(block) else block)
+                if _is_heading(block):
+                    lines.append(f"## {_heading_text(block)}")
+                else:
+                    rendered, _ = render_prose_markdown(block)
+                    lines.append(rendered)
+                continue
+            if is_chip_item(block):
+                lines.append(block.markdown())
                 continue
             idx += 1
             lines.append(f"{'#' * levels[idx - 1]} {block.takeaway}")
@@ -643,15 +697,16 @@ class Brief:
             out.write_text(self.to_html(), encoding="utf-8")
             fmt_name = "html"
         elif suffix in {".md", ".markdown"}:
-            asset_dir = out.parent / f"{out.stem}_figures"
-            asset_dir.mkdir(parents=True, exist_ok=True)
             rel_paths: list[str] = []
-            for idx, fig in enumerate(self.figures, 1):
-                png_name = f"fig_{idx:02d}.png"
-                png_path = asset_dir / png_name
-                fig.save(png_path, scale=scale)
-                assets.append(str(png_path.resolve()))
-                rel_paths.append(f"{asset_dir.name}/{png_name}")
+            if self.figures:
+                asset_dir = out.parent / f"{out.stem}_figures"
+                asset_dir.mkdir(parents=True, exist_ok=True)
+                for idx, fig in enumerate(self.figures, 1):
+                    png_name = f"fig_{idx:02d}.png"
+                    png_path = asset_dir / png_name
+                    fig.save(png_path, scale=scale)
+                    assets.append(str(png_path.resolve()))
+                    rel_paths.append(f"{asset_dir.name}/{png_name}")
             out.write_text(self.to_markdown(image_paths=rel_paths), encoding="utf-8")
             fmt_name = "markdown"
         else:
@@ -677,32 +732,40 @@ class Brief:
 
 def brief(
     title: str,
-    *items: Explanation | str | Path | Mapping[str, Any],
+    *items: Any,
     subtitle: str | None = None,
     summary: Sequence[str] | str | None = None,
     source: str | None = None,
     style: str | Theme | None = None,
 ) -> Brief:
-    """Compose 1–12 figures, with prose between them, into one HTML or Markdown briefing.
+    """Compose 1–12 figures, with prose and optional ``mintchip`` chips/tables between them,
+    into one HTML or Markdown briefing.
 
     ``items`` are read in order. A figure is an ``Explanation``, a spec dict, a
-    ``Path``, or a string naming a ``.png`` / ``.json`` file; any other string is a
-    paragraph, or a section heading when it starts with ``"## "``.
+    ``Path``, or a string naming a ``.png`` / ``.json`` file; ``mintchip.Chip`` and
+    ``mintchip.Table`` objects render inline / wide; any other string is a paragraph
+    (with optional ``{{...}}`` mintchip directives when ``mintchip`` is installed), or
+    a section heading when it starts with ``"## "``.
     """
     if not isinstance(title, str) or not title.strip():
         raise ExplainError(
             "brief() needs a non-empty title.",
             fix_hint='e.g. mint.brief("Q4 latency investigation", fig1, fig2).',
         )
-    count = sum(not isinstance(item, str) or _names_figure(item) for item in items)
-    if count == 0:
+    fig_count = sum(
+        (not isinstance(item, str) and not is_chip_item(item))
+        or (isinstance(item, str) and _names_figure(item))
+        for item in items
+    )
+    chip_count = sum(is_chip_item(item) for item in items)
+    if fig_count == 0 and chip_count == 0:
         raise ExplainError(
             "brief() needs at least one figure.",
-            fix_hint="Pass one or more Explanation objects or saved mintfig PNG/JSON paths; strings are prose.",
+            fix_hint="Pass one or more Explanation objects, saved mintfig PNG/JSON paths, or mintchip items; strings are prose.",
         )
-    if count > _MAX_BRIEF_FIGURES:
+    if fig_count > _MAX_BRIEF_FIGURES:
         raise ExplainError(
-            f"brief() got {count} figures; at most {_MAX_BRIEF_FIGURES} fit one cohesive briefing.",
+            f"brief() got {fig_count} figures; at most {_MAX_BRIEF_FIGURES} fit one cohesive briefing.",
             fix_hint=f"Keep at most {_MAX_BRIEF_FIGURES} key figures in one brief.",
             rule="too_many_items",
         )

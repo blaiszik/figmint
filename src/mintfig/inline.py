@@ -3,10 +3,28 @@
 Public façade exposing all 17 dual-surface (Unicode/ASCII text + themed SVG)
 inline components across five families, plus prose/document helpers and a
 ``CATALOG`` registry for discovery and review.
+
+Migration note
+--------------
+New word-sized inline graphics, shared-scale terminal/Markdown/HTML tables, and
+``{{...}}`` prose directives live in the standalone, zero-dependency ``mintchip``
+package (``pip install 'mintfig[chip]'`` or ``pip install mintchip``). ``mint.inline``
+remains fully supported for backward compatibility, while ``mint.brief(...)`` accepts
+``mintchip.Chip``, ``mintchip.Table``, and ``{{...}}`` directives directly when
+``mintchip`` is installed. See ``MINTCHIP_MIGRATION`` and ``mintchip_migration_note()``.
 """
 
 from __future__ import annotations
 
+from ._chip_bridge import (
+    MIGRATION_MAP as MINTCHIP_MIGRATION,
+)
+from ._chip_bridge import (
+    has_mintchip,
+)
+from ._chip_bridge import (
+    migration_note as mintchip_migration_note,
+)
 from ._inline.change import delta, scatter, waterfall
 from ._inline.composition import funnel, ratio, share
 from ._inline.core import (
@@ -50,6 +68,7 @@ CATALOG: tuple[dict[str, str], ...] = (
 
 __all__ = [
     "CATALOG",
+    "MINTCHIP_MIGRATION",
     "InlineGraphic",
     "bar",
     "ci",
@@ -61,6 +80,8 @@ __all__ = [
     "format_prose",
     "funnel",
     "gauge",
+    "has_mintchip",
+    "mintchip_migration_note",
     "quantiles",
     "rank",
     "ratio",
