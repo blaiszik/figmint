@@ -5,7 +5,7 @@ Every primary function, visual theme, color palette, and publication plate in `m
 | Section | Jump to |
 | :--- | :--- |
 | **Conversation Forms (`mint.explain`)** | [`mint.explain`](#mintexplain--multi-panel-arguments) · [`mint.compare`](#mintcompare--size-and-intervals) · [`mint.trend`](#minttrend--change-over-time-dose-or-scale) · [`mint.change`](#mintchange--paired-before-and-after) · [`mint.distribution`](#mintdistribution--raw-observations-and-spread) · [`mint.histogram`](#minthistogram--binned-distributions) · [`mint.relate`](#mintrelate--two-continuous-measures) · [`mint.share`](#mintshare--part-of-a-whole) · [`mint.matrix`](#mintmatrix--two-categorical-dimensions) · [`mint.forest`](#mintforest--effect-sizes-and-meta-analysis) · [`mint.table`](#minttable--exact-lookups-and-scorecards) · [`mint.card`](#mintcard--pr-and-release-kpi-summary-cards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
-| **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
+| **Themes, Palettes & CLI** | [Terminal Braille & True-Color](#terminal-braille--true-color-gallery) · [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
 ---
@@ -453,6 +453,24 @@ Combine grouped `mint.compare`, stacked `boost=` extensions, Pareto frontier `mi
 ![Dark mode model release hero with Pareto frontier scatter and booktabs scorecard](output/explain_release/release_frontier_dark.png)
 
 *Generator: [`explain_release_examples.py`](explain_release_examples.py)*
+
+---
+
+## Terminal Braille & True-Color Gallery
+
+High-resolution **2×4 Unicode Braille** charts, **24-bit ANSI true-color** heatmaps, side-by-side 2-panel layouts (`width >= 104`), rounded terminal KPI summary cards (`mint.card(...).to_terminal()`), and `mintchip --braille --theme mint_dark` tables — rendered directly from live terminal outputs. **[Full guide with runnable Python & CLI snippets →](../docs/terminal-braille.md)**
+
+| 1. Training curves with stippled 95% CI bands (`mint.trend`) | 2. Wide 116-col 2-panel ECDF + beeswarm (`layout=[["a", "b"]]`) |
+| :---: | :---: |
+| ![Braille training curves with stippled 95% CI bands](output/terminal/01_trend_ci_band.png) | ![Wide 116-column side-by-side Braille ECDF and beeswarm](output/terminal/02_wide_ecdf_and_swarm.png) |
+| **3. Grouped scatter + OLS fit + Pareto hull (`mint.relate`)** | **4. Paired before/after slopegraph (`mint.change`)** |
+| ![Braille scatter with OLS fit and Pareto frontier](output/terminal/03_relate_pareto_fit.png) | ![Paired Braille slopegraph with colored deltas](output/terminal/04_change_slopegraph.png) |
+| **5. A/B rollout forest plot with pooled `◆` (`mint.forest`)** | **6. 24-bit ANSI true-color confusion matrix (`mint.matrix`)** |
+| ![Braille A/B rollout forest plot with pooled diamond](output/terminal/05_forest_ab_rollout.png) | ![24-bit ANSI true-color row-normalized confusion matrix](output/terminal/06_matrix_confusion_truecolor.png) |
+| **7. PR / Release KPI summary card (`mint.card`)** | **8. Shared-scale `mintchip` Braille table (`mint_dark`)** |
+| ![Terminal PR KPI summary card with Braille sparklines and trend panel](output/terminal/07_kpi_summary_card.png) | ![mintchip shared-scale Braille benchmark table in mint_dark](output/terminal/08_mintchip_braille_table.png) |
+
+*Generator: [`braille_terminal_gallery.py`](braille_terminal_gallery.py) (also saves raw ANSI captures `output/terminal/01_trend_ci_band.txt` … `08_mintchip_braille_table.txt`).*
 
 ---
 

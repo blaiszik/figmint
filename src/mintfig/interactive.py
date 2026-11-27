@@ -239,10 +239,41 @@ def _render_svg(exp: Explanation, *, interactive: bool = True) -> tuple[str, dic
         return f'<g data-mf="{key}" tabindex="0"{_label_attrs(marks[key])}'
 
     svg = _MARK_G_RE.sub(_open_g, svg)
+    zones: list[str] = []
+    axes_map = getattr(exp, "axes", {}) or {}
+    for pkey, panel in exp.panels.items():
+        ax = axes_map.get(pkey)
+        if panel.kind not in {"trend", "relate"} or ax is None:
+            continue
+        if not ax.get_visible():
+            continue
+        bbox = ax.bbox
+        bx = bbox.x0 * k
+        by = h_pt - bbox.y1 * k
+        bw = (bbox.x1 - bbox.x0) * k
+        bh = (bbox.y1 - bbox.y0) * k
+        if bw <= 0 or bh <= 0:
+            continue
+        xlim = ax.get_xlim()
+        xscale = str(ax.get_xscale() or "linear")
+        xlabel = str(panel.spec.get("x_label") or "X")
+        zones.append(
+            f'<rect class="mf-brush-zone" x="{_num(bx)}" y="{_num(by)}" '
+            f'width="{_num(bw)}" height="{_num(bh)}" '
+            f'data-mf-panel="{html.escape(str(pkey), quote=True)}" '
+            f'data-mf-x0="{xlim[0]:.10g}" data-mf-x1="{xlim[1]:.10g}" '
+            f'data-mf-xscale="{html.escape(xscale, quote=True)}" '
+            f'data-mf-xlabel="{html.escape(xlabel, quote=True)}" '
+            'fill="none" pointer-events="none"/>'
+        )
+    extras = ""
+    if zones:
+        extras += '<g class="mf-brush-zones" pointer-events="none">' + "".join(zones) + "</g>"
     if hits:
-        layer = '<g class="mf-hits" fill="none" pointer-events="all">' + "".join(hits) + "</g>"
+        extras += '<g class="mf-hits" fill="none" pointer-events="all">' + "".join(hits) + "</g>"
+    if extras:
         cut = svg.rstrip().rfind("</svg>")
-        svg = svg[:cut] + layer + svg[cut:]
+        svg = svg[:cut] + extras + svg[cut:]
     return svg, marks
 
 
@@ -293,6 +324,8 @@ class _Palette:
         self.by_pair: dict[tuple[str, str], str] = {}
         for (name, lo), (_, dk) in zip(_theme_tokens(light), _theme_tokens(dark), strict=True):
             self.by_pair.setdefault((lo, dk), name)
+        self._mint: dict[str, str] = dict(_theme_tokens(THEMES["mint"]))
+        self._pine: dict[str, str] = dict(_theme_tokens(THEMES["pine"]))
         self.used: dict[str, tuple[str, str]] = {}
 
     def themed(self, light_svg: str, dark_svg: str) -> str | None:
@@ -319,6 +352,14 @@ class _Palette:
         return "".join(out)
 
     def css(self, scheme: str) -> str:
+        if scheme == "mint":
+            return "".join(
+                f"--mf-{n}:{self._mint.get(n, pair[0])};" for n, pair in self.used.items()
+            )
+        if scheme == "pine":
+            return "".join(
+                f"--mf-{n}:{self._pine.get(n, pair[1])};" for n, pair in self.used.items()
+            )
         idx = 1 if scheme == "dark" else 0
         return "".join(f"--mf-{n}:{pair[idx]};" for n, pair in self.used.items())
 
@@ -957,17 +998,49 @@ def _css_block(
         show_light = f"{r} .mf-light{{display:block}}{r} .mf-dark{{display:none}}" if swaps else ""
         dark_sel = f'{r}[data-mf-scheme="dark"],[data-mf-scheme="dark"] {r}'
         light_sel = f'{r}[data-mf-scheme="light"],[data-mf-scheme="light"] {r}'
+        mint_sel = f'{r}[data-mf-scheme="mint"],[data-mf-scheme="mint"] {r}'
+        pine_sel = f'{r}[data-mf-scheme="pine"],[data-mf-scheme="pine"] {r}'
+        mint_ui = _ui_tokens(THEMES["mint"])
+        pine_ui = _ui_tokens(THEMES["pine"])
         out.append(
             f"@media (prefers-color-scheme:dark){{{r}{{{_vars(dark, palette, 'dark')}}}"
             f"{show_dark}}}"
         )
         out.append(f"{dark_sel}{{{_vars(dark, palette, 'dark')}}}")
         out.append(f"{light_sel}{{{_vars(light, palette, 'light')}}}")
+        out.append(f"{mint_sel}{{{_vars(mint_ui, palette, 'mint')}}}")
+        out.append(f"{pine_sel}{{{_vars(pine_ui, palette, 'pine')}}}")
         if swaps:
-            for sel, rule in ((dark_sel, show_dark), (light_sel, show_light)):
+            for sel, rule in (
+                (dark_sel, show_dark),
+                (light_sel, show_light),
+                (mint_sel, show_light),
+                (pine_sel, show_dark),
+            ):
                 for part in sel.split(","):
                     out.append(rule.replace(f"{r} ", f"{part} "))
+    else:
+        for scheme_name, th_key in (
+            ("light", "mintfig"),
+            ("dark", "dark"),
+            ("mint", "mint"),
+            ("pine", "pine"),
+        ):
+            sel = f'{r}[data-mf-scheme="{scheme_name}"],[data-mf-scheme="{scheme_name}"] {r}'
+            out.append(f"{sel}{{{_vars(_ui_tokens(THEMES[th_key]), None, scheme_name)}}}")
     out.append(
+        f"{r} .mf-ctrl{{display:flex;justify-content:flex-end;align-items:center;"
+        "flex-wrap:wrap;gap:6px;margin:0 0 4px;font-size:11px;color:var(--mf-ui-muted)}"
+        f"{r} .mf-schemes{{display:inline-flex;align-items:center;gap:2px;"
+        "padding:1px 3px;border:1px solid var(--mf-ui-line);border-radius:999px}"
+        f"{r} .mf-ctrl button{{all:unset;cursor:pointer;padding:1px 6px;border-radius:999px;"
+        "color:inherit;line-height:1.5;transition:background .12s,color .12s}"
+        f"{r} .mf-ctrl button:hover,{r} .mf-ctrl button:focus-visible{{color:var(--mf-ui-ink)}}"
+        f'{r} .mf-schemes button[aria-pressed="true"]{{background:var(--mf-ui-ink);'
+        "color:var(--mf-ui-bg);font-weight:600}"
+        f"{r} .mf-ctrl-btn{{border:1px solid var(--mf-ui-line)!important;padding:1px 8px!important}}"
+        f"{r} .mf-brush-sel{{fill:#0f8b6d;fill-opacity:.18;stroke:#0f8b6d;"
+        "stroke-width:1;stroke-dasharray:3 2;pointer-events:none}"
         f"{r} [data-mf]{{cursor:pointer;outline:none}}"
         f"{r} .mf-hits [data-mf]:hover,{r} .mf-hits [data-mf]:focus-visible"
         "{stroke:var(--mf-ui-ink);stroke-width:1.2}"
@@ -1017,8 +1090,8 @@ function line(r){return head(r)+' = '+f(r.value)+u(r);}
 function cite(r){return FILE+' \\u00b7 '+r.panel+' \\u00b7 '+line(r);}
 function mark(t){var el=t&&t.closest?t.closest('[data-mf]'):null;
   return el&&M[el.getAttribute('data-mf')]?el:null;}
-function say(msg){note.textContent=msg;clearTimeout(say.t);
-  say.t=setTimeout(function(){note.textContent='';},3000);}
+function say(msg){if(!note)return;note.textContent=msg;clearTimeout(say.t);
+  say.t=setTimeout(function(){note.textContent='';},3500);}
 function show(el){var r=M[el.getAttribute('data-mf')],t=el.getAttribute('aria-label');
   if(!t){t=line(r);if(r.lo!=null&&r.hi!=null)t+='  ['+f(r.lo)+', '+f(r.hi)+']';
     if(r.n!=null)t+='  n='+r.n;}
@@ -1033,17 +1106,83 @@ function copy(text,msg){var done=function(){say(msg);};
     navigator.clipboard.writeText(text).then(done,function(){say(text);});}
   else say(text);}
 function act(el){var r=M[el.getAttribute('data-mf')];copy(cite(r),'copied: '+cite(r));}
-R.addEventListener('pointerover',function(e){var el=mark(e.target);el?show(el):hide();});
-R.addEventListener('pointerleave',hide);
+function visibleSvg(){return [].filter.call(R.querySelectorAll('.mf-v svg'),
+  function(n){return n.getClientRects().length;})[0]||null;}
+function setTheme(name){
+  var btns=R.querySelectorAll('[data-mf-theme-pick]');
+  for(var i=0;i<btns.length;i++){
+    btns[i].setAttribute('aria-pressed',btns[i].getAttribute('data-mf-theme-pick')===name?'true':'false');}
+  if(name==='auto'){R.removeAttribute('data-mf-scheme');document.documentElement.removeAttribute('data-mf-scheme');}
+  else{R.setAttribute('data-mf-scheme',name);document.documentElement.setAttribute('data-mf-scheme',name);}
+  say('theme: '+name);}
+function svgPt(svg,cx,cy){var ctm=svg.getScreenCTM();if(!ctm)return null;
+  var pt=svg.createSVGPoint();pt.x=cx;pt.y=cy;return pt.matrixTransform(ctm.inverse());}
+function dataX(z,sx){var zx=+z.getAttribute('x'),zw=+z.getAttribute('width');
+  var frac=Math.max(0,Math.min(1,(sx-zx)/zw));
+  var x0=+z.getAttribute('data-mf-x0'),x1=+z.getAttribute('data-mf-x1');
+  if(z.getAttribute('data-mf-xscale')==='log'&&x0>0&&x1>0){
+    var l0=Math.log10(x0),l1=Math.log10(x1);return Math.pow(10,l0+frac*(l1-l0));}
+  return x0+frac*(x1-x0);}
+function fmtRange(v){if(!isFinite(v))return String(v);
+  return Math.abs(v)>=10?String(Math.round(v)):String(+v.toPrecision(3));}
+var brush=null,skipClick=false;
+function clearBrush(){var old=R.querySelectorAll('.mf-brush-sel');
+  for(var i=0;i<old.length;i++)old[i].remove();}
+R.addEventListener('pointerdown',function(e){
+  if(e.button!==0||e.target.closest('.mf-ctrl,.mf-foot'))return;
+  var svg=e.target.closest?e.target.closest('svg'):null;if(!svg)return;
+  var pt=svgPt(svg,e.clientX,e.clientY);if(!pt)return;
+  var zones=svg.querySelectorAll('.mf-brush-zone'),hit=null;
+  for(var i=0;i<zones.length;i++){var z=zones[i],zx=+z.getAttribute('x'),zy=+z.getAttribute('y'),
+    zw=+z.getAttribute('width'),zh=+z.getAttribute('height');
+    if(pt.x>=zx&&pt.x<=zx+zw&&pt.y>=zy&&pt.y<=zy+zh){hit=z;break;}}
+  if(!hit)return;
+  brush={svg:svg,z:hit,x0:pt.x,x1:pt.x,moved:false,rect:null};});
+window.addEventListener('pointermove',function(e){if(!brush)return;
+  var pt=svgPt(brush.svg,e.clientX,e.clientY);if(!pt)return;
+  var zx=+brush.z.getAttribute('x'),zw=+brush.z.getAttribute('width');
+  var cx=Math.max(zx,Math.min(zx+zw,pt.x));
+  if(!brush.moved&&Math.abs(cx-brush.x0)<6)return;
+  if(!brush.moved){brush.moved=true;clearBrush();
+    var r=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    r.setAttribute('class','mf-brush-sel');
+    r.setAttribute('y',brush.z.getAttribute('y'));
+    r.setAttribute('height',brush.z.getAttribute('height'));
+    brush.svg.appendChild(r);brush.rect=r;}
+  brush.x1=cx;var a=Math.min(brush.x0,brush.x1),b=Math.max(brush.x0,brush.x1);
+  brush.rect.setAttribute('x',String(a));brush.rect.setAttribute('width',String(b-a));
+  var d0=fmtRange(dataX(brush.z,a)),d1=fmtRange(dataX(brush.z,b));
+  var pnl=brush.z.getAttribute('data-mf-panel')||'a';
+  tip.textContent='panel '+pnl+' \\u00b7 X='+d0+'..'+d1;tip.hidden=false;
+  var o=R.getBoundingClientRect();
+  tip.style.left=Math.max(0,Math.min(e.clientX-o.left-tip.offsetWidth/2,R.clientWidth-tip.offsetWidth))+'px';
+  tip.style.top=Math.max(0,e.clientY-o.top-tip.offsetHeight-10)+'px';});
+window.addEventListener('pointerup',function(){if(!brush)return;var b=brush;brush=null;
+  if(!b.moved)return;skipClick=true;hide();
+  var lo=Math.min(b.x0,b.x1),hi=Math.max(b.x0,b.x1);
+  var d0=fmtRange(dataX(b.z,lo)),d1=fmtRange(dataX(b.z,hi));
+  var pnl=b.z.getAttribute('data-mf-panel')||'a';
+  var prompt='Zoom into X='+d0+'..'+d1+' on panel '+pnl+' and compare variance';
+  copy(prompt,'copied prompt: '+prompt);});
+R.addEventListener('pointerover',function(e){if(brush&&brush.moved)return;
+  var el=mark(e.target);el?show(el):hide();});
+R.addEventListener('pointerleave',function(){if(!brush)hide();});
 R.addEventListener('focusin',function(e){var el=mark(e.target);if(el)show(el);});
 R.addEventListener('focusout',hide);
 R.addEventListener('keydown',function(e){var el=mark(e.target);
   if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();act(el);}});
-R.addEventListener('click',function(e){var el=mark(e.target);if(el)return act(el);
-  var b=e.target.closest('[data-mf-act]');if(!b)return;var a=b.getAttribute('data-mf-act');
+R.addEventListener('click',function(e){
+  if(skipClick){skipClick=false;return;}
+  var tp=e.target.closest?e.target.closest('[data-mf-theme-pick]'):null;
+  if(tp){setTheme(tp.getAttribute('data-mf-theme-pick'));return;}
+  var el=mark(e.target);if(el)return act(el);
+  var b=e.target.closest?e.target.closest('[data-mf-act]'):null;
+  if(!b){clearBrush();return;}
+  var a=b.getAttribute('data-mf-act');
   if(a==='spec')copy(JSON.stringify(SPEC,null,2),'copied spec JSON');
-  else if(a==='svg'){var s=[].filter.call(R.querySelectorAll('.mf-v svg'),
-      function(n){return n.getClientRects().length;})[0];if(!s)return;
+  else if(a==='copy-svg'){var cs=visibleSvg();if(!cs)return;
+    copy(new XMLSerializer().serializeToString(cs),'copied SVG');}
+  else if(a==='svg'){var s=visibleSvg();if(!s)return;
     var url=URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(s)],
       {type:'image/svg+xml'}));
     var l=document.createElement('a');l.href=url;
@@ -1310,6 +1449,26 @@ def render_html_fragment(
             '<span class="mf-note" role="status" aria-live="polite"></span></span>'
         )
     foot = f'<div class="mf-foot">{data_drawer}{actions}</div>'
+    ctrl = ""
+    if not compact:
+        active_pick = "auto" if auto else (exp.theme.name if exp.theme.name in {"dark", "mint", "pine"} else "light")
+        pills = "".join(
+            f'<button type="button" data-mf-theme-pick="{key}" '
+            f'aria-pressed="{"true" if key == active_pick else "false"}">{lbl}</button>'
+            for key, lbl in (
+                ("auto", "Auto"),
+                ("light", "Light"),
+                ("dark", "Dark"),
+                ("mint", "Mint"),
+                ("pine", "Pine"),
+            )
+        )
+        ctrl = (
+            '<div class="mf-ctrl" role="group" aria-label="Figure controls">'
+            f'<span class="mf-schemes" role="group" aria-label="Theme">{pills}</span>'
+            '<button type="button" class="mf-ctrl-btn" data-mf-act="copy-svg">Copy SVG</button>'
+            "</div>"
+        )
     js = _JS % {
         "id": json.dumps(root_id),
         "marks": _safe_json_for_script(marks),
@@ -1317,7 +1476,7 @@ def render_html_fragment(
         "file": _safe_json_for_script(_citation_file(exp)),
     }
     return (
-        f"{css}\n{open_tag}{stage}"
+        f"{css}\n{open_tag}{ctrl}{stage}"
         '<div class="mf-tip" role="tooltip" hidden></div>'
         f"{foot}</figure>\n<script>\n{js}\n</script>"
     )
@@ -1373,12 +1532,18 @@ def render_html(
     scheme = "light dark"
     if exp.theme.name == "mintfig":
         dark = _ui_tokens(THEMES["dark"])
+        mint_t = _ui_tokens(THEMES["mint"])
+        pine_t = _ui_tokens(THEMES["pine"])
         dark_body = f"background:{dark['bg']};color:{dark['ink']}"
+        mint_body = f"background:{mint_t['bg']};color:{mint_t['ink']}"
+        pine_body = f"background:{pine_t['bg']};color:{pine_t['ink']}"
         page += (
             f"@media (prefers-color-scheme:dark){{html,body{{{dark_body}}}}}"
             f'html[data-mf-scheme="dark"],html[data-mf-scheme="dark"] body{{{dark_body}}}'
             f'html[data-mf-scheme="light"],html[data-mf-scheme="light"] body'
             f"{{background:{light['bg']};color:{light['ink']}}}"
+            f'html[data-mf-scheme="mint"],html[data-mf-scheme="mint"] body{{{mint_body}}}'
+            f'html[data-mf-scheme="pine"],html[data-mf-scheme="pine"] body{{{pine_body}}}'
         )
     else:
         scheme = "dark" if relative_luminance(exp.theme.background) < 0.2 else "light"

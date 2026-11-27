@@ -34,7 +34,7 @@ Reproduced from the exact same data by [`gallery/make_readme_comparison.py`](htt
 2. **Enable it for your coding agent (2 commands):** install `mintfig`, then run `mintfig skill --install --global` (or `npx skills add blaiszik/mintfig`) and `mintfig hook --install --global`. **Claude Code & Cursor** wire native PostToolUse audit hooks automatically; **Codex, Gemini CLI, Antigravity, and GitHub Copilot** use the bundled agent skill.
 3. **Go further when you want to:** draw message-first chat figures in one call with `mint.explain(...)` (or `mintfig plot data.csv` / `--pr-card`), add inline sparklines & intervals with `pip install "mintfig[chip]"` ([`mintchip`](https://github.com/blaiszik/mintchip)), and export journal-ready multi-panel plates with `mint.Plate(...)`.
 
-[Quickstart](#quickstart) · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Forms at a Glance](#pick-the-form-by-the-question) · **[Benchmark](#measured-on-figure-bench-v01)** · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
+[Quickstart](#quickstart) · [Check Existing Matplotlib](#already-have-matplotlib-check-it-mintcheck) · [Explain Results](#explain-a-result-mintexplain) · [Terminal Braille](#terminal-braille--24-bit-true-color) · [Forms at a Glance](#pick-the-form-by-the-question) · **[Benchmark](#measured-on-figure-bench-v01)** · [Themes & Palettes](#themes--palettes) · **[Full Visual Gallery](https://github.com/blaiszik/mintfig/blob/main/gallery/README.md)** · [Publication Plates](#publication-figures) · [CLI & Agent Skill](#cli--agent-skill)
 
 ---
 
@@ -59,6 +59,28 @@ Give your coding agents the bundled skill globally (Claude Code, Codex, Cursor, 
 ```bash
 mintfig skill --install --global      # or: npx skills add blaiszik/mintfig
 mintfig hook --install --global       # native PostToolUse hooks (Claude Code & Cursor)
+```
+
+### Try it in 15 seconds (`uvx mintfig demo`)
+
+Zero install — preview a 72-column 24-bit Braille training curve, a PR KPI summary card, and a `mintchip` table right in your terminal (or pass `--html showcase.html` to render the same 5-seed dataset across all six surfaces, from terminal Braille to a *Nature* 89 mm plate):
+
+```bash
+uvx mintfig demo
+uvx mintfig demo --html showcase.html
+```
+
+### Native MCP Server & Extensions (Claude Code, Claude Desktop, Gemini CLI, Antigravity, Cursor)
+
+Expose `mint_explain`, `mint_check`, `mint_plot_file`, `mint_card`, and `mint_chip` directly to your coding agent — every figure call returns a verified PNG, a 72-column Braille fallback, computed `facts`, and an interactive `ui://mintfig/figure` MCP App UI:
+
+```bash
+# One command to register mintfig MCP across Claude Code, Claude Desktop, Cursor, Gemini CLI & Antigravity
+mintfig mcp --install
+
+# Or register directly with your harness CLI / native extension manifest
+claude mcp add mintfig -- uvx mintfig mcp
+gemini extensions install https://github.com/blaiszik/mintfig
 ```
 
 ### Already have Matplotlib? Check it (`mint.check`)
@@ -160,6 +182,22 @@ fig.save("ablation.html")  # one self-contained page
 ```
 
 `mintfig doctor` reports which of these work where it runs (inline-image protocol, resolved font, notebook) and renders a sample. The HTML page embeds the figure laid out for 360 px, 450 px, and its own width and picks one with a container query, so text stays at 11 px or more; it follows the reader's light or dark setting; hovering or focusing a mark shows its value, interval, and n, and clicking copies a citation (`ablation.png · b · no retrieval @ 500 = 0.52`) to paste back to the agent. Under the figure there is one quiet line: `data · svg · spec`.
+
+### Terminal Braille & 24-bit True-Color
+
+No image viewer, over SSH, or inside a CLI coding agent? Pass `mode="braille"` (or `--braille` on `plot`, `show`, `explain`, `diff`, and `watch`) for **2×4 Unicode Braille** charts with stippled CI bands, side-by-side 2-panel composition (`width >= 104`), **24-bit ANSI true-color** confusion matrices, box-drawn KPI summary cards (`mint.card(...).to_terminal()`), and `mintchip --braille` tables:
+
+| Side-by-side ECDF + beeswarm (`width=116`) | PR KPI summary card (`mint.card`) |
+| :---: | :---: |
+| ![Wide 116-column side-by-side Braille ECDF and beeswarm latency briefing](gallery/output/terminal/02_wide_ecdf_and_swarm.png) | ![Terminal PR KPI summary card with four rounded tiles, Braille sparklines, and daily trend panel](gallery/output/terminal/07_kpi_summary_card.png) |
+
+```bash
+mintfig plot training_runs.csv --braille --style pine       # 2×4 Braille trend + CI bands in terminal
+mintfig watch train_metrics.csv --braille --width auto      # live-reloading terminal chart on file change
+mintfig card pr418_card.json --terminal --style pine        # rounded KPI tiles + Braille sparklines + panel
+```
+
+**[See all 8 Terminal Braille & True-Color examples, snippets & raw ANSI captures →](docs/terminal-braille.md)**
 
 ### Words on the marks, tables with graphics, briefings
 
@@ -360,19 +398,27 @@ mintfig hook --status
 
 # Zero-script: plot CSV/JSON or SWE tool outputs (hyperfine, pytest-benchmark, go/cargo bench, CI timings, k6, esbuild)
 mintfig plot data.csv --kind auto --takeaway "..." --density compact --out fig.png
+mintfig plot data.csv --braille --style pine                 # 2×4 Unicode Braille + 24-bit ANSI directly in terminal
+mintfig watch train.csv --braille --style pine --width auto  # live-reloading terminal chart on file update
 mintfig plot hyperfine.json --kind auto --text               # <=72-col Unicode terminal summary (no PNG)
 mintfig plot bench.json --kind auto --markdown               # GitHub-flavored Markdown summary
+mintfig diff main_bench.json pr_bench.json --braille         # paired Braille slopegraph diff
 mintfig diff main_bench.json pr_bench.json --markdown --fail-on-regression 5
 mintfig diff main_bench.json pr_bench.json --pr-card         # PR-ready summary card (SVG/Markdown)
 mintfig edit fig.png --drop "no augmentation" --no-color-names --out fig2.png
 
 # Chat figures from JSON or an embedded-spec PNG
 mintfig explain spec.json --out fig.png --write-spec
+mintfig explain spec.json --braille --style pine             # high-res Braille terminal render (no PNG needed)
 mintfig explain fig.png --style dark --palette okabe_ito --out fig_dark.png
 mintfig explain --show-spec fig.png
+mintfig show fig.png --braille --width auto                  # render saved PNG/spec in 2×4 Braille
 mintfig themes --out swatches.png                 # list all 10 themes & 11 palettes (or render visual swatch card)
 mintfig card spec.json --out card.png --pair      # KPI summary card with sparklines + GitHub light/dark <picture>
-mintfig doctor                                    # which delivery surfaces work here; renders a sample
+mintfig card spec.json --terminal --style pine    # box-drawn KPI tiles + inline sparklines & Braille panel
+mintfig mcp --install                             # register stdio MCP server + ui://mintfig/figure MCP App
+mintfig demo --html showcase.html                 # 15-second terminal preview + 6-surface showcase HTML
+mintfig doctor --json                             # detected harness, surface, tmux, mintchip & MCP status
 
 # Publication scripts: execute, preflight (14 rules), and export reproducible bundle
 mintfig run plot.py --journal nature --bundle out/ --json

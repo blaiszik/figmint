@@ -5,7 +5,7 @@ description: Use when showing a person five or more numbers (benchmarks, ablatio
 
 # mintfig: figures that say one thing
 
-Install: `pip install mintfig`, `mintfig skill --install --global`, and optionally `mintfig hook --install` for automatic Matplotlib checks. Read only what the task needs:
+Install: `pip install mintfig`, `mintfig skill --install --global`, `mintfig mcp --install` (MCP tools + interactive `ui://mintfig/figure` MCP App), and `mintfig hook --install` for auto Matplotlib checks. Try `uvx mintfig demo` for a 15-second showcase. Read only what the task needs:
 
 | Task | Read |
 | :--- | :--- |
@@ -77,7 +77,9 @@ Without Python: `mintfig inspect data.csv` recommends forms, and `mintfig plot d
 | Phone or IDE sidebar (~450 px) | `width="narrow"` (panels stack) | `deliver["markdown"]` |
 | Artifact host or review page | `fig.save("fig.html")` | file at `deliver["html"]` |
 | Inline HTML embed (Antigravity / webview) | `fig.save("fig.html", compact=True)` | lean single-SVG HTML, flush bg, `themechange` sync; never hand-write SVG |
-| Plain terminal or unknown | (any) | `deliver["text"]` in a code fence |
+| High-res terminal (Ghostty/Kitty/SSH) | `fig.to_text(mode="braille", width="auto")` | 2×4 Braille + 24-bit ANSI (respects `NO_COLOR`); or `fig.show(mode="braille")` |
+| Plain terminal or unknown | (any) | `deliver["text"]` in a code fence (or `mode="ascii"` for 7-bit logs) |
+| PR / release KPI summary card | `mint.card(takeaway, metrics, panel=...)` | `.save_pair("pr")` (`<picture>`) or `.to_terminal()` / `mintfig card --terminal` |
 | Notebook | (any) | return `fig` |
 | Slide or PR | `width="slide"` (1280 px) for slides | PNG (by repo path in a PR) |
 
@@ -91,7 +93,19 @@ Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13.
 *No retrieval −0.08 vs full model (0.82); no fine-tuning −0.13 vs full model (0.82).*
 ```
 
-If unsure which surface you're on, `fig.show()` picks one and `mintfig doctor` reports what works here.
+Unsure of surface? Use `mintfig.surface.detect_surface()`, `fig.show()`, or `mintfig doctor`; run `mintfig mcp` (`ui://mintfig/figure`) or `mintfig demo`.
+
+### Terminal Braille, KPI cards & live watch
+
+One-flag `--braille` works directly on `plot`, `show`, `explain`, `diff`, and `watch` (no `--out` needed), rendering 2×4 Braille trends/CI bands, beeswarms, Pareto fits, slopegraphs, forest plots, side-by-side 2-panel views (`width >= 104`), and 24-bit ANSI confusion matrices:
+
+```bash
+mintfig plot data.csv --braille --style pine              # 2×4 Braille + 24-bit ANSI in terminal
+mintfig show fig.png --braille --width auto               # render saved PNG/spec in terminal
+mintfig diff base.json head.json --braille                # paired Braille slopegraph diff
+mintfig card spec.json --terminal --style pine            # box-drawn KPI tiles + sparklines + panel
+mintfig watch train.csv --braille --style pine --once     # live-reload terminal chart on file change
+```
 
 ### Already drawn with Matplotlib (`mint.check`)
 
@@ -101,7 +115,7 @@ Before sharing any plain Matplotlib figure, script, or notebook, run `mint.check
 
 ```python
 mint.explain(takeaway, *panels,
-    subtitle=None, source=None, note=None,  # scope and figure footer
+    kicker=None, subtitle=None, source=None, note=None,  # uppercase kicker, scope and footer
     layout=None,            # e.g. [["a"], ["b", "c"]]; repeat a key to widen
     colors=None,            # pin across figures: {"no retrieval": "red"} (blue/red/green/amber)
     color_names=True, density="regular",  # names coloured in titles; "compact": tighter rows
@@ -132,7 +146,7 @@ mint.change(before, after, data=None, name=None, labels=("Before", "After"))
 
 mint.distribution(groups,     # {g: [obs]}, wide DF, or rows (group=/value=)
     group=None, value=None, stat="median",
-    mode="dots", quantiles=20,  # "dots" | "quantile" (5–50 dots) | "ecdf" (quantiles=(0.5, 0.95, 0.99))
+    mode="dots", quantiles=20,  # "dots" | "swarm" | "quantile" (5–50 dots) | "ecdf" (quantiles=(0.5, 0.95, 0.99))
     bins=None, log=False, reference=None, facet=False)
 
 mint.histogram(values, group=None, value=None, bins="auto", stat="median", log=False, reference=None, facet=False)

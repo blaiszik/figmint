@@ -116,6 +116,126 @@ def rasterize_heavy(
     return len(_rasterize_heavy_artists(fig, threshold))
 
 
+def _panel_slug_for_axes(
+    ax: Axes,
+    fallback_index: int,
+    slug_map: dict[int, str],
+) -> str:
+    """Resolve a deterministic Illustrator/Inkscape layer prefix for ``ax``."""
+    key = getattr(ax, "_mintfig_panel_key", None)
+    if key is not None and str(key).strip():
+        return f"panel-{str(key).strip().lower()}"
+    parent = getattr(ax, "_parent_axes", None)
+    if parent is not None and id(parent) in slug_map:
+        if getattr(ax, "_colorbar", None) is not None or ax.get_label() == "<colorbar>":
+            return f"{slug_map[id(parent)]}/colorbar"
+        return f"{slug_map[id(parent)]}/inset"
+    if getattr(ax, "_colorbar", None) is not None or ax.get_label() == "<colorbar>":
+        return f"colorbar-{fallback_index + 1}"
+    letter = chr(ord("a") + fallback_index) if fallback_index < 26 else f"ax{fallback_index + 1}"
+    return f"panel-{letter}"
+
+
+def _apply_semantic_gids(fig: Figure) -> list[tuple[Artist, str | None]]:
+    """Assign deterministic semantic SVG/PDF ``gid`` layers to untagged artists.
+
+    Organizes exported vector files into hierarchical Illustrator/Inkscape groups
+    (``panel-a/axes``, ``panel-a/data``, ``panel-a/annotations``, ``panel-a/labels``)
+    without overwriting any caller-assigned or internal ``gid`` (such as
+    ``mintfig-margin``). Returns ``(artist, previous_gid)`` pairs so callers can
+    restore live figure state after saving.
+    """
+    changed: list[tuple[Artist, str | None]] = []
+    used_gids: set[str] = set()
+
+    # Reserve any pre-existing gids so new ones never collide.
+    for existing in fig.findobj():
+        gid = existing.get_gid()
+        if gid:
+            used_gids.add(str(gid))
+
+    def _claim(base: str) -> str:
+        if base not in used_gids:
+            used_gids.add(base)
+            return base
+        idx = 2
+        while f"{base}/{idx}" in used_gids:
+            idx += 1
+        name = f"{base}/{idx}"
+        used_gids.add(name)
+        return name
+
+    def _tag(artist: Artist | None, base: str) -> None:
+        if artist is None or artist.get_gid() is not None:
+            return
+        changed.append((artist, None))
+        artist.set_gid(_claim(base))
+
+    # Map figure-level panel labels first so `panel-a/labels` belongs cleanly to the panel tag.
+    for txt in getattr(fig, "texts", ()):
+        if getattr(txt, "_mintfig_panel_label", False):
+            pkey = getattr(txt, "_mintfig_panel_key", None)
+            if pkey is None:
+                raw = txt.get_text().strip()
+                if raw and len(raw) <= 3 and raw.isalnum():
+                    pkey = raw.lower()
+            if pkey is not None:
+                _tag(txt, f"panel-{str(pkey).lower()}/labels")
+
+    all_axes = list(_iter_all_axes(fig))
+    slug_map: dict[int, str] = {}
+    panel_idx = 0
+    for ax in all_axes:
+        is_aux = (
+            getattr(ax, "_colorbar", None) is not None
+            or ax.get_label() == "<colorbar>"
+            or getattr(ax, "_parent_axes", None) is not None
+        )
+        slug = _panel_slug_for_axes(ax, panel_idx, slug_map)
+        slug_map[id(ax)] = slug
+        if not is_aux:
+            panel_idx += 1
+
+    for ax in all_axes:
+        slug = slug_map[id(ax)]
+        _tag(ax, f"{slug}/axes")
+
+        # Data artists (lines, collections, images, non-annotation patches)
+        for line in ax.lines:
+            if getattr(line, "_mintfig_leader", False) or getattr(line, "_mintfig_annotation", False):
+                _tag(line, f"{slug}/annotations")
+            else:
+                _tag(line, f"{slug}/data")
+        for col in ax.collections:
+            _tag(col, f"{slug}/data")
+        for im in ax.images:
+            _tag(im, f"{slug}/data")
+        for patch in ax.patches:
+            if patch is ax.patch:
+                continue
+            if getattr(patch, "_mintfig_annotation", False):
+                _tag(patch, f"{slug}/annotations")
+            else:
+                _tag(patch, f"{slug}/data")
+
+        # Annotations (in-axes text, callouts, legends)
+        for txt in ax.texts:
+            _tag(txt, f"{slug}/annotations")
+        leg = ax.get_legend()
+        if leg is not None:
+            _tag(leg, f"{slug}/annotations")
+
+        # Labels (title, xlabel, ylabel)
+        if ax.title.get_text().strip():
+            _tag(ax.title, f"{slug}/labels")
+        if ax.xaxis.label.get_text().strip():
+            _tag(ax.xaxis.label, f"{slug}/labels")
+        if ax.yaxis.label.get_text().strip():
+            _tag(ax.yaxis.label, f"{slug}/labels")
+
+    return changed
+
+
 def _resolve_save_spec(
     fig: Figure,
     journal: str | JournalSpec | None,
@@ -229,9 +349,12 @@ def save_figure(
         rc_overrides["svg.hashsalt"] = "mintfig"
 
     changed: list[tuple[Artist, bool]] = []
+    gid_changed: list[tuple[Artist, str | None]] = []
     try:
         if rasterize_above is not None and rasterize_above > 0:
             changed = _rasterize_heavy_artists(fig, rasterize_above)
+        if suffix in {".svg", ".pdf"}:
+            gid_changed = _apply_semantic_gids(fig)
         with mpl.rc_context(rc_overrides):
             fig.savefig(
                 out_path,
@@ -241,6 +364,8 @@ def save_figure(
                 **extra_kwargs,
             )
     finally:
+        for artist, prev_gid in gid_changed:
+            artist.set_gid(prev_gid)
         for artist, previous in changed:
             artist.set_rasterized(previous)
 

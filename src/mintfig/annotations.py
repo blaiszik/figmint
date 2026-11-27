@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Literal
 
 import matplotlib as mpl
 import matplotlib.patches as mpatches
+import matplotlib.patheffects as mpatheffects
 import matplotlib.transforms as mtransforms
 import numpy as np
+from matplotlib.lines import Line2D as _Line2D
 from matplotlib.ticker import MaxNLocator
 
 if TYPE_CHECKING:
@@ -318,6 +321,551 @@ def _bound_full_width_lines(ax: Axes, x_lo: float, x_hi: float) -> None:
         line.set_xdata([lo, hi])
 
 
+def _solve_label_boxes_2d(
+    anchors_pt: np.ndarray,
+    init_centers_pt: np.ndarray,
+    half_wh_pt: np.ndarray,
+    bounds_pt: tuple[float, float, float, float],
+    *,
+    min_sep_pt: float = 2.5,
+    max_iter: int = 300,
+) -> np.ndarray:
+    """Deterministic 2D bounding-box repulsion solver in display points.
+
+    Resolves all pairwise box overlaps (with ``min_sep_pt`` clearance) while
+    staying within ``bounds_pt = (x_lo, x_hi, y_lo, y_hi)`` and gently pulling
+    uncolliding boxes back toward their initial anchor-adjacent positions.
+    """
+    n = len(anchors_pt)
+    if n == 0:
+        return np.empty((0, 2), dtype=float)
+
+    x_lo, x_hi, y_lo, y_hi = bounds_pt
+    centers = np.asarray(init_centers_pt, dtype=float).copy()
+    hw = np.asarray(half_wh_pt[:, 0], dtype=float)
+    hh = np.asarray(half_wh_pt[:, 1], dtype=float)
+
+    def _clamp(pts: np.ndarray) -> None:
+        for i in range(n):
+            lo_x = x_lo + hw[i]
+            hi_x = x_hi - hw[i]
+            if lo_x <= hi_x:
+                pts[i, 0] = float(np.clip(pts[i, 0], lo_x, hi_x))
+            else:
+                pts[i, 0] = 0.5 * (x_lo + x_hi)
+
+            lo_y = y_lo + hh[i]
+            hi_y = y_hi - hh[i]
+            if lo_y <= hi_y:
+                pts[i, 1] = float(np.clip(pts[i, 1], lo_y, hi_y))
+            else:
+                pts[i, 1] = 0.5 * (y_lo + y_hi)
+
+    _clamp(centers)
+    if n == 1:
+        return centers
+
+    anchor_halo = 5.0
+    anchor_stop = int(max_iter * 0.85)
+
+    for it in range(max_iter):
+        disp = np.zeros((n, 2), dtype=float)
+        collided = np.zeros(n, dtype=bool)
+        max_overlap = 0.0
+
+        # 1. Pairwise label-label bounding-box repulsion
+        for i in range(n):
+            for j in range(i + 1, n):
+                dx = centers[j, 0] - centers[i, 0]
+                dy = centers[j, 1] - centers[i, 1]
+                req_x = hw[i] + hw[j] + min_sep_pt
+                req_y = hh[i] + hh[j] + min_sep_pt
+                ov_x = req_x - abs(dx)
+                ov_y = req_y - abs(dy)
+                if ov_x <= 0.0 or ov_y <= 0.0:
+                    continue
+
+                collided[i] = True
+                collided[j] = True
+                max_overlap = max(max_overlap, min(ov_x, ov_y))
+
+                if abs(dx) > 1e-6:
+                    sx = 1.0 if dx > 0.0 else -1.0
+                else:
+                    sx = (
+                        1.0
+                        if (anchors_pt[j, 0], anchors_pt[j, 1], j)
+                        > (anchors_pt[i, 0], anchors_pt[i, 1], i)
+                        else -1.0
+                    )
+                if abs(dy) > 1e-6:
+                    sy = 1.0 if dy > 0.0 else -1.0
+                else:
+                    sy = (
+                        1.0
+                        if (anchors_pt[j, 1], anchors_pt[j, 0], j)
+                        > (anchors_pt[i, 1], anchors_pt[i, 0], i)
+                        else -1.0
+                    )
+
+                # Separate along minimum translation axis; when pinned near top/bottom
+                # edge, mix in horizontal separation so top-edge labels fan out cleanly.
+                near_top = (
+                    centers[i, 1] + hh[i] >= y_hi - 1.5 and centers[j, 1] + hh[j] >= y_hi - 1.5
+                )
+                near_bot = (
+                    centers[i, 1] - hh[i] <= y_lo + 1.5 and centers[j, 1] - hh[j] <= y_lo + 1.5
+                )
+
+                if ov_y <= ov_x * 1.15 and not (near_top or near_bot):
+                    push_y = 0.54 * ov_y + 0.08
+                    disp[i, 1] -= sy * push_y
+                    disp[j, 1] += sy * push_y
+                elif near_top or near_bot:
+                    push_x = 0.42 * min(ov_x, 12.0) + 0.1
+                    push_y = 0.45 * ov_y + 0.08
+                    disp[i, 0] -= sx * push_x
+                    disp[j, 0] += sx * push_x
+                    # Push one box inward away from the boundary
+                    inward = -1.0 if near_top else 1.0
+                    disp[j if sy * inward > 0 else i, 1] += inward * push_y
+                else:
+                    push_x = 0.54 * ov_x + 0.08
+                    disp[i, 0] -= sx * push_x
+                    disp[j, 0] += sx * push_x
+
+        # 2. Repulsion from anchor points so labels never sit on top of scatter markers
+        if it < anchor_stop:
+            for i in range(n):
+                for k in range(n):
+                    dx = centers[i, 0] - anchors_pt[k, 0]
+                    dy = centers[i, 1] - anchors_pt[k, 1]
+                    ov_x = hw[i] + anchor_halo - abs(dx)
+                    ov_y = hh[i] + anchor_halo - abs(dy)
+                    if ov_x > 0.0 and ov_y > 0.0:
+                        collided[i] = True
+                        if ov_y <= ov_x:
+                            sy = 1.0 if dy >= 0.0 else -1.0
+                            disp[i, 1] += sy * min(ov_y * 0.45 + 0.15, 2.8)
+                        else:
+                            sx = 1.0 if dx >= 0.0 else -1.0
+                            disp[i, 0] += sx * min(ov_x * 0.45 + 0.15, 2.8)
+
+        # 3. Gentle spring back toward initial position for non-colliding labels
+        for i in range(n):
+            if not collided[i]:
+                step = 0.06 * (init_centers_pt[i] - centers[i])
+                cand = centers[i] + step
+                ok = True
+                for j in range(n):
+                    if j == i:
+                        continue
+                    if (
+                        abs(cand[0] - centers[j, 0]) < hw[i] + hw[j] + min_sep_pt
+                        and abs(cand[1] - centers[j, 1]) < hh[i] + hh[j] + min_sep_pt
+                    ):
+                        ok = False
+                        break
+                if ok:
+                    for k in range(n):
+                        if (
+                            abs(cand[0] - anchors_pt[k, 0]) < hw[i] + anchor_halo
+                            and abs(cand[1] - anchors_pt[k, 1]) < hh[i] + anchor_halo
+                        ):
+                            ok = False
+                            break
+                if ok:
+                    disp[i] += step
+
+        centers += disp
+        _clamp(centers)
+
+        max_step = float(np.max(np.abs(disp))) if disp.size else 0.0
+        if max_overlap <= 0.0 and max_step < 0.04:
+            break
+
+    # Deterministic final sweep: if tightly packed labels still have minor overlap,
+    # separate vertically in sorted order within bounds.
+    has_overlap = False
+    for i in range(n):
+        for j in range(i + 1, n):
+            if (
+                abs(centers[j, 0] - centers[i, 0]) < hw[i] + hw[j] + min_sep_pt - 0.1
+                and abs(centers[j, 1] - centers[i, 1]) < hh[i] + hh[j] + min_sep_pt - 0.1
+            ):
+                has_overlap = True
+                break
+        if has_overlap:
+            break
+
+    if has_overlap:
+        order = np.argsort(centers[:, 1], kind="mergesort")
+        for _ in range(120):
+            changed = False
+            for idx_a in range(n):
+                i = int(order[idx_a])
+                for idx_b in range(idx_a + 1, n):
+                    j = int(order[idx_b])
+                    ov_x = (hw[i] + hw[j] + min_sep_pt) - abs(centers[j, 0] - centers[i, 0])
+                    ov_y = (hh[i] + hh[j] + min_sep_pt) - abs(centers[j, 1] - centers[i, 1])
+                    if ov_x > 0.0 and ov_y > 0.0:
+                        shift = 0.5 * ov_y + 0.1
+                        centers[i, 1] -= shift
+                        centers[j, 1] += shift
+                        changed = True
+            _clamp(centers)
+            if not changed:
+                break
+
+    return centers
+
+
+def _draw_leader_line(
+    ax: Axes,
+    anchor_pt: tuple[float, float],
+    box_center_pt: tuple[float, float],
+    half_wh_pt: tuple[float, float],
+    *,
+    pt_per_px: float,
+    lw: float,
+    color: str,
+    alpha: float = 0.82,
+    zorder: int = 7,
+) -> Line2D:
+    """Draw a crisp angled leader line from ``anchor_pt`` to the nearest edge of a label box."""
+    ax_pt, ay_pt = anchor_pt
+    cx, cy = box_center_pt
+    hw, hh = half_wh_pt
+
+    # Target point on the padded bounding box boundary facing the anchor
+    pad_x, pad_y = 1.8, 1.2
+    ex = float(np.clip(ax_pt, cx - hw - pad_x, cx + hw + pad_x))
+    ey = float(np.clip(ay_pt, cy - hh - pad_y, cy + hh + pad_y))
+    # If anchor lies inside padded box, snap to nearest left/right side
+    if abs(ex - ax_pt) < 1e-6 and abs(ey - ay_pt) < 1e-6:
+        ex = cx - hw - pad_x if ax_pt <= cx else cx + hw + pad_x
+        ey = cy
+
+    dx = ex - ax_pt
+    dy = ey - ay_pt
+    dist = float(np.hypot(dx, dy))
+    # Offset start slightly from anchor so leader doesn't poke into data point/curve
+    start_gap = min(1.6, 0.35 * dist)
+    if dist > 1e-6:
+        sx = ax_pt + (dx / dist) * start_gap
+        sy = ay_pt + (dy / dist) * start_gap
+    else:
+        sx, sy = ax_pt, ay_pt
+
+    # Use a crisp angled elbow when leader has substantial run & rise and lands on left/right side
+    pts_pt: list[tuple[float, float]]
+    if abs(dx) >= 4.0 and abs(dy) >= 2.5 and abs(ex - ax_pt) > 2.5:
+        elbow_x = ex - (2.0 if ex > ax_pt else -2.0)
+        if (elbow_x - sx) * (ex - sx) > 0.0:
+            pts_pt = [(sx, sy), (elbow_x, ey), (ex, ey)]
+        else:
+            pts_pt = [(sx, sy), (ex, ey)]
+    else:
+        pts_pt = [(sx, sy), (ex, ey)]
+
+    inv_trans = ax.transData.inverted()
+    data_pts = [inv_trans.transform((px / pt_per_px, py / pt_per_px)) for px, py in pts_pt]
+    xs = [float(p[0]) for p in data_pts]
+    ys = [float(p[1]) for p in data_pts]
+
+    line = _Line2D(
+        xs,
+        ys,
+        color=color,
+        linewidth=max(float(lw), 0.25),
+        alpha=alpha,
+        solid_capstyle="round",
+        solid_joinstyle="round",
+        zorder=zorder,
+        clip_on=False,
+        label="_mintfig_leader",
+    )
+    line._mintfig_leader = True  # type: ignore[attr-defined]
+    line._mintfig_annotation = True  # type: ignore[attr-defined]
+    ax.add_line(line)
+    return line
+
+
+def place_labels(
+    ax: Axes,
+    items: Sequence[
+        tuple[float, float, str]
+        | tuple[float, float, str, str]
+        | Mapping[str, Any]
+    ],
+    *,
+    leader_lw: float = 0.45,
+    leader_color: str = "#6B7280",
+    min_sep_pt: float = 2.5,
+    leader_threshold_pt: float = 4.0,
+    fontsize: float | None = None,
+    color: str = "#1A1D21",
+    pad_pt: float = 4.0,
+    max_iter: int = 300,
+    expand_axes: bool = False,
+    ha: str | None = None,
+    va: str = "center",
+    fontweight: str = "normal",
+    zorder: int = 8,
+) -> list[Text]:
+    """Deterministically place non-overlapping point/curve labels with angled leader lines.
+
+    Pure-NumPy / Matplotlib repulsion solver (``ggrepel``-style) operating in
+    physical display points. Resolves 2D bounding-box collisions among all
+    supplied labels and draws crisp ``leader_lw`` angled leader lines whenever
+    a label shifts more than ``leader_threshold_pt`` from its anchor.
+
+    Parameters
+    ----------
+    ax:
+        Target Matplotlib axes.
+    items:
+        Sequence of ``(x, y, text)``, ``(x, y, text, color)``, or dict entries
+        with keys ``x``, ``y``, ``text`` (or ``label``), and optional ``color``,
+        ``ha``, ``fontweight``.
+    leader_lw:
+        Line width in points for leader lines (default ``0.45`` pt).
+    leader_color:
+        Color for leader lines (default ``"#6B7280"``). Pass ``"match"`` to
+        tint each leader line with its label's color.
+    min_sep_pt:
+        Minimum clearance between adjacent label bounding boxes in points.
+    leader_threshold_pt:
+        Minimum displacement (in points) from anchor before drawing a leader line.
+    """
+    if not items:
+        return []
+
+    parsed: list[dict[str, Any]] = []
+    for entry in items:
+        if isinstance(entry, Mapping):
+            x_val = float(entry["x"])
+            y_val = float(entry["y"])
+            txt_val = str(entry.get("text", entry.get("label", "")))
+            col_val = str(entry.get("color", color))
+            item_ha = entry.get("ha", ha)
+            item_fw = str(entry.get("fontweight", fontweight))
+        elif len(entry) >= 4:
+            x_val = float(entry[0])
+            y_val = float(entry[1])
+            txt_val = str(entry[2])
+            col_val = str(entry[3])
+            item_ha = ha
+            item_fw = fontweight
+        elif len(entry) == 3:
+            x_val = float(entry[0])
+            y_val = float(entry[1])
+            txt_val = str(entry[2])
+            col_val = color
+            item_ha = ha
+            item_fw = fontweight
+        else:
+            raise ValueError(
+                "Each place_labels item must be (x, y, text), (x, y, text, color), or a dict"
+            )
+        if not np.isfinite(x_val) or not np.isfinite(y_val) or not txt_val.strip():
+            continue
+        parsed.append(
+            {
+                "x": x_val,
+                "y": y_val,
+                "text": txt_val,
+                "color": col_val,
+                "ha": item_ha,
+                "fontweight": item_fw,
+            }
+        )
+
+    if not parsed:
+        return []
+
+    fs = float(fontsize) if fontsize is not None else _numeric_rc_font("legend.fontsize", 6.0)
+    fig = ax.figure
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    dpi = float(fig.dpi)
+    pt_per_px = 72.0 / dpi
+    ax_bbox = ax.get_window_extent(renderer)
+
+    # Create texts centered at anchors first to measure exact rendered point bboxes.
+    texts: list[Text] = []
+    for item in parsed:
+        t = ax.text(
+            item["x"],
+            item["y"],
+            item["text"],
+            ha="center",
+            va=va,
+            fontsize=fs,
+            color=item["color"],
+            fontweight=item["fontweight"],
+            zorder=zorder,
+            clip_on=False,
+        )
+        t._mintfig_annotation = True  # type: ignore[attr-defined]
+        t._mintfig_placed_label = True  # type: ignore[attr-defined]
+        texts.append(t)
+
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+
+    n = len(parsed)
+    anchors_pt = np.zeros((n, 2), dtype=float)
+    half_wh_pt = np.zeros((n, 2), dtype=float)
+    init_centers_pt = np.zeros((n, 2), dtype=float)
+
+    x_lo = ax_bbox.x0 * pt_per_px + 2.0
+    x_hi = ax_bbox.x1 * pt_per_px - 2.0
+    y_lo = ax_bbox.y0 * pt_per_px + 2.0
+    y_hi = ax_bbox.y1 * pt_per_px - 2.0
+
+    for i, (item, txt) in enumerate(zip(parsed, texts, strict=True)):
+        px, py = ax.transData.transform((item["x"], item["y"]))
+        anchors_pt[i] = (px * pt_per_px, py * pt_per_px)
+        bb = txt.get_window_extent(renderer)
+        hw = max(0.5 * bb.width * pt_per_px, 2.0)
+        hh = max(0.5 * bb.height * pt_per_px, fs * 0.45)
+        half_wh_pt[i] = (hw, hh)
+
+    # Detect tightly clustered anchors so auto-aligned labels fan radially outward
+    # around the cluster centroid instead of stacking onto neighbor markers.
+    centroid = np.mean(anchors_pt, axis=0) if n > 1 else anchors_pt[0]
+    for i, item in enumerate(parsed):
+        ax_pt, ay_pt = float(anchors_pt[i, 0]), float(anchors_pt[i, 1])
+        hw, hh = float(half_wh_pt[i, 0]), float(half_wh_pt[i, 1])
+        align = item["ha"]
+        if align == "right":
+            cx0 = ax_pt - pad_pt - hw
+            cy0 = ay_pt
+        elif align == "center":
+            cx0 = ax_pt
+            cy0 = ay_pt + pad_pt + hh
+        elif align == "left":
+            cx0 = ax_pt + pad_pt + hw
+            cy0 = ay_pt
+        else:
+            # Count nearby anchors within a tight neighborhood (22 pt)
+            dists = np.hypot(anchors_pt[:, 0] - ax_pt, anchors_pt[:, 1] - ay_pt)
+            n_close = int(np.sum((dists > 0.0) & (dists < 22.0)))
+            if n_close >= 2:
+                vx = ax_pt - float(centroid[0])
+                vy = ay_pt - float(centroid[1])
+                norm = float(np.hypot(vx, vy))
+                if norm < 1e-4:
+                    angle = (2.0 * np.pi * i) / max(n, 1)
+                    ux, uy = float(np.cos(angle)), float(np.sin(angle))
+                else:
+                    ux, uy = vx / norm, vy / norm
+                cx0 = ax_pt + ux * (pad_pt + hw + 5.5)
+                cy0 = ay_pt + uy * (pad_pt + hh + 5.0)
+            elif ax_pt + pad_pt + 2.0 * hw <= x_hi:
+                cx0 = ax_pt + pad_pt + hw
+                cy0 = ay_pt
+            elif ax_pt - pad_pt - 2.0 * hw >= x_lo:
+                cx0 = ax_pt - pad_pt - hw
+                cy0 = ay_pt
+            else:
+                cx0 = ax_pt + pad_pt + hw
+                cy0 = ay_pt
+        init_centers_pt[i] = (cx0, cy0)
+
+    bounds_x_hi = (x_hi + max(half_wh_pt[:, 0]) * 1.8) if expand_axes else x_hi
+    centers_pt = _solve_label_boxes_2d(
+        anchors_pt,
+        init_centers_pt,
+        half_wh_pt,
+        (x_lo, bounds_x_hi, y_lo, y_hi),
+        min_sep_pt=float(min_sep_pt),
+        max_iter=int(max_iter),
+    )
+
+    if expand_axes:
+        max_right_pt = float(np.max(centers_pt[:, 0] + half_wh_pt[:, 0]))
+        if max_right_pt > x_hi:
+            overflow_frac = (max_right_pt - x_hi + 3.0) / max(ax_bbox.width * pt_per_px, 1.0)
+            xl0, xl1 = ax.get_xlim()
+            if ax.get_xscale() == "log" and xl0 > 0 and xl1 > 0:
+                ax.set_xlim(xl0, xl1 * ((xl1 / xl0) ** (overflow_frac * 1.1)))
+            else:
+                ax.set_xlim(xl0, xl1 + (xl1 - xl0) * (overflow_frac * 1.1))
+            fig.canvas.draw()
+            # Re-project anchors & shift centers rigidly by the anchor delta
+            for i, item in enumerate(parsed):
+                npx, npy = ax.transData.transform((item["x"], item["y"]))
+                new_ax_pt, new_ay_pt = npx * pt_per_px, npy * pt_per_px
+                centers_pt[i, 0] += new_ax_pt - anchors_pt[i, 0]
+                centers_pt[i, 1] += new_ay_pt - anchors_pt[i, 1]
+                init_centers_pt[i, 0] += new_ax_pt - anchors_pt[i, 0]
+                init_centers_pt[i, 1] += new_ay_pt - anchors_pt[i, 1]
+                anchors_pt[i] = (new_ax_pt, new_ay_pt)
+
+    inv_trans = ax.transData.inverted()
+    for i, (item, txt) in enumerate(zip(parsed, texts, strict=True)):
+        cx, cy = float(centers_pt[i, 0]), float(centers_pt[i, 1])
+        hw, hh = float(half_wh_pt[i, 0]), float(half_wh_pt[i, 1])
+        dx_data, dy_data = inv_trans.transform((cx / pt_per_px, cy / pt_per_px))
+        txt.set_position((float(dx_data), float(dy_data)))
+
+        # Compute displacement from initial placement and clearance from anchor to label edge
+        shift_pt = float(np.hypot(cx - init_centers_pt[i, 0], cy - init_centers_pt[i, 1]))
+        ax_pt, ay_pt = float(anchors_pt[i, 0]), float(anchors_pt[i, 1])
+        edge_x = float(np.clip(ax_pt, cx - hw, cx + hw))
+        edge_y = float(np.clip(ay_pt, cy - hh, cy + hh))
+        edge_dist = float(np.hypot(edge_x - ax_pt, edge_y - ay_pt))
+
+        if shift_pt >= float(leader_threshold_pt) or edge_dist >= float(leader_threshold_pt) + pad_pt:
+            lcol = item["color"] if leader_color == "match" else leader_color
+            _draw_leader_line(
+                ax,
+                (ax_pt, ay_pt),
+                (cx, cy),
+                (hw, hh),
+                pt_per_px=pt_per_px,
+                lw=leader_lw,
+                color=lcol,
+                alpha=0.82,
+                zorder=zorder - 1,
+            )
+
+    return texts
+
+
+def _visible_curve_endpoint(
+    xf: np.ndarray,
+    yf: np.ndarray,
+    ylim: tuple[float, float],
+) -> tuple[float, float]:
+    """Return the rightmost visible endpoint of a curve, clipping to ``ylim`` if it exits top/bottom."""
+    y_lo, y_hi = (min(ylim), max(ylim))
+    idx_end = int(np.argmax(xf))
+    xe, ye = float(xf[idx_end]), float(yf[idx_end])
+    if y_lo <= ye <= y_hi:
+        return xe, ye
+
+    # Sort by x and walk backward to find where the curve exits [y_lo, y_hi]
+    order = np.argsort(xf)
+    xs = xf[order]
+    ys = yf[order]
+    in_bounds = (ys >= y_lo) & (ys <= y_hi)
+    if not np.any(in_bounds):
+        return xe, float(np.clip(ye, y_lo, y_hi))
+
+    last_in = int(np.where(in_bounds)[0][-1])
+    if last_in < len(xs) - 1:
+        x0, y0 = float(xs[last_in]), float(ys[last_in])
+        x1, y1 = float(xs[last_in + 1]), float(ys[last_in + 1])
+        y_edge = y_hi if y1 > y_hi else y_lo
+        if abs(y1 - y0) > 1e-12:
+            frac = float(np.clip((y_edge - y0) / (y1 - y0), 0.0, 1.0))
+            return x0 + frac * (x1 - x0), y_edge
+    return float(xs[last_in]), float(ys[last_in])
+
+
 def direct_labels(
     ax: Axes,
     *,
@@ -326,21 +874,29 @@ def direct_labels(
     fontsize: float | None = None,
     expand_xlim: float = 0.22,
     trim_spine: bool = True,
+    leader_lw: float = 0.45,
+    leader_color: str | None = None,
+    leader_threshold_pt: float = 4.0,
 ) -> list[Text]:
     """Attach color-matched, non-overlapping direct labels to line endpoints.
 
     Inspects all labeled ``Line2D`` artists on ``ax``, reserves right-hand space
     for labels, trims the bottom spine back to the actual data span when
     ``trim_spine=True`` (so the axis never extends emptily under the labels),
-    and iteratively separates vertically adjacent labels in point-space.
+    separates crowded vertical or horizontal endpoints in point-space, and
+    draws subtle ``leader_lw`` angled leader lines whenever a label shifts more
+    than ``leader_threshold_pt`` from its curve endpoint.
     Full-width reference lines drawn before the call (``axhline``) are bounded to
     the original x range, so they do not run on through the label margin.
     """
     candidates: list[tuple[Line2D, str, float, float]] = []
     data_x_min = np.inf
     data_x_max = -np.inf
+    cur_ylim = ax.get_ylim()
     for line in ax.get_lines():
         if not line.get_visible():
+            continue
+        if getattr(line, "_mintfig_leader", False):
             continue
         xdata = np.asarray(line.get_xdata(orig=False), dtype=float)
         ydata = np.asarray(line.get_ydata(orig=False), dtype=float)
@@ -354,8 +910,8 @@ def direct_labels(
             continue
         data_x_min = min(data_x_min, float(np.min(xf)))
         data_x_max = max(data_x_max, float(np.max(xf)))
-        idx = int(np.argmax(xf))
-        candidates.append((line, str(lbl), float(xf[idx]), float(yf[idx])))
+        xe, ye = _visible_curve_endpoint(xf, yf, cur_ylim)
+        candidates.append((line, str(lbl), xe, ye))
 
     if not candidates:
         return []
@@ -376,11 +932,12 @@ def direct_labels(
 
     fig = ax.figure
     fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
     dpi = float(fig.dpi)
     pt_per_px = 72.0 / dpi
 
     # Compute endpoint display positions in points.
-    items: list[dict[str, object]] = []
+    items: list[dict[str, Any]] = []
     for line, lbl, xe, ye in candidates:
         px_x, px_y = ax.transData.transform((xe, ye))
         items.append(
@@ -389,88 +946,186 @@ def direct_labels(
                 "label": lbl,
                 "x_end": xe,
                 "y_end": ye,
+                "pt_x": px_x * pt_per_px,
                 "pt_y": px_y * pt_per_px,
             }
         )
 
-    items.sort(key=lambda d: float(d["pt_y"]))  # type: ignore[arg-type]
+    pt_xs = np.array([float(d["pt_x"]) for d in items], dtype=float)
+    staggered_x = len(items) > 1 and float(np.max(pt_xs) - np.min(pt_xs)) > 10.0
 
-    ax_bbox = ax.get_window_extent(fig.canvas.get_renderer())
+    ax_bbox = ax.get_window_extent(renderer)
     margin_pt = max(fs * 0.6, 3.5)
     y_lo_pt = ax_bbox.y0 * pt_per_px + margin_pt
     y_hi_pt = ax_bbox.y1 * pt_per_px - margin_pt
 
-    ys = np.array([float(d["pt_y"]) for d in items], dtype=float)
-    n = len(ys)
-    if n > 1:
-        avail = max(y_hi_pt - y_lo_pt, 1.0)
-        if (n - 1) * eff_min_sep > avail:
-            ys = np.linspace(y_lo_pt, y_hi_pt, n)
-        else:
-            for _ in range(250):
-                moved = False
-                for i in range(n - 1):
-                    gap = ys[i + 1] - ys[i]
-                    if gap < eff_min_sep:
-                        shift = 0.5 * (eff_min_sep - gap) + 0.05
-                        ys[i] -= shift
-                        ys[i + 1] += shift
-                        moved = True
-                # Push back inside vertical bounds while preserving order.
-                if ys[0] < y_lo_pt:
-                    ys += y_lo_pt - ys[0]
-                if ys[-1] > y_hi_pt:
-                    ys -= ys[-1] - y_hi_pt
-                ys = np.clip(ys, y_lo_pt, y_hi_pt)
-                if not moved:
-                    break
-    else:
-        ys[0] = float(np.clip(ys[0], y_lo_pt, y_hi_pt))
-
-    inv_trans = ax.transData.inverted()
-    text_transform = mtransforms.offset_copy(
-        ax.transData,
-        fig=fig,
-        x=pad_pt,
-        y=0.0,
-        units="points",
-    )
-
-    texts: list[Text] = []
-    for item, adj_pt_y in zip(items, ys):
-        line = item["line"]
-        xe = float(item["x_end"])  # type: ignore[arg-type]
-        px_x, _ = ax.transData.transform((xe, float(item["y_end"])))  # type: ignore[arg-type]
-        _, y_data = inv_trans.transform((px_x, adj_pt_y / pt_per_px))
-        txt = ax.text(
-            xe,
-            y_data,
-            str(item["label"]),
-            transform=text_transform,
-            color=line.get_color(),  # type: ignore[union-attr]
-            fontsize=fs,
-            va="center",
-            ha="left",
-            clip_on=False,
+    if staggered_x:
+        # Curves terminate at distinct x-positions (e.g., exiting top edge or staggered ends):
+        # resolve 2D bounding-box collisions with place_labels and angled leader lines.
+        # Add a crisp background knockout stroke so labels remain razor-legible even near
+        # densely converging curves.
+        y_top_pt = ax_bbox.y1 * pt_per_px
+        top_exit_count = sum(1 for d in items if abs(float(d["pt_y"]) - y_top_pt) <= 8.0)
+        any_clipped_top = any(
+            float(np.nanmax(np.asarray(d["line"].get_ydata(orig=False), dtype=float)))
+            > max(cur_ylim) + 1e-9
+            for d in items
         )
-        texts.append(txt)
+        if top_exit_count >= 2 and not any_clipped_top and ax.get_yscale() == "linear":
+            yl0, yl1 = ax.get_ylim()
+            ax.set_ylim(yl0, yl1 + (yl1 - yl0) * 0.14)
+            fig.canvas.draw()
 
-    # Verify labels fit inside the axes right edge; widen xlim slightly if needed.
-    _bound_full_width_lines(ax, orig_x0, orig_x1)
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
-    ax_bbox = ax.get_window_extent(renderer)
-    max_right_px = max(t.get_window_extent(renderer).x1 for t in texts)
-    if max_right_px > ax_bbox.x1 - 1.0:
-        overflow_frac = (max_right_px - ax_bbox.x1 + 3.0) / max(ax_bbox.width, 1.0)
-        x0, x1 = ax.get_xlim()
-        if ax.get_xscale() == "log" and x0 > 0 and x1 > 0:
-            ax.set_xlim(x0, x1 * ((x1 / x0) ** (overflow_frac * 1.15)))
+        place_items = [
+            {
+                "x": float(d["x_end"]),
+                "y": float(d["y_end"]),
+                "text": str(d["label"]),
+                "color": d["line"].get_color(),
+                "ha": "left",
+            }
+            for d in items
+        ]
+        texts = place_labels(
+            ax,
+            place_items,
+            leader_lw=leader_lw,
+            leader_color=leader_color if leader_color is not None else "match",
+            min_sep_pt=max(2.5, fs * 0.4),
+            leader_threshold_pt=leader_threshold_pt,
+            fontsize=fs,
+            pad_pt=pad_pt,
+            expand_axes=True,
+        )
+        bg = ax.get_facecolor()
+        halo = [
+            mpatheffects.withStroke(linewidth=2.4, foreground=bg),
+            mpatheffects.Normal(),
+        ]
+        for txt in texts:
+            txt.set_path_effects(halo)
+    else:
+        items.sort(key=lambda d: float(d["pt_y"]))
+        orig_ys = np.array([float(d["pt_y"]) for d in items], dtype=float)
+        ys = orig_ys.copy()
+        n = len(ys)
+        if n > 1:
+            avail = max(y_hi_pt - y_lo_pt, 1.0)
+            if (n - 1) * eff_min_sep > avail:
+                ys = np.linspace(y_lo_pt, y_hi_pt, n)
+            else:
+                for _ in range(250):
+                    moved = False
+                    for i in range(n - 1):
+                        gap = ys[i + 1] - ys[i]
+                        if gap < eff_min_sep:
+                            shift = 0.5 * (eff_min_sep - gap) + 0.05
+                            ys[i] -= shift
+                            ys[i + 1] += shift
+                            moved = True
+                    # Push back inside vertical bounds while preserving order.
+                    if ys[0] < y_lo_pt:
+                        ys += y_lo_pt - ys[0]
+                    if ys[-1] > y_hi_pt:
+                        ys -= ys[-1] - y_hi_pt
+                    ys = np.clip(ys, y_lo_pt, y_hi_pt)
+                    if not moved:
+                        break
         else:
-            ax.set_xlim(x0, x1 + (x1 - x0) * (overflow_frac * 1.15))
+            ys[0] = float(np.clip(ys[0], y_lo_pt, y_hi_pt))
+
+        needs_any_leader = any(
+            abs(float(adj) - float(orig)) >= float(leader_threshold_pt)
+            for adj, orig in zip(ys, orig_ys, strict=True)
+        )
+        eff_pad_pt = max(float(pad_pt), 8.5) if needs_any_leader else float(pad_pt)
+
+        inv_trans = ax.transData.inverted()
+        text_transform = mtransforms.offset_copy(
+            ax.transData,
+            fig=fig,
+            x=eff_pad_pt,
+            y=0.0,
+            units="points",
+        )
+
+        texts = []
+        for item, adj_pt_y in zip(items, ys, strict=True):
+            line = item["line"]
+            xe = float(item["x_end"])
+            px_x, _ = ax.transData.transform((xe, float(item["y_end"])))
+            _, y_data = inv_trans.transform((px_x, adj_pt_y / pt_per_px))
+            txt = ax.text(
+                xe,
+                y_data,
+                str(item["label"]),
+                transform=text_transform,
+                color=line.get_color(),
+                fontsize=fs,
+                va="center",
+                ha="left",
+                clip_on=False,
+            )
+            txt._mintfig_annotation = True  # type: ignore[attr-defined]
+            texts.append(txt)
+
+        # Verify labels fit inside the axes right edge; widen xlim slightly if needed.
+        _bound_full_width_lines(ax, orig_x0, orig_x1)
+        fig.canvas.draw()
+        renderer = fig.canvas.get_renderer()
+        ax_bbox = ax.get_window_extent(renderer)
+        max_right_px = max(t.get_window_extent(renderer).x1 for t in texts)
+        if max_right_px > ax_bbox.x1 - 1.0:
+            overflow_frac = (max_right_px - ax_bbox.x1 + 3.0) / max(ax_bbox.width, 1.0)
+            x0, x1 = ax.get_xlim()
+            if ax.get_xscale() == "log" and x0 > 0 and x1 > 0:
+                ax.set_xlim(x0, x1 * ((x1 / x0) ** (overflow_frac * 1.15)))
+            else:
+                ax.set_xlim(x0, x1 + (x1 - x0) * (overflow_frac * 1.15))
+            fig.canvas.draw()
+
+        # Draw crisp angled leader lines after final xlim so endpoint & label stay locked.
+        if needs_any_leader:
+            final_inv = ax.transData.inverted()
+            for item, adj_pt_y, orig_pt_y in zip(items, ys, orig_ys, strict=True):
+                if abs(float(adj_pt_y) - float(orig_pt_y)) < float(leader_threshold_pt):
+                    continue
+                xe = float(item["x_end"])
+                ye = float(item["y_end"])
+                px_x, px_y = ax.transData.transform((xe, ye))
+                x_pt = px_x * pt_per_px
+                y0_pt = px_y * pt_per_px
+                y1_pt = float(adj_pt_y)
+                pts_pt = [
+                    (x_pt + 1.4, y0_pt),
+                    (x_pt + eff_pad_pt * 0.50, y1_pt),
+                    (x_pt + eff_pad_pt - 1.4, y1_pt),
+                ]
+                data_pts = [final_inv.transform((px / pt_per_px, py / pt_per_px)) for px, py in pts_pt]
+                lcol = (
+                    leader_color
+                    if leader_color is not None
+                    else item["line"].get_color()
+                )
+                leader = _Line2D(
+                    [float(p[0]) for p in data_pts],
+                    [float(p[1]) for p in data_pts],
+                    color=lcol,
+                    linewidth=max(float(leader_lw), 0.25),
+                    alpha=0.68,
+                    solid_capstyle="round",
+                    solid_joinstyle="round",
+                    zorder=5,
+                    clip_on=False,
+                    label="_mintfig_leader",
+                )
+                leader._mintfig_leader = True  # type: ignore[attr-defined]
+                leader._mintfig_annotation = True  # type: ignore[attr-defined]
+                ax.add_line(leader)
 
     # Keep the bottom spine honest: stop it at the data/original domain instead
     # of running past the curves under the direct labels (Tufte range discipline).
+    _bound_full_width_lines(ax, orig_x0, orig_x1)
     if trim_spine and np.isfinite(data_x_min) and np.isfinite(data_x_max):
         spine_lo = min(orig_x0, data_x_min) if orig_x0 <= orig_x1 else max(orig_x0, data_x_max)
         spine_hi = data_x_max if orig_x0 <= orig_x1 else data_x_min
@@ -560,15 +1215,23 @@ def style_colorbar(
     cbar: Colorbar,
     label: str | None = None,
     tick_pt: float | None = None,
+    *,
+    outline_lw: float = 0.4,
+    outline_color: str = "#CBD2D9",
 ) -> Colorbar:
-    """Apply crisp editorial styling to a Matplotlib colorbar."""
+    """Apply crisp editorial styling to a Matplotlib colorbar.
+
+    Draws a razor-thin ``0.4 pt`` ``#CBD2D9`` hairline border around the ramp so
+    pale gradient ends remain cleanly separated from white journal paper.
+    """
     ax_lw = _numeric_rc_font("axes.linewidth", 0.5)
     eff_lw = max(ax_lw, 0.25)
     t_pt = float(tick_pt) if tick_pt is not None else _numeric_rc_font("xtick.labelsize", 6.0)
     lbl_pt = _numeric_rc_font("axes.labelsize", 6.5)
 
-    cbar.outline.set_linewidth(max(eff_lw * 0.85, 0.35))
-    cbar.outline.set_edgecolor("#CBD3DC")
+    cbar.outline.set_visible(True)
+    cbar.outline.set_linewidth(max(float(outline_lw), 0.25))
+    cbar.outline.set_edgecolor(outline_color)
     cbar.ax.tick_params(
         direction="out",
         length=1.8,

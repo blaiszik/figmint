@@ -21,6 +21,7 @@ from .annotations import (
     direct_labels,
     emphasize,
     ghost_context,
+    place_labels,
     range_frame,
     scalebar,
     sig_bracket,
@@ -32,7 +33,7 @@ from .annotations import (
     tufte_boxplot,
     zoom_inset,
 )
-from .bundle import BundleResult, bundle_figure
+from .bundle import BundleResult, bundle_figure, to_publication
 from .export import rasterize_heavy, save_figure
 from .palettes import (
     BANNED_COLORMAPS,
@@ -72,6 +73,7 @@ __all__ = [
     "ghost_context",
     "in_to_mm",
     "mm_to_in",
+    "place_labels",
     "preflight_figure",
     "preflight_pdf",
     "range_frame",
@@ -90,6 +92,7 @@ __all__ = [
     "style_colorbar",
     "style_heatmap",
     "subtle_grid",
+    "to_publication",
     "tufte_boxplot",
     "use",
     "zoom_inset",

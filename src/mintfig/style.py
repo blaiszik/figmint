@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import AbstractContextManager
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import matplotlib as mpl
@@ -13,11 +14,151 @@ from matplotlib import font_manager
 from .palettes import get_palette
 from .specs import JournalSpec, get_spec
 
+#: Modern editorial / scientific sans-serif stack (prioritized ahead of generic fallbacks).
+EDITORIAL_SANS_FONTS: tuple[str, ...] = (
+    "Inter",
+    "IBM Plex Sans",
+    "Source Sans 3",
+    "Helvetica Neue",
+    "Helvetica",
+    "Arial",
+    "Liberation Sans",
+    "DejaVu Sans",
+)
 
-@lru_cache(maxsize=16)
-def _resolve_font_tuple(families: tuple[str, ...]) -> str:
-    """Return the first installed font family name from ``families``."""
-    installed = {entry.name.lower(): entry.name for entry in font_manager.fontManager.ttflist}
+#: Modern editorial serif headline stack (prioritized ahead of generic fallbacks).
+EDITORIAL_SERIF_FONTS: tuple[str, ...] = (
+    "Newsreader",
+    "Source Serif 4",
+    "Georgia",
+    "Charter",
+    "DejaVu Serif",
+    "serif",
+)
+
+_DEFAULT_SPEC_SANS: tuple[str, ...] = (
+    "Helvetica",
+    "Arial",
+    "Liberation Sans",
+    "DejaVu Sans",
+)
+
+_BUNDLED_FONTS_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
+_LOCAL_FONTS_REGISTERED: bool = False
+
+
+def register_local_fonts(fonts_dir: str | Path | None = None) -> list[Path]:
+    """Auto-register any ``.ttf`` or ``.otf`` fonts in ``src/mintfig/assets/fonts/``."""
+    global _LOCAL_FONTS_REGISTERED
+    directory = Path(fonts_dir) if fonts_dir is not None else _BUNDLED_FONTS_DIR
+    registered: list[Path] = []
+    if directory.is_dir():
+        existing = {
+            str(Path(entry.fname).resolve())
+            for entry in font_manager.fontManager.ttflist
+            if getattr(entry, "fname", None)
+        }
+        for path in sorted(directory.iterdir()):
+            if not path.is_file() or path.suffix.lower() not in {".ttf", ".otf"}:
+                continue
+            resolved = str(path.resolve())
+            if resolved in existing:
+                continue
+            try:
+                font_manager.fontManager.addfont(resolved)
+                existing.add(resolved)
+                registered.append(path)
+            except (OSError, RuntimeError, ValueError):
+                continue
+    if fonts_dir is None:
+        _LOCAL_FONTS_REGISTERED = True
+    if registered:
+        _resolve_font_tuple.cache_clear()
+    return registered
+
+
+def _is_bold_weight(weight: object) -> bool:
+    if isinstance(weight, (int, float)):
+        return float(weight) >= 600.0
+    text = str(weight).strip().lower()
+    if text in {"bold", "semibold", "demibold", "demi", "heavy", "black", "extra bold", "ultrabold"}:
+        return True
+    try:
+        return float(text) >= 600.0
+    except ValueError:
+        return False
+
+
+_GENERIC_FONT_FAMILIES: frozenset[str] = frozenset(
+    {"sans-serif", "serif", "monospace", "cursive", "fantasy"}
+)
+
+
+def _installed_font_stack(
+    families: tuple[str, ...], *, require_bold: bool = False
+) -> list[str]:
+    """Return installed families from ``families`` in priority order (avoids findfont spam)."""
+    ordered = _ordered_font_stack(families, require_bold=require_bold)
+    installed = {entry.name.lower() for entry in font_manager.fontManager.ttflist}
+    filtered = [
+        fam
+        for fam in ordered
+        if fam.lower() in installed or fam.lower() in _GENERIC_FONT_FAMILIES
+    ]
+    return filtered or [ordered[0]]
+
+
+def _ordered_font_stack(
+    families: tuple[str, ...], *, require_bold: bool = False
+) -> list[str]:
+    """Return ``families`` with the best installed match placed first (preserving all entries)."""
+    resolved = _resolve_font_tuple(families, require_bold=require_bold)
+    seen: set[str] = {resolved.lower()}
+    ordered = [resolved]
+    for fam in families:
+        key = fam.lower()
+        if key not in seen:
+            seen.add(key)
+            ordered.append(fam)
+    return ordered
+
+
+def _effective_sans_stack(spec: JournalSpec) -> tuple[str, ...]:
+    """Use the upgraded editorial sans stack for default screen figures.
+
+    Preserves explicit caller overrides (e.g. ``font_family=("DejaVu Sans",)``)
+    and journal-mandated print font stacks (Helvetica/Arial for Nature/Science).
+    """
+    if spec.name == "screen" and spec.font_family == _DEFAULT_SPEC_SANS:
+        return EDITORIAL_SANS_FONTS
+    return spec.font_family
+
+
+@lru_cache(maxsize=32)
+def _resolve_font_tuple(families: tuple[str, ...], *, require_bold: bool = False) -> str:
+    """Return the first installed font family name from ``families``.
+
+    When ``require_bold=True``, prefers a family that provides both normal and bold
+    weights so headlines never silently fall back to regular 400 weight on hosts
+    that only installed a single ``*-Regular.ttf`` file.
+    """
+    if not _LOCAL_FONTS_REGISTERED:
+        register_local_fonts()
+    installed: dict[str, str] = {}
+    has_normal: set[str] = set()
+    has_bold: set[str] = set()
+    for entry in font_manager.fontManager.ttflist:
+        key = entry.name.lower()
+        installed.setdefault(key, entry.name)
+        if _is_bold_weight(entry.weight):
+            has_bold.add(key)
+        else:
+            has_normal.add(key)
+    if require_bold:
+        for candidate in families:
+            key = candidate.lower()
+            if key in installed and key in has_bold and key in has_normal:
+                return installed[key]
     for candidate in families:
         key = candidate.lower()
         if key in installed:
@@ -36,7 +177,7 @@ def _resolve_font_tuple(families: tuple[str, ...]) -> str:
 def resolved_font_name(spec: str | JournalSpec = "nature") -> str:
     """Detect the first installed sans-serif font from ``spec.font_family``."""
     resolved_spec = get_spec(spec)
-    return _resolve_font_tuple(resolved_spec.font_family)
+    return _resolve_font_tuple(_effective_sans_stack(resolved_spec), require_bold=True)
 
 
 def rc_params(
@@ -47,7 +188,10 @@ def rc_params(
     """Build a Matplotlib rcParams dictionary conforming to ``journal`` specs."""
     spec = get_spec(journal)
     colors = get_palette(palette if palette is not None else spec.default_palette)
-    font_name = resolved_font_name(spec)
+    sans_stack = _effective_sans_stack(spec)
+    font_name = _resolve_font_tuple(sans_stack, require_bold=True)
+    ordered_sans = _ordered_font_stack(sans_stack, require_bold=True)
+    ordered_serif = _ordered_font_stack(EDITORIAL_SERIF_FONTS, require_bold=True)
     minor_tick_w = max(spec.min_linewidth_pt, round(spec.axes_linewidth_pt * 0.75, 3))
 
     return {
@@ -57,7 +201,8 @@ def rc_params(
         "svg.fonttype": "none",
         # Typography (uniform sans-serif body + math)
         "font.family": "sans-serif",
-        "font.sans-serif": list(spec.font_family),
+        "font.sans-serif": ordered_sans,
+        "font.serif": ordered_serif,
         "font.size": spec.body_pt,
         "text.color": "#1A1D21",
         "mathtext.fontset": "custom",

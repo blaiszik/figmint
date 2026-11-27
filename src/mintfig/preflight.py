@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 import contextlib
 import re
 import warnings
@@ -1056,6 +1057,10 @@ def _check_lines_past_axes(
                 or float(v[:, 1].min()) < canvas.y0 - tol
             )
             bad = {edge: o for edge, o in over.items() if o > tol}
+            # Direct/placed label leader lines intentionally bridge into the right-hand
+            # label gutter past a trimmed bottom spine, while still staying on canvas.
+            if getattr(artist, "_mintfig_leader", False) and not off_canvas:
+                continue
             if bad or off_canvas:
                 edge, amount = max(bad.items(), key=lambda kv: kv[1]) if bad else ("canvas", 0.0)
                 label = name if name and not str(name).startswith("_") else type(artist).__name__
@@ -1636,6 +1641,171 @@ def _check_color_separation(
     )
 
 
+def _cmyk_out_of_gamut_hue(rgb: tuple[float, float, float]) -> str | None:
+    """Return a descriptive neon hue name if ``rgb`` lies outside safe CMYK print gamut."""
+    r, g, b = (float(np.clip(c, 0.0, 1.0)) for c in rgb)
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    h_deg = h * 360.0
+    if 75.0 <= h_deg <= 165.0 and s >= 0.85 and v >= 0.78:
+        return "electric green"
+    if 165.0 < h_deg <= 195.0 and s >= 0.88 and v >= 0.86:
+        return "electric cyan"
+    if 210.0 < h_deg <= 265.0 and s >= 0.92 and v >= 0.88:
+        return "electric blue"
+    if 265.0 < h_deg <= 335.0 and s >= 0.82 and v >= 0.80:
+        return "electric magenta"
+    return None
+
+
+def _check_cmyk_gamut(
+    fig: Figure,
+    spec: JournalSpec,
+    panel_map: dict[int, str],
+) -> CheckResult:
+    """Warn on out-of-CMYK-gamut neon sRGB line, marker, or patch colors.
+
+    Offset CMYK printing cannot reproduce highly saturated electric greens,
+    cyans, pure RGB blues, or neon magentas, causing vivid shifts on paper.
+    Built-in Nature, Science, Okabe-Ito, and Tol palettes stay inside safe gamut.
+    Skipped for ``screen`` (RGB display) targets.
+    """
+    if spec.name == "screen":
+        return CheckResult(
+            rule="cmyk_gamut",
+            status="pass",
+            message="Screen/chat RGB target; CMYK print gamut check skipped",
+            details={"skipped": True, "reason": "screen_target"},
+        )
+    offenders: list[dict[str, Any]] = []
+    seen_keys: set[tuple[str | None, str, str]] = set()
+
+    def _inspect_color(
+        raw_color: Any,
+        *,
+        artist_desc: str,
+        panel: str | None,
+    ) -> None:
+        if not _has_visible_rgba(raw_color):
+            return
+        try:
+            rgba = to_rgba(raw_color)
+        except (TypeError, ValueError):
+            return
+        if float(rgba[3]) <= 0.05:
+            return
+        rgb = (float(rgba[0]), float(rgba[1]), float(rgba[2]))
+        hue_name = _cmyk_out_of_gamut_hue(rgb)
+        if hue_name is None:
+            return
+        hex_c = to_hex(rgb).upper()
+        dedup = (panel, hex_c, artist_desc)
+        if dedup in seen_keys:
+            return
+        seen_keys.add(dedup)
+        offenders.append(
+            {
+                "artist": artist_desc,
+                "hex": hex_c,
+                "hue": hue_name,
+                "panel": panel,
+            }
+        )
+
+    for ax in fig.axes:
+        if not ax.get_visible() or getattr(ax, "_colorbar", None) is not None:
+            continue
+        panel = _artist_panel(ax, panel_map)
+
+        # 1. Line2D stroke and marker colors
+        for line in ax.get_lines():
+            if not line.get_visible():
+                continue
+            alpha = line.get_alpha()
+            if alpha is not None and alpha <= 0:
+                continue
+            lbl = str(line.get_label() or "").strip()
+            desc = f"Line2D({lbl})" if lbl and not lbl.startswith("_") else "Line2D"
+            ls = _normalize_linestyle(line.get_linestyle())
+            if ls not in {"none", "", " "}:
+                _inspect_color(line.get_color(), artist_desc=desc, panel=panel)
+            if _normalize_marker(line.get_marker()):
+                _inspect_color(line.get_markerfacecolor(), artist_desc=desc, panel=panel)
+                _inspect_color(line.get_markeredgecolor(), artist_desc=desc, panel=panel)
+
+        # 2. Patches (bars, boxes, polygons, arrows — skipping axes background patch)
+        for patch in ax.patches:
+            if patch is ax.patch or not patch.get_visible():
+                continue
+            alpha = patch.get_alpha()
+            if alpha is not None and alpha <= 0:
+                continue
+            lbl = str(patch.get_label() or "").strip()
+            desc = f"{type(patch).__name__}({lbl})" if lbl and not lbl.startswith("_") else type(patch).__name__
+            if patch.get_fill():
+                _inspect_color(patch.get_facecolor(), artist_desc=desc, panel=panel)
+            if float(patch.get_linewidth()) > 0:
+                _inspect_color(patch.get_edgecolor(), artist_desc=desc, panel=panel)
+
+        # 3. Non-colormapped collections (scatter markers, ribbons, errorbars)
+        for col in ax.collections:
+            if not col.get_visible():
+                continue
+            alpha = col.get_alpha()
+            if alpha is not None and alpha <= 0:
+                continue
+            if isinstance(col, ScalarMappable) and _maps_data_to_color(col):
+                continue
+            lbl = str(col.get_label() or "").strip()
+            desc = f"{type(col).__name__}({lbl})" if lbl and not lbl.startswith("_") else type(col).__name__
+            for getter in (col.get_facecolors, col.get_edgecolors):
+                try:
+                    arr = np.asarray(getter(), dtype=float)
+                except (TypeError, ValueError):
+                    continue
+                if arr.ndim != 2 or arr.shape[0] == 0 or arr.shape[1] < 3:
+                    continue
+                # Deduplicate rounded RGBAs so large scatter collections inspect quickly
+                uniq = np.unique(np.round(arr, 3), axis=0)
+                for row in uniq[:32]:
+                    _inspect_color(tuple(row), artist_desc=desc, panel=panel)
+
+    if offenders:
+        first = offenders[0]
+        sample = ", ".join(
+            f"{o['hex']} ({o['hue']} on {o['artist']})" for o in offenders[:4]
+        )
+        elements = [f"{o['hex']} ({o['hue']})" for o in offenders[:6]]
+        panels = _distinct_panels(o["panel"] for o in offenders)
+        where = f" in panel '{first['panel']}'" if first["panel"] else ""
+        return CheckResult(
+            rule="cmyk_gamut",
+            status="warn",
+            message=(
+                f"{len(offenders)} out-of-CMYK-gamut neon sRGB color(s) detected: {sample} "
+                "(will dull/shift under offset CMYK print)"
+            ),
+            details={"out_of_gamut": offenders[:20]},
+            panel=first["panel"],
+            elements=elements,
+            fix_hint=(
+                f"Replace neon sRGB color {first['hex']}{where} with a CMYK-safe muted "
+                "journal palette such as palette='nature_muted', palette='nature', or "
+                "palette='okabe_ito'."
+            ),
+            panels=panels,
+            element_locations=_locate(
+                zip(elements, (o["panel"] for o in offenders[:6]), strict=True)
+            ),
+        )
+
+    return CheckResult(
+        rule="cmyk_gamut",
+        status="pass",
+        message="All rendered series, marker, and patch colors sit within safe CMYK print gamut",
+        details={},
+    )
+
+
 def _check_clarity_metadata(
     fig: Figure,
     panel_map: dict[int, str],
@@ -2202,6 +2372,7 @@ def preflight_figure(
         _check_colormaps(fig, panel_map),
         _check_vector_fonts(spec, fig),
         _check_color_separation(fig, panel_map),
+        _check_cmyk_gamut(fig, spec, panel_map),
         _check_clarity_metadata(fig, panel_map),
         _check_bar_baseline_nonzero(fig, panel_map),
         _check_chartjunk_hints(fig, panel_map),
