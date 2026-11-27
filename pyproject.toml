@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mintfig"
-version = "0.3.0"
+version = "0.3.1"
 description = "Message-first figures for agents explaining scientific results to people, plus journal-ready plates with preflight QA and reproducible bundles."
 readme = "README.md"
 requires-python = ">=3.10"

@@ -53,7 +53,7 @@ def _ensure_writable_mplconfigdir() -> None:
 
 _ensure_writable_mplconfigdir()
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "Brief",
