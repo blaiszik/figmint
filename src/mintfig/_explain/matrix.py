@@ -192,6 +192,8 @@ def matrix(
     center: float = 0.0,
     triangle: str | None = None,
     mask_diagonal: bool = False,
+    normalize: str | None = None,
+    show_counts: bool = False,
     highlight: Any = None,
     fmt: str | None = None,
 ) -> Panel:
@@ -202,8 +204,12 @@ def matrix(
     long/row-shaped data (``list[dict]`` or tidy DataFrame), pass column names
     ``rows="row_col", cols="col_col", value="val_col"`` to pivot automatically.
     One hue runs light to dark; ``diverging=True`` uses two hues around ``center``
-    for signed data. ``highlight`` outlines cells: one ``(row, col)`` pair, a list
-    of pairs, or a row or column name for the whole strip.
+    for signed data. Pass ``normalize="row"`` or ``normalize="col"`` to scale
+    non-negative counts to 0–100% per row or column (for confusion matrices and
+    contingency tables), and ``show_counts=True`` to print raw counts under the
+    percentage in every cell (e.g. ``84%\\n(42)``). ``highlight`` outlines cells:
+    one ``(row, col)`` pair, a list of pairs, or a row or column name for the
+    whole strip.
     """
     from .._tabular import resolve_matrix_table
 
@@ -274,6 +280,20 @@ def matrix(
             f"matrix(mask_diagonal=True) requires a square matrix, got {len(row_names)}x{len(col_names)}.",
             fix_hint="Drop mask_diagonal=True for rectangular matrices.",
         )
+    norm_mode: str | None = None
+    if normalize is not None:
+        norm_key = str(normalize).strip().lower()
+        if norm_key not in {"row", "col"}:
+            raise ExplainError(
+                f"matrix(normalize={normalize!r}) must be 'row', 'col', or None.",
+                fix_hint="Use normalize='row' (each row sums to 100%) or normalize='col' (each column sums to 100%).",
+            )
+        norm_mode = norm_key
+    if not isinstance(show_counts, bool):
+        raise ExplainError(
+            f"matrix(show_counts={show_counts!r}) must be True or False.",
+            fix_hint="Pass show_counts=True alongside normalize='row' or normalize='col'.",
+        )
 
     n_r, n_c = grid.shape
     hidden_mask = np.zeros((n_r, n_c), dtype=bool)
@@ -284,24 +304,69 @@ def matrix(
     diag_mask = np.eye(n_r, n_c, dtype=bool) if mask_diagonal else np.zeros((n_r, n_c), dtype=bool)
     active_mask = ~(hidden_mask | diag_mask)
 
+    raw_grid = grid.copy()
+    given_unit = unit
     visible_grid = np.where(active_mask, grid, np.nan)
     finite = visible_grid[np.isfinite(visible_grid)]
     if finite.size == 0:
         raise ExplainError("matrix(values) has no finite visible cells.", fix_hint="Pass numbers.")
+    if norm_mode is not None:
+        if np.any(finite < 0):
+            raise ExplainError(
+                f"matrix(normalize={norm_mode!r}) requires non-negative values.",
+                fix_hint="Pass non-negative counts/weights, or drop normalize= for signed matrices.",
+            )
+        axis = 1 if norm_mode == "row" else 0
+        with np.errstate(all="ignore"):
+            totals = np.nansum(visible_grid, axis=axis, keepdims=True)
+            pct_grid = np.where(
+                np.isfinite(visible_grid),
+                np.where(totals > 0, 100.0 * visible_grid / totals, 0.0),
+                np.nan,
+            )
+        grid = pct_grid
+        visible_grid = np.where(active_mask, grid, np.nan)
+        finite = visible_grid[np.isfinite(visible_grid)]
+        if unit is None:
+            unit = "%"
     cells, hl_rows, hl_cols = _matrix_highlight(highlight, row_names, col_names)
 
     fmt_fn = _formatter(list(finite), fmt, unit=unit)
     lo, hi = float(finite.min()), float(finite.max())
 
+    def _fmt_count(v: float) -> str:
+        if abs(v - round(v)) < 1e-9:
+            return f"{round(v):,}"
+        return f"{v:.3g}"
+
+    def _cell_display(i: int, j: int, val: float) -> str:
+        if norm_mode is not None:
+            if fmt is not None:
+                pct_s = fmt_fn(val)
+                if not pct_s.endswith("%"):
+                    pct_s = f"{pct_s}%"
+            else:
+                pct_s = f"{val:.0f}%"
+            if show_counts and math.isfinite(raw_grid[i, j]):
+                return f"{pct_s}\n({_fmt_count(float(raw_grid[i, j]))})"
+            return pct_s
+        return fmt_fn(val)
+
     square = row_names == col_names and len(row_names) > 1
+    is_square_grid = n_r == n_c and n_r > 1
     diag = np.diag(grid) if square else np.empty(0)
     # A constant diagonal (a correlation matrix's 1s) says nothing: leave it out of
-    # highest/lowest and the means, and say so once.
+    # highest/lowest and the means, and say so once. Never drop a normalized confusion diagonal.
     drop_diag = bool(
         square
         and (
             mask_diagonal
-            or (np.isfinite(diag).all() and np.all(diag == diag[0]) and grid.size > diag.size)
+            or (
+                norm_mode is None
+                and np.isfinite(diag).all()
+                and np.all(diag == diag[0])
+                and grid.size > diag.size
+            )
         )
     )
     body = grid.copy()
@@ -317,6 +382,40 @@ def matrix(
     hi_at = np.unravel_index(int(np.nanargmax(body)), grid.shape)
     lo_at = np.unravel_index(int(np.nanargmin(body)), grid.shape)
     facts = [f"highest: {_cell_text(hi_at)}", f"lowest: {_cell_text(lo_at)}"]
+    if norm_mode == "row" and is_square_grid and not mask_diagonal:
+        diag_pct = np.diag(grid)
+        macro_acc = float(np.nanmean(diag_pct)) if np.isfinite(diag_pct).any() else float("nan")
+        diag_raw = float(np.nansum(np.diag(raw_grid)))
+        total_raw = float(np.nansum(raw_grid))
+        confusion_facts: list[str] = []
+        if math.isfinite(macro_acc):
+            overall_part = (
+                f" (overall {100.0 * diag_raw / total_raw:.1f}%, "
+                f"{_fmt_count(diag_raw)}/{_fmt_count(total_raw)})"
+                if total_raw > 0
+                else ""
+            )
+            confusion_facts.append(f"macro diagonal accuracy: {macro_acc:.1f}%{overall_part}")
+        off_pct = grid.copy()
+        np.fill_diagonal(off_pct, np.nan)
+        if np.isfinite(off_pct).any():
+            tie_score = np.where(
+                np.isfinite(off_pct),
+                off_pct * 1e6 + np.nan_to_num(raw_grid, nan=0.0),
+                -1.0,
+            )
+            ci, cj = np.unravel_index(int(np.argmax(tie_score)), off_pct.shape)
+            if float(off_pct[ci, cj]) > 0:
+                cnt_part = (
+                    f", n={_fmt_count(float(raw_grid[ci, cj]))}"
+                    if math.isfinite(raw_grid[ci, cj])
+                    else ""
+                )
+                confusion_facts.append(
+                    f"top off-diagonal confusion: {row_names[ci]} \N{RIGHTWARDS ARROW} "
+                    f"{col_names[cj]} ({float(off_pct[ci, cj]):.1f}%{cnt_part})"
+                )
+        facts = [*confusion_facts, *facts]
     if drop_diag:
         if mask_diagonal:
             facts.append("diagonal masked from colour scale and extrema")
@@ -414,7 +513,12 @@ def matrix(
     if empty:
         active_total = int(active_mask.sum())
         facts.append(f"{empty} of {active_total} cells empty (no value)")
-    longest = max(len(fmt_fn(float(v))) for v in finite)
+    longest = max(
+        len(line)
+        for (i, j), v in np.ndenumerate(visible_grid)
+        if math.isfinite(v)
+        for line in _cell_display(i, j, float(v)).split("\n")
+    )
 
     def _draw(ctx: _Ctx, ax: Axes) -> None:
         sz = ctx.sizes
@@ -428,6 +532,9 @@ def matrix(
                 _ramp((*theme.div_low, theme.div_mid), 1.0 + np.nan_to_num(t)),
                 _ramp((theme.div_mid, *theme.div_high), np.nan_to_num(t)),
             )
+        elif norm_mode is not None:
+            t = np.clip(visible_grid / 100.0, 0.0, 1.0)
+            rgb = _ramp(theme.seq_stops, np.nan_to_num(t))
         else:
             t = (visible_grid - lo) / ((hi - lo) or 1.0)
             rgb = _ramp(theme.seq_stops, np.nan_to_num(t))
@@ -447,7 +554,13 @@ def matrix(
         shown = [(i, j) for (i, j), v in np.ndenumerate(grid)
                  if not hidden_mask[i, j] and not diag_mask[i, j] and math.isfinite(v)]
         tag_points(ctx, heat, [j for _, j in shown], [i for i, _ in shown],
-                   [{"name": row_names[i], "x": col_names[j], "value": grid[i, j], "unit": unit}
+                   [{
+                       "name": row_names[i],
+                       "x": col_names[j],
+                       "value": float(grid[i, j]),
+                       **({"n": round(raw_grid[i, j])} if norm_mode is not None and math.isfinite(raw_grid[i, j]) else {}),
+                       "unit": unit,
+                   }
                     for i, j in shown], box=(0.5, 0.5))
         divider_col = theme.ink if theme.sketch is not None else theme.background
         divider_lw = 0.8 if theme.sketch is not None else 1.6
@@ -505,10 +618,11 @@ def matrix(
             note = ax.text(
                 j,
                 i,
-                _plain(fmt_fn(float(cell_val)), theme),
+                _plain(_cell_display(i, j, float(cell_val)), theme),
                 ha="center",
                 va="center",
                 fontsize=sz.small,
+                linespacing=1.05,
                 color=light_fg if dark else dark_fg,
                 zorder=3,
             )
@@ -661,6 +775,16 @@ def matrix(
             return 0.0
         return min(15.0, max(4.0, max_col_pt * math.sin(math.radians(40.0)) * PT_TO_MM))
 
+    two_line_cells = norm_mode is not None and show_counts
+    row_pitch = 9.4 if two_line_cells else 6.2
+    min_row_pitch = 8.2 if two_line_cells else 5.0
+    if norm_mode == "row":
+        norm_note = "Row-normalized % (raw count)" if show_counts else "Row-normalized (%)"
+    elif norm_mode == "col":
+        norm_note = "Column-normalized % (raw count)" if show_counts else "Column-normalized (%)"
+    else:
+        norm_note = None
+
     return Panel(
         kind="matrix",
         title=title,
@@ -669,14 +793,16 @@ def matrix(
         spec=_base_spec(
             title,
             label,
-            unit,
-            values=[[None if not math.isfinite(v) else float(v) for v in row] for row in grid],
+            given_unit,
+            values=[[None if not math.isfinite(v) else float(v) for v in row] for row in raw_grid],
             rows=row_names,
             cols=col_names,
             diverging=diverging or None,
             center=center if diverging else None,
             triangle=triangle,
             mask_diagonal=mask_diagonal or None,
+            normalize=norm_mode,
+            show_counts=show_counts or None,
             highlight=_jsonable(highlight) if highlight is not None else None,
             fmt=fmt,
         ),
@@ -684,10 +810,12 @@ def matrix(
         describe=(
             f"Heat table of {label or 'values'}"
             + (f" ({unit})" if unit else "")
+            + (f", {norm_mode}-normalized" if norm_mode else "")
             + f", {len(row_names)} rows by {len(col_names)} columns, a number in every cell"
         ),
-        _height_mm=lambda w, m, s, _t: 6.2 * len(row_names) + 6.0 + _extra_header_mm(w, m, s),
-        _min_height_mm=lambda w, m, s, _t: 5.0 * len(row_names) + 6.0 + _extra_header_mm(w, m, s),
+        _height_mm=lambda w, m, s, _t: row_pitch * len(row_names) + 6.0 + _extra_header_mm(w, m, s),
+        _min_height_mm=lambda w, m, s, _t: min_row_pitch * len(row_names) + 6.0 + _extra_header_mm(w, m, s),
         _draw=_draw_and_check,
         _frames=_headers,
+        measure_note=norm_note,
     )

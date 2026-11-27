@@ -1,7 +1,8 @@
-"""Visual surface themes for ``mint.explain``: ``mintfig``, ``bold``, ``editorial``, ``sketch``."""
+"""Visual surface themes and palettes for ``mint.explain``."""
 
 from __future__ import annotations
 
+import colorsys
 import itertools
 import json
 from pathlib import Path
@@ -16,7 +17,19 @@ import mintfig as mint
 from mintfig import explainer
 from mintfig.cli import main as cli_main
 from mintfig.palettes import simulate_cvd
-from mintfig.themes import EXPLAIN_PALETTES, THEMES, contrast_ratio, get_explain_palette, get_theme
+from mintfig.themes import (
+    EXPLAIN_PALETTES,
+    THEMES,
+    ExplainPalette,
+    Theme,
+    contrast_ratio,
+    get_explain_palette,
+    get_theme,
+    register_palette,
+    register_theme,
+    resolve_default_palette,
+    resolve_default_style,
+)
 
 SERVICES = {"checkout": 1840, "search": 460, "auth": 310, "catalog": 280, "cart": 240}
 WEEKS = list(range(1, 9))
@@ -26,8 +39,33 @@ LATENCY = {
     "auth": [300, 310, 305, 315, 300, 320, 305, 310],
 }
 TAKEAWAY = "Checkout is the slow service: its p99 is 4x the next worst"
-ALL_STYLES = ("mintfig", "bold", "editorial", "paper", "dark", "mono", "sketch")
-ALL_PALETTES = ("default", "okabe_ito", "tol", "earth", "ocean", "berry")
+ALL_STYLES = (
+    "mintfig",
+    "mint",
+    "pine",
+    "botanical",
+    "bold",
+    "editorial",
+    "paper",
+    "dark",
+    "mono",
+    "sketch",
+)
+ALL_PALETTES = (
+    "default",
+    "okabe_ito",
+    "tol",
+    "earth",
+    "ocean",
+    "berry",
+    "mint",
+    "spearmint",
+    "matcha",
+    "glacier",
+    "mineral",
+)
+MINT_PALETTES = ("mint", "spearmint", "matcha", "glacier", "mineral")
+MINT_STYLES = ("mint", "pine", "botanical")
 
 
 def _all_forms() -> dict[str, mint.Panel]:
@@ -379,3 +417,193 @@ def test_dark_theme_and_palette_override_cli(tmp_path: Path, capsys: pytest.Capt
     with pytest.raises(mint.ExplainError) as err:
         mint.explain(TAKEAWAY, mint.compare(SERVICES, unit="ms"), palette="rainbow_unicorn")
     assert err.value.rule == "unknown_palette"
+
+
+def _is_yellow_or_amber(hex_color: str) -> bool:
+    """True when a saturated color falls in the yellow/amber hue band (35–75 deg)."""
+    r, g, b = to_rgb(hex_color)
+    h, s, v = colorsys.rgb_to_hsv(r, g, b)
+    hue_deg = h * 360.0
+    return 35.0 <= hue_deg <= 75.0 and s >= 0.25 and v >= 0.35
+
+
+@pytest.mark.parametrize("palette_name", MINT_PALETTES)
+def test_mint_palettes_contain_zero_yellow_or_amber(palette_name: str) -> None:
+    pal = get_explain_palette(palette_name)
+    all_colors = (
+        *pal.series_colors,
+        *pal.accent_colors,
+        *pal.seq_stops,
+        *pal.div_low,
+        *pal.div_high,
+        pal.div_mid,
+    )
+    yellows = [c for c in all_colors if _is_yellow_or_amber(c)]
+    assert yellows == [], f"{palette_name} contains yellow/amber colors: {yellows}"
+
+
+@pytest.mark.parametrize("style_name", MINT_STYLES)
+def test_mint_themes_contain_zero_yellow_or_amber(style_name: str) -> None:
+    theme = get_theme(style_name)
+    all_colors = (
+        theme.background,
+        theme.ink,
+        theme.muted,
+        *theme.series_colors,
+        *theme.accent_colors,
+        *theme.seq_stops,
+        *theme.div_low,
+        *theme.div_high,
+        theme.div_mid,
+    )
+    yellows = [c for c in all_colors if _is_yellow_or_amber(c)]
+    assert yellows == [], f"{style_name} contains yellow/amber colors: {yellows}"
+
+
+def test_mint_theme_aliases_and_surface_tokens() -> None:
+    assert get_theme("mint").name == "mint"
+    assert get_theme("pine").name == "pine"
+    assert get_theme("mint_dark").name == "pine"
+    assert get_theme("mint-dark").name == "pine"
+    assert get_theme("botanical").name == "botanical"
+
+    mint_res = mint.explain(
+        TAKEAWAY,
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
+        source="synthetic",
+        style="mint",
+    )
+    assert mint_res.issues == []
+    assert to_hex(mint_res.fig.get_facecolor()).upper() == "#F8FBFA"
+    assert len(mint_res.fig.artists) == 2  # emerald top rule + subtle footer rule
+
+    pine_res = mint.explain(
+        TAKEAWAY,
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
+        source="synthetic",
+        style="mint_dark",
+    )
+    assert pine_res.issues == []
+    assert pine_res.summary()["style"] == "pine"
+    assert to_hex(pine_res.fig.get_facecolor()).upper() == "#0F1715"
+    for col in THEMES["pine"].series_colors:
+        assert contrast_ratio(col, THEMES["pine"].background) >= 4.5
+
+    bot_res = mint.explain(
+        TAKEAWAY,
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", highlight="checkout"),
+        source="synthetic",
+        style="botanical",
+    )
+    assert bot_res.issues == []
+    assert to_hex(bot_res.fig.get_facecolor()).upper() == "#F5F8F4"
+    title = bot_res.fig.texts[0]
+    assert getattr(title, "_mintfig_allow_serif", False) is True
+    assert "Georgia" in title.get_fontfamily()
+
+
+def test_resolve_default_style_and_palette_precedence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("MINTFIG_STYLE", raising=False)
+    monkeypatch.delenv("MINTFIG_PALETTE", raising=False)
+
+    # Empty project with no pyproject.toml falls back to ("mintfig", None)
+    empty_dir = tmp_path / "no_pyproject"
+    empty_dir.mkdir()
+    monkeypatch.chdir(empty_dir)
+    assert resolve_default_style() == "mintfig"
+    assert resolve_default_palette() is None
+
+    # Nearest pyproject.toml [tool.mintfig] applies even from a nested subdirectory
+    proj = tmp_path / "proj"
+    nested = proj / "src" / "analysis"
+    nested.mkdir(parents=True)
+    (proj / "pyproject.toml").write_text(
+        '[project]\nname = "demo"\n\n[tool.mintfig]\nstyle = "mint"\npalette = "glacier"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(nested)
+    assert resolve_default_style() == "mint"
+    assert resolve_default_palette() == "glacier"
+
+    # Environment variables take precedence over pyproject.toml
+    monkeypatch.setenv("MINTFIG_STYLE", "pine")
+    monkeypatch.setenv("MINTFIG_PALETTE", "mineral")
+    assert resolve_default_style() == "pine"
+    assert resolve_default_palette() == "mineral"
+
+    # Whitespace-only env vars fall through to pyproject.toml
+    monkeypatch.setenv("MINTFIG_STYLE", "   ")
+    monkeypatch.setenv("MINTFIG_PALETTE", "")
+    assert resolve_default_style() == "mint"
+    assert resolve_default_palette() == "glacier"
+
+    # Malformed pyproject.toml falls back cleanly instead of raising
+    broken = tmp_path / "broken"
+    broken.mkdir()
+    (broken / "pyproject.toml").write_text("[tool.mintfig\nstyle = ", encoding="utf-8")
+    monkeypatch.delenv("MINTFIG_STYLE", raising=False)
+    monkeypatch.delenv("MINTFIG_PALETTE", raising=False)
+    monkeypatch.chdir(broken)
+    assert resolve_default_style() == "mintfig"
+    assert resolve_default_palette() is None
+
+
+def test_register_theme_and_palette_helpers(monkeypatch: pytest.MonkeyPatch) -> None:
+    custom_theme = Theme(name="custom_sage", description="Custom test theme.")
+    custom_pal = ExplainPalette(
+        name="custom_jade",
+        description="Custom test palette.",
+        series_colors=THEMES["mint"].series_colors,
+        accent_colors=THEMES["mint"].accent_colors,
+        seq_stops=THEMES["mint"].seq_stops,
+        div_low=THEMES["mint"].div_low,
+        div_high=THEMES["mint"].div_high,
+        div_mid=THEMES["mint"].div_mid,
+    )
+    try:
+        register_theme(custom_theme, aliases=("sage_alias",))
+        register_palette(custom_pal)
+        assert get_theme("custom_sage") is custom_theme
+        assert get_theme("sage-alias") is custom_theme
+        assert get_explain_palette("custom_jade") is custom_pal
+        with pytest.raises(ValueError):
+            register_theme(custom_theme)
+        with pytest.raises(ValueError):
+            register_palette(custom_pal)
+    finally:
+        THEMES.pop("custom_sage", None)
+        from mintfig.themes import THEME_ALIASES
+
+        THEME_ALIASES.pop("sage_alias", None)
+        EXPLAIN_PALETTES.pop("custom_jade", None)
+
+
+def test_cli_themes_list_json_and_swatch_card(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("MINTFIG_STYLE", raising=False)
+    monkeypatch.delenv("MINTFIG_PALETTE", raising=False)
+
+    # Plain text listing
+    assert cli_main(["themes"]) == 0
+    text_out = capsys.readouterr().out
+    for style_name in ALL_STYLES:
+        assert style_name in text_out
+    for pal_name in ALL_PALETTES:
+        assert pal_name in text_out
+    assert "mint_dark" in text_out
+
+    # JSON output + visual swatch card rendering
+    swatch_png = tmp_path / "themes_swatch.png"
+    assert cli_main(["themes", "--json", "--out", str(swatch_png)]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert set(ALL_STYLES) <= set(payload["styles"])
+    assert set(ALL_PALETTES) <= set(payload["palettes"])
+    assert payload["aliases"]["mint_dark"] == "pine"
+    assert payload["out"] == str(swatch_png.resolve())
+    assert swatch_png.is_file()
+    assert swatch_png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")

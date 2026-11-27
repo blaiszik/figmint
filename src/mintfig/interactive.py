@@ -602,14 +602,43 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
         r_labels = [str(r) for r in (spec.get("rows") or [])]
         c_labels = [str(c) for c in (spec.get("cols") or [])]
         vals = spec.get("values") or []
+        norm_mode = spec.get("normalize")
+        show_counts = bool(spec.get("show_counts"))
         if c_labels and isinstance(vals, Sequence):
             headers = ["", *c_labels]
+            raw_rows = [
+                [float(v) if _is_numeric_cell(v) else None for v in rv]
+                for rv in vals
+                if isinstance(rv, Sequence)
+            ]
+            col_totals = (
+                [
+                    sum(r[c] for r in raw_rows if c < len(r) and r[c] is not None)
+                    for c in range(len(c_labels))
+                ]
+                if norm_mode == "col"
+                else []
+            )
             rows = []
-            for r_idx, row_vals in enumerate(vals):
+            for r_idx, row_vals in enumerate(raw_rows):
                 rl = r_labels[r_idx] if r_idx < len(r_labels) else f"r{r_idx + 1}"
-                if isinstance(row_vals, Sequence):
-                    rows.append([rl, *[_fmt_cell(v) for v in row_vals]])
-            return headers, rows, [False, *([True] * len(c_labels))], None
+                row_tot = sum(v for v in row_vals if v is not None) if norm_mode == "row" else 0.0
+                fmt_cells: list[str] = []
+                for c_idx, v in enumerate(row_vals):
+                    if v is None:
+                        fmt_cells.append("—")
+                    elif norm_mode in {"row", "col"}:
+                        denom = row_tot if norm_mode == "row" else (col_totals[c_idx] if c_idx < len(col_totals) else 0.0)
+                        pct = (100.0 * v / denom) if denom > 0 else 0.0
+                        cell_s = f"{pct:.1f}%"
+                        if show_counts:
+                            cell_s += f" ({_fmt_cell(v)})"
+                        fmt_cells.append(cell_s)
+                    else:
+                        fmt_cells.append(_fmt_cell(v))
+                rows.append([rl, *fmt_cells])
+            note = f"{norm_mode.title()}-normalized percentages" + (" with raw counts." if show_counts else ".") if norm_mode in {"row", "col"} else None
+            return headers, rows, [False, *([True] * len(c_labels))], note
 
     if kind == "change":
         before = spec.get("before") or {}
@@ -666,6 +695,19 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
                         )
             return headers, rows, [False, False, True, True, True, True], None
         if isinstance(groups, Mapping):
+            if spec.get("mode") == "ecdf":
+                headers = ["Group", "n", f"p50{unit_suffix}", f"p95{unit_suffix}", f"p99{unit_suffix}"]
+                rows = []
+                for gname, vals in groups.items():
+                    nums = sorted(float(v) for v in vals if _is_numeric_cell(v))
+                    if nums:
+                        def _qp(p: float, a: list[float] = nums) -> float:
+                            pos = p * (len(a) - 1)
+                            lo_i = math.floor(pos)
+                            hi_i = min(len(a) - 1, lo_i + 1)
+                            return a[lo_i] + (pos - lo_i) * (a[hi_i] - a[lo_i])
+                        rows.append([str(gname), str(len(nums)), _fmt_cell(_qp(0.5)), _fmt_cell(_qp(0.95)), _fmt_cell(_qp(0.99))])
+                return headers, rows, [False, True, True, True, True], None
             headers = ["Group", "n", f"Min{unit_suffix}", f"Median{unit_suffix}", f"Max{unit_suffix}"]
             rows = []
             for gname, vals in groups.items():
@@ -678,6 +720,15 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
         if isinstance(groups, Sequence) and not isinstance(groups, (str, bytes)):
             nums = sorted(float(v) for v in groups if _is_numeric_cell(v))
             if nums:
+                if spec.get("mode") == "ecdf":
+                    def _qp1(p: float) -> float:
+                        pos = p * (len(nums) - 1)
+                        lo_i = math.floor(pos)
+                        hi_i = min(len(nums) - 1, lo_i + 1)
+                        return nums[lo_i] + (pos - lo_i) * (nums[hi_i] - nums[lo_i])
+                    headers = ["Series", "n", f"p50{unit_suffix}", f"p95{unit_suffix}", f"p99{unit_suffix}"]
+                    rows = [[panel.label or "Values", str(len(nums)), _fmt_cell(_qp1(0.5)), _fmt_cell(_qp1(0.95)), _fmt_cell(_qp1(0.99))]]
+                    return headers, rows, [False, True, True, True, True], None
                 mid = len(nums) // 2
                 med = nums[mid] if len(nums) % 2 else 0.5 * (nums[mid - 1] + nums[mid])
                 headers = ["Series", "n", f"Min{unit_suffix}", f"Median{unit_suffix}", f"Max{unit_suffix}"]
@@ -786,6 +837,51 @@ def _panel_data_table(panel: Panel) -> tuple[list[str], list[list[str]], list[bo
                     row.append(str(st[2]) if idx_s > 0 and len(st) >= 3 and st[2] else "—")
                 rows.append(row)
                 prev_v = val
+            return headers, rows, num_flags, None
+
+    if kind == "forest":
+        data_map = spec.get("data")
+        err_map = spec.get("error") if isinstance(spec.get("error"), Mapping) else {}
+        counts_map = spec.get("n") if isinstance(spec.get("n"), Mapping) else {}
+        pooled_spec = spec.get("pooled") if isinstance(spec.get("pooled"), Mapping) else None
+        if isinstance(data_map, Mapping) and data_map:
+            err_lbl = spec.get("error_label") or "CI"
+            has_n = bool(counts_map) or (pooled_spec is not None and pooled_spec.get("n") is not None)
+            headers = [
+                "Item",
+                (panel.label or "Estimate") + unit_suffix,
+                f"Low ({err_lbl})",
+                f"High ({err_lbl})",
+            ]
+            num_flags = [False, True, True, True]
+            if has_n:
+                headers.append("n")
+                num_flags.append(True)
+            items = list(data_map.items())
+            sort_opt = spec.get("sort", True)
+            if sort_opt is True or (isinstance(sort_opt, str) and sort_opt.lower() in {"desc", "descending"}):
+                items.sort(key=lambda kv: float(kv[1]) if _is_numeric_cell(kv[1]) else float("-inf"), reverse=True)
+            elif isinstance(sort_opt, str) and sort_opt.lower() in {"asc", "ascending"}:
+                items.sort(key=lambda kv: float(kv[1]) if _is_numeric_cell(kv[1]) else float("inf"))
+            rows = []
+            for k, v in items:
+                pair = err_map.get(k)
+                lo_v = pair[0] if isinstance(pair, Sequence) and len(pair) == 2 else None
+                hi_v = pair[1] if isinstance(pair, Sequence) and len(pair) == 2 else None
+                row = [str(k), _fmt_cell(v), _fmt_cell(lo_v), _fmt_cell(hi_v)]
+                if has_n:
+                    row.append(_fmt_cell(counts_map.get(k)))
+                rows.append(row)
+            if pooled_spec is not None:
+                row = [
+                    str(pooled_spec.get("label") or "Pooled"),
+                    _fmt_cell(pooled_spec.get("value")),
+                    _fmt_cell(pooled_spec.get("lo")),
+                    _fmt_cell(pooled_spec.get("hi")),
+                ]
+                if has_n:
+                    row.append(_fmt_cell(pooled_spec.get("n")))
+                rows.append(row)
             return headers, rows, num_flags, None
 
     return [], [], [], None

@@ -920,6 +920,31 @@ def _build_parser() -> argparse.ArgumentParser:
     log_parser.add_argument("--open", action="store_true", dest="open_viewer", help="Open .mintfig/index.html.")
     log_parser.add_argument("--json", action="store_true", dest="as_json", help="Print entries as JSON.")
 
+    # `mintfig themes [--json] [--out swatches.png]`
+    themes_parser = subparsers.add_parser(
+        "themes",
+        help="List built-in surface styles and color palettes, or render a visual swatch card.",
+    )
+    themes_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Output styles, aliases, palettes, and resolved defaults as JSON.",
+    )
+    themes_parser.add_argument(
+        "--out",
+        "-o",
+        type=Path,
+        default=None,
+        help="Render a visual swatch card of all styles and palettes to PATH (.png, .svg, or .pdf).",
+    )
+
+    # `mintfig card spec.json --out card.png [--pair]`
+    subparsers.add_parser(
+        "card",
+        help="Render a PR / release KPI summary card (PNG, SVG, HTML, or light/dark pair).",
+    )
+
     return parser
 
 
@@ -1797,6 +1822,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(output)
         return rc
 
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+    if raw_argv[:1] == ["card"]:
+        from .card import cli_card
+
+        return cli_card(raw_argv[1:])
+
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 
@@ -1956,6 +1987,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "log":
         return _run_log(args)
+
+    if args.command == "themes":
+        return _run_themes(args)
 
     return 1
 
@@ -2131,6 +2165,91 @@ def _run_log(args: argparse.Namespace) -> int:
         print(json.dumps(entries, indent=2, ensure_ascii=False))
     else:
         print(format_log_table(entries))
+    return 0
+
+
+def _run_themes(args: argparse.Namespace) -> int:
+    """Dispatch ``mintfig themes`` subcommand: list styles/palettes or render a swatch card."""
+    from .themes import (
+        EXPLAIN_PALETTES,
+        THEME_ALIASES,
+        THEMES,
+        render_themes_swatch_card,
+        resolve_default_palette,
+        resolve_default_style,
+    )
+
+    aliases_by_theme: dict[str, list[str]] = {}
+    for alias, canonical in THEME_ALIASES.items():
+        aliases_by_theme.setdefault(canonical, []).append(alias)
+
+    out_written: Path | None = None
+    if args.out is not None:
+        out_written = render_themes_swatch_card(args.out)
+
+    default_style = resolve_default_style()
+    default_palette = resolve_default_palette()
+
+    if args.as_json:
+        payload: dict[str, Any] = {
+            "default_style": default_style,
+            "default_palette": default_palette,
+            "aliases": dict(THEME_ALIASES),
+            "styles": {
+                name: {
+                    "name": theme.name,
+                    "description": theme.description,
+                    "aliases": aliases_by_theme.get(name, []),
+                    "background": theme.background,
+                    "ink": theme.ink,
+                    "muted": theme.muted,
+                    "series_colors": list(theme.series_colors),
+                    "accent_colors": list(theme.accent_colors),
+                    "allow_serif_title": theme.allow_serif_title,
+                }
+                for name, theme in THEMES.items()
+            },
+            "palettes": {
+                name: {
+                    "name": pal.name,
+                    "description": pal.description,
+                    "series_colors": list(pal.series_colors),
+                    "accent_colors": list(pal.accent_colors),
+                    "seq_stops": list(pal.seq_stops),
+                }
+                for name, pal in EXPLAIN_PALETTES.items()
+            },
+        }
+        if out_written is not None:
+            payload["out"] = str(out_written.resolve())
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    lines = [
+        f"mintfig themes (default style: {default_style}, default palette: {default_palette or 'default'})",
+        "─" * 78,
+        "Surface styles (style=...):",
+    ]
+    style_w = max(len(name) for name in THEMES) + 2
+    for name, theme in THEMES.items():
+        alias_str = f" [aliases: {', '.join(aliases_by_theme[name])}]" if name in aliases_by_theme else ""
+        cols = " ".join(theme.series_colors)
+        lines.append(f"  {name:<{style_w}} bg={theme.background}  {cols}{alias_str}")
+        lines.append(f"  {'':<{style_w}} {theme.description}")
+
+    lines.append("")
+    lines.append("Explain palettes (palette=...):")
+    pal_w = max(len(name) for name in EXPLAIN_PALETTES) + 2
+    for name, pal in EXPLAIN_PALETTES.items():
+        cols = " ".join(pal.series_colors)
+        lines.append(f"  {name:<{pal_w}} {cols}")
+        lines.append(f"  {'':<{pal_w}} {pal.description}")
+
+    if out_written is not None:
+        lines.append("")
+        lines.append(f"Wrote visual swatch card -> {out_written.resolve()}")
+
+    print("\n".join(lines))
     return 0
 
 

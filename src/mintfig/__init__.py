@@ -63,9 +63,11 @@ __all__ = [
     "Panel",
     "Plate",
     "Session",
+    "SummaryCard",
     "__version__",
     "auto_panel",
     "brief",
+    "card",
     "change",
     "check",
     "compare",
@@ -75,6 +77,7 @@ __all__ = [
     "explain",
     "figure",
     "flow",
+    "forest",
     "histogram",
     "inline",
     "inspect_data",
@@ -112,7 +115,9 @@ _LAZY_SUBMODULES: frozenset[str] = frozenset(
 _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "Brief": (".brief", "Brief"),
     "Session": (".brief", "Session"),
+    "SummaryCard": (".card", "SummaryCard"),
     "brief": (".brief", "brief"),
+    "card": (".card", "card"),
     "load_ipython_extension": (".byo", "load_ipython_extension"),
     "style": (".byo", "style"),
     "unload_ipython_extension": (".byo", "unload_ipython_extension"),
@@ -126,6 +131,7 @@ _LAZY_ATTRS: dict[str, tuple[str, str]] = {
     "distribution": (".explainer", "distribution"),
     "explain": (".explainer", "explain"),
     "flow": (".explainer", "flow"),
+    "forest": (".explainer", "forest"),
     "histogram": (".explainer", "histogram"),
     "lenient": (".explainer", "lenient"),
     "load": (".explainer", "load"),
@@ -227,7 +233,7 @@ _HINTS: dict[str, str] = {
 
 
 _CALLABLE_SUBMODULE_NAMES: frozenset[str] = frozenset(
-    {"brief", "edit", "inspect_data", "style"}
+    {"brief", "card", "edit", "inspect_data", "style"}
 )
 
 

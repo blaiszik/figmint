@@ -4,7 +4,7 @@ Every primary function, visual theme, color palette, and publication plate in `m
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#mintexplain--multi-panel-arguments) · [`mint.compare`](#mintcompare--size-and-intervals) · [`mint.trend`](#minttrend--change-over-time-dose-or-scale) · [`mint.change`](#mintchange--paired-before-and-after) · [`mint.distribution`](#mintdistribution--raw-observations-and-spread) · [`mint.histogram`](#minthistogram--binned-distributions) · [`mint.relate`](#mintrelate--two-continuous-measures) · [`mint.share`](#mintshare--part-of-a-whole) · [`mint.matrix`](#mintmatrix--two-categorical-dimensions) · [`mint.table`](#minttable--exact-lookups-and-scorecards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#mintexplain--multi-panel-arguments) · [`mint.compare`](#mintcompare--size-and-intervals) · [`mint.trend`](#minttrend--change-over-time-dose-or-scale) · [`mint.change`](#mintchange--paired-before-and-after) · [`mint.distribution`](#mintdistribution--raw-observations-and-spread) · [`mint.histogram`](#minthistogram--binned-distributions) · [`mint.relate`](#mintrelate--two-continuous-measures) · [`mint.share`](#mintshare--part-of-a-whole) · [`mint.matrix`](#mintmatrix--two-categorical-dimensions) · [`mint.forest`](#mintforest--effect-sizes-and-meta-analysis) · [`mint.table`](#minttable--exact-lookups-and-scorecards) · [`mint.card`](#mintcard--pr-and-release-kpi-summary-cards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
 | **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
 
@@ -151,6 +151,22 @@ mint.explain(
 )
 ```
 
+### Empirical CDF tail comparison (`mint.distribution(..., mode="ecdf")`)
+
+![Log-scale ECDF latency comparison with p50/p95/p99 reference lines and direct end labels](output/explain_forms/ecdf_latency.png)
+
+```python
+mint.explain(
+    "v2 Cached cuts p95 latency by 4.5x and keeps 100% of traffic under the 250 ms SLO",
+    mint.distribution(
+        {"v1 Baseline": v1, "v2 Uncached": v2_uncached, "v2 Cached": v2_cached},
+        mode="ecdf", log=True, baseline="v1 Baseline", highlight="v2 Cached",
+        reference=(250.0, "SLO 250 ms"), label="Request latency", unit="ms",
+    ),
+    subtitle="Synthetic request latencies (n=180 per deployment), log scale",
+)
+```
+
 ### Small-n perturbation paired with mechanism (`mint.distribution` + `mint.relate`)
 
 ![Gene knockout migration distance distribution and speed-area scatter](output/explain_science/knockout.png)
@@ -263,11 +279,49 @@ Heat table with a number in every cell, automatic high-contrast text colour, hig
 | :---: | :---: |
 | ![Agent task solve rate matrix](output/explain/agent_matrix.png) | ![Matrix with missing cell dashes](output/explain_forms/matrix_missing.png) |
 
+### Row-normalized confusion matrix (`normalize="row", show_counts=True`)
+
+![Row-normalized confusion matrix with percentages and raw counts](output/explain_forms/confusion_matrix_normalized.png)
+
+```python
+mint.explain(
+    "Issue classifier hits 84% macro accuracy; Feature-to-Bug (11%) is the main confusion",
+    mint.matrix(
+        counts, rows=classes, cols=classes,
+        normalize="row", show_counts=True, label="Predicted class",
+    ),
+    subtitle="True class (rows) vs predicted class (columns), n=350 test issues",
+    palette="berry",
+)
+```
+
 ### Diverging correlation matrix (`diverging=True`)
 
 ![Diverging Pearson correlation matrix across materials descriptors](output/explain_science/descriptor_correlations.png)
 
 *Generators: [`explain_chat_examples.py`](explain_chat_examples.py), [`explain_form_gallery.py`](explain_form_gallery.py), [`explain_science_examples.py`](explain_science_examples.py)*
+
+---
+
+## `mint.forest` — Effect sizes and meta-analysis
+
+Aligned cohort or study rows with `sqrt(n)`-scaled point estimates, horizontal CI whiskers against a dashed null line (`reference=0.0` or `1.0`), optional pooled summary diamond (`pooled=`), and right-aligned tabular `est [lo, hi]` + `n` columns.
+
+![Effect-size forest plot with pooled diamond and right-aligned CI and n columns](output/explain_forms/forest_ab_meta.png)
+
+```python
+mint.explain(
+    "Checkout v3 leads a +2.3 pp pooled conversion lift across four winning cohorts",
+    mint.forest(
+        effects, error=cis, error_label="95% CI",
+        pooled={"label": "Pooled", "value": 2.3, "lo": 1.6, "hi": 3.0, "n": 18400},
+        n=sample_sizes, highlight="Checkout v3",
+        label="Conversion lift", unit="pp",
+    ),
+    subtitle="Fixed-effects A/B rollout across six cohorts (n=18,400 total sessions)",
+    palette="mint",
+)
+```
 
 ---
 
@@ -293,6 +347,33 @@ mint.explain(
     layout=[["a"], ["b"]],
     source="synthetic model evaluation data",
 )
+```
+
+---
+
+## `mint.card` — PR and release KPI summary cards
+
+Compact KPI strip (bold values, color-coded deltas, and inline sparklines) paired with an optional `mintfig` panel. Call `.save("card.png")` for a single image, `.save_pair("pr_card")` for a GitHub `<picture>` light/dark pair, or run `mintfig card spec.json --out card.png --pair`.
+
+| Light PR summary card | Dark PR summary card |
+| :---: | :---: |
+| ![Light PR summary card with sparklines and compare panel](output/explain_release/pr_card_light.png) | ![Dark PR summary card with sparklines and compare panel](output/explain_release/pr_card_dark.png) |
+
+```python
+card = mint.card(
+    "PR #418 cuts checkout p99 latency 38% while holding 99.94% availability",
+    [
+        {"label": "p99 latency", "value": "248 ms", "delta": "-38%", "good": True, "spark": [400, 395, 390, 385, 305, 270, 248]},
+        {"label": "Availability", "value": "99.94%", "delta": "+0.02 pts", "good": True, "spark": [99.91, 99.92, 99.92, 99.93, 99.93, 99.94, 99.94]},
+        {"label": "Error rate", "value": "0.06%", "delta": "-0.04 pts", "good": True, "spark": [0.10, 0.09, 0.09, 0.08, 0.07, 0.06, 0.06]},
+        {"label": "Peak RSS", "value": "412 MB", "delta": "+18 MB", "good": False, "spark": [394, 396, 397, 396, 408, 411, 412]},
+    ],
+    panel=mint.compare({"checkout": 248, "payment": 195, "cart": 142, "catalog": 98, "health": 24},
+                       label="p99 latency", unit="ms", highlight="checkout", title="p99 latency by endpoint"),
+    subtitle="checkout-service canary · 7-day window (n = 1.2M requests)",
+    source="perf-canary 2026-11 · 5 clusters",
+)
+card.save_pair("pr_card")  # writes pr_card_light.png + pr_card_dark.png + GitHub <picture> Markdown
 ```
 
 ---
@@ -383,31 +464,39 @@ Every built-in surface theme (`style=`) and color palette (`palette=`) is verifi
 
 ### Themes (`style=`)
 
-The same two-panel comparison + trend rendered across all seven built-in surface styles:
+The same two-panel comparison + trend rendered across all ten built-in surface styles (including the three mint-inspired themes `mint`, `pine`/`mint_dark`, and `botanical`):
 
-| `style="mintfig"` (default) | `style="editorial"` |
+| `style="mint"` (flagship mint) | `style="pine"` (`mint_dark`) |
 | :---: | :---: |
-| ![mintfig theme](output/explain_themes/style_mintfig.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
-| **`style="paper"`** (warm ivory + serif) | **`style="bold"`** (matte gray + heavy strokes) |
-| ![paper theme](output/explain_themes/style_paper.png) | ![bold theme](output/explain_themes/style_bold.png) |
-| **`style="dark"`** (slate charcoal for dark UIs & slides) | **`style="mono"`** (monochrome print + single accent) |
-| ![dark theme](output/explain_themes/style_dark.png) | ![mono theme](output/explain_themes/style_mono.png) |
-
-#### `style="sketch"` (hand-drawn, for conceptual or illustrative data)
-
-![sketch theme](output/explain_themes/style_sketch.png)
+| ![mint theme](output/explain_themes/style_mint.png) | ![pine dark theme](output/explain_themes/style_pine.png) |
+| **`style="botanical"`** (sage-ivory + serif) | **`style="mintfig"`** (default) |
+| ![botanical theme](output/explain_themes/style_botanical.png) | ![mintfig theme](output/explain_themes/style_mintfig.png) |
+| **`style="editorial"`** (newspaper + serif) | **`style="paper"`** (warm ivory + serif) |
+| ![editorial theme](output/explain_themes/style_editorial.png) | ![paper theme](output/explain_themes/style_paper.png) |
+| **`style="bold"`** (matte gray + heavy strokes) | **`style="dark"`** (slate charcoal) |
+| ![bold theme](output/explain_themes/style_bold.png) | ![dark theme](output/explain_themes/style_dark.png) |
+| **`style="mono"`** (monochrome print + single accent) | **`style="sketch"`** (hand-drawn illustrative) |
+| ![mono theme](output/explain_themes/style_mono.png) | ![sketch theme](output/explain_themes/style_sketch.png) |
 
 ### Color Palettes (`palette=`)
 
-All six `mint.explain` color palettes shown on a four-series figure (so every colour slot — 3 accents + 4th series hue — is visible):
+All eleven `mint.explain` color palettes shown on a four-series figure (5 zero-yellow mint-inspired palettes first, followed by the 6 classic palettes):
 
-| `palette="default"` | `palette="okabe_ito"` |
+| `palette="mint"` (zero yellow) | `palette="spearmint"` (zero yellow) |
 | :---: | :---: |
-| ![default palette](output/explain_themes/palette_default.png) | ![okabe_ito palette](output/explain_themes/palette_okabe_ito.png) |
-| **`palette="tol"`** | **`palette="earth"`** |
-| ![tol palette](output/explain_themes/palette_tol.png) | ![earth palette](output/explain_themes/palette_earth.png) |
-| **`palette="ocean"`** | **`palette="berry"`** |
-| ![ocean palette](output/explain_themes/palette_ocean.png) | ![berry palette](output/explain_themes/palette_berry.png) |
+| ![mint palette](output/explain_themes/palette_mint.png) | ![spearmint palette](output/explain_themes/palette_spearmint.png) |
+| **`palette="matcha"`** (zero yellow) | **`palette="glacier"`** (zero yellow) |
+| ![matcha palette](output/explain_themes/palette_matcha.png) | ![glacier palette](output/explain_themes/palette_glacier.png) |
+| **`palette="mineral"`** (zero yellow) | **`palette="default"`** |
+| ![mineral palette](output/explain_themes/palette_mineral.png) | ![default palette](output/explain_themes/palette_default.png) |
+| **`palette="okabe_ito"`** | **`palette="tol"`** |
+| ![okabe_ito palette](output/explain_themes/palette_okabe_ito.png) | ![tol palette](output/explain_themes/palette_tol.png) |
+| **`palette="earth"`** | **`palette="ocean"`** |
+| ![earth palette](output/explain_themes/palette_earth.png) | ![ocean palette](output/explain_themes/palette_ocean.png) |
+
+#### `palette="berry"`
+
+![berry palette](output/explain_themes/palette_berry.png)
 
 *Generator: [`explain_theme_palette_gallery.py`](explain_theme_palette_gallery.py) (plus the 6-figure style matrix in [`explain_style_showcase.py`](explain_style_showcase.py) → `output/explain_styles/`).*
 

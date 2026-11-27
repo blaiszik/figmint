@@ -82,6 +82,7 @@ from .core import (
 )
 from .distribution import distribution, histogram
 from .flow import flow
+from .forest import forest
 from .matrix import matrix
 from .relate import relate
 from .timeline import timeline
@@ -242,7 +243,7 @@ COLOR_SLOTS: dict[str, int] = {"blue": 0, "red": 1, "green": 2, "amber": 3}
 #: Forms that draw every item in its entity colour when the registry names it, even in a
 #: panel with highlight= (waterfall, flow, timeline, table and relate keep their own
 #: encodings for items they do not highlight).
-_ONE_COLOUR_KINDS = frozenset({"compare", "share", "change", "trend", "distribution"})
+_ONE_COLOUR_KINDS = frozenset({"compare", "share", "change", "trend", "distribution", "forest"})
 
 
 def _entity_key(name: object) -> str:
@@ -705,6 +706,7 @@ _TICK_AXES = {
     "distribution": "x",
     "compare": "x",
     "timeline": "x",
+    "forest": "x",
 }
 
 
@@ -1581,6 +1583,9 @@ def _plotted_values(panel: Panel) -> int | None:
         items = spec.get("spans" if kind == "timeline" else "stages")
         per = 2 if kind == "timeline" else 1
         return per * len(items) if isinstance(items, Sequence) else None
+    if kind == "forest":  # each item has estimate + lower/upper bounds
+        n_data = _count_numbers(spec.get("data"))
+        return 3 * n_data + (3 if spec.get("pooled") is not None else 0)
     return None
 
 
@@ -1616,6 +1621,7 @@ _VALUE_AXIS = {
     "compare": "x",
     "waterfall": "x",
     "distribution": "x",
+    "forest": "x",
     "trend": "y",
     "change": "y",
     "relate": "y",
@@ -1755,7 +1761,7 @@ def explain(
     layout: Sequence[Sequence[str]] | None = None,
     target: str | JournalSpec = "screen",
     width: str | float = "chat",
-    style: str | Theme = "mintfig",
+    style: str | Theme | None = None,
     palette: str | ExplainPalette | None = None,
     accent: str | None = None,
     colors: Mapping[str, str] | None = None,
@@ -1805,6 +1811,14 @@ def explain(
     out:
         If given, the figure is saved there immediately.
     """
+    if style is None or palette is None:
+        from ..themes import resolve_default_palette, resolve_default_style
+
+        if style is None:
+            style = resolve_default_style()
+        if palette is None:
+            palette = resolve_default_palette()
+
     effective_strict = bool(strict) and _is_strict()
     local_adjustments: list[str] = list(_ADJUSTMENTS.get() or [])
     if not effective_strict:
@@ -2634,6 +2648,7 @@ _BUILDERS: dict[str, Callable[..., Panel]] = {
     "waterfall": waterfall,
     "timeline": timeline,
     "flow": flow,
+    "forest": forest,
 }
 _POSITIONAL: dict[str, tuple[str, ...]] = {
     "compare": ("values",),
@@ -2648,6 +2663,7 @@ _POSITIONAL: dict[str, tuple[str, ...]] = {
     "waterfall": ("steps",),
     "timeline": ("spans",),
     "flow": ("stages",),
+    "forest": ("data",),
 }
 
 

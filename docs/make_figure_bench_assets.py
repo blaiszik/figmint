@@ -36,11 +36,11 @@ def _pct_from_frac(frac: str) -> float:
     return round(100.0 * num / den, 1) if den else 0.0
 
 
-MINT_ACCENT = "#129E78"
+MINT_ACCENT = "#128060"
 ARM_COLORS = {
     "mintfig": MINT_ACCENT,
-    "mpl + hook": "#3B7DDD",
-    "coached": "#D98A1A",
+    "mpl + hook": "#1D619E",
+    "coached": "#7B2466",
 }
 
 

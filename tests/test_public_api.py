@@ -11,9 +11,9 @@ import mintfig as mint
 
 TOP_LEVEL = {
     "explain", "compare", "trend", "change", "distribution", "histogram", "relate", "share",
-    "matrix", "table", "waterfall", "timeline", "flow", "custom", "Explanation", "Panel",
-    "ExplainError", "lenient", "load", "edit", "Session", "brief", "Brief", "inspect_data",
-    "auto_panel", "load_table_file", "Plate", "figure", "__version__",
+    "matrix", "table", "waterfall", "timeline", "flow", "forest", "custom", "Explanation", "Panel",
+    "ExplainError", "lenient", "load", "edit", "Session", "brief", "Brief", "card", "SummaryCard",
+    "inspect_data", "auto_panel", "load_table_file", "Plate", "figure", "__version__",
     "inline", "InlineGraphic", "check", "style", "notebook",
 }  # fmt: skip
 

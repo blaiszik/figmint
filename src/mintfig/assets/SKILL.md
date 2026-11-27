@@ -105,8 +105,8 @@ mint.explain(takeaway, *panels,
     layout=None,            # e.g. [["a"], ["b", "c"]]; repeat a key to widen
     colors=None,            # pin across figures: {"no retrieval": "red"} (blue/red/green/amber)
     color_names=True, density="regular",  # names coloured in titles; "compact": tighter rows
-    style="mintfig",        # "mintfig" | "bold" | "editorial" | "paper" | "dark" | "mono" | "sketch"
-    palette=None,           # "default" | "okabe_ito" | "tol" | "earth" | "ocean" | "berry"
+    style="mintfig",        # "mintfig" | "mint" | "pine" ("mint_dark") | "botanical" | "bold" | "editorial" | "paper" | "dark" | "mono" | "sketch"
+    palette=None,           # "mint" | "spearmint" | "matcha" | "glacier" | "mineral" | "default" | "okabe_ito" | "tol" | "earth" | "ocean" | "berry"
     accent=None,            # custom primary highlight hex, e.g. "#D97757"
     strict=True,            # False / `with mint.lenient():`: auto-adjust soft limits
     width="chat")           # "narrow" (450 px), "chat" (700 px), "slide" (1280 px)
@@ -132,7 +132,7 @@ mint.change(before, after, data=None, name=None, labels=("Before", "After"))
 
 mint.distribution(groups,     # {g: [obs]}, wide DF, or rows (group=/value=)
     group=None, value=None, stat="median",
-    mode="dots", quantiles=20,  # mode="quantile": countable quantile dotplot (5–50 dots)
+    mode="dots", quantiles=20,  # "dots" | "quantile" (5–50 dots) | "ecdf" (quantiles=(0.5, 0.95, 0.99))
     bins=None, log=False, reference=None, facet=False)
 
 mint.histogram(values, group=None, value=None, bins="auto", stat="median", log=False, reference=None, facet=False)
@@ -145,7 +145,11 @@ mint.relate(x, y, x_label=, y_label=, data=None, x_unit=None, names=None, groups
 mint.share(parts, name=None, value=None, top=7, kind="bars")  # "bars" | "pie" | "donut" (<=5)
 
 mint.matrix(values, rows=None, cols=None, value=None, diverging=False, center=0.0,
+    normalize=None, show_counts=False,  # normalize="row"|"col" + show_counts=True for confusion matrices
     triangle=None, mask_diagonal=False, highlight=None)  # triangle="lower"|"upper" for symmetric
+
+mint.forest(data, error=..., error_label=None, reference=0.0, pooled=None,
+    n=None, log=False, sort=True)  # effect sizes + CI whiskers + pooled diamond + tabular readout
 
 mint.table(rows, columns=None, units=None, highlight=None, baseline=None,
     bold_best=False, sort=None, align=None, fmt=None, bars=None, interval=None,

@@ -105,6 +105,7 @@ KINDS: tuple[str, ...] = (
     "waterfall",
     "timeline",
     "flow",
+    "forest",
 )
 
 
