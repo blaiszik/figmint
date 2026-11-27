@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt35_cache_eviction_hitrate",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Storage Systems",
+  "title": "Cache miss-ratio curves (LRU vs W-TinyLFU vs S3-FIFO)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "At 256 MB, S3-FIFO cuts miss ratio by -7.1 pp vs LRU (18.7% vs 25.8%)",
+  "accept": [
+    7.108716,
+    18.672387,
+    25.781103
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "s3-fifo",
+    "256",
+    "5 trace|5 run|n=5|s.d.|sd|±|ci"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much lower is S3-FIFO's miss ratio than LRU at 256 MB?",
+      "expected": "About 7.1 percentage points lower (18.7% vs 25.8%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is trace-to-trace spread represented?",
+      "expected": "Spread (SD/CI/points) across 5 trace replays per cache size."
+    },
+    {
+      "kind": "nuance",
+      "question": "Does S3-FIFO's advantage hold across all sizes or shrink at large caches?",
+      "expected": "It wins at every size, with the largest gains at small/medium caches (64–512 MB) and narrowing at 4 GB."
+    }
+  ]
+}

@@ -11,16 +11,17 @@
   "accept": [
     122.985714,
     63.069597,
-    317.985714
+    317.985714,
+    1.630696
   ],
   "rel_tol": 0.06,
-  "abs_tol": 5.0,
+  "abs_tol": 0.08,
   "uncertainty_required": true,
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "95% CI",
-    "replicates"
+    "95% CI|confidence interval|CI|s.d.|sd|\u00b1",
+    "replicate|n=|well|point|individual"
   ],
   "reader_questions": [
     {

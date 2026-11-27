@@ -78,7 +78,7 @@ axis, hide seed variance, overclaim noise, or produce illegible labels? Turn it 
 
 ```bash
 python evals/figure_bench/bench.py new-task \
-    --id pt31_your_task_slug \
+    --id pt51_your_task_slug \
     --split public-test \
     --track epistemic_traps \
     --domain Systems
@@ -118,8 +118,9 @@ improves real agent figure quality?
 2. Compare arms head-to-head on identical tasks and models:
    - `--arm mintfig` (`SKILL.md` + `mint.explain`)
    - `--arm matplotlib-hook` (plain Matplotlib + `mint.check` feedback loop)
+   - `--arm matplotlib-coached` (prompt-coached plain Matplotlib, no `mintfig`, no hook)
    - `--arm matplotlib` (told display width & defect rules)
-   - `--arm matplotlib-plain` (untaught baseline)
+   - `--arm matplotlib-plain` (uncoached baseline, display width & surface only)
    - `--arm custom --skill path/to/SKILL.md --library seaborn`
 3. Run a blinded human reading check at true display width (`700 px` or `450 px`) using
    `evals/figure_bench/human_study/index.html` so improvements are verified by human eyes,

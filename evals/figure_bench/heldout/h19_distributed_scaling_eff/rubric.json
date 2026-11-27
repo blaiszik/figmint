@@ -1,0 +1,45 @@
+{
+  "schema_version": "0.1",
+  "id": "h19_distributed_scaling_eff",
+  "split": "heldout",
+  "track": "swe_coding",
+  "domain": "HPC / Distributed ML",
+  "title": "Strong-scaling parallel efficiency across 1–64 nodes",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "At 64 nodes NCCL retains 81.2% efficiency vs 21.9% for Gloo-TCP (+59.3 pp lead, 5 runs)",
+  "accept": [
+    81.229534,
+    59.341932,
+    3.711212,
+    21.887602
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "nccl",
+    "gloo",
+    "5 run|n=5|s.d.|sd|±|ci"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What scaling efficiency does NCCL maintain at 64 nodes vs Gloo-TCP?",
+      "expected": "About 81.2% vs 21.9% (3.7× higher)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is run-to-run variability reported?",
+      "expected": "Mean ± SD/CI across 5 runs per node count."
+    },
+    {
+      "kind": "nuance",
+      "question": "Where does Gloo-TCP begin collapsing rapidly?",
+      "expected": "Past 8–16 nodes, dropping from 72% at 8 nodes to ~22% at 64 nodes."
+    }
+  ]
+}

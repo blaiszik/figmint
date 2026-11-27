@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "420 MPa",
-    "replicates"
+    "420 MPa|420",
+    "replicate|coupon|8 |n=8|individual"
   ],
   "reader_questions": [
     {

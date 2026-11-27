@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "id": "h2_spectra",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "Spectroscopy",
+  "title": "UV-vis absorption peak shift across annealing temperatures",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "red shift of the 400 °C sample's peak (nm), or its peak position",
+  "accept": [
+    25.0,
+    545.0
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 5.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "400",
+    "200|reference|unannealed|nm"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By how many nm does the 400 °C sample's absorption peak shift relative to the unannealed sample?",
+      "expected": "Red-shifted by +25 nm (peak at ~545 nm vs ~520 nm reference)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What wavelengths and resolution were measured?",
+      "expected": "400–700 nm in 5 nm steps across three samples."
+    },
+    {
+      "kind": "nuance",
+      "question": "Did the 200 °C anneal shift the peak?",
+      "expected": "No meaningful shift at 200 °C; the red shift only appears at 400 °C."
+    }
+  ]
+}

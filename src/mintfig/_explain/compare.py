@@ -855,7 +855,7 @@ def _faceted(
     )
 
 
-@_guarded("compare")
+@_guarded("compare", aliases={"measure": "label"})
 def compare(
     values: (
         Mapping[str, float]
@@ -956,18 +956,34 @@ def compare(
             },
         )
     if group is not None:
-        if (
-            boost is not None
-            or error is not None
-            or inner_error is not None
-            or n is not None
-            or show_delta is True
-        ):
+        if boost is not None or inner_error is not None or show_delta is True:
             raise ExplainError(
-                "Grouped compare(group=...) cannot be combined with error=, inner_error=, boost=, n=, or show_delta=.",
-                fix_hint="Use separate compare() panels for intervals/boosts/deltas, or drop group=.",
+                "Grouped compare(group=...) cannot be combined with inner_error=, boost=, or show_delta=True.",
+                fix_hint="Use separate compare() panels for boosts/inner intervals/inline deltas, or drop group=.",
             )
         nested = resolve_grouped_compare_table(values, name=name, group=group, value=value)
+        resolved_err: Any = error
+        resolved_n: Any = n
+        if is_tabular(values) and (error is not None or n is not None):
+            cols, rows = extract_records(values, what="compare(values)")
+            name_col = name or (cols[0] if cols else "")
+            if isinstance(error, (str, tuple, list)):
+                picked = [error] if isinstance(error, str) else list(error)
+                if 1 <= len(picked) <= 2 and all(isinstance(c, str) and c in cols for c in picked):
+                    err_map: dict[str, dict[str, Any]] = {}
+                    for row in rows:
+                        cell = [row.get(c) for c in picked]
+                        err_map.setdefault(str(row.get(name_col, "")), {})[
+                            str(row.get(group, ""))
+                        ] = cell[0] if len(cell) == 1 else tuple(cell)
+                    resolved_err = err_map
+            if isinstance(n, str) and n in cols:
+                n_map: dict[str, dict[str, Any]] = {}
+                for row in rows:
+                    n_map.setdefault(str(row.get(name_col, "")), {})[
+                        str(row.get(group, ""))
+                    ] = row.get(n)
+                resolved_n = n_map
         return build_grouped_compare(
             nested,
             title=title,
@@ -977,6 +993,9 @@ def compare(
             baseline=baseline,
             sort=sort if sort is not True else False,
             zero=zero,
+            error=resolved_err,
+            error_label=error_label,
+            n=resolved_n,
             reference=reference,
             log=log,
             fmt=fmt,
@@ -984,16 +1003,10 @@ def compare(
         )
 
     if is_nested_compare(values):
-        if (
-            boost is not None
-            or error is not None
-            or inner_error is not None
-            or n is not None
-            or show_delta is True
-        ):
+        if boost is not None or inner_error is not None or show_delta is True:
             raise ExplainError(
-                "Grouped compare() with nested dicts cannot be combined with error=, inner_error=, boost=, n=, or show_delta=.",
-                fix_hint="Use single-series compare() for intervals/boosts/deltas, or drop error=/inner_error=/boost=/n=/show_delta=.",
+                "Grouped compare() with nested dicts cannot be combined with inner_error=, boost=, or show_delta=True.",
+                fix_hint="Use single-series compare() for boosts/inner intervals/inline deltas, or drop inner_error=/boost=/show_delta=True.",
             )
         return build_grouped_compare(
             values,  # type: ignore[arg-type]
@@ -1004,6 +1017,9 @@ def compare(
             baseline=baseline,
             sort=sort if sort is not True else False,
             zero=zero,
+            error=error,
+            error_label=error_label,
+            n=n,
             reference=reference,
             log=log,
             fmt=fmt,
@@ -1756,7 +1772,7 @@ def _pie_panel(
     )
 
 
-@_guarded("share", aliases={"share_kind": "kind"})
+@_guarded("share", aliases={"share_kind": "kind", "measure": "label"})
 def share(
     parts: Mapping[str, float] | Sequence[tuple[str, float]] | Sequence[Mapping[str, Any]],
     *,

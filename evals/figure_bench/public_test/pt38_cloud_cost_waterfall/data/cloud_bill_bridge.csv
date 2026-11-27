@@ -1,0 +1,8 @@
+component,amount_kusd,kind
+Sep_Baseline,128.0,total
+GPU_Inference,34.8,delta
+Data_Egress,12.6,delta
+Vector_DB,5.2,delta
+Log_Retention,-2.0,delta
+Spot_Savings,-9.4,delta
+Oct_Total,169.2,total

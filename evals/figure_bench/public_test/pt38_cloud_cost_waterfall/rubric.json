@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt38_cloud_cost_waterfall",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "FinOps / Cloud",
+  "title": "Monthly cloud bill bridge waterfall (+$41.2k)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Cloud bill rose +$41.2k to $169.2k, driven primarily by +$34.8k GPU inference (offset by -$9.4k spot savings)",
+  "accept": [
+    41.2,
+    34.8,
+    169.2,
+    32.2
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 0.5,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "gpu",
+    "spot|169.2|41.2"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What was the net monthly bill increase and largest cost driver?",
+      "expected": "Net +$41.2k (to $169.2k), led by +$34.8k in GPU_Inference."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Which line items reduced the bill?",
+      "expected": "Spot_Savings (−$9.4k) and Log_Retention (−$2.0k)."
+    },
+    {
+      "kind": "nuance",
+      "question": "What was the second-largest cost increase?",
+      "expected": "Data_Egress at +$12.6k."
+    }
+  ]
+}

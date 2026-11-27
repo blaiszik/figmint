@@ -1,0 +1,49 @@
+{
+  "schema_version": "0.1",
+  "id": "h25_repair_ci_and_wrong_p",
+  "split": "heldout",
+  "track": "byo_repair",
+  "domain": "Experimental Statistics",
+  "title": "Repair mislabelled SEM error bars, truncated axis, and false +12.5% overclaim",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "True difference is only +2.3 pts (+3.5%), well within overlapping 95% CIs across n = 8 runs (no reliable effect)",
+  "accept": [
+    2.3125,
+    3.519117,
+    68.025,
+    65.7125
+  ],
+  "rel_tol": 0.15,
+  "abs_tol": 0.5,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "12.5%",
+    "significantly outperforms",
+    "proves",
+    "clearly beats"
+  ],
+  "required_disclosures": [
+    "95% ci|confidence interval|ci",
+    "overlap|noise|not significant|inconclusive|no reliable|n=8|8 run"
+  ],
+  "forbid_truncated_bars": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the actual mean difference between variant_x and control?",
+      "expected": "Only +2.3 points (+3.5%: 68.0 vs 65.7), not +12.5%."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Do the 95% confidence intervals separate the two arms?",
+      "expected": "No — the 95% CIs across n = 8 runs overlap heavily; the difference sits within noise."
+    },
+    {
+      "kind": "nuance",
+      "question": "What mistakes in broken_plot.py were repaired?",
+      "expected": "Fixed the mislabelled SEM bars to true 95% CI, removed y-axis truncation, fixed tiny text, and replaced the false overclaim."
+    }
+  ]
+}

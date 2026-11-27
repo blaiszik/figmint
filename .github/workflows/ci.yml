@@ -65,6 +65,7 @@ jobs:
           uv venv "${{ runner.temp }}/smoke-venv" --python 3.12
           uv pip install --python "${{ runner.temp }}/smoke-venv/bin/python" dist/*.whl
           "${{ runner.temp }}/smoke-venv/bin/mintfig" --help > /dev/null
+          "${{ runner.temp }}/smoke-venv/bin/mintfig" --version | grep -q "mintfig"
           "${{ runner.temp }}/smoke-venv/bin/mintfig" skill --install --root "${{ runner.temp }}/skill-test"
           test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/SKILL.md"
           test -f "${{ runner.temp }}/skill-test/.claude/skills/mintfig/references/recipes.md"

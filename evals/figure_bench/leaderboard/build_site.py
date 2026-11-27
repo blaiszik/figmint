@@ -29,49 +29,49 @@ if str(HERE) not in sys.path:
 
 import verify_submission
 
-# Canonical figure-bench v0.1 track architecture (6 tracks across 60 tasks: 15 dev, 30 public-test, 15 heldout).
+# Canonical figure-bench v0.1 track architecture (6 tracks across 100 tasks: 25 dev, 50 public-test, 25 heldout).
 TRACK_CATALOG: list[dict[str, Any]] = [
     {
         "id": "science_uncertainty",
         "name": "Science & Uncertainty",
-        "total_tasks": 19,
-        "splits": {"dev": 6, "public-test": 6, "heldout": 7},
-        "summary": "Multi-seed ablations, dose-response, meta-analysis forests, survival curves, spectra, kinetics, and biological replicates.",
+        "total_tasks": 28,
+        "splits": {"dev": 10, "public-test": 10, "heldout": 8},
+        "summary": "Multi-seed ablations, dose-response, meta-analysis forests, survival curves, reliability diagrams, Bland–Altman agreement, XRD/Raman spectra, CRISPR ranks, climate ensembles, and PK profiles.",
     },
     {
         "id": "swe_coding",
         "name": "SWE & Quantitative Coding",
-        "total_tasks": 13,
-        "splits": {"dev": 3, "public-test": 8, "heldout": 2},
-        "summary": "Hyperfine & pytest-benchmark diffs, CI critical paths, k6 p99 deploy regressions, bundle waterfalls, LLM Pareto frontiers, and soak leaks.",
+        "total_tasks": 22,
+        "splits": {"dev": 5, "public-test": 12, "heldout": 5},
+        "summary": "Hyperfine & pytest-benchmark diffs, GPU rooflines, DB query tails, cache MRCs, LLM serving SLAs, CI timelines & flake matrices, cloud cost waterfalls, GC pause tails, and distributed scaling.",
     },
     {
         "id": "epistemic_traps",
         "name": "Epistemic Traps & Refusals",
-        "total_tasks": 12,
-        "splits": {"dev": 4, "public-test": 6, "heldout": 2},
-        "summary": "Overlapping CIs, no-effect traps, Simpson's paradox, small-n replicates, truncated-bar bait, missing controls, and corrupted sensor outliers.",
+        "total_tasks": 18,
+        "splits": {"dev": 4, "public-test": 10, "heldout": 4},
+        "summary": "Overlapping CIs, no-effect traps, multiple testing, Simpson's paradox, ecological fallacy, survivorship bias, spurious dual axes, heavy-tail means, denominator shifts, cherry-picked windows, and truncated-bar bait.",
     },
     {
         "id": "multiturn_edit",
         "name": "Multi-Turn Figure Editing",
-        "total_tasks": 6,
-        "splits": {"dev": 2, "public-test": 3, "heldout": 1},
-        "summary": "Targeted edits to a prior figure: switching baselines, log-scale transforms, adding replicates, fixing misconverted units, and highlighting subsets.",
+        "total_tasks": 11,
+        "splits": {"dev": 3, "public-test": 6, "heldout": 2},
+        "summary": "Targeted edits to a prior figure: per-capita normalization, splitting confounders, switching baselines, log-scale transforms, replacing pies, exposing bimodal tails, and excluding QC faults.",
     },
     {
         "id": "multi_surface",
         "name": "Multi-Surface Delivery",
-        "total_tasks": 5,
-        "splits": {"dev": 0, "public-test": 4, "heldout": 1},
-        "summary": "Legible delivery across narrow 450 px phone/IDE sidebars, 1280 px slides, dark dashboards, and 72-column SSH terminal sessions.",
+        "total_tasks": 11,
+        "splits": {"dev": 2, "public-test": 6, "heldout": 3},
+        "summary": "Legible delivery across narrow 450 px phone/IDE sidebars, 1280 px slides, dark NOC/dashboard cards, HTML reports, and 72-column SSH terminal sessions.",
     },
     {
         "id": "byo_repair",
         "name": "BYO-Matplotlib Repair",
-        "total_tasks": 5,
-        "splits": {"dev": 0, "public-test": 3, "heldout": 2},
-        "summary": "Diagnosing and fixing broken existing Matplotlib scripts with wrong headline numbers, jet colormaps, truncated axes, and struck labels.",
+        "total_tasks": 10,
+        "splits": {"dev": 1, "public-test": 6, "heldout": 3},
+        "summary": "Diagnosing and fixing broken existing Matplotlib scripts with wrong claims, jet/rainbow colormaps, truncated axes, dual-axis spaghetti, clipped pies, mislabelled SEM bars, and struck labels.",
     },
 ]
 
@@ -463,7 +463,7 @@ def render_html(
       <div class="title-row">
         <h1>figure-bench</h1>
         <span class="badge badge-wip">figure-bench v0.1 (work in progress)</span>
-        <span class="badge badge-accent">60 tasks · 6 tracks · library-agnostic</span>
+        <span class="badge badge-accent">100 tasks · 6 tracks · library-agnostic</span>
       </div>
       <p class="subtitle">
         Open benchmark measuring whether AI agents and plotting libraries produce <strong>legible, truthful, uncertainty-aware figures</strong> at real display widths (700 px chat, 450 px phone/IDE, 1280 px slides, dark mode, terminal).
@@ -490,7 +490,7 @@ def render_html(
 
   <div class="section-head">
     <h2>Open Leaderboard</h2>
-    <span class="hint" id="leaderboard-note">Includes full 60-task v0.1 runs across 3 arms (Claude Sonnet 5.5) plus initial 15-task baseline seeds. Click any column header to sort; click a row for provenance.</span>
+    <span class="hint" id="leaderboard-note">Includes full 100-task and 60-task v0.1 runs across 3 arms (Claude Sonnet 5.5) plus initial 15-task baseline seeds. Click any column header to sort; click a row for provenance.</span>
   </div>
 
   <div class="filters">
@@ -551,8 +551,8 @@ def render_html(
   </section>
 
   <div class="section-head">
-    <h2>Track Breakdown Overview (6 Tracks · 60 Tasks)</h2>
-    <span class="hint">15 dev (<code>tasks/</code>) · 30 frozen public-test (<code>public_test/</code>) · 15 held-out (<code>heldout/</code>)</span>
+    <h2>Track Breakdown Overview (6 Tracks · 100 Tasks)</h2>
+    <span class="hint">25 dev (<code>tasks/</code>) · 50 frozen public-test (<code>public_test/</code>) · 25 held-out (<code>heldout/</code>)</span>
   </div>
 
   <section class="tracks-grid" id="tracks-grid"></section>

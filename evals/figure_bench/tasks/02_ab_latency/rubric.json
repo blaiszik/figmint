@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "02_ab_latency",
+  "split": "dev",
+  "track": "swe_coding",
+  "domain": "Web Systems",
+  "title": "Checkout A/B right-skewed latency comparison",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "median latency saving (ms or %), or the two medians",
+  "accept": [
+    83.490588,
+    19.680139,
+    340.747213,
+    424.237801
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "median|p50",
+    "tail|p95|p99|skew|iqr"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By how much did the new checkout flow change median latency (in ms or %)?",
+      "expected": "Median latency fell by ~83.5 ms (~19.7%, from ~424 ms to ~341 ms)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What spread or tail information is shown across the 400 sessions per arm?",
+      "expected": "Distribution spread (IQR / percentiles / tail points across 400 sessions per arm)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why are medians emphasized over means?",
+      "expected": "Checkout latencies are right-skewed with a long upper tail."
+    }
+  ]
+}

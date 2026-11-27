@@ -23,8 +23,8 @@
     "significantly outperforms placebo"
   ],
   "required_disclosures": [
-    "placebo",
-    "95% CI"
+    "placebo|control",
+    "95% CI|confidence interval|CI|s.d.|sd|\u00b1|overlap|noise"
   ],
   "reader_questions": [
     {

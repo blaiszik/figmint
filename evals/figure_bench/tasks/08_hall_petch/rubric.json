@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "08_hall_petch",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Materials Science",
+  "title": "Hall–Petch grain-refinement yield strength scaling",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Cu-Zn Hall-Petch slope (MPa·µm^½) or its r",
+  "accept": [
+    327.406795,
+    0.970608,
+    0.941658
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "cu-zn",
+    "hall|d^-1/2|d⁻¹/²|d^(-1/2)|slope|r²|r2"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the Hall–Petch slope for the Cu-Zn alloy, in MPa·µm½?",
+      "expected": "About 327 MPa·µm½ (r ≈ 0.97, R² ≈ 0.94)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many tensile specimens per alloy are plotted?",
+      "expected": "12 specimens per alloy family across Al-Mg, Cu-Zn, and Ni-Cr."
+    },
+    {
+      "kind": "nuance",
+      "question": "Do all three alloys follow linear Hall–Petch scaling in d⁻¹/²?",
+      "expected": "Yes, with Cu-Zn showing the steepest Hall–Petch strengthening slope."
+    }
+  ]
+}

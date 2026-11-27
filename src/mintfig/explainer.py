@@ -24,6 +24,9 @@ from ._explain import (
     flow as _flow,
 )
 from ._explain import (
+    forest as _forest,
+)
+from ._explain import (
     layout as _layout,
 )
 from ._explain import (
@@ -74,6 +77,7 @@ from ._explain.core import (
 )
 from ._explain.distribution import MAX_HIST_GROUPS, distribution, histogram
 from ._explain.flow import MAX_FLOW_STAGES, flow
+from ._explain.forest import forest
 from ._explain.layout import (
     COLOR_SLOTS,
     EXAMPLE_SPEC,
@@ -113,6 +117,7 @@ _SUBMODULES = (
     _waterfall,
     _timeline,
     _flow,
+    _forest,
 )
 
 
@@ -174,6 +179,7 @@ __all__ = [
     "explain",
     "explain_from_spec",
     "flow",
+    "forest",
     "histogram",
     "inspect_data",
     "lenient",

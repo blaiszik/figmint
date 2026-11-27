@@ -70,6 +70,11 @@ def _nested_grid(
     nested: Mapping[str, Mapping[str, Any]],
 ) -> tuple[list[str], list[str], dict[str, dict[str, float | None]]]:
     """``(categories, series, {category: {series: value or None}})`` of a nested compare."""
+    if not isinstance(nested, Mapping):
+        raise ExplainError(
+            f"Grouped compare() expects a mapping of category -> {{series: number}}, got {type(nested).__name__}.",
+            fix_hint='Pass a nested dict such as {"Bench A": {"Model 1": 82, "Model 2": 75}}.',
+        )
     categories: list[str] = []
     series_names: list[str] = []
     grid: dict[str, dict[str, float | None]] = {}
@@ -100,6 +105,123 @@ def _nested_grid(
     return categories, series_names, grid
 
 
+def _grouped_intervals(
+    error: object,
+    categories: Sequence[str],
+    series_names: Sequence[str],
+    grid: Mapping[str, Mapping[str, float | None]],
+) -> tuple[dict[str, dict[str, tuple[float, float]]], set[str]]:
+    """Parse ``error=`` for grouped compare(): scalar, ``{cat: {series: err}}``, or ``{series: err}``."""
+    from .compare import _compare_intervals
+
+    if isinstance(error, Mapping) and not any(isinstance(v, Mapping) for v in error.values()):
+        given = {str(k): v for k, v in error.items()}
+        if set(given) <= set(series_names):
+            out: dict[str, dict[str, tuple[float, float]]] = {}
+            modes: set[str] = set()
+            for cat in categories:
+                present = {s: v for s, v in grid[cat].items() if v is not None}
+                if not present:
+                    out[cat] = {}
+                    continue
+                entry = {s: given[s] for s in present if s in given}
+                errs, got = _compare_intervals(entry, dict(present), arg=f"error[{cat!r}]")
+                out[cat] = errs
+                modes |= got
+            return out, modes
+    return _facet_intervals(error, categories, grid)
+
+
+def _parse_count_int(value: object, what: str, hint: str) -> int:
+    number = _to_float(value, what) if _is_number(value) else math.nan
+    if not (math.isfinite(number) and number >= 0 and float(number).is_integer()):
+        raise ExplainError(f"{what} = {value!r} is not a whole-number count.", fix_hint=hint)
+    return int(number)
+
+
+def _grouped_counts(
+    n: object,
+    categories: Sequence[str],
+    series_names: Sequence[str],
+    grid: Mapping[str, Mapping[str, float | None]],
+) -> tuple[dict[str, int], dict[str, dict[str, int]]]:
+    """Parse ``n=`` for grouped compare(): scalar int, ``{cat: int}``, ``{series: int}``, or ``{cat: {series: int}}``.
+
+    Returns ``(per_category_display_counts, per_cell_counts)``.
+    """
+    hint = (
+        'Pass n= as an int, {category: count}, {series: count}, or {category: {series: count}}, '
+        'e.g. n={"GPQA": 198, "SWE": 500}.'
+    )
+    cat_counts: dict[str, int] = {}
+    cell_counts: dict[str, dict[str, int]] = {c: {} for c in categories}
+    if _is_number(n):
+        val = _parse_count_int(n, "compare(n)", hint)
+        for c in categories:
+            cat_counts[c] = val
+            for s in series_names:
+                if grid[c].get(s) is not None:
+                    cell_counts[c][s] = val
+        return cat_counts, cell_counts
+    if not isinstance(n, Mapping):
+        raise ExplainError(
+            f"Grouped compare(n) must be an integer or a mapping, got {type(n).__name__}.",
+            fix_hint=hint,
+        )
+    given = {str(k): v for k, v in n.items()}
+    if given and all(isinstance(v, Mapping) for v in given.values()):
+        extra = [k for k in given if k not in categories]
+        if extra:
+            raise ExplainError(
+                f"compare(n) names unknown categories {extra[:4]!r}.",
+                fix_hint=f"Use categories from: {', '.join(map(repr, list(categories)[:12]))}.",
+            )
+        for c in categories:
+            sub = given.get(c)
+            if not isinstance(sub, Mapping):
+                continue
+            vals_seen: set[int] = set()
+            for raw_s, raw_cnt in sub.items():
+                s = str(raw_s)
+                if s not in series_names:
+                    raise ExplainError(
+                        f"compare(n[{c!r}]) names unknown series {s!r}.",
+                        fix_hint=f"Use series from: {', '.join(map(repr, list(series_names)[:12]))}.",
+                    )
+                if raw_cnt is None:
+                    continue
+                cnt = _parse_count_int(raw_cnt, f"compare(n[{c!r}][{s!r}])", hint)
+                cell_counts[c][s] = cnt
+                vals_seen.add(cnt)
+            if len(vals_seen) == 1:
+                cat_counts[c] = next(iter(vals_seen))
+        return cat_counts, cell_counts
+    if set(given) <= set(categories):
+        for c, raw_cnt in given.items():
+            if raw_cnt is None:
+                continue
+            cnt = _parse_count_int(raw_cnt, f"compare(n[{c!r}])", hint)
+            cat_counts[c] = cnt
+            for s in series_names:
+                if grid[c].get(s) is not None:
+                    cell_counts[c][s] = cnt
+        return cat_counts, cell_counts
+    if set(given) <= set(series_names):
+        for s, raw_cnt in given.items():
+            if raw_cnt is None:
+                continue
+            cnt = _parse_count_int(raw_cnt, f"compare(n[{s!r}])", hint)
+            for c in categories:
+                if grid[c].get(s) is not None:
+                    cell_counts[c][s] = cnt
+        return cat_counts, cell_counts
+    extra = [k for k in given if k not in categories and k not in series_names]
+    raise ExplainError(
+        f"compare(n) names {extra[:4]!r}, which are neither categories nor series in values.",
+        fix_hint=hint,
+    )
+
+
 def build_grouped_compare(
     nested: Mapping[str, Mapping[str, Any]],
     *,
@@ -110,6 +232,9 @@ def build_grouped_compare(
     baseline: str | None = None,
     sort: bool | str = False,
     zero: bool = True,
+    error: Any = None,
+    error_label: str | None = None,
+    n: Any = None,
     reference: float | tuple[float, str] | None = None,
     log: bool = False,
     fmt: str | None = None,
@@ -181,9 +306,17 @@ def build_grouped_compare(
     ]
     if not all_vals:
         raise ExplainError("compare(values) has no finite values.", fix_hint="Pass numbers.")
-    if log and min([*all_vals, *([ref[0]] if ref else [])]) <= 0:
+    errors: dict[str, dict[str, tuple[float, float]]] | None = None
+    err_modes: set[str] = set()
+    if error is not None:
+        errors, err_modes = _grouped_intervals(error, categories, series_names, grid)
+    err_bounds = [b for per in (errors or {}).values() for pair in per.values() for b in pair]
+    cat_counts, cell_counts = (
+        _grouped_counts(n, categories, series_names, grid) if n is not None else ({}, {})
+    )
+    if log and min([*all_vals, *err_bounds, *([ref[0]] if ref else [])]) <= 0:
         raise ExplainError(
-            "compare(log=True) needs strictly positive values.",
+            "compare(log=True) needs strictly positive values (and interval bounds and reference).",
             fix_hint="Drop log=True or remove non-positive values.",
         )
 
@@ -198,8 +331,8 @@ def build_grouped_compare(
             )
         )
 
-    dots = (not zero) or log
-    fmt_fn = _formatter(all_vals, fmt, unit=unit, log=log)
+    dots = (not zero) or log or (errors is not None)
+    fmt_fn = _formatter([*all_vals, *(err_bounds if log else [])], fmt, unit=unit, log=log)
     inline_u = _inline_unit(unit)
 
     def _u(v: float) -> str:
@@ -251,6 +384,17 @@ def build_grouped_compare(
                     f"(range {_diff_with_unit(_signed(d_fmt(lo_d)), unit)} to "
                     f"{_diff_with_unit(_signed(d_fmt(hi_d)), unit)})"
                 )
+
+    if errors is not None:
+        facts.append(_interval_mode_text(err_modes, "intervals"))
+    if cat_counts:
+        if len(set(cat_counts.values())) == 1 and len(cat_counts) == len(categories):
+            facts.append(f"sample size: n={next(iter(cat_counts.values()))} per category")
+        else:
+            facts.append(
+                "sample sizes: " + ", ".join(f"{c} n={cat_counts[c]}" for c in categories if c in cat_counts)
+            )
+    issues = [_interval_issue("compare", "error", "error_label")] if errors and not error_label else []
 
     n_cats = len(categories)
     n_ser = len(ordered_series)
@@ -308,28 +452,47 @@ def build_grouped_compare(
         ax.set_ylim(bot_y, top_y)
 
         if dots:
-            lo_v = float(min([*all_vals, *([ref[0]] if ref else [])]))
-            hi_v = float(max([*all_vals, *([ref[0]] if ref else [])]))
+            lo_v = float(min([*all_vals, *err_bounds, *([ref[0]] if ref else [])]))
+            hi_v = float(max([*all_vals, *err_bounds, *([ref[0]] if ref else [])]))
             if log:
                 ax.set_xscale("log")
                 lims = _narrow_log_ticks(ax.xaxis, lo_v, hi_v, theme.minus_sign, extend=False, data_hi=hi_v)
                 ax.set_xlim(*lims)
             else:
                 span = (hi_v - lo_v) or abs(hi_v) or 1.0
-                ax.set_xlim(lo_v - 0.08 * span, hi_v + 0.14 * span)
+                ax.set_xlim(lo_v - 0.08 * span, hi_v + 0.16 * span)
             if theme.grid_style != "none" and theme.grid_lw > 0:
                 ax.grid(axis="x", color=theme.grid, linestyle=theme.grid_style, linewidth=theme.grid_lw)
             ax.set_axisbelow(True)
             for s_idx, s in enumerate(ordered_series):
                 ys_s = []
                 xs_s = []
+                lo_s = []
+                hi_s = []
+                cats_s = []
                 for c_idx, cat in enumerate(categories):
                     v = grid[cat].get(s)
                     if v is not None:
                         ys_s.append(centers[c_idx] + offsets[s_idx])
                         xs_s.append(v)
+                        cats_s.append(cat)
+                        if errors is not None and s in errors.get(cat, {}):
+                            lo_s.append(errors[cat][s][0])
+                            hi_s.append(errors[cat][s][1])
                 if xs_s:
                     focus = (not hl) or (s in hl) or (s == base)
+                    if errors is not None and len(lo_s) == len(xs_s):
+                        ys_arr = np.asarray(ys_s, dtype=float)
+                        ax.hlines(ys_arr, lo_s, hi_s, color=scolors[s], linewidth=0.9 * sz.scale, zorder=3)
+                        for ends in (lo_s, hi_s):
+                            ax.vlines(
+                                ends,
+                                ys_arr - 0.18,
+                                ys_arr + 0.18,
+                                color=scolors[s],
+                                linewidth=0.9 * sz.scale,
+                                zorder=3,
+                            )
                     dots_art = ax.scatter(
                         xs_s,
                         ys_s,
@@ -339,9 +502,24 @@ def build_grouped_compare(
                         linewidth=0.5,
                         zorder=4 if focus else 3,
                     )
-                    cats_s = [c for c in categories if grid[c].get(s) is not None]
-                    tag_points(ctx, dots_art, xs_s, ys_s,
-                               [{"name": s, "x": c, "value": v, "unit": unit} for c, v in zip(cats_s, xs_s)])
+                    tag_points(
+                        ctx,
+                        dots_art,
+                        xs_s,
+                        ys_s,
+                        [
+                            {
+                                "name": s,
+                                "x": c,
+                                "value": v,
+                                "lo": (errors or {}).get(c, {}).get(s, (None, None))[0],
+                                "hi": (errors or {}).get(c, {}).get(s, (None, None))[1],
+                                "n": cell_counts.get(c, {}).get(s),
+                                "unit": unit,
+                            }
+                            for c, v in zip(cats_s, xs_s, strict=True)
+                        ],
+                    )
             if not log:
                 minus = theme.minus_sign
                 ax.xaxis.set_major_locator(MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10]))
@@ -372,8 +550,20 @@ def build_grouped_compare(
                         zorder=2,
                     )
                     cats_s = [c for c in categories if grid[c].get(s) is not None]
-                    tag_each(ctx, bars_s.patches,
-                             [{"name": s, "x": c, "value": v, "unit": unit} for c, v in zip(cats_s, vs_s)])
+                    tag_each(
+                        ctx,
+                        bars_s.patches,
+                        [
+                            {
+                                "name": s,
+                                "x": c,
+                                "value": v,
+                                "n": cell_counts.get(c, {}).get(s),
+                                "unit": unit,
+                            }
+                            for c, v in zip(cats_s, vs_s, strict=True)
+                        ],
+                    )
             ax.vlines(
                 0.0,
                 -0.5 * n_ser - 0.25,
@@ -398,7 +588,8 @@ def build_grouped_compare(
                     txt = _with_unit(txt, unit)
                     first_val_done = True
                 is_hl_s = s in hl
-                anchor_x = v if (dots or v >= 0) else 0.0
+                hi_end = errors[cat][s][1] if (errors is not None and s in errors.get(cat, {})) else v
+                anchor_x = hi_end if (dots or v >= 0) else 0.0
                 vnote = ax.annotate(
                     _plain(txt, theme),
                     (anchor_x, yi),
@@ -435,9 +626,28 @@ def build_grouped_compare(
                     annotation_clip=False,
                 )
 
-        # Category names on y axis
+        # Category names on y axis (with optional n= subtitle underneath each category)
         ax.set_yticks(centers, [_plain(c, theme) for c in categories])
         ax.tick_params(axis="y", length=0, labelsize=sz.body, labelcolor=theme.ink, pad=6)
+        if cat_counts:
+            for tick, cat in zip(ax.get_yticklabels(), categories, strict=True):
+                if cat in cat_counts:
+                    tick.set_verticalalignment("bottom")
+            for c_idx, cat in enumerate(categories):
+                if cat not in cat_counts:
+                    continue
+                ax.annotate(
+                    _plain(f"n={cat_counts[cat]}", theme),
+                    (0.0, centers[c_idx]),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(-6.0, -1.0),
+                    textcoords="offset points",
+                    ha="right",
+                    va="top",
+                    fontsize=sz.foot,
+                    color=theme.muted,
+                    annotation_clip=False,
+                )
 
         if legend:
             handles: list[Any] = []
@@ -562,15 +772,27 @@ def build_grouped_compare(
         baseline=base,
         sort=sort,
         zero=zero,
+        error=_jsonable(error) if errors is not None else None,
+        error_label=error_label,
+        n=_jsonable(n) if n is not None else None,
         reference=list(ref) if ref else None,
         log=log or None,
         fmt=fmt,
         legend=legend or None,
     )
+    notes = [
+        nt
+        for nt in (
+            "log scale" if log else None,
+            f"intervals: {error_label}" if errors is not None and error_label else None,
+        )
+        if nt
+    ]
     describe = (
         f"Grouped {'dot plot' if dots else 'bar chart'} of {label or 'values'}"
         + (f" ({unit})" if unit else "")
         + f" across {n_cats} categories and {n_ser} series"
+        + (f", with intervals ({error_label})" if errors is not None and error_label else "")
     )
     return Panel(
         kind="compare",
@@ -580,9 +802,11 @@ def build_grouped_compare(
         spec=spec,
         facts=facts,
         describe=describe,
+        issues=issues,
         _height_mm=_height_mm,
         _min_height_mm=_min_height_mm,
         _draw=_draw,
+        measure_note="; ".join(notes) or None,
         color_items=tuple(ordered_series),
         color_focus=tuple(hl or ordered_series),
         color_mode="highlight" if hl else "series",

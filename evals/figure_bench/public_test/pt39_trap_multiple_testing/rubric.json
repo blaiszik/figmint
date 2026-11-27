@@ -1,0 +1,49 @@
+{
+  "schema_version": "0.1",
+  "id": "pt39_trap_multiple_testing",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Experimentation",
+  "title": "Multiple-testing trap across 20 A/B guardrail metrics",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "1/20 metrics hitting raw p = 0.038 is expected by chance; after BH/Bonferroni correction adj_p = 0.76 (zero significant wins)",
+  "accept": [
+    0.038,
+    0.76,
+    1.12,
+    0.0
+  ],
+  "rel_tol": 0.15,
+  "abs_tol": 0.05,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "statistically significant win",
+    "clear win",
+    "launch approved",
+    "real lift",
+    "proves"
+  ],
+  "required_disclosures": [
+    "multiple|bonferroni|bh|fdr|adjusted|20 metric|chance|false positive",
+    "0.76|0.038|noise|null|not significant"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How many of the 20 metrics remain significant after multiple-testing adjustment?",
+      "expected": "Zero (search_click_depth has raw p = 0.038 but BH-adjusted p = 0.76)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What uncertainty or error information is shown?",
+      "expected": "Per-metric SE / 95% CIs and both raw and adjusted p-values across 20 tests."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why shouldn't search_click_depth be announced as a launch win?",
+      "expected": "Testing 20 null metrics at α = 0.05 produces ~1 false positive by chance alone."
+    }
+  ]
+}

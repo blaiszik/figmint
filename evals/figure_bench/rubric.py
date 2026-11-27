@@ -145,7 +145,7 @@ def numbers_in(text: str) -> list[float]:
     """Extract numeric values as a reader sees them: 1,200 / 0.58 / 46% / 1.3×10⁻⁷ / 2e-5 / −3."""
     text = text.replace("\N{MINUS SIGN}", "-").replace("\N{EN DASH}", " ")
     out: list[float] = []
-    sci = re.compile(r"(\d+(?:\.\d+)?)\s*[×x]\s*10([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+|\^?[-+]?\d+)")
+    sci = re.compile(r"(-?\d+(?:\.\d+)?)\s*[×x]\s*10([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+|\^?[-+]?\d+)")
     for m in sci.finditer(text):
         exp = m.group(2).translate(_SUP).lstrip("^")
         out.append(float(m.group(1)) * 10 ** int(exp))
@@ -159,17 +159,21 @@ def numbers_in(text: str) -> list[float]:
 
 
 def answer_matches(text: str, key: dict[str, Any]) -> tuple[bool, list[float]]:
-    """Return ``(matched, found_numbers)`` checking ``text`` against ``key['accept']``."""
+    """Return ``(matched, found_numbers)`` checking ``text`` against ``key['accept']``.
+
+    Matching is sign-aware: a negative target in ``accept`` (e.g. ``-18.0``) matches
+    negative numbers (``-18%`` / ``−18%``) and does not match positive values (``+18%``
+    or ``18%``), and vice versa. Tasks where either sign is acceptable list both signs
+    explicitly in ``accept``.
+    """
     found = numbers_in(text)
     accept = key.get("accept") or []
     for v in found:
         for target in accept:
-            tol = max(float(key.get("abs_tol", 0.0)), float(key.get("rel_tol", 0.0)) * abs(float(target)))
-            for cand in (v, abs(v)):
-                if math.isclose(cand, float(target), abs_tol=tol) or math.isclose(
-                    cand, abs(float(target)), abs_tol=tol
-                ):
-                    return True, found
+            t = float(target)
+            tol = max(float(key.get("abs_tol", 0.0)), float(key.get("rel_tol", 0.0)) * abs(t))
+            if math.isclose(v, t, abs_tol=tol):
+                return True, found
     return False, found
 
 
@@ -229,6 +233,9 @@ def load_rubric(task_dir: str | Path, *, answers: dict[str, Any] | None = None) 
             "no_effect_trap": bool(data.get("no_effect_trap", False)),
             "forbidden_overclaim_phrases": list(data.get("forbidden_overclaim_phrases", [])),
             "required_disclosures": list(data.get("required_disclosures", [])),
+            "forbid_truncated_bars": bool(data.get("forbid_truncated_bars", False)),
+            "require_log_scale": bool(data.get("require_log_scale", False)),
+            "min_panels": int(data.get("min_panels", 0)),
             "reader_questions": list(data.get("reader_questions", [])),
             "_source": "rubric.json",
             "_task_dir": str(tdir),
@@ -263,6 +270,9 @@ def load_rubric(task_dir: str | Path, *, answers: dict[str, Any] | None = None) 
         "no_effect_trap": False,
         "forbidden_overclaim_phrases": [],
         "required_disclosures": [],
+        "forbid_truncated_bars": False,
+        "require_log_scale": False,
+        "min_panels": 0,
         "reader_questions": reader_qs,
         "_source": "answers.json" if entry else "default",
         "_task_dir": str(tdir),
@@ -319,8 +329,12 @@ def validate_task_dir(task_dir: str | Path, *, answers: dict[str, Any] | None = 
     ctx = tdir / "context.md"
     if not ctx.is_file():
         errors.append("missing context.md")
-    elif not ctx.read_text(encoding="utf-8").strip():
-        errors.append("context.md is empty")
+    else:
+        ctx_text = ctx.read_text(encoding="utf-8")
+        if not ctx_text.strip():
+            errors.append("context.md is empty")
+        elif re.search(r"\bmintfig\b", ctx_text, re.IGNORECASE):
+            errors.append("context.md must not mention 'mintfig' (library-agnostic prompt requirement)")
 
     data_dir = tdir / "data"
     if data_dir.is_dir():
@@ -412,6 +426,24 @@ def validate_task_dir(task_dir: str | Path, *, answers: dict[str, Any] | None = 
             lv = raw[list_field]
             if not isinstance(lv, list) or not all(isinstance(x, str) for x in lv):
                 errors.append(f"{list_field} must be a list of strings")
+            elif list_field == "required_disclosures":
+                for d in lv:
+                    alts = [a.strip() for a in d.split("|") if a.strip()]
+                    if not alts:
+                        errors.append("required_disclosures contains an empty entry")
+                    elif all(len(a.split()) > 6 for a in alts):
+                        errors.append(
+                            f"required_disclosures entry {d!r} looks like an unmatchable prose sentence "
+                            "(use concise matchable tokens or pipe-delimited alternatives like 'a|b')"
+                        )
+
+    for opt_bool in ("forbid_truncated_bars", "require_log_scale"):
+        if opt_bool in raw and not isinstance(raw[opt_bool], bool):
+            errors.append(f"{opt_bool} must be a boolean, got {raw[opt_bool]!r}")
+    if "min_panels" in raw:
+        mp = raw["min_panels"]
+        if not isinstance(mp, int) or isinstance(mp, bool) or mp < 0:
+            errors.append(f"min_panels must be a non-negative integer, got {mp!r}")
 
     rqs = raw.get("reader_questions")
     if not isinstance(rqs, list):
@@ -434,7 +466,39 @@ def validate_task_dir(task_dir: str | Path, *, answers: dict[str, Any] | None = 
 # --------------------------------------------------------------------------- scoring
 
 
-def _detect_overclaims(text: str, extra_phrases: list[str] | None = None) -> list[str]:
+def _norm_disclosure_text(text: str) -> str:
+    """Normalize punctuation and whitespace for robust disclosure matching."""
+    t = text.lower()
+    t = t.replace("\u2212", "-").replace("\u2013", "-").replace("\u2014", "-").replace("\u00a0", " ")
+    t = re.sub(r"\s+", " ", t)
+    return t
+
+
+def _disclosure_present(spec: str, norm_blob: str) -> bool:
+    """Return True if any pipe-delimited alternative in ``spec`` matches ``norm_blob``.
+
+    Normalizes whitespace around ``=`` and ``%`` as well as ``s.d.``/``sd`` so reasonable
+    human formatting variations (``n = 3`` vs ``n=3``, ``±1 s.d.`` vs ``±1 SD``) pass cleanly.
+    """
+    compact_blob = re.sub(r"\s*([=%])\s*", r"\1", norm_blob)
+    for alt in spec.split("|"):
+        cand = _norm_disclosure_text(alt).strip()
+        if not cand:
+            continue
+        if cand in norm_blob:
+            return True
+        compact_cand = re.sub(r"\s*([=%])\s*", r"\1", cand)
+        if compact_cand in compact_blob:
+            return True
+    return False
+
+
+def _detect_overclaims(
+    text: str,
+    extra_phrases: list[str] | None = None,
+    *,
+    include_generic: bool = True,
+) -> list[str]:
     """Return unnegated overclaim phrases found in ``text``."""
     found: list[str] = []
 
@@ -450,11 +514,12 @@ def _detect_overclaims(text: str, extra_phrases: list[str] | None = None) -> lis
         prefix = text[window_start:pos]
         return bool(_NEGATION_RE.search(prefix))
 
-    for m in OVERCLAIM_PATTERNS.finditer(text):
-        if not _is_negated(m.start()):
-            phrase = m.group(0).strip()
-            if phrase not in found:
-                found.append(phrase)
+    if include_generic:
+        for m in OVERCLAIM_PATTERNS.finditer(text):
+            if not _is_negated(m.start()):
+                phrase = m.group(0).strip()
+                if phrase not in found:
+                    found.append(phrase)
 
     for phrase in extra_phrases or []:
         p = phrase.strip()
@@ -578,6 +643,20 @@ def _score_visual(
             score -= 20.0
             banned_penalized = True
             issues.append(f"banned_colormaps: {', '.join(neutral_audit['banned_colormaps'])}")
+        if rubric.get("forbid_truncated_bars") and neutral_audit.get("truncated_bar_axes"):
+            score -= 25.0
+            issues.append(
+                f"truncated_bar_baseline: {'; '.join(neutral_audit['truncated_bar_axes'][:3])}"
+            )
+        if rubric.get("require_log_scale") and neutral_audit.get("has_log_axis") is False:
+            score -= 20.0
+            issues.append("missing_log_scale: task requires log/symlog axis")
+        min_panels = int(rubric.get("min_panels") or 0)
+        if min_panels > 0 and (neutral_audit.get("panels") or 0) < min_panels:
+            score -= 15.0
+            issues.append(
+                f"insufficient_panels: got {neutral_audit.get('panels', 0)}, expected >= {min_panels}"
+            )
     elif svg_res is not None and svg_res.get("texts", 0) > 0:
         has_vector_audit = True
         sources.append("svg_audit")
@@ -708,8 +787,11 @@ def _score_uncertainty_calibration(
     disclosures = list(rubric.get("required_disclosures") or [])
 
     figure_parts: list[str] = []
-    if neutral_audit and neutral_audit.get("headlines"):
-        figure_parts.extend(neutral_audit["headlines"])
+    if neutral_audit:
+        if neutral_audit.get("all_texts"):
+            figure_parts.extend(neutral_audit["all_texts"])
+        elif neutral_audit.get("headlines"):
+            figure_parts.extend(neutral_audit["headlines"])
     if svg_res and svg_res.get("text_strings"):
         figure_parts.extend(svg_res["text_strings"])
     prose = reply_prose(reply_text) if reply_text else ""
@@ -717,6 +799,7 @@ def _score_uncertainty_calibration(
 
     claim_blob = " ".join([*figure_parts, *alts, prose]).strip()
     all_blob = " ".join([*figure_parts, reply_text or ""]).strip()
+    norm_all_blob = _norm_disclosure_text(all_blob)
 
     unc_named = bool(
         (neutral_audit and neutral_audit.get("uncertainty_named"))
@@ -727,9 +810,11 @@ def _score_uncertainty_calibration(
 
     overclaims: list[str] = []
     if no_effect or forbidden:
-        overclaims = _detect_overclaims(claim_blob, forbidden)
+        overclaims = _detect_overclaims(claim_blob, forbidden, include_generic=no_effect)
 
-    missing_disclosures = [d for d in disclosures if d.strip() and d.lower() not in all_blob.lower()]
+    missing_disclosures = [
+        d for d in disclosures if d.strip() and not _disclosure_present(d, norm_all_blob)
+    ]
 
     issues: list[str] = []
     score = 100.0

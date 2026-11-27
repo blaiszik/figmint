@@ -1165,12 +1165,40 @@ def _render_facts_panel(
         rows_lbl = [str(r) for r in (spec.get("rows") or [])]
         cols_lbl = [str(c) for c in (spec.get("cols") or [])]
         vals = spec.get("values") or []
+        norm_mode = spec.get("normalize")
+        show_counts = bool(spec.get("show_counts"))
         if cols_lbl and isinstance(vals, Sequence) and len(cols_lbl) <= 6 and len(vals) <= 8:
+            raw_nums = [
+                [float(v) if _is_num(v) else None for v in rv]
+                for rv in vals
+                if isinstance(rv, Sequence)
+            ]
+            col_totals = (
+                [
+                    sum(r[c] for r in raw_nums if c < len(r) and r[c] is not None)
+                    for c in range(len(cols_lbl))
+                ]
+                if norm_mode == "col"
+                else []
+            )
             str_rows = []
-            for r_idx, rv in enumerate(vals):
+            for r_idx, rv in enumerate(raw_nums):
                 rl = rows_lbl[r_idx] if r_idx < len(rows_lbl) else f"r{r_idx + 1}"
-                if isinstance(rv, Sequence):
-                    str_rows.append([rl, *[_fmt_num(v, ascii_only=ascii_only) for v in rv]])
+                row_tot = sum(v for v in rv if v is not None) if norm_mode == "row" else 0.0
+                cells: list[str] = []
+                for c_idx, v in enumerate(rv):
+                    if v is None:
+                        cells.append("-" if ascii_only else "—")
+                    elif norm_mode in {"row", "col"}:
+                        denom = row_tot if norm_mode == "row" else (col_totals[c_idx] if c_idx < len(col_totals) else 0.0)
+                        pct = (100.0 * v / denom) if denom > 0 else 0.0
+                        cell_s = f"{pct:.0f}%"
+                        if show_counts:
+                            cell_s += f" ({_fmt_num(v, ascii_only=ascii_only)})"
+                        cells.append(cell_s)
+                    else:
+                        cells.append(_fmt_num(v, ascii_only=ascii_only))
+                str_rows.append([rl, *cells])
             lines.extend(
                 _render_box_table(
                     ["", *cols_lbl],
@@ -1181,6 +1209,159 @@ def _render_facts_panel(
                     ascii_only=ascii_only,
                 )
             )
+    elif panel.kind == "distribution" and panel.spec.get("mode") == "ecdf":
+        groups_raw = panel.spec.get("groups")
+        u = panel.unit
+        if isinstance(groups_raw, Mapping):
+            g_items = [(str(k), v) for k, v in groups_raw.items()]
+        elif isinstance(groups_raw, Sequence) and not isinstance(groups_raw, (str, bytes)):
+            g_items = [(panel.label or "values", groups_raw)]
+        else:
+            g_items = []
+        ecdf_rows: list[list[str]] = []
+        for gname, seq in g_items:
+            if not isinstance(seq, Sequence) or isinstance(seq, (str, bytes)):
+                continue
+            nums = sorted(float(v) for v in seq if _is_num(v))
+            if not nums:
+                continue
+            def _q(prob: float, arr: list[float] = nums) -> float:
+                pos = prob * (len(arr) - 1)
+                lo_i = math.floor(pos)
+                hi_i = min(len(arr) - 1, lo_i + 1)
+                return arr[lo_i] + (pos - lo_i) * (arr[hi_i] - arr[lo_i])
+            ecdf_rows.append([
+                gname,
+                str(len(nums)),
+                _with_unit(_fmt_num(_q(0.5), ascii_only=ascii_only), u),
+                _with_unit(_fmt_num(_q(0.95), ascii_only=ascii_only), u),
+                _with_unit(_fmt_num(_q(0.99), ascii_only=ascii_only), u),
+            ])
+        if ecdf_rows:
+            lines.extend(
+                _render_box_table(
+                    ["Group", "n", "p50", "p95", "p99"],
+                    ecdf_rows,
+                    aligns=["left", "right", "right", "right", "right"],
+                    width=width,
+                    style=style,
+                    ascii_only=ascii_only,
+                )
+            )
+    elif panel.kind == "forest":
+        spec = panel.spec
+        data_map = spec.get("data")
+        err_map = spec.get("error")
+        if isinstance(data_map, Mapping) and isinstance(err_map, Mapping) and data_map:
+            items = [(str(k), float(v)) for k, v in data_map.items() if _is_num(v)]
+            try:
+                order = _sort_order(spec.get("sort", True))
+            except ExplainError:
+                order = "desc"
+            if order == "desc":
+                items.sort(key=lambda kv: kv[1], reverse=True)
+            elif order == "asc":
+                items.sort(key=lambda kv: kv[1])
+            log = bool(spec.get("log"))
+            u = panel.unit
+            ref = spec.get("reference")
+            ref_v = (
+                float(ref[0])
+                if isinstance(ref, Sequence) and not isinstance(ref, str) and ref and _is_num(ref[0])
+                else None
+            )
+            counts_map = spec.get("n") if isinstance(spec.get("n"), Mapping) else {}
+            pooled_spec = spec.get("pooled") if isinstance(spec.get("pooled"), Mapping) else None
+
+            def _tf_f(x: float) -> float:
+                return math.log10(x) if log and x > 0 else x
+
+            bounds_list: list[tuple[str, float, float, float, int | None, bool]] = []
+            for nm, est in items:
+                pair = err_map.get(nm)
+                if isinstance(pair, Sequence) and len(pair) == 2 and _is_num(pair[0]) and _is_num(pair[1]):
+                    lo_b, hi_b = float(pair[0]), float(pair[1])
+                else:
+                    lo_b = hi_b = est
+                cnt = int(counts_map[nm]) if nm in counts_map and _is_num(counts_map[nm]) else None
+                bounds_list.append((nm, est, lo_b, hi_b, cnt, False))
+            if pooled_spec is not None and _is_num(pooled_spec.get("value")):
+                p_lbl = str(pooled_spec.get("label") or "Pooled")
+                p_est = float(pooled_spec["value"])
+                p_lo = float(pooled_spec.get("lo", p_est))
+                p_hi = float(pooled_spec.get("hi", p_est))
+                p_n = int(pooled_spec["n"]) if _is_num(pooled_spec.get("n")) else None
+                bounds_list.append((p_lbl, p_est, p_lo, p_hi, p_n, True))
+
+            span_pts = [
+                _tf_f(x)
+                for _, est, lo_b, hi_b, _, _ in bounds_list
+                for x in (est, lo_b, hi_b)
+            ]
+            if ref_v is not None:
+                span_pts.append(_tf_f(ref_v))
+            lo_ax, hi_ax = min(span_pts), max(span_pts)
+            if hi_ax <= lo_ax:
+                pad = abs(lo_ax) * 0.05 or 1.0
+                lo_ax, hi_ax = lo_ax - pad, hi_ax + pad
+
+            all_f_nums = [x for _, est, lo_b, hi_b, _, _ in bounds_list for x in (est, lo_b, hi_b)]
+            fmt_fn = _formatter(all_f_nums, spec.get("fmt"), unit=u, log=log)
+            signed_z = (not log) and ref_v == 0.0
+
+            def _fe(v: float) -> str:
+                s = fmt_fn(v)
+                return _signed(s) if signed_z else s
+
+            readouts = []
+            for _nm, est, lo_b, hi_b, cnt, _is_p in bounds_list:
+                txt = f"{_with_unit(_fe(est), u)} [{_fe(lo_b)}, {_fe(hi_b)}]"
+                if cnt is not None:
+                    txt += f" (n={cnt:,})"
+                readouts.append(txt)
+
+            max_lbl = min(max(len(r[0]) for r in bounds_list), max(12, width // 3))
+            val_w = max(len(t) for t in readouts)
+            track_w = max(10, width - (4 + max_lbl + 2 + 2 + val_w))
+
+            def _col_f(x: float) -> int:
+                pos = (_tf_f(x) - lo_ax) / (hi_ax - lo_ax) * (track_w - 1)
+                return max(0, min(track_w - 1, round(pos)))
+
+            if ascii_only:
+                l_ch, r_ch, rule_ch, sq_ch, dia_ch, ref_ch = "|", "|", "-", "#", "*", ":"
+            else:
+                l_ch, r_ch, rule_ch, sq_ch, dia_ch, ref_ch = "├", "┤", "─", "■", "◆", "┊"
+
+            hl_raw = spec.get("highlight") or []
+            hl_set = {str(h) for h in ([hl_raw] if isinstance(hl_raw, str) else hl_raw)}
+            marker_on = ">" if ascii_only else "▸"
+            for (nm, est, lo_b, hi_b, _cnt, is_p), r_txt in zip(bounds_list, readouts, strict=True):
+                if is_p:
+                    lines.append(style.dim("    " + ("-" if ascii_only else "─") * min(width - 6, max_lbl + 2 + track_w + 2 + val_w)))
+                cells = [" "] * track_w
+                if ref_v is not None:
+                    cells[_col_f(ref_v)] = ref_ch
+                a, b = _col_f(lo_b), _col_f(hi_b)
+                for c in range(a, b + 1):
+                    cells[c] = rule_ch
+                if b > a:
+                    cells[a], cells[b] = l_ch, r_ch
+                cells[_col_f(est)] = dia_ch if is_p else sq_ch
+                track = "".join(cells)
+                lbl = _clip_label(nm, max_lbl, ascii_only=ascii_only).rjust(max_lbl)
+                if is_p or nm in hl_set:
+                    mark = marker_on if nm in hl_set else " "
+                    lines.append(f"  {style.accent(mark)} {style.bold(lbl)}  {style.bold(track)}  {style.bold(r_txt)}")
+                else:
+                    lines.append(f"    {lbl}  {style.primary(track)}  {r_txt}")
+            err_lbl = spec.get("error_label") or "CI"
+            meta = f"  intervals: {err_lbl}"
+            if ref_v is not None:
+                meta += f"; {ref_ch} null = {_with_unit(fmt_fn(ref_v), u)}"
+            if log:
+                meta += "; log scale"
+            lines.append(style.dim(meta))
     elif panel.kind == "change":
         spec = panel.spec
         before = spec.get("before") or {}
@@ -1315,7 +1496,9 @@ def _bullets(facts: Sequence[str], *, width: int, bullet: str) -> list[str]:
 
 def _has_text_form(panel: Panel) -> bool:
     """Kinds the text surface can draw faithfully; the rest print their title and top facts."""
-    if panel.kind in {"compare", "share", "table", "trend", "change", "waterfall", "timeline", "flow"}:
+    if panel.kind in {"compare", "share", "table", "trend", "change", "waterfall", "timeline", "flow", "forest"}:
+        return True
+    if panel.kind == "distribution" and panel.spec.get("mode") == "ecdf":
         return True
     if panel.kind == "matrix":
         rows = panel.spec.get("values") or []

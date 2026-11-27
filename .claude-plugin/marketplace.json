@@ -1,0 +1,30 @@
+{
+  "name": "mintfig",
+  "owner": {
+    "name": "Ben Blaiszik"
+  },
+  "metadata": {
+    "description": "Message-first scientific figures for coding agents (mint.explain, mint.table), automatic Matplotlib figure auditing (mint.check + PostToolUse hook), and publication-ready journal plates.",
+    "version": "0.3.1"
+  },
+  "plugins": [
+    {
+      "name": "mintfig",
+      "source": "./plugins/claude-code",
+      "description": "Message-first scientific figures for coding agents (mint.explain, mint.table), automatic Matplotlib figure auditing (mint.check + PostToolUse hook), and publication-ready journal plates.",
+      "version": "0.3.1",
+      "author": {
+        "name": "Ben Blaiszik"
+      },
+      "license": "MIT",
+      "repository": "https://github.com/blaiszik/mintfig",
+      "keywords": [
+        "matplotlib",
+        "scientific-figures",
+        "data-visualization",
+        "agents",
+        "publication"
+      ]
+    }
+  ]
+}

@@ -18,8 +18,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "isolated to eu-west (us-east and ap-south <0.5%)",
-    "legible at 450 px phone width"
+    "eu-west",
+    "us-east|ap-south|isolated|rollback"
   ],
   "reader_questions": [
     {

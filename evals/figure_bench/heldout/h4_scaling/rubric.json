@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "h4_scaling",
+  "split": "heldout",
+  "track": "swe_coding",
+  "domain": "ML Scaling",
+  "title": "Log–log compute scaling laws across architecture families",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "mixture-of-experts scaling exponent (log-log slope)",
+  "accept": [
+    -0.0625,
+    0.0625
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 0.008,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "mixture-of-experts|moe",
+    "log|exponent|slope|power"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the mixture-of-experts scaling exponent (the log–log slope of loss against compute)?",
+      "expected": "About −0.0625 (or 0.063 magnitude)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What compute range is fitted?",
+      "expected": "9 compute budgets from 1e18 to 1e22 training FLOPs per architecture family."
+    },
+    {
+      "kind": "nuance",
+      "question": "How do dense and recurrent architectures compare?",
+      "expected": "Mixture-of-experts has the steepest loss decay with compute, outscaling both dense and recurrent models."
+    }
+  ]
+}

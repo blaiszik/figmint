@@ -1,0 +1,45 @@
+{
+  "schema_version": "0.1",
+  "id": "18_db_query_plan_tail",
+  "split": "dev",
+  "track": "swe_coding",
+  "domain": "Databases",
+  "title": "PostgreSQL composite index p99 tail gain vs write overhead",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "orders_join p99 drops 6.1x (150 -> 25 ms, -126 ms) while order_insert adds +4.1 ms p50",
+  "accept": [
+    6.113394,
+    125.881281,
+    24.617952,
+    150.499233,
+    4.095364
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.5,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "orders_join",
+    "order_insert|write",
+    "p99|500"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By how much did the composite index cut orders_join p99 latency?",
+      "expected": "About 6.1× (from 150 ms down to 25 ms)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many queries per endpoint back each percentile?",
+      "expected": "500 queries per endpoint per stage."
+    },
+    {
+      "kind": "nuance",
+      "question": "What tradeoff appeared on the write path?",
+      "expected": "order_insert latency rose by ~+4.1 ms at p50 due to index maintenance."
+    }
+  ]
+}

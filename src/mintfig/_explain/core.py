@@ -105,6 +105,7 @@ KINDS: tuple[str, ...] = (
     "waterfall",
     "timeline",
     "flow",
+    "forest",
 )
 
 
@@ -523,13 +524,18 @@ def _named_values(values: object, what: str, *, allow_nan: bool = False) -> dict
                     "or convert to a dict {row[name]: row[value]}."
                 ),
             )
-        try:
-            items = [(pair[0], pair[1]) for pair in values]
-        except (TypeError, IndexError, KeyError) as exc:
-            raise ExplainError(
-                f"{what} must be a mapping of name -> number.",
-                fix_hint='Pass a dict such as {"checkout": 1840, "search": 460}.',
-            ) from exc
+        items = []
+        for pair in values:
+            if (
+                isinstance(pair, (str, bytes))
+                or not isinstance(pair, Sequence)
+                or len(pair) != 2
+            ):
+                raise ExplainError(
+                    f"{what} must be a mapping of name -> number (or a list of (name, number) pairs).",
+                    fix_hint='Pass a dict such as {"checkout": 1840, "search": 460}.',
+                )
+            items.append((pair[0], pair[1]))
     else:
         raise ExplainError(
             f"{what} must be a mapping of name -> number, got {type(values).__name__}.",

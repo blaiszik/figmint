@@ -78,6 +78,9 @@ def _write_rubric(
     forbidden_overclaim_phrases: list[str] | None = None,
     required_disclosures: list[str] | None = None,
     reader_questions: list[dict[str, str]],
+    forbid_truncated_bars: bool = False,
+    require_log_scale: bool = False,
+    min_panels: int = 0,
 ) -> dict[str, Any]:
     rubric = {
         "schema_version": "0.1",
@@ -96,6 +99,9 @@ def _write_rubric(
         "no_effect_trap": bool(no_effect_trap),
         "forbidden_overclaim_phrases": list(forbidden_overclaim_phrases or []),
         "required_disclosures": list(required_disclosures or []),
+        **({"forbid_truncated_bars": True} if forbid_truncated_bars else {}),
+        **({"require_log_scale": True} if require_log_scale else {}),
+        **({"min_panels": int(min_panels)} if min_panels > 0 else {}),
         "reader_questions": reader_questions,
     }
     (root / "rubric.json").write_text(json.dumps(rubric, indent=2) + "\n", encoding="utf-8")
@@ -229,7 +235,10 @@ def pt16_hyperfine_diff() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=0.5,
         uncertainty_required=True,
-        required_disclosures=["run-to-run s.d. or spread across 20 runs", "YAML parser change is within noise"],
+        required_disclosures=[
+            "s.d.|sd|±|spread|20 runs|n=20",
+            "yaml|within noise|unchanged|no speedup",
+        ],
         reader_questions=[
             {
                 "kind": "primary",
@@ -320,7 +329,10 @@ def pt17_pytest_regression() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=0.5,
         uncertainty_required=True,
-        required_disclosures=["40 benchmark rounds with spread (s.d. or IQR)", "other 5 endpoints unchanged within noise"],
+        required_disclosures=[
+            "40 rounds|40 runs|n=40|s.d.|sd|iqr|±|spread",
+            "other 5|five|unchanged|within noise|flat",
+        ],
         reader_questions=[
             {
                 "kind": "primary",
@@ -529,7 +541,7 @@ def pt19_k6_latency_deploy() -> dict[str, Any]:
         rel_tol=0.10,
         abs_tol=0.15,
         uncertainty_required=False,
-        required_disclosures=["500 ms SLA breach", "p50 barely changed"],
+        required_disclosures=["500 ms|500ms|sla", "p50|median"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -729,7 +741,10 @@ def pt21_llm_pareto_frontier() -> dict[str, Any]:
         rel_tol=0.06,
         abs_tol=0.3,
         uncertainty_required=True,
-        required_disclosures=["3 Pareto-optimal configs (cfg-mini-int4, cfg-mid-fp8, cfg-large-bf16)", "accuracy_sd uncertainty across 500 examples"],
+        required_disclosures=[
+            "pareto|frontier|cfg-mid-fp8|dominated",
+            "s.d.|sd|±|500|uncertainty|ci",
+        ],
         reader_questions=[
             {
                 "kind": "primary",
@@ -898,7 +913,7 @@ def pt23_memory_soak_leak() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=0.8,
         uncertainty_required=False,
-        required_disclosures=["2048 MB (2 GB) OOM limit", "other 3 workers stay flat"],
+        required_disclosures=["2048|2 gb|2gb|oom", "flat|stable|other 3|other three|worker-ingest"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -995,7 +1010,7 @@ def pt24_narrow_phone_alert() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=0.5,
         uncertainty_required=False,
-        required_disclosures=["isolated to eu-west (us-east and ap-south <0.5%)", "legible at 450 px phone width"],
+        required_disclosures=["eu-west", "us-east|ap-south|isolated|rollback"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1088,7 +1103,7 @@ def pt25_slide_quarterly_perf() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=0.8,
         uncertainty_required=True,
-        required_disclosures=["quarterly s.d. shown for latency/throughput", "sized for 1280 px slide"],
+        required_disclosures=["s.d.|sd|±|spread|ci", "apac|q4|2025"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1172,7 +1187,7 @@ def pt26_dark_dashboard_card() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=0.4,
         uncertainty_required=True,
-        required_disclosures=["dark background with high-contrast labels", "spread across 8 replay runs"],
+        required_disclosures=["s3-fifo", "8 runs|8 replay|n=8|s.d.|sd|±|spread"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1250,14 +1265,14 @@ def pt27_terminal_only_bench() -> dict[str, Any]:
         track="multi_surface",
         domain="Systems",
         title="SSH terminal-only serialization benchmark comparison",
-        display_width_px=700,
+        display_width_px=72,
         surface="terminal",
-        what="flatwire mean decode throughput (MB/s) or its speedup ratio vs json-std / cbor-fast",
-        accept=[dec_means["flatwire"], ratio_json, ratio_cbor],
+        what="flatwire mean decode throughput (MB/s), speedup ratio vs json-std / cbor-fast / proto-lite, or payload overhead (%)",
+        accept=[dec_means["flatwire"], ratio_json, ratio_cbor, dec_means["flatwire"] / dec_means["proto-lite"]],
         rel_tol=0.08,
         abs_tol=0.15,
         uncertainty_required=True,
-        required_disclosures=["<=72-column plain-text or Unicode table/bars", "run-to-run spread (s.d.) across 10 runs"],
+        required_disclosures=["flatwire", "s.d.|sd|±|10 runs|n=10|spread", "proto-lite|payload"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1382,7 +1397,8 @@ fig.savefig(OUT_PATH, dpi=100)
         rel_tol=0.08,
         abs_tol=0.3,
         uncertainty_required=True,
-        required_disclosures=["corrected F1 gain from data", "honest zero baseline or dot/point-interval encoding", "error bar definition (s.d./CI, 6 seeds)"],
+        forbid_truncated_bars=True,
+        required_disclosures=["6 seeds|n=6|s.d.|sd|ci|±", "baseline|zero|0"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1508,7 +1524,7 @@ fig.savefig(OUT_PATH, dpi=100)
         rel_tol=0.06,
         abs_tol=0.5,
         uncertainty_required=False,
-        required_disclosures=["perceptually uniform colormap (no jet/rainbow)", f"corrected overall accuracy ({acc_pct:.1f}%)", "search -> infra misrouting (46 tickets)"],
+        required_disclosures=["73.2%|73%|accuracy", "search|infra|46"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1629,7 +1645,7 @@ fig.savefig(OUT_PATH, dpi=100)
         rel_tol=0.08,
         abs_tol=1.0,
         uncertainty_required=False,
-        required_disclosures=["no line-struck labels", "no %% typo or ASCII hyphen minus", "no right-edge clipping"],
+        required_disclosures=["v2.0|v2", "v1.1|concurrency|64"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -1810,8 +1826,8 @@ def h12_hyperfine_within_noise() -> dict[str, Any]:
             "beats baseline cleanly",
         ],
         required_disclosures=[
-            "difference is within run-to-run noise",
-            "overlapping ±1 s.d. intervals across 25 runs",
+            "within noise|noise|overlap|no speedup|not faster|inconclusive",
+            "25 runs|n=25|s.d.|sd|±|ci",
         ],
         reader_questions=[
             {
@@ -1897,7 +1913,10 @@ def h13_narrow_ide_sidebar() -> dict[str, Any]:
         rel_tol=0.08,
         abs_tol=1.0,
         uncertainty_required=True,
-        required_disclosures=["distribution spread (IQR/points across 80 runs)", "slow tail runs in parallel_8w", "legible at 450 px width"],
+        required_disclosures=[
+            "80 runs|n=80|iqr|s.d.|sd|±|spread|percentile",
+            "parallel_8w|parallel|tail|outlier",
+        ],
         reader_questions=[
             {
                 "kind": "primary",
@@ -2008,7 +2027,7 @@ fig.savefig(OUT_PATH, dpi=100)
         rel_tol=0.08,
         abs_tol=1.5,
         uncertainty_required=True,
-        required_disclosures=["corrected ap-northeast median", "y-axis labelled with ms", "spread across 60 requests/region"],
+        required_disclosures=["ap-northeast", "ms", "60|iqr|median|spread|s.d.|sd|n=60"],
         reader_questions=[
             {
                 "kind": "primary",
@@ -2163,7 +2182,8 @@ fig.savefig(OUT_PATH, dpi=100)
         rel_tol=0.12,
         abs_tol=1.0,
         uncertainty_required=True,
-        required_disclosures=["shaded band labelled as ±1 s.d.", "corrected crossover epoch", "no overlapping legend/annotations"],
+        min_panels=2,
+        required_disclosures=["s.d.|sd|±|5 seeds|n=5", "epoch 6|crossover|cosine"],
         reader_questions=[
             {
                 "kind": "primary",

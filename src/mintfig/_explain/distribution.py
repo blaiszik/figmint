@@ -9,11 +9,13 @@ import numpy as np
 from matplotlib import patheffects
 from matplotlib.axes import Axes
 from matplotlib.ticker import (
+    FixedLocator,
     FuncFormatter,
     MaxNLocator,
 )
 from matplotlib.transforms import Bbox
 
+from ..annotations import _relax_positions_pt
 from ..themes import (
     Theme,
 )
@@ -21,6 +23,7 @@ from .core import (
     MAX_COMPARE_ITEMS,
     MAX_FACETS,
     MAX_GROUPS,
+    PT_TO_MM,
     ExplainError,
     Panel,
     _base_spec,
@@ -60,7 +63,7 @@ from .core import (
     _with_unit,
 )
 from .marks import tag as tag_mark
-from .marks import tag_each
+from .marks import tag_each, tag_points
 
 # --------------------------------------------------------------------------- #
 # distribution
@@ -251,7 +254,7 @@ def _histogram_edges(
     )
 
 
-@_guarded("distribution")
+@_guarded("distribution", aliases={"measure": "label"})
 def distribution(
     groups: Mapping[str, Sequence[float]] | Sequence[float] | Sequence[Mapping[str, Any]],
     *,
@@ -268,10 +271,10 @@ def distribution(
     bins: int | str | Sequence[float] | None = None,
     fmt: str | None = None,
     mode: str = "dots",
-    quantiles: int = 20,
+    quantiles: int | Sequence[float] | None = None,
     facet: bool | str = False,
 ) -> Panel:
-    """How are values spread within groups? Every observation as a dot, quantile dotplot, or histogram.
+    """How are values spread within groups? Every observation as a dot, quantile dotplot, ECDF, or histogram.
 
     ``groups`` maps a group name to its raw observations (or pass one list/array
     for a single variable, or row-shaped data / DataFrame with ``group=`` and
@@ -280,16 +283,19 @@ def distribution(
     and \N{PLUS-MINUS SIGN} 1 s.d.) mark. Pass ``mode="quantile"`` (with optional
     ``quantiles=20``, 5–50) for Wilkinson-stacked countable quantile dotplots
     (Kay & Hullman) where each dot represents ``100 / quantiles``% probability.
-    Pass ``bins="auto"`` (an integer 2–60, or explicit edges) — or call the alias
-    :func:`histogram` — to draw a binned histogram (single panel, or shared-axis
-    stacked small multiples for up to 4 groups). ``baseline`` names the reference
-    group (a control, "before"): drawn in ink, with every highlighted (or every
-    other) group stated against it, including pairwise superiority probability
-    ``P(group > baseline)``. ``facet=`` draws small multiples on one shared value axis:
-    with dot strips, one panel per facet level showing the same groups (tidy rows with
-    ``facet="<column>"``, or ``{facet: {group: [obs]}}`` with ``facet=True``); with
-    ``bins=``, ``facet=True`` gives each of 2-12 groups its own histogram on shared bins
-    and a shared count axis.
+    Pass ``mode="ecdf"`` (with optional ``quantiles=(0.5, 0.95, 0.99)``) for
+    empirical cumulative distribution step curves (0–100%) with direct end labels
+    and p50/p95/p99 reference lines. Pass ``bins="auto"`` (an integer 2–60, or
+    explicit edges) — or call the alias :func:`histogram` — to draw a binned
+    histogram (single panel, or shared-axis stacked small multiples for up to 4
+    groups). ``baseline`` names the reference group (a control, "before"): drawn
+    in ink, with every highlighted (or every other) group stated against it,
+    including pairwise superiority probability ``P(group > baseline)``. ``facet=``
+    draws small multiples on one shared value axis: with dot strips, one panel
+    per facet level showing the same groups (tidy rows with ``facet="<column>"``,
+    or ``{facet: {group: [obs]}}`` with ``facet=True``); with ``bins=``,
+    ``facet=True`` gives each of 2-12 groups its own histogram on shared bins and
+    a shared count axis.
     """
     if stat not in {"median", "mean"}:
         raise ExplainError(
@@ -297,27 +303,51 @@ def distribution(
             fix_hint='Use stat="median" (median and middle half) or stat="mean" (mean and '
             "\N{PLUS-MINUS SIGN} 1 s.d.).",
         )
-    if not isinstance(mode, str) or mode not in {"dots", "quantile"}:
+    if not isinstance(mode, str) or mode not in {"dots", "quantile", "ecdf"}:
         raise ExplainError(
             f"distribution(mode={mode!r}) is not a recognised mode.",
-            fix_hint='Use mode="dots" (raw observations) or mode="quantile" (stacked countable quantile dotplot).',
+            fix_hint='Use mode="dots" (raw observations), mode="quantile" (stacked countable '
+            'quantile dotplot), or mode="ecdf" (empirical CDF step curves).',
         )
-    if (
-        isinstance(quantiles, bool)
-        or not isinstance(quantiles, (int, np.integer))
-        or not (5 <= int(quantiles) <= 50)
-    ):
-        raise ExplainError(
-            f"distribution(quantiles={quantiles!r}) must be an integer between 5 and 50.",
-            fix_hint="Pass quantiles=20 (each dot = 5%) or another integer from 5 to 50.",
-        )
-    q = int(quantiles)
+    q = 20
+    ecdf_qs: tuple[float, ...] = (0.5, 0.95, 0.99)
+    if mode == "ecdf":
+        if quantiles is not None:
+            if isinstance(quantiles, (str, bytes, bool)) or _is_number(quantiles):
+                raise ExplainError(
+                    f"distribution(mode='ecdf', quantiles={quantiles!r}) must be a sequence of probabilities in (0, 1).",
+                    fix_hint="Pass quantiles=(0.5, 0.95, 0.99) or omit it for the default p50/p95/p99 lines.",
+                )
+            q_arr = _values_array(quantiles, "distribution(quantiles)")
+            if q_arr.size == 0 or q_arr.size > 6 or not np.all(np.isfinite(q_arr)):
+                raise ExplainError(
+                    "distribution(mode='ecdf', quantiles=...) expects 1 to 6 finite probabilities in (0, 1).",
+                    fix_hint="Pass e.g. quantiles=(0.5, 0.95, 0.99).",
+                )
+            if not np.all((q_arr > 0.0) & (q_arr < 1.0)):
+                raise ExplainError(
+                    "distribution(mode='ecdf', quantiles=...) values must lie strictly between 0 and 1.",
+                    fix_hint="Pass probabilities such as quantiles=(0.5, 0.95, 0.99), not percentages.",
+                )
+            ecdf_qs = tuple(sorted({float(v) for v in q_arr}))
+    else:
+        if quantiles is not None:
+            if (
+                isinstance(quantiles, bool)
+                or not isinstance(quantiles, (int, np.integer))
+                or not (5 <= int(quantiles) <= 50)
+            ):
+                raise ExplainError(
+                    f"distribution(quantiles={quantiles!r}) must be an integer between 5 and 50.",
+                    fix_hint="Pass quantiles=20 (each dot = 5%) or another integer from 5 to 50.",
+                )
+            q = int(quantiles)
     faceted = facet is not False and facet is not None
     if faceted and bins is None:
         if mode != "dots":
             raise ExplainError(
-                'distribution(facet=...) draws dot strips; mode="quantile" has no faceted form.',
-                fix_hint='Drop mode="quantile", or drop facet= for one quantile dotplot.',
+                f'distribution(facet=...) draws dot strips; mode={mode!r} has no faceted form.',
+                fix_hint=f'Drop mode={mode!r}, or drop facet= for one panel.',
             )
         return _faceted_strips(
             groups,
@@ -339,10 +369,10 @@ def distribution(
             f"histogram(facet={facet!r}) must be True or False: each group becomes one histogram.",
             fix_hint="Pass facet=True with {group: [observations]} (2-12 groups).",
         )
-    if mode == "quantile" and bins is not None:
+    if mode in {"quantile", "ecdf"} and bins is not None:
         raise ExplainError(
-            'distribution(mode="quantile") cannot be combined with bins=.',
-            fix_hint='Drop bins= to draw a quantile dotplot, or use mode="dots" with bins= for a histogram.',
+            f'distribution(mode={mode!r}) cannot be combined with bins=.',
+            fix_hint=f'Drop bins= for mode={mode!r}, or use mode="dots" with bins= for a histogram.',
         )
     from .._tabular import resolve_distribution_table
 
@@ -360,6 +390,22 @@ def distribution(
         raise ExplainError(
             "distribution(groups) must map group names to lists of observations.",
             fix_hint='e.g. {"control": [4.1, 3.9, 4.4, ...], "treated": [...]}.',
+        )
+    elif (
+        isinstance(groups, Sequence)
+        and not isinstance(groups, (str, bytes))
+        and groups
+        and all(
+            isinstance(item, Sequence)
+            and not isinstance(item, (str, bytes))
+            and len(item) == 2
+            and isinstance(item[0], str)
+            for item in groups
+        )
+    ):
+        raise ExplainError(
+            "distribution(groups) expects a dict mapping group name -> list of observations, got a list of pairs.",
+            fix_hint='Pass a dict such as {"control": [4.1, 3.9, 4.4], "treated": [5.2, 5.5, 5.1]}.',
         )
     else:
         raw = {"": groups}
@@ -564,6 +610,27 @@ def distribution(
         for nm in told
     ]
     alt_facts += pair_facts
+
+    if mode == "ecdf":
+        return _ecdf_panel(
+            names=names,
+            data=data,
+            given=given,
+            dropped=dropped,
+            everything=everything,
+            ecdf_qs=ecdf_qs,
+            hl=hl,
+            base=base,
+            ref=ref,
+            pairs=pairs,
+            label=label,
+            unit=unit,
+            given_unit=given_unit,
+            title=title,
+            log=log,
+            fmt=fmt,
+            whole=whole,
+        )
 
     if bins is not None:
         if faceted and not 2 <= len(names) <= MAX_FACETS:
@@ -1301,7 +1368,8 @@ def distribution(
     )
 
 
-@_guarded("histogram")
+
+@_guarded("histogram", aliases={"measure": "label"})
 def histogram(
     values: Mapping[str, Sequence[float]] | Sequence[float] | Sequence[Mapping[str, Any]],
     *,
@@ -1642,6 +1710,7 @@ def _faceted_strips(
     )
 
 
+
 def _hist_facet_panel(
     *,
     names: list[str],
@@ -1758,5 +1827,428 @@ def _hist_facet_panel(
         color_focus=tuple(hl),
         color_mode="highlight" if hl else "uniform",
         uses_default=not hl,
+        color_baseline=base,
+    )
+
+
+def _q_tag(q: float) -> str:
+    """Format a probability in (0, 1) as a compact quantile tag ('p50', 'p95', 'p99.5')."""
+    pct = q * 100.0
+    if abs(pct - round(pct)) < 1e-6:
+        return f"p{round(pct)}"
+    return f"p{pct:.1f}".rstrip("0").rstrip(".")
+
+
+def _ecdf_panel(
+    *,
+    names: list[str],
+    data: Mapping[str, np.ndarray],
+    given: Mapping[str, np.ndarray],
+    dropped: Mapping[str, int],
+    everything: np.ndarray,
+    ecdf_qs: tuple[float, ...],
+    hl: list[str],
+    base: str | None,
+    ref: tuple[float, str] | None,
+    pairs: list[tuple[str, str]],
+    label: str | None,
+    unit: str | None,
+    given_unit: str | None,
+    title: str | None,
+    log: bool,
+    fmt: str | None,
+    whole: bool,
+) -> Panel:
+    """``distribution(..., mode="ecdf")``: empirical CDF step curves (0–100%)."""
+    report_qs = sorted(set(ecdf_qs) | {0.5, 0.95, 0.99})
+    pcts: dict[str, dict[float, float]] = {
+        nm: {qv: float(np.quantile(data[nm], qv)) for qv in report_qs} for nm in names
+    }
+    key_vals = [v for mp in pcts.values() for v in mp.values()]
+    ecdf_fmt = _formatter(key_vals, fmt, unit=unit, log=log)
+    range_fmt = _formatter(list(everything), fmt, unit=unit, log=log) if whole else ecdf_fmt
+
+    def _u(v: float) -> str:
+        return _with_unit(ecdf_fmt(v), unit)
+
+    facts: list[str] = []
+    for nm in names:
+        arr = data[nm]
+        tag = nm or (label or "values")
+        p50, p95, p99 = pcts[nm][0.5], pcts[nm][0.95], pcts[nm][0.99]
+        extra_qs = [
+            f"{_q_tag(qv)} {_u(pcts[nm][qv])}"
+            for qv in ecdf_qs
+            if qv not in {0.5, 0.95, 0.99}
+        ]
+        q_parts = [f"p50 {_u(p50)}", f"p95 {_u(p95)}", f"p99 {_u(p99)}", *extra_qs]
+        text = (
+            f"{tag}: {', '.join(q_parts)}, "
+            f"range {_range_with_unit(range_fmt(float(arr.min())), range_fmt(float(arr.max())), unit)}, "
+            f"n={arr.size}"
+        )
+        if dropped[nm]:
+            text += f"; {dropped[nm]} missing value{'s' if dropped[nm] > 1 else ''} dropped"
+        facts.append(text)
+
+    pair_facts: list[str] = []
+    for h, other in pairs:
+        h_q, o_q = pcts[h], pcts[other]
+        if all(h_q[qv] > 0 and o_q[qv] > 0 for qv in (0.5, 0.95, 0.99)):
+            pf = (
+                f"{h} vs {other}: "
+                f"p50 {_ratio_text(h_q[0.5] / o_q[0.5])}, "
+                f"p95 {_ratio_text(h_q[0.95] / o_q[0.95])}, "
+                f"p99 {_ratio_text(h_q[0.99] / o_q[0.99])}"
+            )
+        else:
+            d50 = h_q[0.5] - o_q[0.5]
+            d95 = h_q[0.95] - o_q[0.95]
+            d99 = h_q[0.99] - o_q[0.99]
+            dfmt = _formatter([d50, d95, d99], fmt, unit=unit)
+            pf = (
+                f"{h} vs {other}: "
+                f"p50 {_diff_with_unit(_signed(dfmt(d50)), unit)}, "
+                f"p95 {_diff_with_unit(_signed(dfmt(d95)), unit)}, "
+                f"p99 {_diff_with_unit(_signed(dfmt(d99)), unit)}"
+            )
+        facts.append(pf)
+        pair_facts.append(pf)
+        if base is not None and data[h].size >= 3 and data[other].size >= 3:
+            p_sup = _prob_superiority(data[h], data[other])
+            facts.append(f"P({h} > {other}) = {100.0 * p_sup:.0f}%")
+
+    if ref is not None:
+        ref_u = _with_unit(_formatter([ref[0]], log=log)(ref[0]), unit)
+        ref_tag = f" ({ref[1]})" if ref[1] else ""
+        for nm in names:
+            tag = nm or (label or "values")
+            arr = data[nm]
+            below_eq = int((arr <= ref[0]).sum())
+            above = arr.size - below_eq
+            facts.append(
+                f"{tag}: {100.0 * below_eq / arr.size:.0f}% at or below {ref_u}{ref_tag} "
+                f"({100.0 * above / arr.size:.0f}% above)"
+            )
+
+    paired = {nm for pair in pairs for nm in pair} | set(hl)
+    told = [nm for nm in names if nm in paired] or names
+    alt_facts = [
+        f"{nm or (label or 'values')}: p50 {_u(pcts[nm][0.5])}, p95 {_u(pcts[nm][0.95])}, p99 {_u(pcts[nm][0.99])}"
+        for nm in told
+    ] + pair_facts
+
+    q_tags = [_q_tag(qv) for qv in ecdf_qs]
+    measure_note = f"Empirical CDF (%); dashed: {', '.join(q_tags)}"
+    if log:
+        measure_note += "; log scale"
+
+    def _draw_ecdf(ctx: _Ctx, ax: Axes) -> Callable[[], None]:
+        sz = ctx.sizes
+        theme = ctx.theme
+        accent = {
+            name: col for name, col in ctx.colors.items() if name in names and name != base
+        }
+        if log:
+            ax.set_xscale("log")
+        _value_axis(ax, sz, theme, axis="x", nbins=5 if ctx.cell_width_mm >= 100 else 4)
+        _value_axis(ax, sz, theme, axis="y", nbins=5)
+        ax.spines["left"].set_visible(False)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_visible(not theme.hide_spines)
+        if not theme.hide_spines:
+            ax.spines["bottom"].set_color(theme.axis)
+            ax.spines["bottom"].set_linewidth(theme.axis_lw)
+        ax.grid(axis="y", visible=False)
+        if theme.grid_style != "none" and theme.grid_lw > 0:
+            ax.grid(
+                axis="x",
+                color=theme.grid,
+                linestyle=theme.grid_style,
+                linewidth=theme.grid_lw,
+            )
+        ax.set_ylim(0.0, 102.0)
+        ax.yaxis.set_major_locator(FixedLocator([0.0, 25.0, 50.0, 75.0, 100.0]))
+        ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _p: f"{v:.0f}%"))
+        ax.tick_params(axis="y", length=0, labelsize=sz.small, labelcolor=theme.muted, pad=4)
+
+        lo, hi = float(everything.min()), float(everything.max())
+        if ref is not None:
+            lo, hi = min(lo, ref[0]), max(hi, ref[0])
+        if log:
+            ax.set_xlim(
+                *_narrow_log_ticks(
+                    ax.xaxis, lo / 1.08, hi * 1.08, theme.minus_sign, extend=False, data_hi=hi
+                )
+            )
+        else:
+            span = (hi - lo) or abs(hi) or 1.0
+            ax.set_xlim(lo - 0.03 * span, hi + 0.04 * span)
+            ax._mintfig_cover = (lo, hi)  # type: ignore[attr-defined]
+            _cover_with_ticks(ax.xaxis, lo, hi)
+
+        x_title = _measure_text(label, unit)
+        if x_title:
+            ax.set_xlabel(
+                _plain(x_title, theme),
+                fontsize=sz.small,
+                color=theme.muted,
+                labelpad=3,
+            )
+
+        # Horizontal quantile reference lines (p50 / p95 / p99 or custom quantiles)
+        q_line_col = theme.axis if theme.grid_style == "none" else theme.grid
+        for qv in ecdf_qs:
+            ax.axhline(
+                qv * 100.0,
+                color=q_line_col,
+                linewidth=0.75 * sz.scale,
+                linestyle=(0, (3, 2)),
+                zorder=1,
+            )
+
+        ref_note: Any = None
+        if ref is not None:
+            ax.axvline(
+                ref[0],
+                color=theme.ink,
+                linewidth=0.8 * sz.scale,
+                linestyle=(0, (3, 2)),
+                zorder=2,
+            )
+            if ref[1]:
+                ref_note = ax.annotate(
+                    _plain(ref[1], theme),
+                    (ref[0], 1.0),
+                    xycoords=("data", "axes fraction"),
+                    xytext=(0.0, 3.0),
+                    textcoords="offset points",
+                    ha="center",
+                    va="bottom",
+                    fontsize=sz.small,
+                    color=theme.muted,
+                    annotation_clip=False,
+                )
+
+        effects = ctx.line_effects()
+        curve_colors: dict[str, str] = {}
+        emphasis_set = set(hl) if hl else (set(names) if len(names) <= 4 else set(accent))
+        if base is not None:
+            emphasis_set = emphasis_set | {base}
+
+        # Draw context curves first, then baseline, then highlighted curves on top.
+        draw_order = sorted(
+            names,
+            key=lambda nm: (2 if nm in hl else (1 if nm == base else 0)),
+        )
+        for nm in draw_order:
+            arr = data[nm]
+            xs = np.sort(arr)
+            ys = (np.arange(1, arr.size + 1, dtype=float) / arr.size) * 100.0
+            x_step = np.concatenate([[xs[0]], xs])
+            y_step = np.concatenate([[0.0], ys])
+
+            if nm == base:
+                col = ctx.colors.get(nm, theme.ink)
+            elif hl:
+                col = accent.get(nm, theme.context_line)
+            else:
+                col = ctx.colors.get(nm, ctx.default_color)
+            curve_colors[nm] = col
+
+            is_emph = (nm in hl) or (not hl) or (nm == base)
+            lw = (1.85 if (nm in hl or not hl) else 1.55 if nm == base else 1.1) * sz.scale
+            alpha = 0.96 if is_emph else 0.78
+            zord = 4.0 if nm in hl else (3.4 if nm == base else (3.0 if not hl else 2.2))
+
+            (line_art,) = ax.step(
+                x_step,
+                y_step,
+                where="post",
+                color=col,
+                linewidth=lw,
+                alpha=alpha,
+                zorder=zord,
+                path_effects=effects if is_emph else None,
+            )
+            # Mark key quantile points along emphasized curves for clean reading & hover tags.
+            mark_qs = sorted(set(ecdf_qs) | {0.5, 0.95})
+            mx = [pcts[nm][qv] for qv in mark_qs]
+            my = [qv * 100.0 for qv in mark_qs]
+            tag_points(
+                ctx,
+                line_art,
+                mx,
+                my,
+                [
+                    {
+                        "name": nm or (label or "values"),
+                        "x": _q_tag(qv),
+                        "value": pcts[nm][qv],
+                        "n": arr.size,
+                        "unit": unit,
+                    }
+                    for qv in mark_qs
+                ],
+            )
+            if is_emph:
+                dot_qs = [qv for qv in ecdf_qs if qv <= 0.96][:2]
+                if dot_qs:
+                    ax.scatter(
+                        [pcts[nm][qv] for qv in dot_qs],
+                        [qv * 100.0 for qv in dot_qs],
+                        s=(3.6 * sz.scale) ** 2,
+                        color=col,
+                        edgecolor=theme.background,
+                        linewidth=0.6 * sz.scale,
+                        zorder=zord + 0.3,
+                    )
+
+        # Direct right-margin labels (no legend box).
+        label_entries: list[tuple[Any, float, str]] = []
+        if len(names) == 1 and not names[0]:
+            nm0 = names[0]
+            col0 = curve_colors[nm0]
+            for qv in ecdf_qs:
+                yp = qv * 100.0
+                ann = ax.annotate(
+                    _plain(f"{_q_tag(qv)}  {_u(pcts[nm0][qv])}", theme),
+                    (1.0, yp),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(6.0, 0.0),
+                    textcoords="offset points",
+                    ha="left",
+                    va="center",
+                    fontsize=sz.small,
+                    color=theme.ink if qv in {0.5, 0.95} else theme.muted,
+                    fontweight="bold" if qv == 0.5 else "normal",
+                    annotation_clip=False,
+                )
+                label_entries.append((ann, yp, col0))
+        else:
+            # Order curves from fastest (leftmost, highest CDF) to slowest (rightmost, lowest CDF).
+            ordered = sorted(names, key=lambda nm: (pcts[nm][0.5], pcts[nm][0.95]))
+            x_probe = float(np.median(everything))
+            raw_ys: list[float] = []
+            for idx, nm in enumerate(ordered):
+                arr = data[nm]
+                ecdf_at_probe = 100.0 * float((arr <= x_probe).sum()) / arr.size
+                # Blend empirical height with rank spread so labels distribute smoothly.
+                rank_y = (
+                    86.0 - idx * (64.0 / max(1, len(ordered) - 1))
+                    if len(ordered) > 1
+                    else 50.0
+                )
+                y_anchor = float(np.clip(0.55 * ecdf_at_probe + 0.45 * rank_y, 12.0, 95.0))
+                raw_ys.append(y_anchor)
+            # Enforce monotone descending anchor order matching fastest->slowest curves.
+            for i in range(1, len(raw_ys)):
+                if raw_ys[i] > raw_ys[i - 1] - 4.0:
+                    raw_ys[i] = max(8.0, raw_ys[i - 1] - 4.0)
+
+            cell_pt = ctx.cell_width_mm * sz.scale / PT_TO_MM
+            max_lbl_pt = 0.34 * cell_pt
+            for nm, y_anchor in zip(ordered, raw_ys, strict=True):
+                col = curve_colors[nm]
+                is_emph = nm in emphasis_set
+                weight = "bold" if (nm in hl or nm == base or len(names) == 1) else "normal"
+                text_col = ctx.text_color(col) if (nm in hl or not hl) else (theme.ink if nm == base else theme.muted)
+                candidate = f"{nm} (p95 {_u(pcts[nm][0.95])})"
+                lbl_text = (
+                    candidate
+                    if len(names) <= 4
+                    and ctx.measure.width_pt(candidate, sz.small, weight) <= max_lbl_pt
+                    else nm
+                )
+                ann = ax.annotate(
+                    _plain(lbl_text, theme),
+                    (1.0, y_anchor),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(6.0, 0.0),
+                    textcoords="offset points",
+                    ha="left",
+                    va="center",
+                    fontsize=sz.small,
+                    color=text_col,
+                    fontweight=weight if is_emph else "normal",
+                    annotation_clip=False,
+                )
+                label_entries.append((ann, y_anchor, col))
+
+        def _finish_ecdf() -> None:
+            if ref_note is not None:
+                _keep_inside_x(ctx, ax, ref_note)
+            if not label_entries:
+                return
+            renderer = ctx.fig.canvas.get_renderer()
+            box = ax.get_window_extent(renderer)
+            k = ctx.pt_per_px
+            ys_pt = np.array(
+                [ax.transData.transform((ax.get_xlim()[1], y_a))[1] * k for _, y_a, _ in label_entries]
+            )
+            placed = _relax_positions_pt(
+                ys_pt,
+                sz.small * 1.32,
+                box.y0 * k + sz.small * 0.45,
+                box.y1 * k - sz.small * 0.45,
+            )
+            for (ann, y_a, col), y0_pt, y1_pt in zip(label_entries, ys_pt, placed, strict=True):
+                shift = float(y1_pt - y0_pt)
+                ann.set_position((6.0, shift))
+                if len(names) == 1 and not names[0] and abs(shift) > sz.small * 0.65:
+                    ax.annotate(
+                        "",
+                        (1.0, y_a),
+                        xycoords=("axes fraction", "data"),
+                        xytext=(5.0, shift),
+                        textcoords="offset points",
+                        arrowprops={
+                            "arrowstyle": "-",
+                            "color": col,
+                            "linewidth": 0.55,
+                            "shrinkA": 0,
+                            "shrinkB": 2.0,
+                        },
+                        annotation_clip=False,
+                    )
+
+        return _finish_ecdf
+
+    default_ecdf_qs = (0.5, 0.95, 0.99)
+    return Panel(
+        kind="distribution",
+        title=title,
+        label=label,
+        unit=unit,
+        spec=_base_spec(
+            title,
+            label,
+            given_unit,
+            groups=_jsonable(given.get("", given)),
+            highlight=hl or None,
+            baseline=base,
+            reference=list(ref) if ref else None,
+            log=log or None,
+            fmt=fmt,
+            mode="ecdf",
+            quantiles=list(ecdf_qs) if ecdf_qs != default_ecdf_qs else None,
+        ),
+        facts=facts,
+        alt_facts=alt_facts,
+        describe=(
+            f"Empirical CDF of {label or 'values'}"
+            + (f" ({unit})" if unit else "")
+            + f" for {len(names)} group(s) with {', '.join(q_tags)} reference lines"
+        ),
+        _height_mm=lambda w, _m, _s, _t: min(60.0, max(40.0, 0.44 * w)) + 4.0,
+        _min_height_mm=lambda _w, _m, _s, _t: 36.0,
+        stretch=True,
+        _draw=_draw_ecdf,
+        measure_note=measure_note,
+        color_items=tuple(nm for nm in names if nm),
+        color_focus=tuple(hl),
+        color_mode="highlight" if hl else ("series" if len(names) > 1 else "uniform"),
+        uses_default=(not hl and len(names) <= 1),
         color_baseline=base,
     )

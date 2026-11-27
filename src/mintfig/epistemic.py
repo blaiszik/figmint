@@ -245,10 +245,21 @@ def _describe_panel_l1(panel: Any) -> str:
             parts.append(str(unit))
         if spec.get("bins") is not None:
             parts.append("histogram")
+        elif spec.get("mode") == "ecdf":
+            parts.append("ECDF")
         if spec.get("log"):
             parts.append("log scale")
         if spec.get("facet"):
             parts.append("faceted")
+    elif kind == "forest":
+        if label:
+            parts.append(str(label))
+        if unit and (not label or not _label_has_unit(str(label), str(unit))):
+            parts.append(str(unit))
+        if spec.get("error_label"):
+            parts.append(str(spec["error_label"]))
+        if spec.get("log"):
+            parts.append("log scale")
     elif kind == "waterfall":
         if label:
             parts.append(str(label))
@@ -754,6 +765,15 @@ def _collect_panel_groups(
                     stats = _stats_summary(nums)
                     direct.extend(abs(v) for v in stats)
                     centers.extend(stats)
+                    if spec.get("mode") == "ecdf":
+                        s_nums = sorted(nums)
+                        for prob in (0.5, 0.9, 0.95, 0.99):
+                            pos = prob * (len(s_nums) - 1)
+                            lo_i = math.floor(pos)
+                            hi_i = min(len(s_nums) - 1, lo_i + 1)
+                            qv = s_nums[lo_i] + (pos - lo_i) * (s_nums[hi_i] - s_nums[lo_i])
+                            direct.append(abs(qv))
+                            centers.append(qv)
                     groups.append(_dedup_sample([*nums, *stats], limit=40))
                     if ref_val is not None:
                         above_pct = 100.0 * sum(1 for v in nums if v > ref_val) / len(nums)
@@ -761,6 +781,8 @@ def _collect_panel_groups(
                         shares.extend([above_pct, below_pct])
             if centers:
                 groups.append(centers)
+                if spec.get("mode") == "ecdf":
+                    ratio_groups.append(centers)
 
     elif kind == "relate":
         xs = _extract_numeric_seq(spec.get("x"))
@@ -775,15 +797,53 @@ def _collect_panel_groups(
         mat = spec.get("values")
         if isinstance(mat, Sequence) and not isinstance(mat, (str, bytes)):
             flat_m: list[float] = []
+            norm_mode = spec.get("normalize")
+            grid_rows: list[list[float | None]] = []
             for row in mat:
                 rnums = _extract_numeric_seq(row)
                 if rnums:
                     flat_m.extend(rnums)
                     direct.append(abs(sum(rnums) / len(rnums)))
+                if isinstance(row, Sequence) and not isinstance(row, (str, bytes)):
+                    grid_rows.append([float(v) if _is_finite_number(v) else None for v in row])
             if flat_m:
                 sample = _dedup_sample(flat_m, limit=50)
                 groups.append(sample)
                 direct.extend(abs(v) for v in sample)
+            if norm_mode in {"row", "col"} and grid_rows:
+                n_r = len(grid_rows)
+                n_c = max((len(r) for r in grid_rows), default=0)
+                norm_pcts: list[float] = []
+                diag_pcts: list[float] = []
+                diag_raw = 0.0
+                total_raw = 0.0
+                col_tots = [
+                    sum(r[c] for r in grid_rows if c < len(r) and r[c] is not None)
+                    for c in range(n_c)
+                ]
+                for ri, r in enumerate(grid_rows):
+                    r_tot = sum(v for v in r if v is not None)
+                    for ci, v in enumerate(r):
+                        if v is None:
+                            continue
+                        total_raw += v
+                        denom = r_tot if norm_mode == "row" else col_tots[ci]
+                        pct = (100.0 * v / denom) if denom > 0 else 0.0
+                        norm_pcts.append(pct)
+                        shares.append(pct)
+                        if ri == ci:
+                            diag_pcts.append(pct)
+                            diag_raw += v
+                if norm_pcts:
+                    direct.extend(norm_pcts)
+                if diag_pcts and n_r == n_c and n_r > 1:
+                    macro = sum(diag_pcts) / len(diag_pcts)
+                    direct.append(macro)
+                    shares.append(macro)
+                if total_raw > 0 and n_r == n_c and n_r > 1:
+                    overall = 100.0 * diag_raw / total_raw
+                    direct.extend([overall, diag_raw, total_raw])
+                    shares.append(overall)
 
     elif kind == "table":
         rows = spec.get("rows")
@@ -910,6 +970,33 @@ def _collect_panel_groups(
                     if prev_v > 0:
                         shares.append(100.0 * drop_v / prev_v)
                         shares.append(100.0 * fvals[idx_s] / prev_v)
+
+    elif kind == "forest":
+        data_map = spec.get("data")
+        if isinstance(data_map, Mapping):
+            fvals = [float(v) for v in data_map.values() if _is_finite_number(v)]
+            if fvals:
+                direct.extend(abs(v) for v in fvals)
+                groups.append(fvals)
+                ratio_groups.append(fvals)
+        err = spec.get("error")
+        if isinstance(err, Mapping):
+            for ev in err.values():
+                if _is_finite_number(ev):
+                    direct.append(abs(float(ev)))
+                elif isinstance(ev, Sequence) and not isinstance(ev, (str, bytes)):
+                    direct.extend(abs(float(x)) for x in ev if _is_finite_number(x))
+        pooled_spec = spec.get("pooled")
+        if isinstance(pooled_spec, Mapping):
+            for pk in ("value", "lo", "hi", "n"):
+                if _is_finite_number(pooled_spec.get(pk)):
+                    direct.append(abs(float(pooled_spec[pk])))
+        n_map = spec.get("n")
+        if isinstance(n_map, Mapping):
+            nvals = [float(v) for v in n_map.values() if _is_finite_number(v)]
+            if nvals:
+                direct.extend(nvals)
+                direct.append(sum(nvals))
 
     return direct, groups, ratio_groups, shares
 

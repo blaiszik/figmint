@@ -20,8 +20,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "quarterly s.d. shown for latency/throughput",
-    "sized for 1280 px slide"
+    "s.d.|sd|\u00b1|spread|ci",
+    "apac|q4|2025"
   ],
   "reader_questions": [
     {

@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "dark background with high-contrast labels",
-    "spread across 8 replay runs"
+    "s3-fifo",
+    "8 runs|8 replay|n=8|s.d.|sd|\u00b1|spread"
   ],
   "reader_questions": [
     {

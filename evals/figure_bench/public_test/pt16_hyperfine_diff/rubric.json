@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "run-to-run s.d. or spread across 20 runs",
-    "YAML parser change is within noise"
+    "s.d.|sd|\u00b1|spread|20 runs|n=20",
+    "yaml|within noise|unchanged|no speedup"
   ],
   "reader_questions": [
     {

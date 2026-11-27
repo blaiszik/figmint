@@ -65,6 +65,7 @@ def rc_params(
         "mathtext.it": f"{font_name}:italic",
         "mathtext.bf": f"{font_name}:bold",
         "mathtext.sf": font_name,
+        "mathtext.cal": font_name,
         # Variables render italic ($T$, $P$, $\rho$) while explicit \mathrm{...} stays upright.
         "mathtext.default": "it",
         "mathtext.fallback": "stixsans",

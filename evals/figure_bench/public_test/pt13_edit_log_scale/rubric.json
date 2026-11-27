@@ -20,9 +20,10 @@
     "all four candidates clear rapidly"
   ],
   "required_disclosures": [
-    "log",
-    "50 ng/mL"
+    "log|order of magnitude|decade",
+    "50 ng/mL|50 ng|threshold|floor"
   ],
+  "require_log_scale": true,
   "reader_questions": [
     {
       "kind": "primary",

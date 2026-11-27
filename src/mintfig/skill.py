@@ -9,8 +9,10 @@ from pathlib import Path
 VALID_TARGETS: tuple[str, ...] = (
     "claude",
     "antigravity",
+    "gemini",
     "cursor",
     "codex",
+    "copilot",
     "agents-md",
     "claude-md",
 )
@@ -18,6 +20,7 @@ VALID_TARGETS: tuple[str, ...] = (
 GLOBAL_TARGETS: tuple[str, ...] = (
     "claude",
     "antigravity",
+    "gemini",
     "cursor",
     "codex",
 )
@@ -29,6 +32,7 @@ _AGENT_HOME_DIRS: tuple[tuple[str, str], ...] = (
     ("claude", ".claude"),
     ("codex", ".codex"),
     ("antigravity", ".gemini"),
+    ("gemini", ".gemini"),
     ("cursor", ".cursor"),
 )
 
@@ -40,7 +44,7 @@ def detect_installed_agents(home: str | Path | None = None) -> list[str]:
     """Return agent targets whose standard home directory exists under ``home``.
 
     Checks ``~/.claude`` (``"claude"``), ``~/.codex`` (``"codex"``),
-    ``~/.gemini`` (``"antigravity"``), and ``~/.cursor`` (``"cursor"``).
+    ``~/.gemini`` (``"antigravity"``, ``"gemini"``), and ``~/.cursor`` (``"cursor"``).
     """
     home_path = Path(home).expanduser() if home is not None else Path.home()
     detected: list[str] = []
@@ -96,16 +100,12 @@ def _strip_yaml_frontmatter(markdown: str) -> str:
 
 
 def _build_cursor_mdc(skill_md: str) -> str:
-    """Wrap the skill body with valid Cursor .mdc rule frontmatter."""
+    """Wrap the skill body with semantic Cursor .mdc rule frontmatter (no globs)."""
     body = _strip_yaml_frontmatter(skill_md).rstrip() + "\n"
     frontmatter = (
         "---\n"
         "description: Explain data with message-first chat figures and tables (mint.explain, mint.table), "
         "or generate publication-ready Nature, Science, Cell, PNAS, and NeurIPS scientific figures with mintfig\n"
-        "globs:\n"
-        '  - "**/*.py"\n'
-        '  - "**/*.csv"\n'
-        '  - "**/*.json"\n'
         "alwaysApply: false\n"
         "---\n\n"
     )
@@ -171,12 +171,52 @@ def _normalize_targets(
     return normalized
 
 
+def install_chip_skill(
+    root: str | Path = ".",
+    *,
+    targets: Sequence[str] | None = None,
+    global_install: bool = False,
+    home: str | Path | None = None,
+) -> list[Path]:
+    """Install the companion ``mintchip`` agent skill when ``mintchip`` is importable.
+
+    Returns an empty list when ``mintchip`` is not installed.
+    """
+    try:
+        from mintchip import skill as chip_skill  # type: ignore[import-not-found]
+    except ImportError:
+        return []
+
+    chip_valid = set(getattr(chip_skill, "VALID_TARGETS", ()))
+    chip_targets: list[str] | None
+    if targets is None:
+        chip_targets = None
+    else:
+        raw_list = [t.strip().lower() for t in targets]
+        if "all" in raw_list:
+            chip_targets = ["all"]
+        else:
+            chip_targets = [t for t in raw_list if t in chip_valid]
+            if not chip_targets:
+                return []
+
+    return list(
+        chip_skill.install_skill(
+            root=root,
+            targets=chip_targets,
+            global_install=global_install,
+            home=home,
+        )
+    )
+
+
 def install_skill(
     root: str | Path = ".",
     *,
     targets: Sequence[str] | None = None,
     global_install: bool = False,
     home: str | Path | None = None,
+    include_chip: bool = False,
 ) -> list[Path]:
     """Install mintfig agent skills and/or project instruction snippets.
 
@@ -186,8 +226,8 @@ def install_skill(
         Target project root directory (used when ``global_install=False``).
     targets:
         One or more target identifiers from :data:`VALID_TARGETS` or ``"all"``:
-        ``"claude"``, ``"antigravity"``, ``"cursor"``, ``"codex"``,
-        ``"agents-md"``, ``"claude-md"``.
+        ``"claude"``, ``"antigravity"``, ``"gemini"``, ``"cursor"``, ``"codex"``,
+        ``"copilot"``, ``"agents-md"``, ``"claude-md"``.
         When omitted, project-local installs default to
         ``("claude", "antigravity", "agents-md")``; global installs auto-detect
         installed agents via :func:`detect_installed_agents` and fall back to
@@ -196,9 +236,12 @@ def install_skill(
         When ``True``, install into user-home agent directories under ``home``
         (default :meth:`pathlib.Path.home`): ``~/.claude/skills/mintfig/``,
         ``~/.codex/skills/mintfig/``, ``~/.gemini/config/skills/mintfig/``,
-        and ``~/.cursor/rules/mintfig.mdc``.
+        ``~/.gemini/skills/mintfig/``, and ``~/.cursor/rules/mintfig.mdc``.
     home:
         Optional home directory override for ``global_install=True``.
+    include_chip:
+        When ``True`` and ``mintchip`` is importable, also install the companion
+        ``mintchip`` skill for the matching targets.
 
     Returns
     -------
@@ -234,6 +277,9 @@ def install_skill(
             else:
                 dest = root_path / ".agents" / "skills" / "mintfig" / "SKILL.md"
             written.append(_write_skill_dir(dest))
+        elif target == "gemini":
+            base = home_path if global_install else root_path
+            written.append(_write_skill_dir(base / ".gemini" / "skills" / "mintfig" / "SKILL.md"))
         elif target == "cursor":
             base = home_path if global_install else root_path
             dest = base / ".cursor" / "rules" / "mintfig.mdc"
@@ -252,11 +298,25 @@ def install_skill(
         elif target == "codex":
             base = home_path if global_install else root_path
             written.append(_write_skill_dir(base / ".codex" / "skills" / "mintfig" / "SKILL.md"))
+        elif target == "copilot":
+            base = home_path if global_install else root_path
+            dest = base / ".github" / "copilot-instructions.md"
+            written.append(_upsert_marked_block(dest, snippet))
         elif target == "agents-md":
             dest = (home_path / ".codex" / "AGENTS.md") if global_install else (root_path / "AGENTS.md")
             written.append(_upsert_marked_block(dest, snippet))
         elif target == "claude-md":
             dest = (home_path / ".claude" / "CLAUDE.md") if global_install else (root_path / "CLAUDE.md")
             written.append(_upsert_marked_block(dest, snippet))
+
+    if include_chip:
+        written.extend(
+            install_chip_skill(
+                root=root,
+                targets=targets,
+                global_install=global_install,
+                home=home,
+            )
+        )
 
     return written

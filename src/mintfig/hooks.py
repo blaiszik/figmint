@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import io
 import json
@@ -14,14 +15,16 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from .figcheck import BLOCKING, check_script
-from .skill import detect_installed_agents
-
 HOOK_TARGETS: tuple[str, ...] = ("claude", "cursor", "codex")
-HOOK_COMMAND: str = "mintfig hook run"
+HOOK_COMMAND_TOKEN: str = "mintfig hook run"
+HOOK_COMMAND: str = (
+    "sh -c 'if command -v mintfig >/dev/null 2>&1; then exec mintfig hook run; "
+    "elif command -v uvx >/dev/null 2>&1; then exec uvx mintfig hook run; fi'"
+)
 HOOK_MATCHER: str = "Bash|Write|Edit"
 
 _WRITE_TOOLS = frozenset({"write", "edit", "multiedit", "write_file", "edit_file"})
+_WRITE_EVENTS = frozenset({"afterfileedit", "after_file_edit"})
 _BASH_TOOLS = frozenset({"bash", "shell", "run_command", "terminal"})
 _SKIP_RUNNERS = frozenset(
     {"pytest", "py.test", "ruff", "mypy", "flake8", "black", "isort", "mintfig", "pylint"}
@@ -31,6 +34,89 @@ _PLAIN_EXPLAIN_CALL_RE = re.compile(r"\bexplain\s*\(")
 _MINTFIG_IMPORT_RE = re.compile(r"\b(?:import\s+mintfig|from\s+mintfig(?:\.\w+)*\s+import)\b")
 _SHELL_SPLIT_RE = re.compile(r"(?:&&|\|\||;|\||\n)")
 _PY_TOKEN_RE = re.compile(r"""(?:"([^"\n]+\.py)"|'([^'\n]+\.py)'|(\S+\.py))""", re.IGNORECASE)
+
+_MAX_WRITE_EXEC_BYTES = 30_000
+_MAX_WRITE_EXEC_LINES = 400
+
+# Heavy ML, network, DB, process, web, or CLI-parser modules that must NEVER be
+# executed automatically on a Write/Edit hook event.
+_UNSAFE_WRITE_IMPORTS = frozenset(
+    {
+        "torch",
+        "tensorflow",
+        "tf",
+        "keras",
+        "jax",
+        "flax",
+        "optax",
+        "transformers",
+        "diffusers",
+        "accelerate",
+        "datasets",
+        "peft",
+        "trl",
+        "vllm",
+        "sklearn",
+        "xgboost",
+        "lightgbm",
+        "catboost",
+        "lightning",
+        "pytorch_lightning",
+        "requests",
+        "urllib",
+        "urllib3",
+        "httpx",
+        "aiohttp",
+        "socket",
+        "http",
+        "ftplib",
+        "smtplib",
+        "sqlalchemy",
+        "psycopg",
+        "psycopg2",
+        "pymysql",
+        "pymongo",
+        "redis",
+        "sqlite3",
+        "duckdb",
+        "subprocess",
+        "shutil",
+        "multiprocessing",
+        "concurrent",
+        "asyncio",
+        "celery",
+        "ray",
+        "dask",
+        "boto3",
+        "botocore",
+        "google",
+        "azure",
+        "openai",
+        "anthropic",
+        "argparse",
+        "click",
+        "typer",
+        "fire",
+        "hydra",
+        "omegaconf",
+        "flask",
+        "fastapi",
+        "django",
+        "uvicorn",
+        "streamlit",
+        "gradio",
+    }
+)
+
+_UNSAFE_WRITE_CALLS = frozenset(
+    {
+        "ArgumentParser",
+        "parse_args",
+        "parse_known_args",
+        "backward",
+        "zero_grad",
+    }
+)
 
 
 def _claude_hook_entry() -> dict[str, Any]:
@@ -49,17 +135,28 @@ def _is_mintfig_claude_entry(entry: Any) -> bool:
     if not isinstance(entry, dict):
         return False
     cmd = entry.get("command")
-    if isinstance(cmd, str) and HOOK_COMMAND in cmd:
+    if isinstance(cmd, str) and HOOK_COMMAND_TOKEN in cmd:
         return True
     inner = entry.get("hooks")
     if isinstance(inner, list):
         return any(
             isinstance(h, dict)
             and isinstance(h.get("command"), str)
-            and HOOK_COMMAND in h["command"]
+            and HOOK_COMMAND_TOKEN in h["command"]
             for h in inner
         )
     return False
+
+
+def _cursor_hook_entry() -> dict[str, Any]:
+    return {"command": HOOK_COMMAND}
+
+
+def _is_mintfig_cursor_entry(entry: Any) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    cmd = entry.get("command")
+    return isinstance(cmd, str) and HOOK_COMMAND_TOKEN in cmd
 
 
 def _normalize_hook_targets(
@@ -73,6 +170,8 @@ def _normalize_hook_targets(
         if default_all_for_status:
             return list(HOOK_TARGETS)
         if global_install:
+            from .skill import detect_installed_agents
+
             detected = [t for t in detect_installed_agents(home_path) if t in HOOK_TARGETS]
             return detected if detected else ["claude"]
         return ["claude"]
@@ -103,6 +202,10 @@ def _hook_base_dir(root_path: Path, home_path: Path, *, global_install: bool) ->
 
 def _claude_settings_path(base: Path) -> Path:
     return base / ".claude" / "settings.json"
+
+
+def _cursor_hooks_path(base: Path) -> Path:
+    return base / ".cursor" / "hooks.json"
 
 
 def _sidecar_hook_paths(base: Path, target: str) -> tuple[Path, Path]:
@@ -210,6 +313,86 @@ def _claude_hook_installed(base: Path) -> bool:
     return any(_is_mintfig_claude_entry(entry) for entry in post_tool)
 
 
+def _install_cursor_hook(base: Path) -> Path:
+    """Install mintfig into Cursor's native ``.cursor/hooks.json`` idempotently."""
+    hooks_path = _cursor_hooks_path(base)
+    data = _load_json_object(hooks_path)
+    data.setdefault("version", 1)
+
+    hooks = data.get("hooks")
+    if hooks is None:
+        hooks = {}
+        data["hooks"] = hooks
+    elif not isinstance(hooks, dict):
+        raise ValueError(f"Expected 'hooks' to be an object in {hooks_path}")
+
+    after_edit = hooks.get("afterFileEdit")
+    if after_edit is None:
+        after_edit = []
+        hooks["afterFileEdit"] = after_edit
+    elif not isinstance(after_edit, list):
+        raise ValueError(f"Expected 'hooks.afterFileEdit' to be a list in {hooks_path}")
+
+    canonical = _cursor_hook_entry()
+    new_entries: list[Any] = []
+    inserted = False
+    for entry in after_edit:
+        if _is_mintfig_cursor_entry(entry):
+            if not inserted:
+                new_entries.append(canonical)
+                inserted = True
+        else:
+            new_entries.append(entry)
+    if not inserted:
+        new_entries.append(canonical)
+
+    hooks["afterFileEdit"] = new_entries
+    _write_json_object(hooks_path, data)
+    return hooks_path
+
+
+def _uninstall_cursor_hook(base: Path) -> bool:
+    hooks_path = _cursor_hooks_path(base)
+    removed = False
+    if hooks_path.exists():
+        data = _load_json_object(hooks_path)
+        hooks = data.get("hooks")
+        if isinstance(hooks, dict):
+            after_edit = hooks.get("afterFileEdit")
+            if isinstance(after_edit, list):
+                kept = [entry for entry in after_edit if not _is_mintfig_cursor_entry(entry)]
+                if len(kept) != len(after_edit):
+                    removed = True
+                    if kept:
+                        hooks["afterFileEdit"] = kept
+                    else:
+                        hooks.pop("afterFileEdit", None)
+                    if not hooks:
+                        data.pop("hooks", None)
+                    _write_json_object(hooks_path, data)
+    # Also clean up any legacy sidecar files from earlier mintfig versions.
+    if _uninstall_sidecar_hook(base, "cursor"):
+        removed = True
+    return removed
+
+
+def _cursor_hook_installed(base: Path) -> bool:
+    hooks_path = _cursor_hooks_path(base)
+    if not hooks_path.exists():
+        return False
+    try:
+        data = _load_json_object(hooks_path)
+    except ValueError:
+        return False
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return False
+    after_edit = hooks.get("afterFileEdit")
+    if not isinstance(after_edit, list):
+        return False
+    return any(_is_mintfig_cursor_entry(entry) for entry in after_edit)
+
+
 def _install_sidecar_hook(base: Path, target: str) -> Path:
     manifest_path, script_path = _sidecar_hook_paths(base, target)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -225,7 +408,11 @@ def _install_sidecar_hook(base: Path, target: str) -> Path:
         "#!/usr/bin/env sh\n"
         "# Managed by mintfig (uninstall via `mintfig hook --uninstall`).\n"
         "# Audits Matplotlib/Seaborn plotting scripts via PostToolUse stdin JSON.\n"
-        "exec mintfig hook run\n"
+        "if command -v mintfig >/dev/null 2>&1; then\n"
+        "  exec mintfig hook run\n"
+        "elif command -v uvx >/dev/null 2>&1; then\n"
+        "  exec uvx mintfig hook run\n"
+        "fi\n"
     )
     script_path.write_text(script_body, encoding="utf-8")
     current_mode = script_path.stat().st_mode
@@ -264,6 +451,8 @@ def install_hook(
     for target in normalized:
         if target == "claude":
             written.append(_install_claude_hook(base))
+        elif target == "cursor":
+            written.append(_install_cursor_hook(base))
         else:
             written.append(_install_sidecar_hook(base, target))
     return written
@@ -286,6 +475,9 @@ def uninstall_hook(
         if target == "claude":
             if _uninstall_claude_hook(base):
                 updated.append(_claude_settings_path(base))
+        elif target == "cursor":
+            if _uninstall_cursor_hook(base):
+                updated.append(_cursor_hooks_path(base))
         else:
             if _uninstall_sidecar_hook(base, target):
                 manifest_path, _ = _sidecar_hook_paths(base, target)
@@ -316,6 +508,9 @@ def hook_status(
         if target == "claude":
             cfg_path = _claude_settings_path(base)
             installed = _claude_hook_installed(base)
+        elif target == "cursor":
+            cfg_path = _cursor_hooks_path(base)
+            installed = _cursor_hook_installed(base)
         else:
             cfg_path, _ = _sidecar_hook_paths(base, target)
             installed = _sidecar_hook_installed(base, target)
@@ -384,6 +579,14 @@ def _extract_py_paths_from_bash(command: str) -> list[str]:
     return paths
 
 
+def _is_write_or_edit_event(payload: Mapping[str, Any]) -> bool:
+    tool_name = str(payload.get("tool_name") or "").strip().lower()
+    if tool_name in _WRITE_TOOLS:
+        return True
+    event_name = str(payload.get("hook_event_name") or "").strip().lower()
+    return event_name in _WRITE_EVENTS
+
+
 def _extract_candidate_scripts(payload: Mapping[str, Any]) -> list[Path]:
     """Return candidate ``.py`` script paths referenced by a PostToolUse payload."""
     tool_name = str(payload.get("tool_name") or "").strip().lower()
@@ -407,7 +610,7 @@ def _extract_candidate_scripts(payload: Mapping[str, Any]) -> list[Path]:
                 raw_paths.extend(_extract_py_paths_from_bash(val))
                 break
     elif not tool_name:
-        # Generic / non-Claude fallback payload
+        # Generic / Cursor afterFileEdit fallback payload
         for key in ("script", "file_path", "path"):
             val = payload.get(key) or input_map.get(key)
             if isinstance(val, str) and val.strip().lower().endswith(".py"):
@@ -426,7 +629,44 @@ def _extract_candidate_scripts(payload: Mapping[str, Any]) -> list[Path]:
     return resolved
 
 
-def _should_audit_script(script_path: Path) -> bool:
+def _is_safe_standalone_plot_script(src: str) -> bool:
+    """Return True only for small, side-effect-safe standalone plotting scripts.
+
+    Used to gate automatic execution on ``Write``/``Edit``/``afterFileEdit`` events so
+    editing training scripts, ML pipelines, web/DB clients, or CLI tools never executes
+    arbitrary code on save.
+    """
+    if len(src) > _MAX_WRITE_EXEC_BYTES or len(src.splitlines()) > _MAX_WRITE_EXEC_LINES:
+        return False
+    try:
+        tree = ast.parse(src)
+    except SyntaxError:
+        return False
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root_pkg = alias.name.split(".", 1)[0]
+                if root_pkg in _UNSAFE_WRITE_IMPORTS:
+                    return False
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                root_pkg = node.module.split(".", 1)[0]
+                if root_pkg in _UNSAFE_WRITE_IMPORTS:
+                    return False
+        elif isinstance(node, ast.Call):
+            func = node.func
+            call_name = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else (func.id if isinstance(func, ast.Name) else None)
+            )
+            if call_name in _UNSAFE_WRITE_CALLS:
+                return False
+    return True
+
+
+def _should_audit_script(script_path: Path, *, write_event: bool = False) -> bool:
     """Fast pre-filter: only audit existing matplotlib/seaborn scripts that don't self-audit."""
     if not script_path.is_file():
         return False
@@ -439,10 +679,14 @@ def _should_audit_script(script_path: Path) -> bool:
         return False
     if _EXPLAIN_CALL_RE.search(src):
         return False
-    return not (_MINTFIG_IMPORT_RE.search(src) and _PLAIN_EXPLAIN_CALL_RE.search(src))
+    if _MINTFIG_IMPORT_RE.search(src) and _PLAIN_EXPLAIN_CALL_RE.search(src):
+        return False
+    return not (write_event and not _is_safe_standalone_plot_script(src))
 
 
 def _blocking_issues(report: Mapping[str, Any]) -> list[dict[str, Any]]:
+    from .figcheck import BLOCKING
+
     issues = report.get("issues") or []
     blocking = [
         i
@@ -522,10 +766,15 @@ def run_hook(stdin_text: str | None = None) -> tuple[int, str]:
     if not candidates:
         return 0, ""
 
+    write_event = _is_write_or_edit_event(payload)
+    to_audit = [p for p in candidates if _should_audit_script(p, write_event=write_event)]
+    if not to_audit:
+        return 0, ""
+
+    from .figcheck import check_script
+
     feedback_blocks: list[str] = []
-    for script_path in candidates:
-        if not _should_audit_script(script_path):
-            continue
+    for script_path in to_audit:
         try:
             with (
                 contextlib.redirect_stdout(io.StringIO()),

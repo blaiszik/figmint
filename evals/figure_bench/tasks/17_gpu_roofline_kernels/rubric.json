@@ -1,0 +1,45 @@
+{
+  "schema_version": "0.1",
+  "id": "17_gpu_roofline_kernels",
+  "split": "dev",
+  "track": "swe_coding",
+  "domain": "GPU Systems",
+  "title": "H100 kernel Roofline plot (log–log memory vs compute ceiling)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "moe_grouped_gemm achieves 488 TFLOP/s (49.3% of 989 TFLOP/s ceiling) while gemm_fp16_tile hits 792 TFLOP/s (80.1%); ridge point 295 FLOP/byte",
+  "accept": [
+    488.0,
+    49.3,
+    792.0,
+    80.1,
+    295.223881
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 2.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "moe_grouped_gemm|moe",
+    "roofline|ridge|295|989|memory|compute"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What throughput and roof efficiency does moe_grouped_gemm achieve?",
+      "expected": "488 TFLOP/s (49.3% of the 989 TFLOP/s compute roof)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "At what arithmetic intensity does the H100 transition from memory-bound to compute-bound?",
+      "expected": "At the ridge point of ~295 FLOP/byte."
+    },
+    {
+      "kind": "nuance",
+      "question": "Which kernels are near the memory bandwidth ceiling?",
+      "expected": "rmsnorm_v1, softmax_fused, rope_apply, and flash_attn_fwd sit close to the 3.35 TB/s memory roof."
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": "0.1",
+  "id": "pt42_trap_cherry_picked_window",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Growth Analytics",
+  "title": "Cherry-picked 4-week window hiding flat 16-week series",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Full 16-week series is flat around 100k (slope -0.11k/wk, W01->W16 -2.9k); W09-W12 +18.4% is trough-to-peak noise",
+  "accept": [
+    -0.105147,
+    0.105147,
+    -2.9,
+    2.9,
+    100.0,
+    18.38565
+  ],
+  "rel_tol": 0.15,
+  "abs_tol": 1.5,
+  "uncertainty_required": false,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "sustained growth momentum",
+    "breakout growth",
+    "clear upward trend",
+    "proves momentum"
+  ],
+  "required_disclosures": [
+    "16 week|w01|full|all 16",
+    "flat|noise|cherry|trough|stationary|no trend"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the overall 16-week trend in weekly signups?",
+      "expected": "Essentially flat around ~100k/week (slope -0.11k/wk; W01 = 103.2k vs W16 = 100.3k)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Why did W09–W12 look like +18.4% growth?",
+      "expected": "W09 (89.2k) was a random single-week trough and W12 (105.6k) a normal bounce."
+    },
+    {
+      "kind": "nuance",
+      "question": "Should the board deck crop the x-axis to W09–W12?",
+      "expected": "No — cropping hides 12 weeks of flat baseline and turns noise into a false growth story."
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "h3_wait_times",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "Healthcare Ops",
+  "title": "Emergency department wait times by hospital and triage level",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "South−North median wait gap at triage level 3 (min), or the two medians",
+  "accept": [
+    10.289472,
+    49.286375,
+    38.996903
+  ],
+  "rel_tol": 0.15,
+  "abs_tol": 0.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "south",
+    "north",
+    "triage"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "At triage level 3, how many minutes longer is the median wait at South than at North?",
+      "expected": "About 10.3 minutes longer (~49.3 min at South vs ~39.0 min at North)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is wait-time skewness represented?",
+      "expected": "Medians with IQR/spread rather than means alone."
+    },
+    {
+      "kind": "nuance",
+      "question": "Is South slower across all triage levels?",
+      "expected": "No — urgent triage levels 1–2 are similar; South is slower only for less urgent levels 3–5."
+    }
+  ]
+}

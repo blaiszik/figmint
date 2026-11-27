@@ -80,6 +80,7 @@ BANNED_COLORMAPS: frozenset[str] = frozenset(
         "nipy_spectral",
         "prism",
         "flag",
+        "turbo",
     }
 )
 

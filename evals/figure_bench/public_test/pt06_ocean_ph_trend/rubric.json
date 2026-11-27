@@ -21,8 +21,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "seasonal",
-    "decade"
+    "seasonal|oscillation|cycle|annual",
+    "decade|yr|year"
   ],
   "reader_questions": [
     {

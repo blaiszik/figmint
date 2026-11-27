@@ -44,7 +44,7 @@ def release_benchmarks_paper() -> mint.Explanation:
             highlight="Alpha-3",
             baseline="Alpha-2",
             title="AIME 2026: base vs extended thinking",
-            label="Accuracy",
+            label="AIME score",
             unit="%",
         ),
         subtitle="Frontier model evaluation suite, Nov 2026",

@@ -1,6 +1,6 @@
 # figure-bench v0.1 — Results & Failure Anatomy
 
-> **Work in progress (`v0.1`):** `figure-bench` includes **60 deterministic tasks** across 3 splits (`15 dev`, `30 public-test`, `15 heldout`) and 6 tracks, with a library-agnostic SVG + pixel + rubric scorer and an open PR leaderboard. Below are the full **60-task × 3-arm** measured results on Claude Sonnet 5.5 (180 fresh isolated runs); additional models (`GPT`, `Gemini`, open-weights), plotting libraries (`seaborn`, `altair`, `plotly`, `ggplot2`), and human blind reader studies are welcome via PR.
+> **Work in progress (`v0.1`):** `figure-bench` includes **100 deterministic tasks** across 3 splits (`25 dev`, `50 public-test`, `25 heldout`) and 6 tracks, with a library-agnostic SVG + pixel + rubric scorer, full per-task/per-attempt timing capture, an external benchmark bridge ([`EXTERNAL_BENCHMARKS.md`](../evals/figure_bench/EXTERNAL_BENCHMARKS.md)), and an open PR leaderboard. Below are the full **100-task × 4-arm** measured results on Claude Sonnet 5.5 (400 fresh isolated runs, including a **Prompt-Coached Matplotlib** baseline with zero `mintfig` usage); additional models (`GPT`, `Gemini`, open-weights), plotting libraries (`seaborn`, `altair`, `plotly`, `ggplot2`), and human blind reader studies are welcome via PR.
 
 **Why `figure-bench` exists:** AI coding agents already know how to call `matplotlib.pyplot`. The hard part is turning raw data into a figure that stays legible at actual chat/phone reading width (`700 px` / `450 px`), names its uncertainty honestly, refuses to overclaim noisy results, and states a headline number that actually matches the plotted data.
 
@@ -13,25 +13,50 @@
 
 ## 1. Results at a Glance
 
-### Full 60-task agent sweep (`v0.1`, measured 2026-11-26)
+### Full 100-task agent sweep (`v0.1`, measured 2026-11-26 / 2026-11-27)
 
-![Comparison of mintfig, Matplotlib with mint.check hook, and default Matplotlib across all 60 figure-bench v0.1 tasks](assets/figure_bench/arms_overview.png)
+![Comparison of mintfig, Matplotlib with mint.check hook, prompt-coached Matplotlib, and default Matplotlib across figure-bench v0.1](assets/figure_bench/arms_overview.png)
 
-*180 fresh isolated Claude Code (`claude-sonnet-5-5`) runs — 60 tasks × 3 arms (`15 dev` + `30 public-test` + `15 heldout`), global hooks and MCP servers disabled for clean arm separation, audited neutrally via `Figure.savefig` (`neutral.py`) and the 4-dimension rubric (`rubric.py`). Verified leaderboard submissions: [`evals/figure_bench/leaderboard/submissions/`](../evals/figure_bench/leaderboard/submissions/).*
+*400 fresh isolated Claude Code (`claude-sonnet-5-5`) runs — 100 tasks × 4 arms (`25 dev` + `50 public-test` + `25 heldout`), global hooks and MCP servers disabled for clean arm separation, audited neutrally via `Figure.savefig` (`neutral.py`) and the 4-dimension rubric (`rubric.py`). Verified leaderboard submissions: [`evals/figure_bench/leaderboard/submissions/`](../evals/figure_bench/leaderboard/submissions/).*
 
-| Arm (60 tasks, Sonnet 5.5) | Saved | Zero-Defect (Final) | Text >= 11 px | Right Headline # | Uncertainty Named | Median Time | Composite |
-| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **`mintfig` (`SKILL.md` + `mint.explain`)** | 57/60 | **57/60 (95.0%)** *(0/57 saved defects)* | **57/57 (100%)** | **53/60 (88.3%)** *(93.0% of saved)* | **29/33 (87.9%)** | **13.4 s** | **93.5** |
-| **Plain Matplotlib + `mint.check` hook** | 57/60 | **48/60 (80.0%)** | **56/57 (98.2%)** | 39/60 (65.0%) *(68.4% of saved)* | 20/31 (64.5%) | 17.4 s | **89.2** |
-| **Plain Matplotlib, default (no hook)** | 60/60 | **21/60 (35.0%)** *(39/60 defective)* | **28/60 (46.7%)** *(median 10.9 px)* | 36/60 (60.0%) | 24/33 (72.7%) | 15.4 s | **81.6** |
+| Arm (100 tasks, Sonnet 5.5) | Saved | First-Submit Clean | Zero-Defect (Final) | Text >= 11 px | Right Headline # | Uncertainty Named | Median Time | Composite |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **`mintfig` (`SKILL.md` + `mint.explain`)** | **100/100** | **87/100 (87.0%)** | **100/100 (100%)** | **100/100 (100%)** | **97/100 (97.0%)** | **55/57 (96.5%)** | **11.7 s** | **98.0** |
+| **Plain Matplotlib + `mint.check` hook** | **100/100** | 57/100 (57.0%) | **91/100 (91.0%)** | **100/100 (100%)** | 73/100 (73.0%) | 39/57 (68.4%) | 13.9 s | **93.9** |
+| **Prompt-Coached Matplotlib (style prompt, no `mintfig`)** | 98/100\* | 46/100 (46.0%) | 54/100 (54.0%)\* | **98/98 (100%)** | **93/98 (94.9%)** | **52/55 (94.5%)** | 12.9 s | **94.7** |
+| **Plain Matplotlib, default (no prompt/hook)** | 99/100 | 31/100 (31.0%) | 35/100 (35.0%) *(65 defective)* | 49/99 (49.5%) *(median 10.9 px)* | 64/99 (64.6%) | 43/56 (76.8%) | **10.9 s** | **84.2** |
+
+*\*On the 2 `surface="terminal"` tasks (`pt27`, `h23`), `matplotlib-coached` properly delivered fenced `<= 72`-col terminal blocks instead of saving PNGs (`56/100` clean overall including both terminal passes; `54/98` saved PNGs defect-free).*
 
 #### Breakdown by split (`Composite / 100` and `Visual Quality / 100`)
 
-| Split (Tasks) | `mintfig` | Matplotlib + `mint.check` hook | Matplotlib, default |
-| :--- | ---: | ---: | ---: |
-| **`dev`** (15) | **97.7** (`VQ 93.3`) | 96.0 (`VQ 96.0`) | 82.3 (`VQ 72.3`) |
-| **`public-test`** (30, frozen) | **89.7** (`VQ 93.3`) | 88.9 (`VQ 92.3`) | 81.0 (`VQ 77.0`) |
-| **`heldout`** (15, never tuned on) | **97.0** (`VQ 100.0`) | 83.1 (`VQ 85.7`) | 82.2 (`VQ 85.3`) |
+![Composite score by split and track across all 100 figure-bench v0.1 tasks](assets/figure_bench/splits_and_tracks.png)
+
+| Split (Tasks) | `mintfig` | Matplotlib + `mint.check` hook | Matplotlib, coached | Matplotlib, default |
+| :--- | ---: | ---: | ---: | ---: |
+| **`dev`** (25) | **99.4** (`VQ 100.0`) | 94.9 (`VQ 97.6`) | 92.9 (`VQ 86.8`) | 80.7 (`VQ 74.2`) |
+| **`public-test`** (50, frozen) | **98.2** (`VQ 100.0`) | 93.3 (`VQ 98.1`) | 94.9 (`VQ 92.5`) | 85.1 (`VQ 79.6`) |
+| **`heldout`** (25, never tuned on) | **96.1** (`VQ 96.0`) | 94.2 (`VQ 98.0`) | 95.9 (`VQ 91.4`) | 85.9 (`VQ 82.0`) |
+
+#### Breakdown by track (`Composite / 100`)
+
+| Track (Tasks) | `mintfig` | Matplotlib + `mint.check` hook | Matplotlib, coached | Matplotlib, default |
+| :--- | ---: | ---: | ---: | ---: |
+| **`science_uncertainty`** (28) | **98.5** | 94.0 | 92.7 | 78.9 |
+| **`swe_coding`** (22) | **100.0** | 96.9 | 94.7 | 84.1 |
+| **`epistemic_traps`** (18) | **96.8** | 90.2 | 93.9 | 85.7 |
+| **`multiturn_edit`** (11) | **97.9** | 96.5 | 96.0 | 86.1 |
+| **`multi_surface`** (11) | 96.1 | 88.0 | **96.6** | 88.2 |
+| **`byo_repair`** (10) | 96.0 | 97.8 | **98.3** | 89.7 |
+
+#### Timing summary (Median / Mean / p90 across all 100 tasks)
+
+| Arm | Task Total (s) | Time to First Submit (s) | Agent Think (s) | Render + Audit (s) | CLI API (s) | Arm Wall (8w) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: |
+| **`mintfig`** | **11.7** / 13.3 / 20.3 | 10.6 / 11.2 / 14.7 | 10.5 / 11.9 / 17.4 | 0.63 / 0.82 / 1.55 | 12.2 / 13.2 / 19.2 | 218.0 s |
+| **`matplotlib-hook`** | 13.9 / 14.8 / 21.9 | 11.1 / 11.2 / 14.2 | 13.2 / 13.9 / 20.7 | 0.61 / 0.90 / 1.56 | 14.6 / 15.3 / 22.6 | 234.1 s |
+| **`matplotlib-coached`** | 12.9 / 13.7 / 18.5 | 12.5 / 13.0 / 16.5 | 12.2 / 12.9 / 17.0 | 0.60 / 0.79 / 1.15 | 15.8 / 16.7 / 21.8 | 220.0 s |
+| **`matplotlib-plain`** | **10.9** / 11.2 / 14.7 | 10.5 / 10.8 / 13.9 | 10.4 / 10.6 / 13.5 | 0.46 / 0.55 / 0.71 | 11.9 / 12.1 / 15.0 | 183.5 s |
 
 ### Supporting automated evaluations
 
@@ -41,12 +66,13 @@
 | **Wild-50 `mint.check` Audit** | 50 realistic Matplotlib & Seaborn-idiom scripts (25 clean, 25 defective) | **0/25 (0.0%) false positives**, **25/25 (100%) defect catch**, **25/25 (100%) exact-rule recall** (down from 36% pre-hardening FP) | [`evals/check_bench/REPORT.md`](../evals/check_bench/REPORT.md) |
 | **40-Prompt Skill Trigger Eval** | 20 quantitative/plotting prompts + 20 routine coding prompts (zero mentions of `mintfig`) | **100.0% recall (20/20)**, **0.0% false triggers (0/20)** (offline rubric; `--live` CLI adapter included) | [`evals/trigger_eval/REPORT.md`](../evals/trigger_eval/REPORT.md) |
 
-### What these 60-task results show — and where room remains
+### What these 100-task results show — and where room remains
 
-- **Default Matplotlib fails reading-width layout on 65% of tasks (`39/60` defective).** More than half of default Matplotlib figures (`32/60`) had text smaller than `11 px` at display width (median smallest text `10.9 px`), `11/60` had text crossed by lines, and `11/60` had malformed text (`ASCII minus`, `%%`, etc.).
-- **The `mint.check` hook lifts plain Matplotlib from `35% → 80%` clean with zero library rewrite.** Giving the agent `mint.check` feedback on submit pushed text legibility from `46.7% → 98.2%`, eliminated all malformed text (`57/57`), and raised composite score from `81.6 → 89.2`.
-- **`mintfig` ships zero layout/text defects on every saved figure (`57/57` = 100%) and generalizes to `heldout` (`97.0` composite, `100.0` visual quality).** It also placed the verified quantitative answer in the headline on `53/57` saved figures (`93.0%`) and finished fastest (`13.4 s` median).
-- **Transparent failure notes (3 unsaved `mintfig` tasks):** On 3 of 60 tasks (`09_eval_matrix`, `pt19_k6_latency_deploy`, `pt22_signup_funnel`), `mintfig`'s strict pre-save layout/API guards raised an `ExplainError` (e.g., wide matrix column headers or a tuple argument mistake on `trend(reference=...)`) and the agent exhausted its 3-attempt cap without saving. Hardening `SKILL.md` examples and error recovery for those 3 patterns is tracked for v0.2, alongside display-width-locked human blind reader scores (`human_study/index.html`).
+- **Default Matplotlib fails reading-width layout on 65% of tasks (`65/100` defective).** Half of default Matplotlib figures (`50/99`) had text smaller than `11 px` at display width (median smallest text `10.9 px`), `19/99` had text crossed by lines, and `18/99` had malformed text (`ASCII minus`, `%%`, etc.).
+- **Prompt coaching alone (`matplotlib-coached`) fixes content & font size — but still fails pixel geometry on 44% of tasks (`54/98` saved PNGs clean; `46%` first-submit clean).** Giving plain Matplotlib an explicit style/rubric prompt lifted headline accuracy to `94.9%` (`93/98`), named uncertainty to `94.5%` (`52/55`), and text legibility to `100%` (`98/98`), **yet without a layout engine or runtime geometry gate, 24% of figures still had text struck by lines (`74/98`), 17% had overlapping text (`81/98`), and 12% clipped past the canvas edge (`86/98`)**. You cannot prompt-engineer away Matplotlib pixel collisions.
+- **The `mint.check` hook lifts plain Matplotlib from `35% → 91%` clean with zero library rewrite.** Giving the agent runtime `mint.check` feedback pushed text legibility to `100%`, cut overlaps to `1/100` and line crossings to `5/100`, and raised composite score from `84.2 → 93.9` (at a `+3.0 s` median latency cost for repair rounds).
+- **`mintfig` combines both — shipping zero layout/text defects on all 100 tasks (`100/100` = 100%) and achieving `98.0` composite (`100.0` on `swe_coding`, `96.1` on `heldout`).** It achieved `87%` clean on the very first submission (vs `57%` hook / `46%` coached / `31%` plain), placed the verified quantitative answer in the headline on `97/100` figures, named uncertainty on `55/57` (`96.5%`), and finished faster at median than both `matplotlib-coached` (`12.9 s`) and `matplotlib-hook` (`13.9 s`) at `11.7 s`.
+- **Transparent remaining gaps (14/100 non-perfect `mintfig` tasks):** On `h23_surface_terminal_ci_diff` (`surface="terminal"`), the `mintfig` agent delivered a PNG image instead of a `<= 72`-col fenced terminal block (`VQ 0.0`); on 3 repair tasks (`h25`, `pt48`, `pt50`), the reply cited the broken script's false number while contrasting it (`"not 9.2%"` / `"not 0.98"`) outside the 36-char negation window; and on 2 no-effect traps (`19_trap_dual_axis_spurious`, `pt42_trap_cherry_picked_window`), the headline stated the right number without an explicit null/noise keyword. All are cleanly tracked for v0.2, alongside display-width-locked human blind reader scores (`human_study/index.html`).
 
 ---
 
@@ -116,7 +142,7 @@ On boxplots and scatter/regression figures, agents often leave the value axis un
 
 ### Failure 6 — Epistemic & statistical traps (where layout linting alone isn't enough)
 
-Even clean-looking Matplotlib, Seaborn, Altair, or Plotly figures regularly fail scientific and engineering judgment. `figure-bench v0.1` adds **12 dedicated Epistemic Trap tasks** (`epistemic_traps`) testing whether an agent:
+Even clean-looking Matplotlib, Seaborn, Altair, or Plotly figures regularly fail scientific and engineering judgment. `figure-bench v0.1` adds **18 dedicated Epistemic Trap tasks** (`epistemic_traps`) testing whether an agent:
 - **Refuses to overclaim overlapping CIs** (`13_trap_overlapping_ci`, `pt07_trap_no_speedup`, `h12_hyperfine_within_noise`, `h08_trap_overlap_clinical` — `no_effect_trap: true`).
 - **Stratifies Simpson's paradox** instead of plotting a misleading pooled bar (`pt08_trap_simpson`).
 - **Catches & discloses corrupted sensors or contaminated plates** (`14_trap_outlier_sensor`, `h09_trap_bad_batch`).
@@ -125,17 +151,21 @@ Even clean-looking Matplotlib, Seaborn, Altair, or Plotly figures regularly fail
 
 ---
 
-## 3. The 60-Task `figure-bench v0.1` Suite
+## 3. The 100-Task `figure-bench v0.1` Suite
 
 | Track | Tasks | Splits (`dev` / `public-test` / `heldout`) | Representative Tasks |
 | :--- | ---: | :---: | :--- |
-| **Science & Uncertainty** | 19 | 7 / 7 / 5 | Multi-seed ablations, dose–response, forest meta-analysis, Kaplan–Meier, volcano omics, Raman peaks, Arrhenius kinetics, RL seed bands, Michaelis–Menten |
-| **SWE & Quantitative Coding** | 13 | 2 / 8 / 3 | `hyperfine` & `pytest-benchmark` diffs, CI pipeline timelines, Chrome Trace builds, `k6` p99 deploy spikes, `esbuild` bundle waterfalls, LLM Pareto frontiers |
-| **Epistemic Traps & Refusals** | 12 | 4 / 6 / 2 | Overlapping-CI no-effect traps, Simpson's paradox, corrupted sensors, contaminated plates, small-n, near-zero `%`, truncated-bar bait, missing controls |
-| **Multi-Turn Figure Editing** | 6 | 2 / 3 / 1 | Revise an existing figure: switch baseline, convert linear → log, add hidden replicates, fix mW/W units, highlight failing subset |
-| **Multi-Surface Delivery** | 5 | 0 / 4 / 1 | `450 px` phone/IDE sidebar, `1280 px` slide, dark dashboard card, `<= 72`-col SSH terminal-only output |
-| **BYO-Matplotlib Repair** | 5 | 0 / 3 / 2 | Repair broken existing Matplotlib scripts with planted wrong claims, truncated bars, `jet` colormaps, struck labels, and unlabelled CI bands |
-| **Total** | **60** | **15 / 30 / 15** | Validated cleanly by `python evals/figure_bench/bench.py validate-tasks` |
+| **Science & Uncertainty** | 28 | 10 / 10 / 8 | Multi-seed ablations, dose–response, forest meta-analysis, Kaplan–Meier, reliability diagrams, Bland–Altman agreement, volcano omics, XRD/Raman spectra, CRISPR ranks, climate ensembles, PK profiles, catalyst tradeoffs |
+| **SWE & Quantitative Coding** | 22 | 5 / 12 / 5 | GPU rooflines, DB query tails, cache MRCs, LLM serving SLAs, `hyperfine` & `pytest-benchmark` diffs, CI timelines & flake matrices, cloud cost waterfalls, GC pause tails, distributed scaling |
+| **Epistemic Traps & Refusals** | 18 | 4 / 10 / 4 | Overlapping-CI no-effect traps, multiple testing, Simpson's paradox, ecological fallacy, survivorship bias, spurious dual axes, heavy-tail means, denominator shifts, cherry-picked windows, truncated-bar bait |
+| **Multi-Turn Figure Editing** | 11 | 3 / 6 / 2 | Revise an existing figure: per-capita normalization, splitting confounders, sorting & SLA lines, replacing pies, exposing bimodal tails, switching baselines, linear → log, excluding QC faults |
+| **Multi-Surface Delivery** | 11 | 2 / 6 / 3 | `450 px` phone/IDE/PR mobile cards, `1280 px` slides, dark NOC/dashboard cards, HTML reports, `<= 72`-col SSH terminal-only output |
+| **BYO-Matplotlib Repair** | 10 | 1 / 6 / 3 | Repair broken existing Matplotlib scripts with wrong claims, truncated bars, `jet`/`rainbow` colormaps, dual-axis spaghetti, clipped pies, mislabelled SEM bars, and struck labels |
+| **Total** | **100** | **25 / 50 / 25** | Validated cleanly by `python evals/figure_bench/bench.py validate-tasks` |
+
+### Outside Data: External Benchmarks
+
+To evaluate `mintfig` and `mint.check` on third-party benchmarks alongside `figure-bench`, see [`evals/figure_bench/EXTERNAL_BENCHMARKS.md`](../evals/figure_bench/EXTERNAL_BENCHMARKS.md) and [`evals/figure_bench/external_bridge.py`](../evals/figure_bench/external_bridge.py) (importers for **MatPlotBench** and **PandasPlotBench**, plus an arm-neutral output & timing auditor for **ChartMimic**, **Plot2Code**, and **VisEval**).
 
 ---
 
@@ -146,15 +176,19 @@ Even clean-looking Matplotlib, Seaborn, Altair, or Plotly figures regularly fail
 ### Benchmark your own model, plotting library, or agent skill
 
 ```bash
-# 1. Inspect the 30 frozen public-test tasks
+# 1. Inspect the 50 frozen public-test tasks
 python evals/figure_bench/bench.py list --split public-test
 
-# 2. Grade ANY output directory (<task_id>/{figure.png, reply.md, figure.svg?})
+# 2. Run the 4-arm ablation ladder (including the prompt-coached plain Matplotlib baseline)
+python evals/figure_bench/run_sweep.py --arms matplotlib-coached \
+    --run-prefix evals/figure_bench/runs/v01_100_sonnet55 --split all --model sonnet --workers 8
+
+# 3. Grade ANY output directory (<task_id>/{figure.png, reply.md, figure.svg?})
 python evals/figure_bench/bench.py grade-dir my_outputs/ \
     --split public-test \
     --out evals/figure_bench/leaderboard/submissions/my_team_run.json
 
-# 3. Verify and open a PR to appear on the leaderboard (verified automatically by GitHub Actions)
+# 4. Verify and open a PR to appear on the leaderboard (verified automatically by GitHub Actions)
 python evals/figure_bench/leaderboard/verify_submission.py evals/figure_bench/leaderboard/submissions/my_team_run.json
 python evals/figure_bench/leaderboard/build_site.py
 ```
@@ -164,7 +198,7 @@ python evals/figure_bench/leaderboard/build_site.py
 Hit a terrible agent-generated chart in your own research or engineering workflow? Turn it into a permanent benchmark task:
 
 ```bash
-python evals/figure_bench/bench.py new-task --id pt31_my_case --split public-test --track swe_coding
+python evals/figure_bench/bench.py new-task --id pt51_my_case --split public-test --track swe_coding
 python evals/figure_bench/bench.py validate-tasks
 ```
 

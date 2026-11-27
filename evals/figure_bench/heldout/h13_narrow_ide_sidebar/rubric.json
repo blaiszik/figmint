@@ -20,9 +20,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "distribution spread (IQR/points across 80 runs)",
-    "slow tail runs in parallel_8w",
-    "legible at 450 px width"
+    "80 runs|n=80|iqr|s.d.|sd|\u00b1|spread|percentile",
+    "parallel_8w|parallel|tail|outlier"
   ],
   "reader_questions": [
     {

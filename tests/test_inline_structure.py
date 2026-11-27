@@ -307,7 +307,11 @@ def test_dual_spark_divergence_gap_shading_and_expand() -> None:
     lines = list(root.iter("{http://www.w3.org/2000/svg}polyline"))
     circles = list(root.iter("{http://www.w3.org/2000/svg}circle"))
     assert len(polys) == 1
-    assert polys[0].attrib["fill"] == g.theme.accent_colors[0]
+    expected_b = next(
+        (c for c in g.theme.accent_colors if c.lower() != g.theme.series_colors[0].lower()),
+        g.theme.muted,
+    )
+    assert polys[0].attrib["fill"] == expected_b
     assert len(lines) == 2
     assert any("stroke-dasharray" in ln.attrib for ln in lines)
     assert len(circles) == 2

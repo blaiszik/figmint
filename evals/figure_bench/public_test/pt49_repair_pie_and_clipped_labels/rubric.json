@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt49_repair_pie_and_clipped_labels",
+  "split": "public-test",
+  "track": "byo_repair",
+  "domain": "API Reliability",
+  "title": "Repair unreadable 8-slice pie chart with wrong 42% claim",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Timeouts represent 31.4% (314/1,000) of API failures, followed by Auth Expired (21.8%), not 42%",
+  "accept": [
+    31.4,
+    314.0
+  ],
+  "rel_tol": 0.04,
+  "abs_tol": 0.5,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "42%"
+  ],
+  "required_disclosures": [
+    "timeout",
+    "31.4%|314|auth"
+  ],
+  "forbid_truncated_bars": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the true share of API failures caused by Timeouts?",
+      "expected": "31.4% (314 of 1,000 failures), not 42%."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What is the second-largest failure category?",
+      "expected": "Auth Expired at 21.8% (218 failures)."
+    },
+    {
+      "kind": "nuance",
+      "question": "How was the chart repaired?",
+      "expected": "Replaced the clipped 8-slice pie with a clean sorted horizontal bar chart, fixing the %% typos and false 42% claim."
+    }
+  ]
+}

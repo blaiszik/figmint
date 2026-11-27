@@ -21,16 +21,17 @@ During `0.3.x` (pre-1.0), minor releases may still refine APIs when needed, thou
 - Every symbol exported in `mintfig.__all__` (`import mintfig as mint`), including:
   - Auditing: `mint.check`
   - Explaining & composition: `mint.explain`, `mint.compare`, `mint.trend`, `mint.change`, `mint.distribution`, `mint.histogram`, `mint.relate`, `mint.share`, `mint.matrix`, `mint.table`, `mint.waterfall`, `mint.timeline`, `mint.flow`, `mint.custom`, `mint.lenient`
-  - Editing, round-trip & briefings: `mint.load`, `mint.edit`, `mint.brief`, `mint.Brief`, `mint.Session`
+  - Editing, round-trip & briefings: `mint.load`, `mint.edit`, `mint.brief`, `mint.Brief`, `mint.Session`, `mint.notebook`
   - Data helpers: `mint.inspect_data`, `mint.auto_panel`, `mint.load_table_file`
   - Publication plates: `mint.Plate`, `mint.figure`
-  - Core types: `mint.Explanation`, `mint.Panel`, `mint.ExplainError`, `mint.InlineGraphic`
-- Documented public submodules: `mintfig.pub`, `mintfig.themes`, `mintfig.audit`, `mintfig.skill`, `mintfig.pr_card`, and `mintfig.interactive` / `mintfig.terminal` public entry points.
+  - Core types: `mint.Explanation`, `mint.Panel`, `mint.ExplainError`
+- Documented public submodules: `mintfig.pub`, `mintfig.themes`, `mintfig.audit`, `mintfig.skill`, `mintfig.pr_card`, `mintfig.notebook`, and `mintfig.interactive` / `mintfig.terminal` public entry points.
 - Keyword parameter names and default meanings on these public functions will not break within a major version.
+- **Deprecated (scheduled for removal in `2.0.0`)**: legacy `mint.inline` and `mint.InlineGraphic` remain functional for backward compatibility, but new word-sized inline graphics, shared-scale tables, and `{{...}}` prose directives live in the standalone [`mintchip`](https://github.com/blaiszik/mintchip) package (`pip install "mintfig[chip]"` or `pip install mintchip`).
 
 ### 2. CLI Subcommands, Flags & Exit Codes
 
-All documented `mintfig` CLI subcommands (`check`, `explain`, `plot`, `edit`, `brief`, `inspect`, `show`, `run`, `specs`, `doctor`, `skill`, `hook`) and their documented flags follow SemVer.
+All documented `mintfig` CLI subcommands (`check`, `explain`, `plot`, `edit`, `brief`, `inspect`, `show`, `run`, `specs`, `doctor`, `log`, `skill`, `hook`) and their documented flags follow SemVer.
 
 Exit codes are part of the contract for CI, hooks, and scripts:
 

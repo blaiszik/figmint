@@ -1,8 +1,9 @@
 """Visual surface themes and color palettes for ``mint.explain``.
 
-Built-in themes: ``mintfig`` (default), ``bold``, ``editorial``, ``paper``,
-``dark``, ``mono``, ``sketch``. Built-in explain palettes: ``default``,
-``okabe_ito``, ``tol``, ``earth``, ``ocean``, ``berry``.
+Built-in themes: ``mintfig`` (default), ``mint``, ``pine`` (alias ``mint_dark``),
+``botanical``, ``bold``, ``editorial``, ``paper``, ``dark``, ``mono``, ``sketch``.
+Built-in explain palettes: ``default``, ``okabe_ito``, ``tol``, ``earth``,
+``ocean``, ``berry``, ``mint``, ``spearmint``, ``matcha``, ``glacier``, ``mineral``.
 
 A theme or palette changes only the visual surface — typography, colour palette,
 background, gridlines, axis framing, header/footer rules, and optional hand-drawn
@@ -13,15 +14,25 @@ sketch jitter. It never changes the information-design rules enforced by
 
 from __future__ import annotations
 
+import importlib
+import os
+from collections.abc import Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any
 
 import matplotlib as mpl
 from matplotlib.colors import to_rgb
 
-from . import style
 from .specs import JournalSpec
+
+try:
+    import tomllib
+except ImportError:  # pragma: no cover - Python 3.10 fallback
+    tomllib = None  # type: ignore[assignment]
+
+style = importlib.import_module("mintfig.style")
 
 
 @dataclass(frozen=True)
@@ -44,7 +55,7 @@ class Theme:
 
     # Categorical & matrix palettes (strictly 4 series + 3 accents, CVD/grayscale verified)
     series_colors: tuple[str, ...] = ("#1F5A9D", "#CD4324", "#0F9478", "#CC8800")
-    accent_colors: tuple[str, ...] = ("#CD4324", "#1F5A9D", "#0F9478")
+    accent_colors: tuple[str, ...] = ("#1F5A9D", "#CD4324", "#0F9478")
     seq_stops: tuple[str, ...] = (
         "#F4F7FB",
         "#C9DBEF",
@@ -449,8 +460,126 @@ MONO_THEME = Theme(
     facet_line_lw=1.5,
 )
 
+# mint: flagship clean whisper-mint ground (#F8FBFA) with pine-charcoal ink,
+# crisp mint-emerald top rule, soft mint-gray gridlines, and zero-yellow mint palette
+# — min_gray=0.113, min_cvd=0.258.
+MINT_THEME = Theme(
+    name="mint",
+    description="Flagship mint surface: whisper-mint ground, pine-charcoal ink, emerald top rule, and zero-yellow mint palette.",
+    background="#F8FBFA",
+    ink="#13221D",
+    muted="#4D5F58",
+    axis="#7A9188",
+    grid="#DFEBE6",
+    context_line="#A8BDB4",
+    context_fill="#CBDAD3",
+    zero_line="#13221D",
+    halo_alpha=0.90,
+    series_colors=("#0F8B6D", "#2B5E9E", "#6E2356", "#8B9AA6"),
+    accent_colors=("#0F8B6D", "#2B5E9E", "#6E2356"),
+    seq_stops=("#F2FAF7", "#CBEBE0", "#8ED2BC", "#47B393", "#0F8B6D", "#0A5A46"),
+    div_low=("#5C1B47", "#99497E", "#D6A9C7"),
+    div_high=("#A7DFCD", "#42B290", "#0B6B53"),
+    div_mid="#F2F6F4",
+    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_scale=1.34,
+    title_weight="bold",
+    panel_tag_color="#0F8B6D",
+    grid_style="-",
+    grid_lw=0.5,
+    axis_lw=0.6,
+    zero_line_lw=0.8,
+    line_lw=1.8,
+    context_line_lw=0.9,
+    facet_line_lw=1.5,
+    top_rule=True,
+    top_rule_color="#0F8B6D",
+    top_rule_lw=1.4,
+    footer_rule=True,
+    footer_rule_color="#DCE7E2",
+    footer_rule_lw=0.6,
+)
+
+# pine: deep pine-slate dark ground (#0F1715) with ice-mint ink and luminous
+# zero-yellow CVD-safe hues (spearmint, sky blue, soft orchid, cool silver)
+# — min_gray=0.087, min_cvd=0.304.
+PINE_THEME = Theme(
+    name="pine",
+    description="Deep pine-slate dark ground with ice-mint ink and luminous zero-yellow CVD-safe hues.",
+    background="#0F1715",
+    ink="#E8F1EE",
+    muted="#94ACA3",
+    axis="#587067",
+    grid="#1F2D28",
+    context_line="#4E665E",
+    context_fill="#2D3F39",
+    zero_line="#C5D6CF",
+    halo_alpha=0.88,
+    series_colors=("#38DDA9", "#69B4F8", "#CE62B0", "#E4EFEA"),
+    accent_colors=("#38DDA9", "#CE62B0", "#69B4F8"),
+    seq_stops=("#172420", "#1C3B32", "#1F5849", "#247D66", "#2CA888", "#5AE0B8"),
+    div_low=("#E08AC8", "#A84E90", "#542449"),
+    div_high=("#1C4A3C", "#259173", "#5CE3B9"),
+    div_mid="#1A2622",
+    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_scale=1.32,
+    title_weight="bold",
+    panel_tag_color="#38DDA9",
+    grid_style="-",
+    grid_lw=0.55,
+    axis_lw=0.65,
+    zero_line_lw=0.85,
+    line_lw=1.85,
+    context_line_lw=0.95,
+    facet_line_lw=1.55,
+)
+
+# botanical: warm sage-ivory herbarium ground (#F5F8F4) with serif headline,
+# deep forest ink, and zero-yellow matcha palette — min_gray=0.118, min_cvd=0.242.
+BOTANICAL_THEME = Theme(
+    name="botanical",
+    description="Warm sage-ivory herbarium surface with serif headlines, deep forest ink, and zero-yellow matcha hues.",
+    background="#F5F8F4",
+    ink="#18241C",
+    muted="#4E5F53",
+    axis="#7F9183",
+    grid="#E1EAE0",
+    context_line="#B1C0B3",
+    context_fill="#CFDACC",
+    zero_line="#18241C",
+    halo_alpha=0.90,
+    series_colors=("#4A8F5D", "#3A2014", "#7AA3CC", "#962444"),
+    accent_colors=("#4A8F5D", "#962444", "#3A2014"),
+    seq_stops=("#F4F8F3", "#D6E6D4", "#A7CBA5", "#72AE76", "#4A8F5D", "#2A5B39"),
+    div_low=("#751A34", "#B24F6B", "#E2B2C0"),
+    div_high=("#B6D8BE", "#6CA97B", "#346D44"),
+    div_mid="#F1F4F0",
+    title_family=("Georgia", "Charter", "DejaVu Serif", "serif"),
+    body_family=("Helvetica Neue", "Helvetica", "Arial", "Liberation Sans", "DejaVu Sans"),
+    title_scale=1.38,
+    title_weight="bold",
+    allow_serif_title=True,
+    panel_tag_color="#3A6B4A",
+    grid_style="-",
+    grid_lw=0.5,
+    axis_lw=0.6,
+    zero_line_lw=0.8,
+    line_lw=1.75,
+    context_line_lw=0.9,
+    facet_line_lw=1.5,
+    top_rule=True,
+    top_rule_color="#2D5A3D",
+    top_rule_lw=1.1,
+    footer_rule=True,
+    footer_rule_color="#D5E0D4",
+    footer_rule_lw=0.6,
+)
+
 THEMES: dict[str, Theme] = {
     "mintfig": MINTFIG_THEME,
+    "mint": MINT_THEME,
+    "pine": PINE_THEME,
+    "botanical": BOTANICAL_THEME,
     "bold": BOLD_THEME,
     "editorial": EDITORIAL_THEME,
     "paper": PAPER_THEME,
@@ -461,6 +590,7 @@ THEMES: dict[str, Theme] = {
 
 THEME_ALIASES: dict[str, str] = {
     "default": "mintfig",
+    "mint_dark": "pine",
     "newspaper": "editorial",
     "warm": "paper",
     "print": "mono",
@@ -547,6 +677,56 @@ EXPLAIN_PALETTES: dict[str, ExplainPalette] = {
         div_low=("#154878", "#4682B8", "#A3C4E0"),
         div_high=("#E5B3D7", "#BA66A3", "#7B2466"),
         div_mid="#F3F2F4",
+    ),
+    "mint": ExplainPalette(
+        name="mint",
+        description="Zero-yellow mint emerald lead with steel blue, rich plum, and cool slate.",
+        series_colors=MINT_THEME.series_colors,
+        accent_colors=MINT_THEME.accent_colors,
+        seq_stops=MINT_THEME.seq_stops,
+        div_low=MINT_THEME.div_low,
+        div_high=MINT_THEME.div_high,
+        div_mid=MINT_THEME.div_mid,
+    ),
+    "spearmint": ExplainPalette(
+        name="spearmint",
+        description="Zero-yellow bright spearmint lead with midnight indigo, deep orchid, and pewter.",
+        series_colors=("#129C7E", "#1D2F73", "#8E2B7E", "#99A6AF"),
+        accent_colors=("#129C7E", "#8E2B7E", "#1D2F73"),
+        seq_stops=("#F1FAF7", "#C6ECE1", "#85D5BF", "#3CB89A", "#129C7E", "#0B6350"),
+        div_low=("#6B1E5E", "#A44E96", "#DBB2D4"),
+        div_high=("#A6E3D2", "#3EBA9B", "#0D7861"),
+        div_mid="#F2F5F4",
+    ),
+    "matcha": ExplainPalette(
+        name="matcha",
+        description="Zero-yellow warm botanical matcha/sage lead with espresso, slate blue, and claret.",
+        series_colors=BOTANICAL_THEME.series_colors,
+        accent_colors=BOTANICAL_THEME.accent_colors,
+        seq_stops=BOTANICAL_THEME.seq_stops,
+        div_low=BOTANICAL_THEME.div_low,
+        div_high=BOTANICAL_THEME.div_high,
+        div_mid=BOTANICAL_THEME.div_mid,
+    ),
+    "glacier": ExplainPalette(
+        name="glacier",
+        description="Zero-yellow glacier teal lead with cobalt, indigo-violet, and cool graphite.",
+        series_colors=("#0F919A", "#2663BA", "#4D1E7A", "#9EA7B2"),
+        accent_colors=("#0F919A", "#2663BA", "#4D1E7A"),
+        seq_stops=("#F1F9FA", "#C4E6E9", "#7ECAD0", "#38AAB2", "#0F919A", "#095B61"),
+        div_low=("#3B1660", "#72499E", "#BDA9D6"),
+        div_high=("#A5DCE0", "#3EAAB2", "#0C6E75"),
+        div_mid="#F2F5F7",
+    ),
+    "mineral": ExplainPalette(
+        name="mineral",
+        description="Zero-yellow jade lead with deep burgundy, denim steel blue, and charcoal.",
+        series_colors=("#169168", "#A8244E", "#70A0CC", "#222930"),
+        accent_colors=("#169168", "#A8244E", "#70A0CC"),
+        seq_stops=("#F2F9F6", "#C8E8DB", "#89CEB5", "#44B08B", "#169168", "#0D5D42"),
+        div_low=("#7F1939", "#BC5274", "#E6B4C4"),
+        div_high=("#AED2E8", "#6598C4", "#2E6294"),
+        div_mid="#F3F4F5",
     ),
 }
 
@@ -636,8 +816,10 @@ def apply_accent(theme: Theme, accent: str | None) -> tuple[Theme, str | None]:
                 hex_col = cand
                 break
     series = list(theme.series_colors)
-    if len(series) >= 2:
-        series[1] = hex_col  # highlight slot 0 ("red")
+    if theme.accent_colors and theme.accent_colors[0] in series:
+        series[series.index(theme.accent_colors[0])] = hex_col
+    elif len(series) >= 2:
+        series[1] = hex_col
     else:
         series[0] = hex_col
     accents = (hex_col, *theme.accent_colors[1:])
@@ -658,3 +840,342 @@ def get_theme(theme: str | Theme = "mintfig") -> Theme:
         valid = ", ".join(THEMES)
         raise ValueError(f"Unknown style {theme!r}. Choose one of: {valid}.")
     return THEMES[canonical]
+
+
+def _normalize_registry_key(name: str) -> str:
+    key = name.strip().lower().replace("-", "_").replace(" ", "_")
+    if not key:
+        raise ValueError("Theme/palette name must be a non-empty string.")
+    return key
+
+
+def register_theme(
+    theme: Theme,
+    *,
+    aliases: Sequence[str] = (),
+    overwrite: bool = False,
+) -> Theme:
+    """Register a custom :class:`Theme` (and optional aliases) for ``style=`` lookup."""
+    if not isinstance(theme, Theme):
+        raise TypeError(f"theme must be a Theme instance, got {type(theme).__name__}.")
+    key = _normalize_registry_key(theme.name)
+    if key in THEMES and not overwrite:
+        raise ValueError(f"Theme {key!r} is already registered; pass overwrite=True to replace.")
+    THEMES[key] = theme
+    for alias in aliases:
+        alias_key = _normalize_registry_key(alias)
+        if alias_key in THEME_ALIASES and not overwrite:
+            raise ValueError(
+                f"Theme alias {alias_key!r} is already registered; pass overwrite=True to replace."
+            )
+        THEME_ALIASES[alias_key] = key
+    return theme
+
+
+def register_palette(palette: ExplainPalette, *, overwrite: bool = False) -> ExplainPalette:
+    """Register a custom :class:`ExplainPalette` for ``palette=`` lookup."""
+    if not isinstance(palette, ExplainPalette):
+        raise TypeError(
+            f"palette must be an ExplainPalette instance, got {type(palette).__name__}."
+        )
+    key = _normalize_registry_key(palette.name)
+    if key in EXPLAIN_PALETTES and not overwrite:
+        raise ValueError(f"Palette {key!r} is already registered; pass overwrite=True to replace.")
+    EXPLAIN_PALETTES[key] = palette
+    return palette
+
+
+def _read_pyproject_mintfig(cwd: Path | None = None) -> dict[str, Any]:
+    """Read ``[tool.mintfig]`` from the nearest ``pyproject.toml`` walking up from ``cwd``."""
+    start = (cwd if cwd is not None else Path.cwd()).resolve()
+    if start.is_file():
+        start = start.parent
+    for directory in (start, *start.parents):
+        candidate = directory / "pyproject.toml"
+        if not candidate.is_file():
+            continue
+        if tomllib is None:  # pragma: no cover - Python 3.10 without tomllib
+            return {}
+        try:
+            data = tomllib.loads(candidate.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        tool = data.get("tool")
+        if isinstance(tool, dict):
+            mintfig_cfg = tool.get("mintfig")
+            if isinstance(mintfig_cfg, dict):
+                return mintfig_cfg
+        return {}
+    return {}
+
+
+def resolve_default_style(cwd: Path | None = None) -> str:
+    """Resolve the default style: ``MINTFIG_STYLE`` -> nearest ``pyproject.toml`` -> ``'mintfig'``."""
+    env_val = os.environ.get("MINTFIG_STYLE", "").strip()
+    if env_val:
+        return env_val
+    cfg = _read_pyproject_mintfig(cwd=cwd)
+    raw = cfg.get("style")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return "mintfig"
+
+
+def resolve_default_palette(cwd: Path | None = None) -> str | None:
+    """Resolve the default palette: ``MINTFIG_PALETTE`` -> nearest ``pyproject.toml`` -> ``None``."""
+    env_val = os.environ.get("MINTFIG_PALETTE", "").strip()
+    if env_val:
+        return env_val
+    cfg = _read_pyproject_mintfig(cwd=cwd)
+    raw = cfg.get("palette")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
+def render_themes_swatch_card(out_path: str | Path) -> Path:
+    """Render a crisp visual swatch card of all registered styles and explain palettes."""
+    import math
+
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+    from matplotlib.patches import FancyBboxPatch
+
+    target = Path(out_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+
+    aliases_by_theme: dict[str, list[str]] = {}
+    for alias, canonical in THEME_ALIASES.items():
+        aliases_by_theme.setdefault(canonical, []).append(alias)
+
+    themes_list = list(THEMES.items())
+    palettes_list = list(EXPLAIN_PALETTES.items())
+
+    theme_cols = 5
+    theme_rows = max(1, math.ceil(len(themes_list) / theme_cols))
+    pal_cols = 2
+    pal_rows = max(1, math.ceil(len(palettes_list) / pal_cols))
+
+    fig_h = 1.65 + theme_rows * 1.18 + pal_rows * 0.54 + 0.55
+    fig_w = 9.4
+
+    with mpl.rc_context(
+        {
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Helvetica Neue", "Helvetica", "Arial", "DejaVu Sans"],
+            "figure.facecolor": "#FFFFFF",
+            "savefig.facecolor": "#FFFFFF",
+        }
+    ):
+        fig = Figure(figsize=(fig_w, fig_h), dpi=220)
+        FigureCanvasAgg(fig)
+        ax = fig.add_axes([0.0, 0.0, 1.0, 1.0])
+        ax.set_xlim(0.0, fig_w)
+        ax.set_ylim(0.0, fig_h)
+        ax.axis("off")
+
+        ink = "#13221D"
+        muted = "#4D5F58"
+        accent = "#0F8B6D"
+
+        # Top emerald header rule
+        ax.plot([0.32, fig_w - 0.32], [fig_h - 0.22, fig_h - 0.22], color=accent, linewidth=2.2)
+
+        ax.text(
+            0.32,
+            fig_h - 0.38,
+            "mintfig Surface Themes & Color Palettes",
+            fontsize=14.0,
+            fontweight="bold",
+            color=ink,
+            va="top",
+        )
+        ax.text(
+            0.32,
+            fig_h - 0.72,
+            f"{len(themes_list)} surface themes (style=...) and {len(palettes_list)} CVD/grayscale/WCAG-verified explain palettes (palette=...).",
+            fontsize=8.6,
+            color=muted,
+            va="top",
+        )
+
+        # Section 1: Surface themes
+        y_themes_hdr = fig_h - 1.12
+        ax.text(
+            0.32,
+            y_themes_hdr,
+            "Surface themes (style=...)",
+            fontsize=10.0,
+            fontweight="bold",
+            color=ink,
+            va="top",
+        )
+
+        card_gap_x = 0.14
+        card_gap_y = 0.16
+        margin_x = 0.32
+        usable_w = fig_w - 2 * margin_x
+        card_w = (usable_w - (theme_cols - 1) * card_gap_x) / theme_cols
+        card_h = 0.96
+        y_cards_top = y_themes_hdr - 0.30
+
+        for idx, (name, theme) in enumerate(themes_list):
+            row = idx // theme_cols
+            col = idx % theme_cols
+            x0 = margin_x + col * (card_w + card_gap_x)
+            y0 = y_cards_top - (row + 1) * card_h - row * card_gap_y
+            is_dark = relative_luminance(theme.background) < 0.2
+            edge = "#32433D" if is_dark else "#D3DDD8"
+
+            card = FancyBboxPatch(
+                (x0, y0),
+                card_w,
+                card_h,
+                boxstyle="round,pad=0.0,rounding_size=0.08",
+                facecolor=theme.background,
+                edgecolor=edge,
+                linewidth=0.9,
+            )
+            ax.add_patch(card)
+
+            # Optional theme top accent stripe inside card
+            if theme.top_rule and theme.top_rule_color:
+                ax.plot(
+                    [x0 + 0.08, x0 + card_w - 0.08],
+                    [y0 + card_h - 0.08, y0 + card_h - 0.08],
+                    color=theme.top_rule_color,
+                    linewidth=1.6,
+                )
+
+            alias_list = aliases_by_theme.get(name, [])
+            label_title = name if not alias_list else f"{name} ({alias_list[0]})"
+            title_font = "serif" if theme.allow_serif_title else "sans-serif"
+            ax.text(
+                x0 + 0.10,
+                y0 + card_h - 0.21,
+                label_title,
+                fontsize=8.3,
+                fontweight="bold",
+                fontfamily=title_font,
+                color=theme.ink,
+                va="top",
+            )
+            ax.text(
+                x0 + 0.10,
+                y0 + card_h - 0.43,
+                f"bg {theme.background}",
+                fontsize=6.8,
+                color=theme.muted,
+                va="top",
+            )
+
+            # 4 series swatches across the bottom of the card
+            sw_gap = 0.06
+            sw_pad = 0.10
+            sw_w = (card_w - 2 * sw_pad - 3 * sw_gap) / 4.0
+            sw_h = 0.24
+            for s_idx, hex_col in enumerate(theme.series_colors[:4]):
+                sx = x0 + sw_pad + s_idx * (sw_w + sw_gap)
+                swatch = FancyBboxPatch(
+                    (sx, y0 + 0.10),
+                    sw_w,
+                    sw_h,
+                    boxstyle="round,pad=0.0,rounding_size=0.04",
+                    facecolor=hex_col,
+                    edgecolor="none",
+                )
+                ax.add_patch(swatch)
+
+        # Divider
+        y_div = y_cards_top - theme_rows * card_h - (theme_rows - 1) * card_gap_y - 0.24
+        ax.plot([margin_x, fig_w - margin_x], [y_div, y_div], color="#DFEBE6", linewidth=0.9)
+
+        # Section 2: Explain palettes (2 columns)
+        y_pal_hdr = y_div - 0.16
+        ax.text(
+            margin_x,
+            y_pal_hdr,
+            "Explain palettes (palette=..., 4 series slots + sequential ramp)",
+            fontsize=10.0,
+            fontweight="bold",
+            color=ink,
+            va="top",
+        )
+
+        col_gap = 0.36
+        col_w = (usable_w - col_gap) / pal_cols
+        row_step = 0.50
+        y_pal_start = y_pal_hdr - 0.42
+        split = math.ceil(len(palettes_list) / pal_cols)
+
+        for idx, (name, pal) in enumerate(palettes_list):
+            col = 0 if idx < split else 1
+            row = idx if idx < split else idx - split
+            x0 = margin_x + col * (col_w + col_gap)
+            yc = y_pal_start - row * row_step
+
+            ax.text(
+                x0,
+                yc + 0.04,
+                name,
+                fontsize=8.4,
+                fontweight="bold",
+                color=ink,
+                va="center",
+            )
+
+            # 4 series color pills + hex labels
+            sx0 = x0 + 0.96
+            sw_w = 0.52
+            sw_gap = 0.07
+            for s_idx, hex_col in enumerate(pal.series_colors[:4]):
+                sx = sx0 + s_idx * (sw_w + sw_gap)
+                pill = FancyBboxPatch(
+                    (sx, yc - 0.06),
+                    sw_w,
+                    0.22,
+                    boxstyle="round,pad=0.0,rounding_size=0.04",
+                    facecolor=hex_col,
+                    edgecolor="#FFFFFF",
+                    linewidth=0.5,
+                )
+                ax.add_patch(pill)
+                ax.text(
+                    sx + sw_w / 2.0,
+                    yc - 0.13,
+                    hex_col.upper(),
+                    fontsize=5.6,
+                    color=muted,
+                    ha="center",
+                    va="top",
+                )
+
+            # Sequential ramp on the right side of the column
+            rx0 = sx0 + 4 * (sw_w + sw_gap) + 0.08
+            ramp_total = max(0.72, (x0 + col_w) - rx0)
+            n_stops = max(1, len(pal.seq_stops))
+            seg_w = ramp_total / n_stops
+            for r_idx, hex_col in enumerate(pal.seq_stops):
+                seg = FancyBboxPatch(
+                    (rx0 + r_idx * seg_w, yc - 0.04),
+                    seg_w,
+                    0.18,
+                    boxstyle="square,pad=0.0",
+                    facecolor=hex_col,
+                    edgecolor="none",
+                )
+                ax.add_patch(seg)
+
+        # Footer note
+        ax.text(
+            margin_x,
+            0.18,
+            "Configure project defaults via MINTFIG_STYLE / MINTFIG_PALETTE or [tool.mintfig] in pyproject.toml.",
+            fontsize=7.3,
+            color=muted,
+            va="bottom",
+        )
+
+        fig.savefig(target, dpi=220, facecolor="#FFFFFF")
+
+    return target

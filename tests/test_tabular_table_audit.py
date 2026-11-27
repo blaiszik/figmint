@@ -430,7 +430,8 @@ class TestSkillProgressiveAndCursor:
         assert "chat figures" in frontmatter.lower()
         assert "mint.explain" in frontmatter
         assert "mint.table" in frontmatter
-        assert "**/*.csv" in frontmatter
+        assert "globs:" not in frontmatter
+        assert "alwaysApply: false" in frontmatter
 
     def test_install_skill_copies_references_for_skill_targets(self, tmp_path: Path) -> None:
         written = install_skill(tmp_path, targets=("claude", "antigravity", "codex", "cursor"))

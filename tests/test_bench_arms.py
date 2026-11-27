@@ -169,7 +169,7 @@ def test_plain_arm_hides_defects_and_stops_once_saved(
     bench.main(["start", "02_ab_latency", "--run", str(run), "--arm", "matplotlib-plain",
                 "--python", sys.executable])
     rules = capsys.readouterr().out
-    assert "700" not in rules and "11 px" not in rules  # told neither the width nor the checks
+    assert "700 px" in rules and "11 px" not in rules  # told display width & surface, not defect checks
     (tmp_path / "fig.py").write_text(TINY_SCRIPT, encoding="utf-8")
     bench.main(["submit", "02_ab_latency", str(tmp_path / "fig.py"), "--run", str(run)])
     out = capsys.readouterr().out

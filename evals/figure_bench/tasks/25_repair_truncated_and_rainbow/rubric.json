@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "25_repair_truncated_and_rainbow",
+  "split": "dev",
+  "track": "byo_repair",
+  "domain": "ML Evaluation",
+  "title": "Repair truncated bar axis, rainbow palette, tiny text, and wrong claim",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "True v1.3_distill gain over v1.0_base is +4.8 pp (80.2% -> 85.0%), not +14%",
+  "accept": [
+    4.8,
+    85.0,
+    80.2
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 0.3,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "14.0%",
+    "+14%"
+  ],
+  "required_disclosures": [
+    "5 seeds|n=5|s.d.|sd|±|ci",
+    "v1.3|85.0|4.8"
+  ],
+  "forbid_truncated_bars": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the true Top-1 accuracy gain of v1.3_distill over v1.0_base?",
+      "expected": "+4.8 percentage points (from 80.2% to 85.0%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What uncertainty is reported?",
+      "expected": "±1 SD across 5 seeds."
+    },
+    {
+      "kind": "nuance",
+      "question": "What visual defects from broken_plot.py were fixed?",
+      "expected": "Removed the truncated bar axis, rainbow palette, tiny text, %% typo, and false +14% claim."
+    }
+  ]
+}

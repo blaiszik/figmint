@@ -35,6 +35,7 @@ FORMS = (
     "waterfall",
     "timeline",
     "flow",
+    "forest",
     "custom",
 )
 

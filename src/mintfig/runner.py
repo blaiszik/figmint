@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import importlib
 import inspect
 import json
 import runpy
@@ -18,12 +19,13 @@ import matplotlib.pyplot as plt
 from matplotlib import rcsetup
 from matplotlib.figure import Figure
 
-from . import style
 from .bundle import BundleResult, bundle_figure
 from .explainer import Explanation
 from .plate import Plate
 from .preflight import PreflightReport, preflight_figure, preflight_pdf
 from .specs import JournalSpec, get_spec
+
+style = importlib.import_module("mintfig.style")
 
 RunStage = Literal["preflight", "contract", "runtime"]
 
@@ -135,13 +137,7 @@ def _merge_pdf_errors(report: PreflightReport, pdf_report: PreflightReport) -> b
 
 
 def _explanation_figure(explanation: Explanation) -> Figure:
-    """Unwrap ``mint.explain(...)`` for the runner, keeping its style active for export.
-
-    An Explanation renders under a scoped style; fonts are resolved at draw
-    time, so the same rcParams must be live while the runner saves the bundle.
-    ``run_script`` restores the caller's rcParams afterwards.
-    """
-    style.apply(explanation.spec)
+    """Unwrap ``mint.explain(...)`` for the runner without mutating global rcParams."""
     return explanation.fig
 
 
@@ -151,8 +147,8 @@ def _discover_target(
     spec: JournalSpec,
     width: str | float | None,
     script_path: Path | None = None,
-) -> tuple[Plate | Figure | None, RunStage | None, str | None, str | None]:
-    """Resolve ``build()``, ``plate``, or ``fig`` according to the strict script contract."""
+) -> tuple[Plate | Explanation | Figure | None, RunStage | None, str | None, str | None]:
+    """Resolve ``build()``, ``plate``, ``explanation``, or ``fig`` according to the script contract."""
     build_fn = namespace.get("build")
     if callable(build_fn):
         try:
@@ -178,9 +174,7 @@ def _discover_target(
                 "Fix the runtime exception inside build() and re-run `mintfig run`.",
             )
 
-        if isinstance(target, Explanation):
-            target = _explanation_figure(target)
-        if isinstance(target, (Plate, Figure)):
+        if isinstance(target, (Plate, Explanation, Figure)):
             return target, None, None, None
         return (
             None,
@@ -191,7 +185,7 @@ def _discover_target(
 
     for name in ("explanation", "fig"):
         if isinstance(namespace.get(name), Explanation):
-            return _explanation_figure(namespace[name]), None, None, None
+            return namespace[name], None, None, None
 
     plate_obj = namespace.get("plate")
     if isinstance(plate_obj, Plate):
@@ -328,54 +322,67 @@ def run_script(
                     spec_source_url=spec_source_url,
                 )
 
-            created_fig = target.fig if isinstance(target, Plate) else target
-            report = preflight_figure(created_fig, spec, strict=False)
+            if isinstance(target, Explanation):
+                created_fig = _explanation_figure(target)
+                rc_ctx: contextlib.AbstractContextManager[Any] = target.theme.rc_context(target.spec)
+                bundle_target: Plate | Figure = created_fig
+            elif isinstance(target, Plate):
+                created_fig = target.fig
+                rc_ctx = style.use(target.spec, palette=target.palette)
+                bundle_target = target
+            else:
+                created_fig = target
+                rc_ctx = contextlib.nullcontext()
+                bundle_target = target
 
-            bundle_res: BundleResult | None = None
-            pdf_report: PreflightReport | None = None
-            if bundle_dir is not None:
-                raw_caption = namespace.get("CAPTION")
-                script_caption = (
-                    raw_caption.strip()
-                    if isinstance(raw_caption, str) and raw_caption.strip()
-                    else None
-                )
-                raw_label = namespace.get("LABEL")
-                script_label = (
-                    raw_label.strip()
-                    if isinstance(raw_label, str) and raw_label.strip()
-                    else "fig:fig1"
-                )
-                raw_takeaway = namespace.get("TAKEAWAY")
-                script_takeaway = (
-                    raw_takeaway.strip()
-                    if isinstance(raw_takeaway, str) and raw_takeaway.strip()
-                    else None
-                )
-                raw_notes = namespace.get("PANEL_NOTES")
-                script_notes = (
-                    {str(k): str(v) for k, v in raw_notes.items()}
-                    if isinstance(raw_notes, dict)
-                    else None
-                )
-                bundle_res = bundle_figure(
-                    target,
-                    bundle_dir,
-                    journal=spec,
-                    report=report,
-                    source_path=path,
-                    caption=script_caption,
-                    label=script_label,
-                    takeaway=script_takeaway,
-                    panel_notes=script_notes,
-                    include_proof=include_proof,
-                )
-                pdf_report = preflight_pdf(bundle_res.figure_pdf, spec)
-                if _merge_pdf_errors(report, pdf_report):
-                    payload = report.to_agent_dict(artifacts=bundle_res.to_dict())
-                    bundle_res.report_json.write_text(
-                        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+            with rc_ctx:
+                report = preflight_figure(created_fig, spec, strict=False)
+
+                bundle_res: BundleResult | None = None
+                pdf_report: PreflightReport | None = None
+                if bundle_dir is not None:
+                    raw_caption = namespace.get("CAPTION")
+                    script_caption = (
+                        raw_caption.strip()
+                        if isinstance(raw_caption, str) and raw_caption.strip()
+                        else None
                     )
+                    raw_label = namespace.get("LABEL")
+                    script_label = (
+                        raw_label.strip()
+                        if isinstance(raw_label, str) and raw_label.strip()
+                        else "fig:fig1"
+                    )
+                    raw_takeaway = namespace.get("TAKEAWAY")
+                    script_takeaway = (
+                        raw_takeaway.strip()
+                        if isinstance(raw_takeaway, str) and raw_takeaway.strip()
+                        else None
+                    )
+                    raw_notes = namespace.get("PANEL_NOTES")
+                    script_notes = (
+                        {str(k): str(v) for k, v in raw_notes.items()}
+                        if isinstance(raw_notes, dict)
+                        else None
+                    )
+                    bundle_res = bundle_figure(
+                        bundle_target,
+                        bundle_dir,
+                        journal=spec,
+                        report=report,
+                        source_path=path,
+                        caption=script_caption,
+                        label=script_label,
+                        takeaway=script_takeaway,
+                        panel_notes=script_notes,
+                        include_proof=include_proof,
+                    )
+                    pdf_report = preflight_pdf(bundle_res.figure_pdf, spec)
+                    if _merge_pdf_errors(report, pdf_report):
+                        payload = report.to_agent_dict(artifacts=bundle_res.to_dict())
+                        bundle_res.report_json.write_text(
+                            json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+                        )
 
             ok = report.passed and (not strict or not report.warnings)
             exit_code = 0 if ok else 1

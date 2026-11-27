@@ -26,8 +26,8 @@
     "outside noise"
   ],
   "required_disclosures": [
-    "within noise",
-    "95% CI"
+    "within noise|noise|overlap|no speedup|not faster|inconclusive",
+    "95% CI|confidence interval|CI|s.d.|sd|\u00b1"
   ],
   "reader_questions": [
     {

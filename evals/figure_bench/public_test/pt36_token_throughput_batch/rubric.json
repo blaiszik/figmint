@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt36_token_throughput_batch",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "ML Serving",
+  "title": "LLM serving throughput vs TTFT SLA frontier",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Batch size 16 is the max SLA-compliant operating point: 748 tok/s at 168 ms p95 TTFT (batch 32 breaches 200 ms at 294 ms)",
+  "accept": [
+    747.7,
+    16.0,
+    168.0
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 5.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "200 ms|200ms|sla",
+    "batch 16|16|ttft"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the maximum throughput achievable while meeting the 200 ms TTFT SLA?",
+      "expected": "About 748 tok/s at batch size 16 (p95 TTFT = 168 ms)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "What happens if batch size is increased to 32?",
+      "expected": "Throughput rises slightly to 1,039 tok/s, but p95 TTFT jumps to 294 ms, breaching the 200 ms SLA."
+    },
+    {
+      "kind": "nuance",
+      "question": "How does inter-token latency behave at batch 16 vs 64?",
+      "expected": "ITL rises from 21.4 ms at batch 16 to 49.5 ms at batch 64."
+    }
+  ]
+}

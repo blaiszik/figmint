@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "10_incident",
+  "split": "dev",
+  "track": "swe_coding",
+  "domain": "Site Reliability",
+  "title": "Mid-November pager storm log-scale error rates",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "payments peak error rate, or its ratio to the usual rate",
+  "accept": [
+    0.020869,
+    271.273789,
+    2.086925
+  ],
+  "rel_tol": 0.2,
+  "abs_tol": 0.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "payments",
+    "log|orders of magnitude|271|spike"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What was the peak error rate of the payments service?",
+      "expected": "About 2.1% (0.0209, ~271× its baseline rate)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Why is a logarithmic y-axis used?",
+      "expected": "Normal baseline error rates span two orders of magnitude (1e-5 to 1e-3) across the five services."
+    },
+    {
+      "kind": "nuance",
+      "question": "Which service triggered the incident versus remaining near baseline?",
+      "expected": "Payments spiked dramatically while the other four services remained near their normal baselines."
+    }
+  ]
+}

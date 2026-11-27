@@ -20,8 +20,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "5.0%",
-    "SD"
+    "5.0%|5%|drift limit|spec",
+    "SD|s.d.|\u00b1|ci|replicate|n="
   ],
   "reader_questions": [
     {

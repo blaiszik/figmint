@@ -163,6 +163,22 @@ def _series_map(series: object, n: int) -> tuple[dict[str, np.ndarray], bool]:
     if _has_items(series) and not _is_one_dimensional(series):
         raw = {str(k): v for k, v in _pairs(series)}
         single = False
+    elif (
+        isinstance(series, Sequence)
+        and not isinstance(series, (str, bytes))
+        and series
+        and all(
+            isinstance(item, Sequence)
+            and not isinstance(item, (str, bytes))
+            and len(item) == 2
+            and isinstance(item[0], str)
+            for item in series
+        )
+    ):
+        raise ExplainError(
+            "trend(series) expects a dict mapping series name -> list of values, got a list of pairs.",
+            fix_hint='Pass a dict such as {"checkout": [540, 560, 980], "search": [450, 460, 455]}.',
+        )
     else:
         raw = {"": series}
         single = True
@@ -826,7 +842,7 @@ def _linear_fit_facts(
     return out
 
 
-@_guarded("trend")
+@_guarded("trend", aliases={"measure": "label"})
 def trend(
     x: Sequence[Any] | str,
     series: Mapping[str, Sequence[float]] | Sequence[float] | str | None = None,
@@ -1046,9 +1062,15 @@ def trend(
             )
     ref = _reference_line(reference, "trend(reference)")
     bands, band_spec, band_modes = _trend_bands(band, data, n)
+    if events is not None and not _has_items(events):
+        raise ExplainError(
+            f"trend(events) must be a mapping of x_position -> label, got {type(events).__name__}.",
+            fix_hint='Pass a dict such as events={4: "v2.3 deploy"} or events={"2026-03-01": "launch"}.',
+        )
+    event_pairs = _pairs(events) if events is not None else []
     event_items: list[tuple[float, str]] = [
         (_parse_x_point(at, x_kind, x_text, "trend(events) key"), str(text))
-        for at, text in (events or {}).items()
+        for at, text in event_pairs
     ]
     region_items, regions_spec = _parse_trend_regions(regions, x_kind, x_text, log_x=log_x)
     callout_items, callouts_spec = _parse_trend_callouts(
@@ -1853,7 +1875,7 @@ def trend(
         band_label=band_label,
         points={k: [r.tolist() for r in v] for k, v in reps.items()} or None,
         points_label=points_label,
-        events={str(_jsonable(k)): str(v) for k, v in (events or {}).items()} or None,
+        events={str(_jsonable(k)): str(v) for k, v in event_pairs} or None,
         regions=regions_spec or None,
         callouts=callouts_spec or None,
         reference=list(ref) if ref else None,

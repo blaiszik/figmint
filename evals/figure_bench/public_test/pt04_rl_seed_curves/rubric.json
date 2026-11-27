@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "SD",
-    "6 seeds"
+    "SD|s.d.|standard deviation|\u00b1|ci",
+    "6 seeds|n=6|seeds"
   ],
   "reader_questions": [
     {

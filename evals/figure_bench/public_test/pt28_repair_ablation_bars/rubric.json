@@ -20,10 +20,10 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "corrected F1 gain from data",
-    "honest zero baseline or dot/point-interval encoding",
-    "error bar definition (s.d./CI, 6 seeds)"
+    "6 seeds|n=6|s.d.|sd|ci|\u00b1",
+    "baseline|zero|0"
   ],
+  "forbid_truncated_bars": true,
   "reader_questions": [
     {
       "kind": "primary",

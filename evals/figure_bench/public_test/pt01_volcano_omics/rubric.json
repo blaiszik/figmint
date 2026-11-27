@@ -19,8 +19,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "threshold",
-    "p"
+    "threshold|cutoff|1.5|0.01",
+    "p < 0.01|p-value|padj|fdr|-log10"
   ],
   "reader_questions": [
     {

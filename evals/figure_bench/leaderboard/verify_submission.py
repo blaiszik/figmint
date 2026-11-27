@@ -227,6 +227,8 @@ def verify_submission_data(
                 allow_null=True,
                 errors=errors,
             )
+        if "timing_summary" in prov and prov["timing_summary"] is not None and not isinstance(prov["timing_summary"], dict):
+            errors.append("provenance.timing_summary: must be an object or null")
 
     # 4. Scores block validation
     scores = data.get("scores")
@@ -344,6 +346,8 @@ def verify_submission_data(
                 or not (100 <= row["display_width_px"] <= 4096)
             ):
                 errors.append(f"{prefix}.display_width_px: must be integer in [100, 4096]")
+            if "timing" in row and row["timing"] is not None and not isinstance(row["timing"], dict):
+                errors.append(f"{prefix}.timing: must be an object or null")
             valid_rows.append(row)
 
     # 6. Anti-tampering check: aggregate scores MUST match per_task calculations

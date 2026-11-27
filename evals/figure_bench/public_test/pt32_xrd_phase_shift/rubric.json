@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt32_xrd_phase_shift",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Materials Characterization",
+  "title": "XRD (111) peak shift under compressive strain",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "4% strain shifts the (111) peak by +0.70° (from 39.85° to 40.55°)",
+  "accept": [
+    0.7,
+    40.55,
+    39.85
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.08,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "2θ|two_theta|deg|°",
+    "3 scan|triplicate|replicate|n=3|s.d.|sd|±|ci"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By how many degrees 2θ does the (111) peak shift at 4% strain?",
+      "expected": "About +0.70° (from 39.85° to 40.55°)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How many replicate XRD scans back each curve?",
+      "expected": "3 replicate scans per condition."
+    },
+    {
+      "kind": "nuance",
+      "question": "What physical change does shifting to higher 2θ indicate?",
+      "expected": "Lattice d-spacing contraction under compressive strain."
+    }
+  ]
+}

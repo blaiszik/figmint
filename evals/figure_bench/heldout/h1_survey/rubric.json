@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1",
+  "id": "h1_survey",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "People Analytics",
+  "title": "Employee engagement survey satisfaction by department",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Support's share satisfied or very satisfied (%)",
+  "accept": [
+    41.666667
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 2.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "support",
+    "n=|respondent|ci|margin|interval|40|160"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What share of Support staff are satisfied or very satisfied, in %?",
+      "expected": "41.7% (~42%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is sampling uncertainty across varying department sizes communicated?",
+      "expected": "Sample sizes (n ≈ 40–160) and/or 95% binomial confidence intervals."
+    },
+    {
+      "kind": "nuance",
+      "question": "Is Support's low satisfaction outside sampling noise?",
+      "expected": "Yes, Support sits clearly below the other departments even accounting for sample size."
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+release,top1_acc_pct,sd_pct,n_seeds
+v1.0_base,80.2,0.9,5
+v1.1_norm,81.4,0.8,5
+v1.2_aug,83.1,0.7,5
+v1.3_distill,85.0,0.8,5

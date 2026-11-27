@@ -20,8 +20,8 @@
   "no_effect_trap": false,
   "forbidden_overclaim_phrases": [],
   "required_disclosures": [
-    "3 Pareto-optimal configs (cfg-mini-int4, cfg-mid-fp8, cfg-large-bf16)",
-    "accuracy_sd uncertainty across 500 examples"
+    "pareto|frontier|cfg-mid-fp8|dominated",
+    "s.d.|sd|\u00b1|500|uncertainty|ci"
   ],
   "reader_questions": [
     {

@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt31_bland_altman",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Biomedical Devices",
+  "title": "Pulse oximeter Bland–Altman bias and 95% limits of agreement",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Mean bias +1.65% SpO2 (95% LoA -1.3% to +4.6%), with wider positive bias below 90% SaO2",
+  "accept": [
+    1.654144,
+    4.604061,
+    1.295773,
+    1.50506
+  ],
+  "rel_tol": 0.1,
+  "abs_tol": 0.25,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "bias|mean diff",
+    "loa|limits of agreement|1.96|95%|sd|s.d.|±",
+    "90%|hypox"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the wearable oximeter's mean bias vs arterial SaO2?",
+      "expected": "About +1.65% SpO2 (95% limits of agreement -1.3% to +4.6%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is agreement spread quantified?",
+      "expected": "95% limits of agreement (±1.96 SD) across n = 60 paired readings."
+    },
+    {
+      "kind": "nuance",
+      "question": "Does error behave uniformly across oxygenation levels?",
+      "expected": "No — error and overestimation widen noticeably below 90% SaO2."
+    }
+  ]
+}

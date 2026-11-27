@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "h18_gc_pause_tail_cdf",
+  "split": "heldout",
+  "track": "swe_coding",
+  "domain": "Runtime Systems",
+  "title": "GC stop-the-world tail pause profile (p50 to p99.9)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "JVM-G1GC hits 142.0 ms at p99.9 (11.3x JVM-ZGC's 12.6 ms and 7.7x Go-1.23's 18.4 ms)",
+  "accept": [
+    142.0,
+    11.269841,
+    7.717391,
+    12.6,
+    18.4
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.8,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "g1gc|g1",
+    "zgc",
+    "p99.9|99.9"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is JVM-G1GC's p99.9 pause time compared to JVM-ZGC?",
+      "expected": "142.0 ms vs 12.6 ms (11.3× worse)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How does Go-1.23 compare at p99.9?",
+      "expected": "18.4 ms — close to JVM-ZGC and 7.7× lower than G1GC."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why is a log scale necessary for pause_ms?",
+      "expected": "Pauses span nearly three orders of magnitude from 0.35 ms at p50 to 142 ms at p99.9."
+    }
+  ]
+}

@@ -102,7 +102,9 @@ class TestInteractiveHtml:
         assert "<html" not in frag
         assert "<figure" in frag
         assert "<svg" in frag
-        assert 'class="mf-data" hidden' in frag
+        assert "<details" in frag
+        assert '<summary data-mf-act="data">data</summary>' in frag
+        assert 'class="mf-data"' in frag
         assert "Critique" not in frag
 
     def test_render_html_noninteractive_mode(self) -> None:

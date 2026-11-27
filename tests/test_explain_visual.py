@@ -90,8 +90,14 @@ def test_an_entity_keeps_one_colour_in_every_panel(style: str) -> None:
     # grey; unhighlighted panel: non-entities grey
     assert a["ref"] == ref and a["blank"] == theme.context_fill.upper()
     assert b["blank"] != ref and b["blank"] != new
-    # the uniform default colour stays the theme default and is not an entity colour
-    assert set(_bar_colours(result, "e").values()) == {theme.default_color.upper()}
+    # the uniform panel gets the theme default (or a free non-entity palette colour when
+    # the primary highlight shares the default colour, as on mintfig's cobalt-blue highlight)
+    e_cols = set(_bar_colours(result, "e").values())
+    assert len(e_cols) == 1
+    if theme.accent_colors[0].upper() == theme.default_color.upper():
+        assert e_cols.isdisjoint({new, ref})
+    else:
+        assert e_cols == {theme.default_color.upper()}
 
 
 def test_ablation_variant_has_the_same_colour_in_dot_plot_and_trend() -> None:
@@ -178,7 +184,7 @@ def test_pinned_name_in_an_unhighlighted_compare_takes_its_colour() -> None:
 
 @pytest.mark.parametrize(
     "colors",
-    [{"a": "#FF0000"}, {"a": "purple"}, ["a"], {"a": "red", "b": "red"}],
+    [{"a": "#ZZZZZZ"}, {"a": "purple"}, ["a"], {"a": "red", "b": "red"}, {"a": "#1F5A9D", "b": "#1f5a9d"}],
 )
 def test_bad_colour_pins_are_explain_errors(colors: object) -> None:
     with pytest.raises(mint.ExplainError) as err:
@@ -491,13 +497,29 @@ def test_matrix_headers_wrap_or_refuse() -> None:
     )
     headers = [t.get_text() for t in wrapped["a"].get_xticklabels()]
     assert any("\n" in h for h in headers)
+    # Moderately wide single-word headers angle cleanly instead of hard-failing
+    angled = mint.explain(
+        "Wide single-word headers angle cleanly in a half-width matrix",
+        mint.matrix(
+            [[82, 74, 71, 68, 63], [79, 71, 68, 65, 60]],
+            rows=["English", "Swahili"],
+            cols=["QA", "summarise", "translate", "code", "math"],
+            label="Accuracy",
+            unit="%",
+        ),
+        mint.compare({"a": 1, "b": 2}, label="x"),
+        layout=[["a", "b"]],
+    )
+    assert angled.ship is True
+    assert all(t.get_rotation() == pytest.approx(40.0) for t in angled["a"].get_xticklabels())
+    # Impossibly cramped columns in a half-width cell still refuse with matrix_cells_too_small
     with pytest.raises(mint.ExplainError) as err:
         mint.explain(
-            "Long single-word headers cannot fit a half-width matrix",
+            "Too many long single-word headers cannot fit a half-width matrix",
             mint.matrix(
-                values,
+                [[1.0] * 11, [2.0] * 11],
                 rows=["x", "y"],
-                cols=["HotpotQAextended", "TriviaQAextended", "NaturalQuestions", "SciFactBench"],
+                cols=[f"BenchmarkLongName{i}" for i in range(11)],
             ),
             mint.compare({"a": 1, "b": 2}, label="x"),
         )
@@ -603,7 +625,7 @@ def test_a_superscript_run_is_one_script_in_one_font() -> None:
 def test_summary_lists_entity_colour_slots_for_the_next_figure() -> None:
     first = _six()
     slots = first.summary()["colors"]
-    assert slots["new"] == "red" and slots["ref"] in {"blue", "green", "amber"}
+    assert slots["new"] == "blue" and slots["ref"] in {"red", "green", "amber"}
     second = mint.explain(
         "The reference catalyst is the slower of the two at every temperature",
         mint.trend([1, 2, 3], {"ref": [1, 2, 3], "new": [2, 4, 6]}, label="Yield"),

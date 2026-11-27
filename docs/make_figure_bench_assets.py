@@ -1,8 +1,10 @@
 """Generate visual benchmark & failure-anatomy assets for ``docs/figure-bench.md``.
 
 Writes deterministic PNGs into ``docs/assets/figure_bench/``:
-- ``arms_overview.png``: grouped ``mint.compare`` chart of the real measured
-  ``v0.1-initial-15`` agent comparison (``evals/figure_bench/runs/compare_r6_b1_u1.md``).
+- ``arms_overview.png``: 2-panel ``mint.explain`` figure of the measured 100-task × 4-arm
+  ``figure-bench v0.1`` Claude Sonnet 5.5 sweep (neutral pass rates + per-task timing).
+- ``splits_and_tracks.png``: 2-panel ``mint.explain`` figure of composite scores by split
+  (dev / public-test / heldout) and by track across all 4 arms.
 - ``failure_line_struck_before.png``: rendered directly from the real
   ``pt30_repair_line_struck/data/broken_plot.py`` benchmark task.
 - ``failure_line_struck_after.png``: clean ``mint.explain`` render on the exact
@@ -12,6 +14,7 @@ Writes deterministic PNGs into ``docs/assets/figure_bench/``:
 from __future__ import annotations
 
 import csv
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -21,56 +24,163 @@ from mintfig.figcheck import check_script
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 OUT_DIR = REPO_ROOT / "docs" / "assets" / "figure_bench"
+SUB_DIR = REPO_ROOT / "evals" / "figure_bench" / "leaderboard" / "submissions"
+RUNS_DIR = REPO_ROOT / "evals" / "figure_bench" / "runs"
 PT30_DIR = (
     REPO_ROOT / "evals" / "figure_bench" / "public_test" / "pt30_repair_line_struck" / "data"
 )
 
 
+def _pct_from_frac(frac: str) -> float:
+    num, den = (int(x) for x in frac.split("/"))
+    return round(100.0 * num / den, 1) if den else 0.0
+
+
+MINT_ACCENT = "#128060"
+ARM_COLORS = {
+    "mintfig": MINT_ACCENT,
+    "mpl + hook": "#1D619E",
+    "coached": "#7B2466",
+}
+
+
+def _load_v01_100() -> tuple[list[tuple[str, str, str]], dict[str, dict], dict[str, dict]]:
+    arm_specs = [
+        ("mintfig", "v01_all100_mintfig_sonnet55.json", "v01_100_sonnet55_mintfig"),
+        ("mpl + hook", "v01_all100_matplotlib_hook_sonnet55.json", "v01_100_sonnet55_matplotlib_hook"),
+        ("coached", "v01_all100_matplotlib_coached_sonnet55.json", "v01_100_sonnet55_matplotlib_coached"),
+        ("default", "v01_all100_matplotlib_plain_sonnet55.json", "v01_100_sonnet55_matplotlib_plain"),
+    ]
+    subs = {label: json.loads((SUB_DIR / sfile).read_text(encoding="utf-8")) for label, sfile, _ in arm_specs}
+    runs = {label: json.loads((RUNS_DIR / rdir / "results.json").read_text(encoding="utf-8")) for label, _, rdir in arm_specs}
+    return arm_specs, subs, runs
+
+
 def render_arms_overview(out_path: Path) -> None:
-    """Plot the measured full 60-task v0.1 arm comparison with mintfig."""
-    # Exact 60-task results from evals/figure_bench/leaderboard/submissions/v01_all60_*_sonnet55.json
-    # and evals/figure_bench/runs/v01_sonnet55_compare.md
+    """Plot the measured full 100-task v0.1 4-arm comparison & timing distribution with mintfig."""
+    arm_specs, subs, runs = _load_v01_100()
+
     metrics = {
-        "Zero-defect figure": {
-            "mintfig": round(57 / 60 * 100, 1),
-            "Matplotlib + hook": round(48 / 60 * 100, 1),
-            "Matplotlib, default": round(21 / 60 * 100, 1),
-        },
-        "Text >= 11 px (saved)": {
-            "mintfig": 100.0,
-            "Matplotlib + hook": round(56 / 57 * 100, 1),
-            "Matplotlib, default": round(28 / 60 * 100, 1),
-        },
-        "Right headline #": {
-            "mintfig": round(53 / 60 * 100, 1),
-            "Matplotlib + hook": round(39 / 60 * 100, 1),
-            "Matplotlib, default": round(36 / 60 * 100, 1),
-        },
-        "Uncertainty named": {
-            "mintfig": round(29 / 33 * 100, 1),
-            "Matplotlib + hook": round(20 / 31 * 100, 1),
-            "Matplotlib, default": round(24 / 33 * 100, 1),
-        },
+        "Zero-defect (final)": {lbl: _pct_from_frac(runs[lbl]["neutral"]["final"]["clean"]) for lbl, _, _ in arm_specs},
+        "First-submit clean": {lbl: float(subs[lbl]["provenance"]["first_submission_clean_rate"]) for lbl, _, _ in arm_specs},
+        "Right headline #": {lbl: _pct_from_frac(runs[lbl]["neutral"]["final"]["headline_correct"]) for lbl, _, _ in arm_specs},
+        "Uncertainty named": {lbl: _pct_from_frac(runs[lbl]["neutral"]["final"]["uncertainty_named"]) for lbl, _, _ in arm_specs},
+        "Composite score": {lbl: float(subs[lbl]["scores"]["composite"]) for lbl, _, _ in arm_specs},
     }
+    timings = {
+        lbl: [float(r["seconds"]) for r in subs[lbl]["per_task"] if isinstance(r.get("seconds"), (int, float))]
+        for lbl, _, _ in arm_specs
+    }
+
+    mf_comp = subs["mintfig"]["scores"]["composite"]
+    mf_med = subs["mintfig"]["scores"]["median_seconds"]
+    co_clean = metrics["Zero-defect (final)"]["coached"]
+    pl_clean = metrics["Zero-defect (final)"]["default"]
+
     fig = mint.explain(
-        "Across 60 tasks, mintfig ships 95% zero-defect figures and 88% right headlines vs 35% and 60% for default Matplotlib",
+        f"Across 100 tasks, mintfig ships 100% defect-free figures ({mf_comp:.1f}) in {mf_med:.1f} s vs {co_clean:.0f}% coached and {pl_clean:.0f}% default Matplotlib",
         mint.compare(
             metrics,
-            title="Share of tasks passing each neutral audit check (%)",
-            label="Pass rate",
+            title="Neutral audit pass rates & composite (n = 100)",
+            label="Score / pass rate",
             unit="%",
-            baseline="Matplotlib, default",
-            highlight=["mintfig", "Matplotlib + hook"],
+            baseline="default",
+            highlight=["mintfig", "mpl + hook", "coached"],
             sort=False,
         ),
-        subtitle="figure-bench v0.1 full 60-task sweep (15 dev + 30 public-test + 15 heldout, fresh Sonnet 5.5 per task)",
-        source="evals/figure_bench/leaderboard/submissions/v01_all60_*_sonnet55.json",
+        mint.distribution(
+            timings,
+            title="Task completion time",
+            label="Time",
+            unit="s",
+            stat="median",
+            baseline="default",
+            highlight=["mintfig", "mpl + hook", "coached"],
+        ),
+        subtitle="figure-bench v0.1 full 100-task sweep (25 dev · 50 public-test · 25 heldout · 400 isolated Claude Sonnet 5.5 runs)",
+        source="evals/figure_bench/leaderboard/submissions/v01_all100_*_sonnet55.json",
+        accent=MINT_ACCENT,
+        colors=ARM_COLORS,
+        layout=[["a", "a", "a", "b", "b"]],
+        width="slide",
+        density="compact",
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     summary = fig.save(out_path)
+    print(f"arms_overview.png: ship={summary['ship']} ok={summary['ok']} issues={summary['issues']}")
     if not summary["ship"]:
         raise RuntimeError(f"arms_overview.png failed ship: {summary['issues']}")
-    print(f"arms_overview.png: ship={summary['ship']} issues={summary['issues']}")
+
+
+def render_splits_and_tracks(out_path: Path) -> None:
+    """Plot composite scores across all 3 splits (dev/public-test/heldout) and all 6 tracks."""
+    arm_specs, subs, _runs = _load_v01_100()
+
+    def _avg_for(arm_lbl: str, key: str, val: str) -> float:
+        rows = [r["composite"] for r in subs[arm_lbl]["per_task"] if r.get(key) == val]
+        return round(sum(rows) / len(rows), 1) if rows else 0.0
+
+    split_labels = [
+        ("dev (25)", "dev"),
+        ("public-test (50)", "public-test"),
+        ("heldout (25)", "heldout"),
+    ]
+    splits_data = {
+        display: {lbl: _avg_for(lbl, "split", key) for lbl, _, _ in arm_specs}
+        for display, key in split_labels
+    }
+
+    track_labels = [
+        ("SWE & coding (22)", "swe_coding"),
+        ("Science & unc. (28)", "science_uncertainty"),
+        ("Multi-turn edit (11)", "multiturn_edit"),
+        ("Epistemic traps (18)", "epistemic_traps"),
+        ("Multi-surface (11)", "multi_surface"),
+        ("BYO repair (10)", "byo_repair"),
+    ]
+    tracks_data = {
+        display: {lbl: _avg_for(lbl, "track", key) for lbl, _, _ in arm_specs}
+        for display, key in track_labels
+    }
+
+    mf_dev = splits_data["dev (25)"]["mintfig"]
+    mf_pt = splits_data["public-test (50)"]["mintfig"]
+    mf_held = splits_data["heldout (25)"]["mintfig"]
+    pl_held = splits_data["heldout (25)"]["default"]
+
+    fig = mint.explain(
+        f"mintfig leads every split — {mf_dev:.1f} dev, {mf_pt:.1f} public-test, and {mf_held:.1f} heldout vs {pl_held:.1f} for default Matplotlib",
+        mint.compare(
+            splits_data,
+            title="Composite score by split",
+            label="Composite",
+            unit="/100",
+            baseline="default",
+            highlight=["mintfig", "mpl + hook", "coached"],
+            sort=False,
+        ),
+        mint.compare(
+            tracks_data,
+            title="Composite score by track",
+            label="Composite",
+            unit="/100",
+            baseline="default",
+            highlight=["mintfig", "mpl + hook", "coached"],
+            sort=False,
+        ),
+        subtitle="figure-bench v0.1 full 100-task 4-arm sweep · heldout tasks were never used to tune mintfig or SKILL.md (Claude Sonnet 5.5)",
+        source="evals/figure_bench/leaderboard/submissions/v01_all100_*_sonnet55.json",
+        accent=MINT_ACCENT,
+        colors=ARM_COLORS,
+        layout=[["a", "a", "b", "b", "b"]],
+        width="slide",
+        density="compact",
+    )
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    summary = fig.save(out_path)
+    print(f"splits_and_tracks.png: ship={summary['ship']} ok={summary['ok']} issues={summary['issues']}")
+    if not summary["ship"]:
+        raise RuntimeError(f"splits_and_tracks.png failed ship: {summary['issues']}")
 
 
 def render_pt30_before_after(before_path: Path, after_path: Path) -> None:
@@ -118,6 +228,7 @@ def render_pt30_before_after(before_path: Path, after_path: Path) -> None:
 
 def main() -> int:
     render_arms_overview(OUT_DIR / "arms_overview.png")
+    render_splits_and_tracks(OUT_DIR / "splits_and_tracks.png")
     render_pt30_before_after(
         OUT_DIR / "failure_line_struck_before.png",
         OUT_DIR / "failure_line_struck_after.png",

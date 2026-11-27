@@ -34,6 +34,7 @@ it); it needs mintfig, and pandas if the agent uses it.
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import math
 import re
@@ -61,8 +62,9 @@ REPLY_MAX_WORDS = 60  # prose around the figure in the reply: one sentence and o
 DELIVERY_CHECK = "reply_delivers_figure"
 
 _CAPTURE = r"""
-import json, os, runpy, sys
+import json, os, runpy, sys, time
 from pathlib import Path
+_capture_t0 = time.perf_counter()
 script, summary_out, audit_out, arm, bench_dir = sys.argv[1:6]
 check_out = sys.argv[6] if len(sys.argv) > 6 else ""
 display_w = int(sys.argv[7]) if len(sys.argv) > 7 and sys.argv[7] else 700
@@ -72,6 +74,8 @@ target = Path("figure.png").resolve()
 calls, audits, check_reports = [], [], []
 user_mintfig_imported = False
 _user_mintfig_recorded = False
+_audit_s = 0.0
+_mint_check_s = 0.0
 try:
     import matplotlib
     matplotlib.use("Agg")
@@ -80,7 +84,7 @@ try:
     import neutral
     _savefig = Figure.savefig
     def _hooked_savefig(self, fname, *a, **k):
-        global user_mintfig_imported, _user_mintfig_recorded
+        global user_mintfig_imported, _user_mintfig_recorded, _audit_s, _mint_check_s
         result = _savefig(self, fname, *a, **k)
         try:
             hit = isinstance(fname, (str, os.PathLike)) and Path(fname).resolve() == target
@@ -93,11 +97,14 @@ try:
             dpi = k.get("dpi") or mpl.rcParams["savefig.dpi"]
             dpi = self.dpi if dpi == "figure" else float(dpi)
             tight = (k.get("bbox_inches") or mpl.rcParams["savefig.bbox"]) == "tight"
+            _t_aud = time.perf_counter()
             try:
                 audits.append(neutral.audit_saved_figure(self, target, dpi=dpi, tight=tight, display_width_px=display_w))
             except Exception as exc:
                 audits.append({"error": f"{type(exc).__name__}: {exc}"})
+            _audit_s += time.perf_counter() - _t_aud
             if arm == "matplotlib-hook" and check_out:
+                _t_chk = time.perf_counter()
                 try:
                     if src_dir and src_dir not in sys.path:
                         sys.path.insert(0, src_dir)
@@ -111,6 +118,7 @@ try:
                     })
                 except Exception as exc:
                     check_reports.append({"error": f"{type(exc).__name__}: {exc}"})
+                _mint_check_s += time.perf_counter() - _t_chk
         return result
     Figure.savefig = _hooked_savefig
 except ImportError:
@@ -124,16 +132,33 @@ if arm == "mintfig":
         calls.append(json.loads(json.dumps(summary, default=str)))
         return summary
     ex.Explanation.save = _capturing_save
+_script_t0 = time.perf_counter()
 try:
     runpy.run_path(script, run_name="__main__")
 finally:
+    _script_wall_s = time.perf_counter() - _script_t0
+    _script_exec_s = max(0.0, _script_wall_s - _audit_s - _mint_check_s)
+    _capture_total_s = time.perf_counter() - _capture_t0
     if not _user_mintfig_recorded:
         user_mintfig_imported = "mintfig" in sys.modules
     with open(summary_out, "w") as fh:
         json.dump(calls, fh, ensure_ascii=False)
     with open(audit_out, "w") as fh:
-        json.dump({"audits": audits, "mintfig_imported": user_mintfig_imported}, fh,
-                  ensure_ascii=False, default=str)
+        json.dump(
+            {
+                "audits": audits,
+                "mintfig_imported": user_mintfig_imported,
+                "timing": {
+                    "script_exec_s": round(_script_exec_s, 4),
+                    "audit_s": round(_audit_s, 4),
+                    "mint_check_s": round(_mint_check_s, 4),
+                    "capture_total_s": round(_capture_total_s, 4),
+                },
+            },
+            fh,
+            ensure_ascii=False,
+            default=str,
+        )
     if check_out:
         with open(check_out, "w") as fh:
             json.dump(check_reports, fh, ensure_ascii=False, default=str)
@@ -195,21 +220,53 @@ AGENT_RULES_MATPLOTLIB_PLAIN = """\
 Rules for this task:
 - Read context.md and the files in data/ in this folder.
   Do not read anything else in the repository.
-- Answer the last request in the thread with ONE figure made with Matplotlib
-  (numpy and pandas are available; do not use mintfig). Your script must save it
-  as figure.png in this folder.
+- {surface_output_rule}
 - Do not render figures yourself (no savefig runs of your own): submit is your
   renderer. Plain data analysis (numpy/pandas) is fine.
 - Write the reply you would send the person as a Markdown file and hand it in with
-  your submit. It must show the figure with the image line ![<one-line summary>](figure.png).
+  your submit. {surface_reply_rule}
   At most {max_words} words of prose outside the image line and code blocks:
   one sentence, the figure, one caption.
 - Submit with:  {python} {bench} submit {task} --run {run} <your_script.py> --reply <your_reply.md>
   Submit runs a copy of your script with this folder as the working directory, so
   open data with paths like "data/x.csv", not paths built from __file__.
-  Submit runs your script and tells you whether it ran and saved figure.png. If it
-  did, the task is over. If not, fix the error and submit again ({max_attempts} at most).
-- The clock started now and stops when a submission saves the figure.
+  {surface_submit_rule} If not, fix the error and submit again ({max_attempts} at most).
+- The clock started now and stops when a submission completes.
+"""
+
+AGENT_RULES_MATPLOTLIB_COACHED = """\
+Rules for this task (Prompt-Coached Matplotlib, No Mintfig):
+- Read context.md and the files in data/ in this folder.
+  Do not read anything else in the repository.
+- {surface_output_rule}
+- Design & honesty checklist (plain Matplotlib only — do NOT import mintfig):
+  1. Reading-width legibility: size the figure and fonts for the target {surface} surface
+     ({display_label}) so every tick, label, and annotation is >= {min_px:g} px as displayed
+     (e.g., ~6–7 in wide with >= 10–11 pt text for 700 px chat, narrower for 450 px, dark
+     background + high-contrast ink for dark surfaces).
+  2. Message-first headline with verified number: put the main quantitative takeaway and its
+     exact number (with correct sign) in the figure title/suptitle, computed from the data.
+  3. Honest axes & palettes: always start linear bar charts at 0 (never truncate bar baselines);
+     use log scales when values span orders of magnitude; never use jet/rainbow colormaps
+     (use viridis/cividis/RdBu_r and colorblind-safe hues).
+  4. Named uncertainty & no overclaiming: label what every error bar/band represents
+     (95% CI, ± 1 SD, IQR, n / seeds / replicates); if intervals overlap or the effect sits
+     within noise, state that plainly and do not claim a significant win.
+  5. Clean layout: prefer direct labels over boxed legends; keep text horizontal, unclipped,
+     non-overlapping, and never crossed by data or reference lines; avoid '%%', 'nan', 'None',
+     or repeated words.
+- Do not render figures yourself (no savefig runs of your own): submit is your
+  renderer. Images found in this folder that submit did not make are counted as
+  local renders. Plain data analysis (numpy/pandas) is fine.
+- Write the reply you would send the person as a Markdown file and hand it in with
+  your submit. {surface_reply_rule}
+  At most {max_words} words of prose outside the image line and code blocks:
+  one sentence, the figure, one caption.
+- Submit with:  {python} {bench} submit {task} --run {run} <your_script.py> --reply <your_reply.md>
+  Submit runs a copy of your script with this folder as the working directory, so
+  open data with paths like "data/x.csv", not paths built from __file__.
+  {surface_submit_rule} If not, fix the error and submit again ({max_attempts} at most).
+- The clock started now and stops when a submission completes.
 """
 
 AGENT_RULES_MATPLOTLIB_HOOK = """\
@@ -250,7 +307,7 @@ Rules for this task:
 - The clock started now and stops when a submission passes.
 """
 
-ARMS = ("mintfig", "matplotlib", "matplotlib-plain", "matplotlib-hook", "custom")
+ARMS = ("mintfig", "matplotlib", "matplotlib-plain", "matplotlib-coached", "matplotlib-hook", "custom")
 _PLAIN_SHOWN = ("script_runs", "one_figure_saved", "no_mintfig")
 
 # One question per task for blind readers, who see only the figure. Scored with the
@@ -342,6 +399,180 @@ def _save_state(run: Path, task: str, state: dict) -> None:
 
 def _skill_path() -> Path:
     return HERE.parents[1] / "src" / "mintfig" / "assets" / "SKILL.md"
+
+
+def _iso_utc(ts: float | None = None) -> str:
+    dt = datetime.datetime.fromtimestamp(time.time() if ts is None else ts, tz=datetime.timezone.utc)
+    return dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def _percentile(sorted_vals: list[float], p: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    if len(sorted_vals) == 1:
+        return float(sorted_vals[0])
+    k = (len(sorted_vals) - 1) * (p / 100.0)
+    lo = math.floor(k)
+    hi = math.ceil(k)
+    if lo == hi:
+        return float(sorted_vals[lo])
+    return float(sorted_vals[lo] + (sorted_vals[hi] - sorted_vals[lo]) * (k - lo))
+
+
+def summarize_timings(values: list[float], *, decimals: int = 2) -> dict[str, float | int] | None:
+    """Return distribution statistics for a list of non-negative timing measurements."""
+    clean = sorted(float(v) for v in values if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v))
+    if not clean:
+        return None
+    return {
+        "count": len(clean),
+        "min": round(clean[0], decimals),
+        "p25": round(_percentile(clean, 25.0), decimals),
+        "median": round(statistics.median(clean), decimals),
+        "mean": round(sum(clean) / len(clean), decimals),
+        "p75": round(_percentile(clean, 75.0), decimals),
+        "p90": round(_percentile(clean, 90.0), decimals),
+        "p95": round(_percentile(clean, 95.0), decimals),
+        "max": round(clean[-1], decimals),
+        "total": round(sum(clean), decimals),
+    }
+
+
+def parse_agent_log_timing(work: Path) -> dict[str, object] | None:
+    """Extract CLI timing, turn count, cost, and token usage from ``.bench/agent.log`` if present."""
+    log_path = work / ".bench" / "agent.log"
+    if not log_path.is_file():
+        return None
+    try:
+        raw = log_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    body = raw.split("\n--- STDERR ---\n", 1)[0].strip()
+    if not body:
+        return None
+    parsed = None
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        for line in reversed(body.splitlines()):
+            line = line.strip()
+            if line.startswith("{") and line.endswith("}"):
+                try:
+                    parsed = json.loads(line)
+                    break
+                except json.JSONDecodeError:
+                    continue
+    if not isinstance(parsed, dict):
+        return None
+    out: dict[str, object] = {}
+    for ms_key, s_key in (
+        ("duration_ms", "cli_duration_s"),
+        ("duration_api_ms", "cli_api_duration_s"),
+        ("ttft_ms", "ttft_s"),
+        ("ttft_stream_ms", "ttft_stream_s"),
+        ("time_to_request_ms", "time_to_request_s"),
+        ("first_content_frame_ms", "first_content_frame_s"),
+    ):
+        val = parsed.get(ms_key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool) and math.isfinite(val):
+            out[ms_key] = round(float(val), 1)
+            out[s_key] = round(float(val) / 1000.0, 3)
+    for key in ("num_turns", "total_cost_usd", "is_error", "subtype"):
+        if key in parsed and parsed[key] is not None:
+            out[key] = parsed[key]
+    usage = parsed.get("usage")
+    if isinstance(usage, dict):
+        toks: dict[str, int] = {}
+        for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+            if isinstance(usage.get(k), int):
+                toks[k] = int(usage[k])
+        details = usage.get("output_tokens_details")
+        if isinstance(details, dict) and isinstance(details.get("thinking_tokens"), int):
+            toks["thinking_tokens"] = int(details["thinking_tokens"])
+        if toks:
+            out["tokens"] = toks
+    return out or None
+
+
+def task_timing_from_state(work: Path, state: dict) -> dict[str, object]:
+    """Assemble full per-task timing breakdown from ``state.json``, ``sweep_timing.json``, and ``agent.log``."""
+    started = float(state.get("started", 0.0))
+    atts = state.get("attempts") or []
+    first = atts[0] if atts else None
+    last = atts[-1] if atts else None
+    passing = next((a for a in atts if a.get("passed")), None)
+
+    per_attempt: list[dict[str, object]] = []
+    prev_t = started
+    for a in atts:
+        sub_t = float(a.get("submitted", prev_t))
+        fin_t = float(a.get("finished", sub_t))
+        think_s = a.get("think_s")
+        if not isinstance(think_s, (int, float)):
+            think_s = max(0.0, sub_t - prev_t)
+        render_s = float(a.get("render_s", 0.0) or 0.0)
+        submit_total_s = a.get("submit_total_s")
+        if not isinstance(submit_total_s, (int, float)):
+            submit_total_s = max(0.0, fin_t - sub_t)
+        elapsed_s = a.get("elapsed_s")
+        if not isinstance(elapsed_s, (int, float)):
+            elapsed_s = max(0.0, fin_t - started)
+        entry: dict[str, object] = {
+            "n": int(a.get("n", len(per_attempt) + 1)),
+            "submitted": sub_t,
+            "finished": fin_t,
+            "think_s": round(float(think_s), 3),
+            "render_s": round(render_s, 3),
+            "submit_total_s": round(float(submit_total_s), 3),
+            "elapsed_s": round(float(elapsed_s), 3),
+            "passed": bool(a.get("passed")),
+        }
+        for sub_k in ("script_exec_s", "audit_s", "mint_check_s", "delivery_check_s", "capture_total_s"):
+            v = a.get(sub_k)
+            if isinstance(v, (int, float)):
+                entry[sub_k] = round(float(v), 4)
+        per_attempt.append(entry)
+        prev_t = fin_t
+
+    def _sum_key(k: str) -> float:
+        return round(sum(float(x[k]) for x in per_attempt if isinstance(x.get(k), (int, float))), 3)
+
+    t_pass = round(float(passing["finished"]) - started, 3) if passing else None
+    t_total = round(float(last["finished"]) - started, 3) if last else None
+    t_first = round(float(first["finished"]) - started, 3) if first else None
+    t_first_start = round(max(0.0, float(first["submitted"]) - started), 3) if first else None
+
+    rec: dict[str, object] = {
+        "started": started,
+        "started_iso": state.get("started_iso") or (_iso_utc(started) if started > 0 else None),
+        "finished": float(last["finished"]) if last else None,
+        "finished_iso": (last.get("finished_iso") or _iso_utc(float(last["finished"]))) if last else None,
+        "attempts": len(atts),
+        "seconds_to_pass": t_pass,
+        "seconds_total": t_total,
+        "time_to_first_submit_s": t_first,
+        "time_to_first_submit_start_s": t_first_start,
+        "total_think_s": _sum_key("think_s"),
+        "total_render_s": _sum_key("render_s"),
+        "total_script_exec_s": _sum_key("script_exec_s"),
+        "total_audit_s": _sum_key("audit_s"),
+        "total_mint_check_s": _sum_key("mint_check_s"),
+        "total_delivery_check_s": _sum_key("delivery_check_s"),
+        "total_submit_s": _sum_key("submit_total_s"),
+        "per_attempt": per_attempt,
+    }
+    sweep_path = work / ".bench" / "sweep_timing.json"
+    if sweep_path.is_file():
+        try:
+            sw = json.loads(sweep_path.read_text(encoding="utf-8"))
+            if isinstance(sw, dict):
+                rec["sweep"] = sw
+        except (OSError, json.JSONDecodeError):
+            pass
+    cli_info = parse_agent_log_timing(work)
+    if cli_info is not None:
+        rec["agent_cli"] = cli_info
+    return rec
 
 
 # --------------------------------------------------------------------------- #
@@ -496,10 +727,21 @@ def run_checks(
     return checks
 
 
-def run_checks_matplotlib(work: Path, meta: dict, returncode: int, stderr: str) -> list[dict]:
-    """The Matplotlib arm's gate: the script runs, saves figure.png without mintfig, and
-    the saved figure passes the arm-neutral defect checks."""
+def run_checks_matplotlib(
+    work: Path,
+    meta: dict,
+    returncode: int,
+    stderr: str,
+    *,
+    surface: str = "chat",
+    reply_text: str | None = None,
+    display_width_px: int = CHAT_WIDTH_PX,
+) -> list[dict]:
+    """The Matplotlib arm's gate: the script runs, saves figure.png (or delivers a valid
+    terminal text block for ``surface="terminal"``) without mintfig, and passes the
+    arm-neutral defect checks."""
     import neutral
+    import rubric
 
     checks: list[dict] = []
     png = work / "figure.png"
@@ -507,6 +749,30 @@ def run_checks_matplotlib(work: Path, meta: dict, returncode: int, stderr: str) 
     audits = [x for x in meta.get("audits", []) if "error" not in x]
     checks.append({"name": "script_runs", "passed": returncode == 0,
                    "detail": "" if returncode == 0 else f"exit {returncode}: {tail}"})
+    if surface == "terminal":
+        term_res = rubric._score_terminal_visual(reply_text, display_width_px)
+        has_terminal_block = bool(reply_text and _FENCE.search(reply_text))
+        saved_ok = has_terminal_block or (bool(audits) and png.exists())
+        checks.append({
+            "name": "one_figure_saved",
+            "passed": saved_ok,
+            "detail": (
+                f"fenced terminal block ({term_res.get('lines', 0)} lines, max {term_res.get('max_cols', 0)} cols)"
+                if has_terminal_block
+                else f"no fenced terminal block in reply (figure.png {'found' if png.exists() else 'missing'})"
+            ),
+        })
+        checks.append({"name": "no_mintfig", "passed": not meta.get("mintfig_imported"),
+                       "detail": "mintfig was imported" if meta.get("mintfig_imported") else ""})
+        if has_terminal_block:
+            checks.append({
+                "name": "terminal_visual_valid",
+                "passed": bool(term_res["passed"]),
+                "detail": "; ".join(term_res.get("issues") or []),
+            })
+        elif audits and png.exists():
+            checks += neutral.neutral_checks(audits[-1])
+        return checks
     checks.append({"name": "one_figure_saved", "passed": bool(audits) and png.exists(),
                    "detail": f"{len(meta.get('audits', []))} save(s) to figure.png; "
                              f"figure.png {'found' if png.exists() else 'missing'}"})
@@ -620,10 +886,15 @@ def check_reply(reply: str | None, summary: dict, work: Path | None = None) -> d
             if any(got_lines[i:i + n] == want_lines for i in range(len(got_lines) - n + 1)):
                 shown = "deliver.text in a code block"
                 break
+    if not shown and deliver.get("terminal") and any(b.strip() for b in blocks):
+        shown = "terminal figure in a code block"
     problems = []
     if not shown:
-        target = _image_target(expected.group(1)) if expected is not None else "the figure"
-        problems.append(f"no ![...]({target}) image and no code block with deliver.text")
+        if deliver.get("terminal"):
+            problems.append("no fenced code block with terminal figure")
+        else:
+            target = _image_target(expected.group(1)) if expected is not None else "the figure"
+            problems.append(f"no ![...]({target}) image and no code block with deliver.text")
     if words > REPLY_MAX_WORDS:
         problems.append(f"{words} words of prose (max {REPLY_MAX_WORDS})")
     detail = "; ".join(problems) if problems else f"{shown}; {words} words of prose"
@@ -643,7 +914,7 @@ def numbers_in(text: str) -> list[float]:
     """Numbers as a reader sees them: 1,200 / 0.58 / 46% / 1.3×10⁻⁷ / 2e-5 / −3."""
     text = text.replace("\N{MINUS SIGN}", "-").replace("\N{EN DASH}", " ")
     out: list[float] = []
-    sci = re.compile(r"(\d+(?:\.\d+)?)\s*[×x]\s*10([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+|\^?[-+]?\d+)")
+    sci = re.compile(r"(-?\d+(?:\.\d+)?)\s*[×x]\s*10([⁻⁺]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+|\^?[-+]?\d+)")
     for m in sci.finditer(text):
         exp = m.group(2).translate(_SUP).lstrip("^")
         out.append(float(m.group(1)) * 10 ** int(exp))
@@ -660,10 +931,10 @@ def answer_matches(takeaway: str, key: dict) -> tuple[bool, list[float]]:
     found = numbers_in(takeaway)
     for v in found:
         for target in key["accept"]:
-            tol = max(key.get("abs_tol", 0.0), key.get("rel_tol", 0.0) * abs(target))
-            for cand in (v, abs(v)):
-                if math.isclose(cand, target, abs_tol=tol) or math.isclose(cand, abs(target), abs_tol=tol):
-                    return True, found
+            t = float(target)
+            tol = max(key.get("abs_tol", 0.0), key.get("rel_tol", 0.0) * abs(t))
+            if math.isclose(v, t, abs_tol=tol):
+                return True, found
     return False, found
 
 
@@ -710,10 +981,12 @@ def cmd_start(a: argparse.Namespace) -> None:
     skill = getattr(a, "skill", None)
     library = getattr(a, "library", None)
     display_px = int(rub.get("display_width_px", CHAT_WIDTH_PX))
+    started_ts = time.time()
     state = {
         "task": a.task,
         "arm": a.arm,
-        "started": time.time(),
+        "started": started_ts,
+        "started_iso": _iso_utc(started_ts),
         "python": a.python,
         "display_width_px": display_px,
         "surface": rub.get("surface", "chat"),
@@ -726,14 +999,49 @@ def cmd_start(a: argparse.Namespace) -> None:
     rules = {
         "matplotlib": AGENT_RULES_MATPLOTLIB,
         "matplotlib-plain": AGENT_RULES_MATPLOTLIB_PLAIN,
+        "matplotlib-coached": AGENT_RULES_MATPLOTLIB_COACHED,
         "matplotlib-hook": AGENT_RULES_MATPLOTLIB_HOOK,
         "custom": AGENT_RULES_CUSTOM,
     }.get(a.arm, AGENT_RULES)
+    surface = str(rub.get("surface", "chat"))
+    if surface == "terminal":
+        display_label = f"<= {display_px} columns, text-only terminal"
+        surface_output_rule = (
+            f"Answer the last request in the thread for a {display_px}-column text-only terminal "
+            f"(no image support; numpy and pandas are available; do not use mintfig). "
+            f"Your script should compute/print the <= {display_px}-column plain-text/Unicode figure or table "
+            f"(do NOT require saving figure.png)."
+        )
+        surface_reply_rule = (
+            f"Because the target surface is a text-only terminal, include the <= {display_px}-column "
+            f"plain-text/Unicode figure inside a fenced ``` code block (no image link required)."
+        )
+        surface_submit_rule = (
+            "Submit runs your script and checks that it ran cleanly and that your reply includes "
+            "the terminal figure block. If it did, the task is over."
+        )
+    else:
+        display_label = f"at most {display_px} px wide"
+        surface_output_rule = (
+            f"Answer the last request in the thread with ONE figure made with Matplotlib "
+            f"(numpy and pandas are available; do not use mintfig). Your script must save it "
+            f"as figure.png in this folder. The person sees it on a {surface} surface at most "
+            f"{display_px} px wide."
+        )
+        surface_reply_rule = "It must show the figure with the image line ![<one-line summary>](figure.png)."
+        surface_submit_rule = (
+            "Submit runs your script and tells you whether it ran and saved figure.png. "
+            "If it did, the task is over."
+        )
     skill_line = f"\n  Also read the custom skill: {state['skill']}" if state["skill"] else ""
     print(rules.format(skill=state["skill"] or _skill_path(), python=a.python,
                        bench=Path(__file__).resolve(),
                        task=a.task, run=run, max_attempts=MAX_ATTEMPTS,
                        max_words=REPLY_MAX_WORDS, display_px=display_px,
+                       surface=surface, display_label=display_label,
+                       surface_output_rule=surface_output_rule,
+                       surface_reply_rule=surface_reply_rule,
+                       surface_submit_rule=surface_submit_rule,
                        min_px=MIN_TEXT_PX, skill_line=skill_line,
                        library=library or "your chosen plotting library"))
 
@@ -770,6 +1078,7 @@ def cmd_submit(a: argparse.Namespace) -> None:
     surface = str(state.get("surface", "chat"))
     src_dir = str(HERE.parents[1] / "src")
     t0 = time.time()
+    t0_mono = time.perf_counter()
     try:
         proc = subprocess.run(
             [
@@ -790,39 +1099,73 @@ def cmd_submit(a: argparse.Namespace) -> None:
         rc, err, out = proc.returncode, proc.stderr, proc.stdout
     except subprocess.TimeoutExpired:
         rc, err, out = -1, f"timed out after {TIMEOUT_S} s", ""
-    render_s = time.time() - t0
+    render_s = time.perf_counter() - t0_mono
     calls = json.loads(calls_path.read_text()) if calls_path.exists() else []
     meta = json.loads(audit_path.read_text()) if audit_path.exists() else {}
     check_reports = json.loads(check_path.read_text()) if check_path.exists() else []
     audits = [x for x in meta.get("audits", []) if "error" not in x]
     audit = audits[-1] if audits else None
-    if arm in ("matplotlib", "matplotlib-plain", "matplotlib-hook"):
-        checks = run_checks_matplotlib(work, meta, rc, err)
-    elif arm == "custom":
-        checks = run_checks_custom(work, meta, rc, err, display_width_px=display_px, surface=surface)
-    else:
-        checks = run_checks(work, calls, rc, err, display_width_px=display_px)
-    passed = all(c["passed"] for c in checks)
-    # The uninstructed arm gets no defect feedback: it is done once the figure is saved.
-    shown = [c for c in checks if c["name"] in _PLAIN_SHOWN] if arm == "matplotlib-plain" else checks
-    done = all(c["passed"] for c in shown)
     reply = None
     if reply_path is not None:
         reply = reply_path.read_text(encoding="utf-8")
         (work / ".bench" / f"attempt{n}_reply.md").write_text(reply, encoding="utf-8")
-    if arm in ("matplotlib", "matplotlib-plain", "matplotlib-hook", "custom"):
-        reply_summary = {"deliver": {"markdown": "![figure](figure.png)"}}
+    t_chk_mono = time.perf_counter()
+    if arm in ("matplotlib", "matplotlib-plain", "matplotlib-coached", "matplotlib-hook"):
+        checks = run_checks_matplotlib(
+            work, meta, rc, err, surface=surface, reply_text=reply, display_width_px=display_px
+        )
+    elif arm == "custom":
+        checks = run_checks_custom(work, meta, rc, err, display_width_px=display_px, surface=surface)
+    else:
+        checks = run_checks(work, calls, rc, err, display_width_px=display_px)
+    checks_s = time.perf_counter() - t_chk_mono
+    passed = all(c["passed"] for c in checks)
+    # Unhooked arms (plain & prompt-coached) get no defect feedback: done once the output is saved.
+    shown = [c for c in checks if c["name"] in _PLAIN_SHOWN] if arm in ("matplotlib-plain", "matplotlib-coached") else checks
+    done = all(c["passed"] for c in shown)
+    if arm in ("matplotlib", "matplotlib-plain", "matplotlib-coached", "matplotlib-hook", "custom"):
+        reply_summary = (
+            {"deliver": {"terminal": True}}
+            if surface == "terminal"
+            else {"deliver": {"markdown": "![figure](figure.png)"}}
+        )
     else:
         reply_summary = calls[-1] if calls else {}
+    t_deliv_mono = time.perf_counter()
     delivery = check_reply(reply, reply_summary, work)
+    delivery_check_s = time.perf_counter() - t_deliv_mono
     if (work / "figure.png").exists():
         shutil.copy(work / "figure.png", work / ".bench" / f"attempt{n}.png")
     if (work / "figure.svg").exists():
         shutil.copy(work / "figure.svg", work / ".bench" / f"attempt{n}.svg")
     valid_checks = [r for r in check_reports if "report" in r]
-    attempt = {"n": n, "submitted": t0, "finished": time.time(), "render_s": round(render_s, 2),
-               "passed": passed, "done": done, "checks": checks, "delivery": delivery,
-               "audit": audit, "audit_errors": [x["error"] for x in meta.get("audits", []) if "error" in x]}
+    finished_ts = time.time()
+    prev_t = float(state["attempts"][-1]["finished"]) if state["attempts"] else float(state["started"])
+    think_s = max(0.0, t0 - prev_t)
+    cap_timing = meta.get("timing") if isinstance(meta.get("timing"), dict) else {}
+    attempt = {
+        "n": n,
+        "submitted": t0,
+        "submitted_iso": _iso_utc(t0),
+        "finished": finished_ts,
+        "finished_iso": _iso_utc(finished_ts),
+        "think_s": round(think_s, 3),
+        "render_s": round(render_s, 3),
+        "script_exec_s": cap_timing.get("script_exec_s"),
+        "audit_s": cap_timing.get("audit_s"),
+        "mint_check_s": cap_timing.get("mint_check_s"),
+        "capture_total_s": cap_timing.get("capture_total_s"),
+        "checks_s": round(checks_s, 4),
+        "delivery_check_s": round(delivery_check_s, 4),
+        "submit_total_s": round(max(0.0, finished_ts - t0), 3),
+        "elapsed_s": round(max(0.0, finished_ts - float(state["started"])), 3),
+        "passed": passed,
+        "done": done,
+        "checks": checks,
+        "delivery": delivery,
+        "audit": audit,
+        "audit_errors": [x["error"] for x in meta.get("audits", []) if "error" in x],
+    }
     if valid_checks:
         attempt["mint_check"] = valid_checks[-1]["report"]
     state["produced"] = [
@@ -832,6 +1175,10 @@ def cmd_submit(a: argparse.Namespace) -> None:
     ]
     state["attempts"].append(attempt)
     _save_state(run, a.task, state)
+    (work / ".bench" / "timing.json").write_text(
+        json.dumps(task_timing_from_state(work, state), indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
     if out.strip():
         print("--- your script's stdout (last 20 lines) ---")
@@ -859,7 +1206,7 @@ def cmd_submit(a: argparse.Namespace) -> None:
     mark = {"pass": "PASS", "fail": "FAIL"}.get(delivery["status"], "----")
     print(f"[{mark}] {delivery['name']}: " + (delivery["detail"] or delivery["status"]))
     elapsed = attempt["finished"] - state["started"]
-    if arm == "matplotlib-plain" and done:
+    if arm in ("matplotlib-plain", "matplotlib-coached") and done:
         print(f"\nSubmitted in {elapsed:.0f} s from start. Task complete; stop here.")
     elif passed:
         print(f"\nPASSED in {elapsed:.0f} s from start. Task complete; stop here.")
@@ -894,34 +1241,98 @@ def cmd_grade(a: argparse.Namespace) -> None:
         neutral_rows = {}
         for label, att_i in (("first", att[0] if att else None), ("final", last)):
             neutral_rows[label] = _neutral_row(work, state["task"], att_i, key if has_key else None)
-        if arm in ("matplotlib", "matplotlib-plain", "matplotlib-hook", "custom"):
+        if arm in ("matplotlib", "matplotlib-plain", "matplotlib-coached", "matplotlib-hook", "custom"):
             heads = (neutral_rows["final"] or {}).get("headlines") or []
             takeaway = heads[0] if heads else ""
             correct = (neutral_rows["final"] or {}).get("headline_correct")
         local_n = len(state.get("local_renders", [])) + len(_local_images(work, state))
         delivery = (last or {}).get("delivery") or check_reply(None, {})  # runs before --reply
-        rows.append({"task": state["task"], "arm": arm, "passed": passed, "attempts": len(att),
+        timing = task_timing_from_state(work, state)
+        rows.append({"task": state["task"], "split": key.get("split", "dev"), "track": key.get("track", "science_uncertainty"),
+                     "arm": arm, "passed": passed, "attempts": len(att),
                      "neutral": neutral_rows,
                      "local_renders": local_n,
                      "delivery": delivery["status"], "delivery_detail": delivery["detail"],
                      "seconds_to_pass": round(t_pass, 1) if t_pass is not None else None,
                      "seconds_total": round(t_last, 1) if t_last is not None else None,
-                     "render_s": [x["render_s"] for x in att], "failed_checks": failed,
+                     "time_to_first_submit_s": timing.get("time_to_first_submit_s"),
+                     "total_think_s": timing.get("total_think_s"),
+                     "total_render_s": timing.get("total_render_s"),
+                     "render_s": [x["render_s"] for x in att], "timing": timing, "failed_checks": failed,
                      "answer_correct": correct, "answer_expected": key.get("what") or None,
                      "takeaway": takeaway})
+
+    def _timing_agg(rs: list[dict]) -> dict:
+        t_pass_vals = [r["timing"]["seconds_to_pass"] for r in rs if r["timing"].get("seconds_to_pass") is not None]
+        t_tot_vals = [r["timing"]["seconds_total"] for r in rs if r["timing"].get("seconds_total") is not None]
+        t_first_vals = [r["timing"]["time_to_first_submit_s"] for r in rs if r["timing"].get("time_to_first_submit_s") is not None]
+        t_think_vals = [r["timing"]["total_think_s"] for r in rs if r["timing"].get("total_think_s") is not None]
+        t_rend_vals = [r["timing"]["total_render_s"] for r in rs if r["timing"].get("total_render_s") is not None]
+        t_exec_vals = [r["timing"]["total_script_exec_s"] for r in rs if r["timing"].get("total_script_exec_s")]
+        t_aud_vals = [r["timing"]["total_audit_s"] for r in rs if r["timing"].get("total_audit_s")]
+        t_wall_vals = [
+            r["timing"]["sweep"]["wall_s"]
+            for r in rs
+            if isinstance(r["timing"].get("sweep"), dict) and isinstance(r["timing"]["sweep"].get("wall_s"), (int, float))
+        ]
+        t_cli_vals = [
+            r["timing"]["agent_cli"]["cli_duration_s"]
+            for r in rs
+            if isinstance(r["timing"].get("agent_cli"), dict) and isinstance(r["timing"]["agent_cli"].get("cli_duration_s"), (int, float))
+        ]
+        t_api_vals = [
+            r["timing"]["agent_cli"]["cli_api_duration_s"]
+            for r in rs
+            if isinstance(r["timing"].get("agent_cli"), dict) and isinstance(r["timing"]["agent_cli"].get("cli_api_duration_s"), (int, float))
+        ]
+        t_ttft_vals = [
+            r["timing"]["agent_cli"]["ttft_s"]
+            for r in rs
+            if isinstance(r["timing"].get("agent_cli"), dict) and isinstance(r["timing"]["agent_cli"].get("ttft_s"), (int, float))
+        ]
+        out_t: dict[str, object] = {
+            "seconds_to_pass": summarize_timings(t_pass_vals),
+            "seconds_total": summarize_timings(t_tot_vals),
+            "time_to_first_submit_s": summarize_timings(t_first_vals),
+            "total_think_s": summarize_timings(t_think_vals),
+            "total_render_s": summarize_timings(t_rend_vals, decimals=3),
+        }
+        if t_exec_vals:
+            out_t["total_script_exec_s"] = summarize_timings(t_exec_vals, decimals=3)
+        if t_aud_vals:
+            out_t["total_audit_s"] = summarize_timings(t_aud_vals, decimals=3)
+        if t_wall_vals:
+            out_t["sweep_wall_s"] = summarize_timings(t_wall_vals)
+        if t_cli_vals:
+            out_t["cli_duration_s"] = summarize_timings(t_cli_vals)
+        if t_api_vals:
+            out_t["cli_api_duration_s"] = summarize_timings(t_api_vals)
+        if t_ttft_vals:
+            out_t["ttft_s"] = summarize_timings(t_ttft_vals, decimals=3)
+        return out_t
+
     def _split(rs: list[dict]) -> dict:
         ts = [r["seconds_to_pass"] for r in rs if r["seconds_to_pass"] is not None]
+        ts_all = [r["seconds_total"] for r in rs if r["seconds_total"] is not None]
         return {"tasks": len(rs), "passed": sum(r["passed"] for r in rs),
                 "passed_first_try": sum(1 for r in rs if r["passed"] and r["attempts"] == 1),
                 "answers_correct": sum(1 for r in rs if r["answer_correct"]),
                 "replies_deliver": sum(1 for r in rs if r["delivery"] == "pass"),
-                "median_seconds_to_pass": round(statistics.median(ts), 1) if ts else None}
+                "median_seconds_to_pass": round(statistics.median(ts), 1) if ts else None,
+                "median_seconds_total": round(statistics.median(ts_all), 1) if ts_all else None,
+                "mean_seconds_to_pass": round(sum(ts) / len(ts), 1) if ts else None,
+                "p90_seconds_to_pass": round(_percentile(sorted(ts), 90.0), 1) if ts else None}
 
     core = [r for r in rows if not r["task"].startswith("h")]
     held = [r for r in rows if r["task"].startswith("h")]
+    by_split = {sp: _split([r for r in rows if r["split"] == sp]) for sp in ("dev", "public-test", "heldout")
+                if any(r["split"] == sp for r in rows)}
+    by_track = {tr: _split([r for r in rows if r["track"] == tr]) for tr in sorted({r["track"] for r in rows})}
     times = [r["seconds_to_pass"] for r in rows if r["seconds_to_pass"] is not None]
+    times_total = [r["seconds_total"] for r in rows if r["seconds_total"] is not None]
     first_try = sum(1 for r in rows if r["passed"] and r["attempts"] == 1)
     arms = sorted({r["arm"] for r in rows})
+    timing_summary = _timing_agg(rows)
     summary = {
         "run": str(run), "arm": arms[0] if len(arms) == 1 else arms, "tasks": len(rows),
         "neutral": {"first": _neutral_totals(rows, "first"), "final": _neutral_totals(rows, "final")}, "passed": sum(r["passed"] for r in rows),
@@ -931,12 +1342,21 @@ def cmd_grade(a: argparse.Namespace) -> None:
         "replies_provided": sum(1 for r in rows if r["delivery"] != "not provided"),
         "replies_deliver": sum(1 for r in rows if r["delivery"] == "pass"),
         "median_seconds_to_pass": round(statistics.median(times), 1) if times else None,
+        "mean_seconds_to_pass": round(sum(times) / len(times), 1) if times else None,
+        "p90_seconds_to_pass": round(_percentile(sorted(times), 90.0), 1) if times else None,
         "total_seconds_to_pass": round(sum(times), 1) if times else None,
+        "median_seconds_total": round(statistics.median(times_total), 1) if times_total else None,
+        "total_seconds_all": round(sum(times_total), 1) if times_total else None,
+        "timing_summary": timing_summary,
         "core": _split(core),
         "heldout": _split(held) if held else None,
+        "by_split": by_split,
+        "by_track": by_track,
         "tasks_detail": rows,
     }
     (run / "results.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n")
+    t_rend_med = (timing_summary.get("total_render_s") or {}).get("median")
+    t_first_med = (timing_summary.get("time_to_first_submit_s") or {}).get("median")
     lines = [
         f"# figure-bench results: {run.name} ({summary['arm']} arm)", "",
         (f"- Passed: **{summary['passed']} / {summary['tasks']}** "
@@ -946,19 +1366,23 @@ def cmd_grade(a: argparse.Namespace) -> None:
          f"{summary['replies_deliver']} / {summary['replies_provided']} replies "
          f"({summary['tasks'] - summary['replies_provided']} not provided)"),
         (f"- Time to pass: median {summary['median_seconds_to_pass']} s, "
-         f"total {summary['total_seconds_to_pass']} s"),
+         f"mean {summary['mean_seconds_to_pass']} s, p90 {summary['p90_seconds_to_pass']} s, "
+         f"total {summary['total_seconds_to_pass']} s "
+         f"(first submit median {t_first_med} s, render median {t_rend_med} s)"),
         *([f"- Core tasks: {summary['core']}", f"- Held-out tasks: {summary['heldout']}"]
           if held else []),
         f"- Neutral audit, first submission: {summary['neutral']['first']}",
         f"- Neutral audit, final submission: {summary['neutral']['final']}", "",
-        "| Task | Pass | Attempts | Local renders | Time to pass (s) | Answer | Delivery | Failed checks | Takeaway |",
-        "| :--- | :---: | :---: | :---: | ---: | :---: | :---: | :--- | :--- |",
+        "| Task | Pass | Attempts | Local renders | Time to pass (s) | Total (s) | Render (s) | Answer | Delivery | Failed checks | Takeaway |",
+        "| :--- | :---: | :---: | :---: | ---: | ---: | ---: | :---: | :---: | :--- | :--- |",
     ]
     for r in rows:
         ans = "—" if r["answer_correct"] is None else ("yes" if r["answer_correct"] else "no")
         lines.append(
             f"| {r['task']} | {'yes' if r['passed'] else 'no'} | {r['attempts']} | {r['local_renders']} | "
-            f"{r['seconds_to_pass'] if r['seconds_to_pass'] is not None else '—'} | {ans} | "
+            f"{r['seconds_to_pass'] if r['seconds_to_pass'] is not None else '—'} | "
+            f"{r['seconds_total'] if r['seconds_total'] is not None else '—'} | "
+            f"{r['total_render_s'] if r['total_render_s'] is not None else '—'} | {ans} | "
             f"{r['delivery']} | "
             f"{', '.join(r['failed_checks']) or '—'} | {r['takeaway'].replace('|', '/')} |"
         )
@@ -1084,10 +1508,29 @@ def cmd_compare(a: argparse.Namespace) -> None:
         lines.append("")
     lines += ["## Gate and time (each arm's own gate)", "",
               "| Measure | " + " | ".join(heads) + " |", "| :--- |" + " ---: |" * len(heads)]
-    for key in ("passed", "passed_first_try", "median_seconds_to_pass", "replies_deliver"):
-        vals = [f"{r[key]}/{r['tasks']}" if key in ("passed", "passed_first_try") else str(r[key])
+    extra_time_labels = {
+        "mean_seconds_to_pass": "Mean seconds to pass",
+        "p90_seconds_to_pass": "p90 seconds to pass",
+        "total_seconds_to_pass": "Total seconds to pass",
+        "median_seconds_total": "Median total seconds (all tasks)",
+    }
+    for key in ("passed", "passed_first_try", "median_seconds_to_pass", "mean_seconds_to_pass",
+                "p90_seconds_to_pass", "total_seconds_to_pass", "median_seconds_total", "replies_deliver"):
+        lbl = labels.get(key, extra_time_labels.get(key, key))
+        vals = [f"{r[key]}/{r['tasks']}" if key in ("passed", "passed_first_try") else str(r.get(key, "—"))
                 for r in results]
-        lines.append(f"| {labels[key]} | " + " | ".join(vals) + " |")
+        lines.append(f"| {lbl} | " + " | ".join(vals) + " |")
+    if any(r.get("timing_summary") for r in results):
+        for sub_key, sub_lbl in (
+            ("time_to_first_submit_s", "Median seconds to first submit"),
+            ("total_think_s", "Median agent think time (s)"),
+            ("total_render_s", "Median render + audit time (s)"),
+        ):
+            vals = [
+                str(((r.get("timing_summary") or {}).get(sub_key) or {}).get("median", "—"))
+                for r in results
+            ]
+            lines.append(f"| {sub_lbl} | " + " | ".join(vals) + " |")
     text = "\n".join(lines) + "\n"
     if a.out:
         Path(a.out).write_text(text, encoding="utf-8")
@@ -1221,15 +1664,23 @@ def cmd_readers_score(a: argparse.Namespace) -> None:
         not_shown = "not shown" in text.lower()
         rub = _task_rubric(item["task"])
         correct = (not not_shown) and answer_matches(text, rub)[0]
+        elapsed_ms = None
+        if isinstance(got, dict):
+            raw_ms = got.get("elapsed_ms", got.get("reading_time_ms"))
+            if isinstance(raw_ms, (int, float)) and not isinstance(raw_ms, bool):
+                elapsed_ms = round(float(raw_ms), 1)
         per_run.setdefault(item["run"], {})[item["task"]] = {
             "answer": text, "where": got.get("where") if isinstance(got, dict) else None,
-            "correct": bool(correct), "not_shown": not_shown, "arm": item["arm"]}
+            "correct": bool(correct), "not_shown": not_shown, "arm": item["arm"],
+            **({"elapsed_ms": elapsed_ms} if elapsed_ms is not None else {})}
     for run, rows in per_run.items():
         (Path(run) / "readers.json").write_text(json.dumps(rows, indent=2, ensure_ascii=False) + "\n")
         n = len(rows)
         ok = sum(r["correct"] for r in rows.values())
         ns = sum(r["not_shown"] for r in rows.values())
-        print(f"{Path(run).name}: reader correct {ok}/{n}, not shown {ns}/{n}")
+        rt = [r["elapsed_ms"] / 1000.0 for r in rows.values() if isinstance(r.get("elapsed_ms"), (int, float))]
+        rt_str = f", median reading time {statistics.median(rt):.1f}s" if rt else ""
+        print(f"{Path(run).name}: reader correct {ok}/{n}, not shown {ns}/{n}{rt_str}")
     if missing:
         print(f"{missing} figure(s) have no answer yet")
 
@@ -1248,8 +1699,12 @@ def cmd_grade_dir(a: argparse.Namespace) -> None:
 
     per_task: dict[str, dict] = {}
     timings: list[float] = []
+    grade_timings: list[float] = []
+    render_timings: list[float] = []
     present_dirs = sorted(p for p in outputs_dir.iterdir() if p.is_dir() and p.name in task_map)
+    t_grade_all0 = time.perf_counter()
     for out_task_dir in present_dirs:
+        t_task0 = time.perf_counter()
         task_id = out_task_dir.name
         rub = rubric.load_rubric(task_map[task_id])
         png = out_task_dir / "figure.png"
@@ -1267,13 +1722,21 @@ def cmd_grade_dir(a: argparse.Namespace) -> None:
             svg_path=svg if svg.is_file() else None,
             neutral_audit=neutral_audit,
         )
+        grade_s = round(time.perf_counter() - t_task0, 4)
+        res["grade_s"] = grade_s
+        grade_timings.append(grade_s)
         if timing_file.is_file():
             tdata = json.loads(timing_file.read_text(encoding="utf-8"))
-            sec = tdata.get("seconds")
-            if isinstance(sec, (int, float)):
+            sec = tdata.get("seconds", tdata.get("seconds_total", tdata.get("seconds_to_pass")))
+            if isinstance(sec, (int, float)) and not isinstance(sec, bool):
                 res["seconds"] = round(float(sec), 2)
                 timings.append(float(sec))
+            rsec = tdata.get("total_render_s", tdata.get("render_s"))
+            if isinstance(rsec, (int, float)) and not isinstance(rsec, bool):
+                render_timings.append(float(rsec))
+            res["timing"] = tdata
         per_task[task_id] = res
+    grade_wall_s = round(time.perf_counter() - t_grade_all0, 3)
 
     task_count = len(per_task)
     missing_tasks = [tid for tid in sorted(task_map) if tid not in per_task]
@@ -1292,6 +1755,12 @@ def cmd_grade_dir(a: argparse.Namespace) -> None:
         else 0.0,
         "pass_rate": round(100.0 * sum(1 for r in rows if r["passed"]) / task_count, 1) if task_count else 0.0,
         "median_seconds": round(statistics.median(timings), 1) if timings else None,
+    }
+    timing_summary = {
+        "seconds": summarize_timings(timings),
+        "render_s": summarize_timings(render_timings, decimals=3),
+        "grade_s": summarize_timings(grade_timings, decimals=4),
+        "grade_wall_s": grade_wall_s,
     }
 
     by_track: dict[str, dict] = {}
@@ -1313,6 +1782,7 @@ def cmd_grade_dir(a: argparse.Namespace) -> None:
         "expected_task_count": len(task_map),
         "missing_tasks": missing_tasks,
         "scores": scores,
+        "timing_summary": timing_summary,
         "by_track": by_track,
         "per_task": per_task,
     }
@@ -1463,6 +1933,7 @@ def cmd_export_submission(a: argparse.Namespace) -> None:
         composite = round(0.35 * vq_s + 0.30 * ca_s + 0.20 * uc_for_comp + 0.15 * dl_s, 1)
 
         elapsed = round(last["finished"] - state["started"], 1) if last else None
+        task_timing = task_timing_from_state(work, state)
         fig_rel = None
         if artifacts_out is not None and png is not None:
             dst = artifacts_out / f"{task_id}.png"
@@ -1487,6 +1958,7 @@ def cmd_export_submission(a: argparse.Namespace) -> None:
             "takeaway": takeaway,
             "figure_path": fig_rel,
             "display_width_px": max(100, display_px),
+            "timing": task_timing,
         })
 
     if not per_task:
@@ -1511,7 +1983,8 @@ def cmd_export_submission(a: argparse.Namespace) -> None:
     first_clean_rate = round(100.0 * first_clean_hits / first_clean_total, 1) if first_clean_total else None
     default_skill = {
         "mintfig": "mintfig SKILL.md + mint.explain",
-        "matplotlib-plain": "plain Matplotlib (no rules, no hook)",
+        "matplotlib-plain": "plain Matplotlib (display width & surface, no coaching, no hook)",
+        "matplotlib-coached": "Prompt-Coached Matplotlib, No Mintfig (concise rubric prompt, no hook)",
         "matplotlib-hook": "plain Matplotlib + mint.check feedback hook",
         "matplotlib": "plain Matplotlib (told display width & layout rules)",
         "custom": f"custom ({a.library or 'plotting library'})",
@@ -1524,6 +1997,20 @@ def cmd_export_submission(a: argparse.Namespace) -> None:
             artifacts_rel = str(artifacts_out.relative_to(HERE.parents[1]))
         except ValueError:
             artifacts_rel = str(artifacts_out)
+
+    exp_timing_summary = {
+        "seconds": summarize_timings([r["seconds"] for r in per_task if isinstance(r.get("seconds"), (int, float))]),
+        "time_to_first_submit_s": summarize_timings(
+            [r["timing"]["time_to_first_submit_s"] for r in per_task if isinstance((r.get("timing") or {}).get("time_to_first_submit_s"), (int, float))]
+        ),
+        "total_think_s": summarize_timings(
+            [r["timing"]["total_think_s"] for r in per_task if isinstance((r.get("timing") or {}).get("total_think_s"), (int, float))]
+        ),
+        "total_render_s": summarize_timings(
+            [r["timing"]["total_render_s"] for r in per_task if isinstance((r.get("timing") or {}).get("total_render_s"), (int, float))],
+            decimals=3,
+        ),
+    }
 
     submission = {
         "schema_version": rubric.SCHEMA_VERSION,
@@ -1544,6 +2031,7 @@ def cmd_export_submission(a: argparse.Namespace) -> None:
             "bench_version": BENCH_VERSION,
             "reproduce_command": a.reproduce_command or f"python evals/figure_bench/run_sweep.py --arm {arm_seen} --split {a.split or 'all'}",
             "first_submission_clean_rate": first_clean_rate,
+            "timing_summary": exp_timing_summary,
             **({"notes": a.notes} if a.notes else {}),
         },
         "artifacts_dir": artifacts_rel,
@@ -1660,7 +2148,8 @@ def main(argv: list[str] | None = None) -> None:
     s.add_argument("--python", default=sys.executable)
     s.add_argument("--arm", choices=ARMS, default="mintfig",
                    help="mintfig (SKILL.md, mint.explain); matplotlib (told the display width and checks); "
-                        "matplotlib-plain (told neither, no defect feedback); "
+                        "matplotlib-plain (display width & surface, no coaching or defect feedback); "
+                        "matplotlib-coached (prompt-coached plain Matplotlib, no mintfig or hook); "
                         "matplotlib-hook (plain Matplotlib + mint.check feedback on submit); "
                         "custom (bring your own skill and plotting library)")
     s.add_argument("--skill", default=None, help="Path to a custom skill file (for --arm custom)")

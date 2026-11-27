@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "id": "01_ablation",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "ML Evaluation",
+  "title": "RAG pipeline 5-seed ablation sweep",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "accuracy cost (points) of dropping the reranker or the bigger encoder",
+  "accept": [
+    1.595496,
+    0.460408,
+    80.482868
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 0.3,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "5 seeds|n=5|seed|s.d.|sd|±|ci"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How many points of accuracy does the model lose when the reranker is removed?",
+      "expected": "About 1.6 points (from ~82.1% down to ~80.5%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is run-to-run variability represented?",
+      "expected": "Across 5 seeds (individual seed points and/or mean ± SD/CI)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Which component causes the largest drop when removed?",
+      "expected": "Dropping retrieval causes the largest drop, whereas the bigger encoder adds only ~0.5 points."
+    }
+  ]
+}

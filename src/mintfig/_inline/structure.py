@@ -994,9 +994,10 @@ def dual_spark(
         return pad_y + (1.0 - (val - lo) / span) * inner_h
 
     color_a = theme.series_colors[0]
-    color_b = theme.accent_colors[0]
-    if color_b.lower() == color_a.lower():
-        color_b = theme.muted
+    color_b = next(
+        (c for c in theme.accent_colors if c.lower() != color_a.lower()),
+        theme.series_colors[1] if len(theme.series_colors) > 1 else theme.muted,
+    )
 
     svg_parts: list[str] = []
 

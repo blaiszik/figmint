@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "id": "pt48_repair_dual_axis_spaghetti",
+  "split": "public-test",
+  "track": "byo_repair",
+  "domain": "Infrastructure SRE",
+  "title": "Repair dual-axis spaghetti chart with wrong peak error claim",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Day 10 error rate peaked at 5.4% (not 9.2%) alongside an 84% CPU spike while memory stayed flat (58-66%)",
+  "accept": [
+    5.4,
+    84.0
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 0.2,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "9.2%"
+  ],
+  "required_disclosures": [
+    "5.4%|5.4",
+    "day 10|cpu|84%"
+  ],
+  "min_panels": 2,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What was the true peak error rate on Day 10?",
+      "expected": "5.4% (not 9.2% as misstated in broken_plot.py)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Which resource metric spiked alongside errors on Days 9–11?",
+      "expected": "CPU utilization jumped to 84% while memory stayed steady around 58–66%."
+    },
+    {
+      "kind": "nuance",
+      "question": "How was the dual-axis readability problem resolved?",
+      "expected": "By separating resource utilization (%) and error rate (%) into stacked aligned panels."
+    }
+  ]
+}

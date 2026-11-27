@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "h24_surface_narrow_pr_comment",
+  "split": "heldout",
+  "track": "multi_surface",
+  "domain": "Compiler Engineering",
+  "title": "450 px narrow PR comment figure for arena allocator RSS drop",
+  "display_width_px": 450,
+  "surface": "narrow",
+  "what": "Arena allocator cuts type_check peak RSS by -275 MB (-40.2%) across 10 runs (all 4 workloads drop ~35-40%)",
+  "accept": [
+    274.530898,
+    40.17514,
+    410.0
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 3.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "type_check|arena",
+    "10 run|n=10|s.d.|sd|±|ci"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much peak RSS does the arena allocator save on type_check?",
+      "expected": "About 275 MB (−40.2%, from ~685 MB down to ~410 MB)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is run-to-run variability reported?",
+      "expected": "Across 10 runs per workload-branch (SD/CI/points)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Did any of the four compiler workloads regress in memory?",
+      "expected": "No — all four workloads dropped ~34–40% in peak RSS."
+    }
+  ]
+}

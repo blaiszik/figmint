@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "03_dose_response",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Pharmacology",
+  "title": "Kinase panel 4-compound dose–response curves",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "IC50 of the most potent compound (nM)",
+  "accept": [
+    11.596532,
+    12.0
+  ],
+  "rel_tol": 0.3,
+  "abs_tol": 0.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "ic50|ic_50|50%",
+    "triplicate|3 replicate|n=3|s.d.|sd|±|ci"
+  ],
+  "require_log_scale": true,
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the IC50 (the concentration giving 50% inhibition) of the most potent compound, in nM?",
+      "expected": "About 12 nM (11.6 nM)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How are replicate measurements represented?",
+      "expected": "Triplicates (n = 3 per concentration) shown via points and/or error bars."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why is concentration plotted on a logarithmic axis?",
+      "expected": "Concentrations span 0.1 to 3000 nM in half-log steps across 4+ orders of magnitude."
+    }
+  ]
+}

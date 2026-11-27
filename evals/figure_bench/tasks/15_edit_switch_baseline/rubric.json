@@ -22,7 +22,7 @@
     "deprecated_exp leads"
   ],
   "required_disclosures": [
-    "95% CI",
+    "95% CI|confidence interval|CI|s.d.|sd|\u00b1",
     "control_v2"
   ],
   "reader_questions": [

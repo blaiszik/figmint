@@ -10,18 +10,12 @@ import sys
 import textwrap
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .preflight import preflight_pdf
-from .runner import run_script
-from .skill import (
-    VALID_TARGETS,
-    get_agents_snippet,
-    get_full_skill_bundle,
-    get_skill_markdown,
-    install_skill,
-)
-from .specs import JOURNALS, JournalSpec, get_spec
+from . import __version__
+
+if TYPE_CHECKING:
+    from .specs import JournalSpec
 
 
 def _format_widths(spec: JournalSpec) -> str:
@@ -93,6 +87,8 @@ def _format_single_spec(spec: JournalSpec) -> str:
 
 def _format_all_specs() -> str:
     """Format a compact overview table of all supported journal specs."""
+    from .specs import JOURNALS
+
     headers = ("Journal", "Widths (mm)", "Max H", "Font (pt)", "Panel", "Version", "Verified")
     rows: list[tuple[str, str, str, str, str, str, str]] = []
     for key, spec in JOURNALS.items():
@@ -254,6 +250,37 @@ def _density_overrides(args: argparse.Namespace) -> dict[str, Any]:
     return out
 
 
+def _add_pr_card_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--pr-card",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Write a GitHub PR figure card (light + dark PNGs and <picture> Markdown) into DIR.",
+    )
+    parser.add_argument(
+        "--pr-card-name",
+        default=None,
+        metavar="NAME",
+        help="Optional filename stem for --pr-card outputs (defaults to --out stem or 'figure').",
+    )
+    parser.add_argument(
+        "--pr-card-prefix",
+        default=None,
+        metavar="PREFIX",
+        help="Optional repo path or URL prefix for --pr-card Markdown srcset/src attributes.",
+    )
+
+
+def _pr_card_stem(args: argparse.Namespace, default: str = "figure") -> str:
+    if getattr(args, "pr_card_name", None):
+        return str(args.pr_card_name)
+    out = getattr(args, "out", None)
+    if out is not None and Path(out).stem:
+        return Path(out).stem
+    return default
+
+
 def _print_summary(summary: Any, view: str = "compact") -> None:
     if view == "full":
         print(json.dumps(dict(summary), indent=2, ensure_ascii=False))
@@ -262,9 +289,17 @@ def _print_summary(summary: Any, view: str = "compact") -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    from .skill import VALID_TARGETS
+
     parser = argparse.ArgumentParser(
         prog="mintfig",
         description="Publication-ready scientific figure runner, preflight linter, and skill CLI.",
+    )
+    parser.add_argument(
+        "-V",
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -435,6 +470,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print an example spec to stdout and exit.",
     )
+    _add_pr_card_args(explain_parser)
     _add_density_args(explain_parser)
     _add_summary_arg(explain_parser)
 
@@ -579,6 +615,7 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_parser.add_argument("--mask-diagonal", action="store_true", help="Mask self-diagonal (matrix).")
     plot_parser.add_argument("--lenient", "--no-strict", action="store_true", dest="lenient", help="Auto-adjust soft limits.")
     plot_parser.add_argument("--write-spec", action="store_true", help="Also write <out>.json spec.")
+    _add_pr_card_args(plot_parser)
     _add_density_args(plot_parser)
     _add_summary_arg(plot_parser)
 
@@ -632,6 +669,7 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="as_json",
         help="Output structured diff result as JSON.",
     )
+    _add_pr_card_args(diff_parser)
 
     # `mintfig brief <fig1.png|spec1.json> [<fig2.png> ...] --title "..." --out report.html|report.md`
     brief_parser = subparsers.add_parser(
@@ -774,6 +812,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the marker-wrapped AGENTS.md / CLAUDE.md snippet without modifying disk.",
     )
+    skill_parser.add_argument(
+        "--no-chip",
+        action="store_true",
+        help="With --install, skip auto-installing the companion mintchip skill even if mintchip is installed.",
+    )
 
     # `mintfig hook [--install | --uninstall | --status | run] [--target ...] [--global] [--root .]`
     hook_parser = subparsers.add_parser(
@@ -877,6 +920,31 @@ def _build_parser() -> argparse.ArgumentParser:
     log_parser.add_argument("--open", action="store_true", dest="open_viewer", help="Open .mintfig/index.html.")
     log_parser.add_argument("--json", action="store_true", dest="as_json", help="Print entries as JSON.")
 
+    # `mintfig themes [--json] [--out swatches.png]`
+    themes_parser = subparsers.add_parser(
+        "themes",
+        help="List built-in surface styles and color palettes, or render a visual swatch card.",
+    )
+    themes_parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="as_json",
+        help="Output styles, aliases, palettes, and resolved defaults as JSON.",
+    )
+    themes_parser.add_argument(
+        "--out",
+        "-o",
+        type=Path,
+        default=None,
+        help="Render a visual swatch card of all styles and palettes to PATH (.png, .svg, or .pdf).",
+    )
+
+    # `mintfig card spec.json --out card.png [--pair]`
+    subparsers.add_parser(
+        "card",
+        help="Render a PR / release KPI summary card (PNG, SVG, HTML, or light/dark pair).",
+    )
+
     return parser
 
 
@@ -905,11 +973,11 @@ def _run_explain(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 2
 
-    if args.spec_path is None or (args.out is None and not args.show_spec):
+    if args.spec_path is None or (args.out is None and args.pr_card is None and not args.show_spec):
         return _reject(
-            "mintfig explain needs a spec and --out.",
-            "Run `mintfig explain spec.json --out fig.png` (or `-` to read stdin, or a PNG saved "
-            "by mintfig); `mintfig explain --example` prints a spec to start from.",
+            "mintfig explain needs a spec and --out (or --pr-card).",
+            "Run `mintfig explain spec.json --out fig.png` (or `--pr-card dir/`, or `-` to read "
+            "stdin, or a PNG saved by mintfig); `mintfig explain --example` prints a spec to start from.",
         )
     try:
         if args.spec_path != "-" and Path(args.spec_path).read_bytes()[:8] == b"\x89PNG\r\n\x1a\n":
@@ -955,9 +1023,30 @@ def _run_explain(args: argparse.Namespace) -> int:
         return _reject(exc.message, exc.fix_hint, exc.rule)
     except (KeyError, TypeError, ValueError) as exc:
         return _reject(str(exc), "See `mintfig explain --example` for the expected shape.")
-    summary = explanation.save(args.out, write_spec=args.write_spec)
-    _print_summary(summary, args.summary_view)
-    return 0 if summary["ok"] else 1
+    card = None
+    if args.pr_card is not None:
+        from .pr_card import save_pr_card
+
+        card = save_pr_card(
+            explanation,
+            args.pr_card,
+            name=_pr_card_stem(args, "figure"),
+            repo_prefix=args.pr_card_prefix,
+        )
+    if args.out is not None:
+        summary = explanation.save(args.out, write_spec=args.write_spec)
+        if card is not None:
+            summary["pr_card"] = {
+                "light_path": card["light_path"],
+                "dark_path": card["dark_path"],
+                "markdown_path": card["markdown_path"],
+                "ship": card["ship"],
+            }
+        _print_summary(summary, args.summary_view)
+        return 0 if (summary["ok"] and (card is None or card["ok"])) else 1
+    assert card is not None
+    print(json.dumps(card, indent=2, ensure_ascii=False))
+    return 0 if card["ok"] else 1
 
 
 def _run_show(args: argparse.Namespace) -> int:
@@ -1111,10 +1200,10 @@ def _run_plot(args: argparse.Namespace) -> int:
         print(json.dumps(payload, indent=2, ensure_ascii=False))
         return 2
 
-    if args.out is None and not args.show and not args.text and not args.markdown:
+    if args.out is None and args.pr_card is None and not args.show and not args.text and not args.markdown:
         return _reject(
-            "mintfig plot needs --out <path>, --show, --text, or --markdown.",
-            "Pass --out fig.png (or fig.html), --show, --text (terminal), or --markdown.",
+            "mintfig plot needs --out <path>, --pr-card <dir>, --show, --text, or --markdown.",
+            "Pass --out fig.png (or fig.html), --pr-card dir/, --show, --text (terminal), or --markdown.",
         )
 
     try:
@@ -1340,6 +1429,17 @@ def _run_plot(args: argparse.Namespace) -> int:
     except (OSError, ValueError, TypeError, KeyError) as exc:
         return _reject(str(exc), "Check column names with `mintfig inspect <file>` and re-run.")
 
+    card = None
+    if args.pr_card is not None:
+        from .pr_card import save_pr_card
+
+        card = save_pr_card(
+            explanation,
+            args.pr_card,
+            name=_pr_card_stem(args, args.data_path.stem or "figure"),
+            repo_prefix=args.pr_card_prefix,
+        )
+
     if args.text or args.markdown:
         if args.out is not None:
             explanation.save(args.out, write_spec=args.write_spec)
@@ -1347,9 +1447,13 @@ def _run_plot(args: argparse.Namespace) -> int:
             print(_format_plot_markdown(explanation, rows))
         else:
             print(explanation.to_text())
-        return 0 if explanation.ok else 1
+        return 0 if (explanation.ok and (card is None or card["ok"])) else 1
 
-    return _emit_explanation(
+    if args.out is None and not args.show and card is not None:
+        print(json.dumps(card, indent=2, ensure_ascii=False))
+        return 0 if card["ok"] else 1
+
+    rc = _emit_explanation(
         explanation,
         out=args.out,
         write_spec=args.write_spec,
@@ -1358,6 +1462,9 @@ def _run_plot(args: argparse.Namespace) -> int:
         show_width=args.show_width,
         summary_view=args.summary_view,
     )
+    if card is not None and not card["ok"]:
+        return 1
+    return rc
 
 
 def _run_diff(args: argparse.Namespace) -> int:
@@ -1402,14 +1509,35 @@ def _run_diff(args: argparse.Namespace) -> int:
         summary = result.explanation.save(args.out)
         saved_path = str(args.out)
 
+    card = None
+    if args.pr_card is not None:
+        from .pr_card import save_pr_card
+
+        card = save_pr_card(
+            result.explanation,
+            args.pr_card,
+            name=_pr_card_stem(args, "diff"),
+            repo_prefix=args.pr_card_prefix,
+        )
+
     if args.as_json:
-        print(json.dumps(result.to_json_dict(path=saved_path), indent=2, ensure_ascii=False))
+        payload = result.to_json_dict(path=saved_path)
+        if card is not None:
+            payload["pr_card"] = {
+                "light_path": card["light_path"],
+                "dark_path": card["dark_path"],
+                "markdown_path": card["markdown_path"],
+                "ship": card["ship"],
+            }
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
     elif args.markdown:
         print(result.markdown)
     elif args.text:
         print(result.text)
     elif summary is not None:
         _print_summary(summary)
+    elif card is not None:
+        print(card["markdown"])
     else:
         print(result.text)
 
@@ -1418,7 +1546,7 @@ def _run_diff(args: argparse.Namespace) -> int:
         if result.regressions and result.max_regression_pct > threshold:
             return 1
         return 0
-    return 0 if result.explanation.ok else 1
+    return 0 if (result.explanation.ok and (card is None or card["ok"])) else 1
 
 
 def _run_edit(args: argparse.Namespace) -> int:
@@ -1553,13 +1681,15 @@ def _run_brief(args: argparse.Namespace) -> int:
 
 def _run_doctor(args: argparse.Namespace) -> int:
     """Report the delivery surfaces available here and render the example spec."""
+    import importlib
     import tempfile
 
     import matplotlib.pyplot as plt
 
-    from . import style as _style
     from .explainer import EXAMPLE_SPEC, explain_from_spec
     from .terminal import detect_graphics_protocol, in_notebook
+
+    _style = importlib.import_module("mintfig.style")
 
     out_dir = Path(args.out) if args.out is not None else Path(tempfile.mkdtemp(prefix="mintfig-doctor-"))
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1669,19 +1799,48 @@ def _run_figure_check(args: argparse.Namespace) -> int:
         blocked += [r for r in reports if r["ship"] and (r["issues"] or r["advisories"])]
     return 1 if blocked else 0
 
+def _needs_fixed_hash_seed(args: argparse.Namespace) -> bool:
+    """True only when PDF font subsetting needs deterministic string hashing."""
+    if args.command == "run":
+        return True
+    if args.command in {"explain", "plot", "edit"}:
+        out = getattr(args, "out", None)
+        return out is not None and str(out).lower().endswith(".pdf")
+    return False
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point for `mintfig`."""
+    # Ultra-fast path for `mintfig hook run` so non-plot PostToolUse events skip
+    # full CLI parser setup and complete in pure stdlib (<25 ms).
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+    if raw_argv == ["hook", "run"]:
+        from .hooks import run_hook
+
+        rc, output = run_hook()
+        if output:
+            print(output)
+        return rc
+
+    raw_argv = list(argv) if argv is not None else sys.argv[1:]
+    if raw_argv[:1] == ["card"]:
+        from .card import cli_card
+
+        return cli_card(raw_argv[1:])
+
     parser = _build_parser()
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     # Only the real command line (argv is None) re-runs; in-process callers keep
     # their interpreter and can set PYTHONHASHSEED themselves.
-    if argv is None and args.command in {"run", "explain", "plot", "edit"}:
+    if argv is None and _needs_fixed_hash_seed(args):
         child_code = _rerun_with_fixed_hash_seed()
         if child_code is not None:
             return child_code
 
     if args.command == "specs":
+        from .specs import JOURNALS, get_spec
+
         if args.journal is not None:
             try:
                 spec = get_spec(args.journal)
@@ -1704,6 +1863,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_figure_check(args)
 
     if args.command == "check":
+        from .preflight import preflight_pdf
+
         try:
             report = preflight_pdf(args.pdf_path, journal=args.journal)
         except (FileNotFoundError, KeyError, ValueError) as exc:
@@ -1719,6 +1880,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0 if passed else 1
 
     if args.command == "run":
+        from .runner import run_script
+
         try:
             result = run_script(
                 args.script_path,
@@ -1772,6 +1935,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_doctor(args)
 
     if args.command == "skill":
+        from .skill import (
+            get_agents_snippet,
+            get_full_skill_bundle,
+            get_skill_markdown,
+            install_chip_skill,
+            install_skill,
+        )
+
         if args.snippet:
             print(get_agents_snippet(), end="")
             return 0
@@ -1794,6 +1965,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 1
             for path in written:
                 print(f"Installed: {path}")
+            if not args.no_chip:
+                chip_written = install_chip_skill(
+                    root=args.root,
+                    targets=targets,
+                    global_install=args.global_install,
+                    home=args.home,
+                )
+                for path in chip_written:
+                    print(f"Installed mintchip skill: {path}")
             return 0
         # Default or --print: output SKILL.md (or full bundle with --all) without touching disk
         if args.print_all:
@@ -1807,6 +1987,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "log":
         return _run_log(args)
+
+    if args.command == "themes":
+        return _run_themes(args)
 
     return 1
 
@@ -1982,6 +2165,91 @@ def _run_log(args: argparse.Namespace) -> int:
         print(json.dumps(entries, indent=2, ensure_ascii=False))
     else:
         print(format_log_table(entries))
+    return 0
+
+
+def _run_themes(args: argparse.Namespace) -> int:
+    """Dispatch ``mintfig themes`` subcommand: list styles/palettes or render a swatch card."""
+    from .themes import (
+        EXPLAIN_PALETTES,
+        THEME_ALIASES,
+        THEMES,
+        render_themes_swatch_card,
+        resolve_default_palette,
+        resolve_default_style,
+    )
+
+    aliases_by_theme: dict[str, list[str]] = {}
+    for alias, canonical in THEME_ALIASES.items():
+        aliases_by_theme.setdefault(canonical, []).append(alias)
+
+    out_written: Path | None = None
+    if args.out is not None:
+        out_written = render_themes_swatch_card(args.out)
+
+    default_style = resolve_default_style()
+    default_palette = resolve_default_palette()
+
+    if args.as_json:
+        payload: dict[str, Any] = {
+            "default_style": default_style,
+            "default_palette": default_palette,
+            "aliases": dict(THEME_ALIASES),
+            "styles": {
+                name: {
+                    "name": theme.name,
+                    "description": theme.description,
+                    "aliases": aliases_by_theme.get(name, []),
+                    "background": theme.background,
+                    "ink": theme.ink,
+                    "muted": theme.muted,
+                    "series_colors": list(theme.series_colors),
+                    "accent_colors": list(theme.accent_colors),
+                    "allow_serif_title": theme.allow_serif_title,
+                }
+                for name, theme in THEMES.items()
+            },
+            "palettes": {
+                name: {
+                    "name": pal.name,
+                    "description": pal.description,
+                    "series_colors": list(pal.series_colors),
+                    "accent_colors": list(pal.accent_colors),
+                    "seq_stops": list(pal.seq_stops),
+                }
+                for name, pal in EXPLAIN_PALETTES.items()
+            },
+        }
+        if out_written is not None:
+            payload["out"] = str(out_written.resolve())
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+        return 0
+
+    lines = [
+        f"mintfig themes (default style: {default_style}, default palette: {default_palette or 'default'})",
+        "─" * 78,
+        "Surface styles (style=...):",
+    ]
+    style_w = max(len(name) for name in THEMES) + 2
+    for name, theme in THEMES.items():
+        alias_str = f" [aliases: {', '.join(aliases_by_theme[name])}]" if name in aliases_by_theme else ""
+        cols = " ".join(theme.series_colors)
+        lines.append(f"  {name:<{style_w}} bg={theme.background}  {cols}{alias_str}")
+        lines.append(f"  {'':<{style_w}} {theme.description}")
+
+    lines.append("")
+    lines.append("Explain palettes (palette=...):")
+    pal_w = max(len(name) for name in EXPLAIN_PALETTES) + 2
+    for name, pal in EXPLAIN_PALETTES.items():
+        cols = " ".join(pal.series_colors)
+        lines.append(f"  {name:<{pal_w}} {cols}")
+        lines.append(f"  {'':<{pal_w}} {pal.description}")
+
+    if out_written is not None:
+        lines.append("")
+        lines.append(f"Wrote visual swatch card -> {out_written.resolve()}")
+
+    print("\n".join(lines))
     return 0
 
 

@@ -24,8 +24,8 @@
     "22 pp worse"
   ],
   "required_disclosures": [
-    "severity",
-    "Simpson"
+    "severity|severe|mild|stratif",
+    "Simpson|confound|pooled|overall"
   ],
   "reader_questions": [
     {

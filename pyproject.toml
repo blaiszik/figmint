@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mintfig"
-version = "0.3.0"
+version = "0.3.1"
 description = "Message-first figures for agents explaining scientific results to people, plus journal-ready plates with preflight QA and reproducible bundles."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,6 +31,9 @@ chip = [
 pub = [
     "pypdf>=4.0",
 ]
+all = [
+    "mintfig[pub,chip]",
+]
 dev = [
     "pypdf>=4.0",
     "pytest>=8.0",
@@ -38,7 +41,11 @@ dev = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/blaiszik/mintfig"
+Documentation = "https://github.com/blaiszik/mintfig#readme"
 Repository = "https://github.com/blaiszik/mintfig"
+Issues = "https://github.com/blaiszik/mintfig/issues"
+Changelog = "https://github.com/blaiszik/mintfig/blob/main/CHANGELOG.md"
 
 [project.scripts]
 mintfig = "mintfig.cli:main"
@@ -48,7 +55,7 @@ packages = ["src/mintfig"]
 artifacts = ["src/mintfig/assets/*.md", "src/mintfig/assets/references/*.md"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
+include = ["src", "tests", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
 artifacts = ["src/mintfig/assets/*.md", "src/mintfig/assets/references/*.md"]
 
 [tool.pytest.ini_options]

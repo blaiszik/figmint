@@ -53,7 +53,9 @@ BLOCKING = frozenset(
      "text_clipped", "claim_number_mismatch"}
 )  # fmt: skip
 
-_BANNED_CMAPS = frozenset({"jet", "rainbow", "hsv", "gist_rainbow", "nipy_spectral", "prism", "flag"})
+_BANNED_CMAPS = frozenset(
+    {"jet", "rainbow", "hsv", "gist_rainbow", "nipy_spectral", "prism", "flag", "turbo"}
+)
 _UNCERTAINTY_WORDS = re.compile(
     r"(\bCI\b|confidence|interval|\bs\.?d\.?\b|\bSD\b|\bSEM?\b|\bs\.e\.m?\.?|standard (?:deviation|error)"
     r"|±|\bIQR\b|quartile|percentile|\bseeds?\b|replicates?|triplicates?|\bwells?\b|\bn\s*=\s*\d"
@@ -63,6 +65,9 @@ _UNCERTAINTY_WORDS = re.compile(
 _DOUBLED = re.compile(r"\b(\w+(?:\s+\w+)?)\s+\1\b", re.IGNORECASE)
 _ASCII_MINUS = re.compile(r"(?:^|[\s(\[=:,])-\d")
 _JUNK = re.compile(r"\b(nan|NaN|None|inf|-inf)\b")
+_UNRESOLVED_FMT = re.compile(
+    r"\{(?:[A-Za-z_]\w*(?:![rsa])?(?::[^{}\s]*)?|\d*(?:![rsa])?(?::[^{}\s]*)?)\}"
+)
 _UNIT_IN_LABEL = re.compile(r"[(\[]([^()\[\]]{1,12})[)\]]\s*$")
 _COUNT_BEFORE = re.compile(r"\b[nN]\s*=\s*$")
 _MAX_POINTS = 200  # per series: beyond this only summary values become claim candidates
@@ -1557,6 +1562,13 @@ def check(
 
     issues: list[dict] = report.pop("issues")
     advisories: list[dict] = []
+    ascii_minus = report.pop("ascii_minus", None)
+    if ascii_minus:
+        advisories.append(_issue(
+            "ascii_minus", "warning",
+            f"ASCII hyphen used as minus sign: {'; '.join(ascii_minus[:4])}.",
+            "Use the typographic minus sign '\N{MINUS SIGN}' (U+2212) for negative numbers.",
+        ))
     all_text = " ".join(t.get_text() for t in texts)
 
     for p in panels:
@@ -1768,6 +1780,7 @@ def _audit(fig: Any, texts: list[Any], renderer: Any, *, size: tuple[int, int] |
         ))
 
     faults = []
+    ascii_minus_hits = []
     for t in texts:
         txt = t.get_text()
         plain = re.sub(r"\$[^$]*\$", "", txt)
@@ -1777,15 +1790,18 @@ def _audit(fig: Any, texts: list[Any], renderer: Any, *, size: tuple[int, int] |
         if m and not m.group(1).isdigit():
             faults.append(f"repeated words {m.group(0)!r}: {txt[:40]!r}")
         if _ASCII_MINUS.search(plain) and not re.search(r"\d{4}-\d{2}", plain):
-            faults.append(f"ASCII hyphen as minus sign: {txt[:40]!r}")
+            ascii_minus_hits.append(f"{txt[:40]!r}")
         if _JUNK.search(plain):
             faults.append(f"junk value: {txt[:40]!r}")
+        if _UNRESOLVED_FMT.search(plain):
+            faults.append(f"unresolved placeholder: {txt[:40]!r}")
     if faults:
         issues.append(_issue(
             "text_malformed", "warning", f"Malformed drawn text: {'; '.join(faults[:4])}.",
-            "Fix the format string: one '%', no repeated words, '\N{MINUS SIGN}' (U+2212) for negatives, "
+            "Fix the format string: one '%', no repeated words, no unresolved '{...}' placeholders, "
             "and drop NaN/None values before labelling.",
         ))
+    out["ascii_minus"] = ascii_minus_hits
 
     if not tight:
         canvas = fig.bbox
@@ -1845,6 +1861,59 @@ def _is_same_interpreter(candidate: Any) -> bool:
     return abs_cand.startswith(prefix + os.sep)
 
 
+_MPL_PROBE_CACHE: dict[tuple[str, int], bool] = {}
+_SUBPROCESS_TIMEOUT_S: float = 15.0
+
+
+def _interp_cache_key(cand: Any) -> tuple[str, int]:
+    path_str = os.path.abspath(os.fspath(cand))
+    try:
+        mtime_ns = os.stat(path_str).st_mtime_ns
+    except OSError:
+        mtime_ns = 0
+    return (path_str, mtime_ns)
+
+
+def _venv_has_matplotlib(root: Any, cand: Any) -> bool:
+    """Return True when a discovered virtualenv interpreter can import matplotlib.
+
+    Cached by ``(path, mtime_ns)`` so repeated checks avoid redundant subprocess
+    probes. Wrapper scripts without ``pyvenv.cfg`` / ``conda-meta`` are not
+    pre-probed here (and instead rely on automatic in-process fallback if
+    ``matplotlib`` is missing at execution time).
+    """
+    import subprocess
+    from pathlib import Path
+
+    key = _interp_cache_key(cand)
+    cached = _MPL_PROBE_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    venv_root = Path(root)
+    is_standard_env = (venv_root / "pyvenv.cfg").is_file() or (venv_root / "conda-meta").is_dir()
+    if not is_standard_env:
+        return True
+
+    try:
+        proc = subprocess.run(
+            [
+                os.fspath(cand),
+                "-c",
+                "import importlib.util, sys; sys.exit(0 if importlib.util.find_spec('matplotlib') else 1)",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        ok = proc.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        ok = False
+    _MPL_PROBE_CACHE[key] = ok
+    return ok
+
+
 def _resolve_python(target_path: Any, python: str | os.PathLike[str] | None) -> Any:
     """Resolve the Python interpreter to run a script/notebook with, or None for in-process."""
     import shutil
@@ -1872,9 +1941,18 @@ def _resolve_python(target_path: Any, python: str | os.PathLike[str] | None) -> 
 
     for root in search_roots:
         cand = _venv_python(root)
-        if cand is not None:
-            return None if _is_same_interpreter(cand) else cand
+        if cand is None:
+            continue
+        if _is_same_interpreter(cand):
+            return None
+        if _venv_has_matplotlib(root, cand):
+            return cand
     return None
+
+
+def _is_missing_matplotlib_error(exc: BaseException) -> bool:
+    msg = str(exc)
+    return "No module named 'matplotlib'" in msg or 'No module named "matplotlib"' in msg
 
 
 def _run_via_subprocess(
@@ -1884,6 +1962,7 @@ def _run_via_subprocess(
     mode: str,
     claim: str | None,
     width: str | int,
+    timeout: float | None = _SUBPROCESS_TIMEOUT_S,
 ) -> list[FigureCheck]:
     """Execute ``_check_runner.py`` in a subprocess using ``interpreter``."""
     import subprocess
@@ -1921,7 +2000,20 @@ def _run_via_subprocess(
         ]
         if claim is not None:
             cmd.extend(["--claim", claim])
-        proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
+        try:
+            proc = subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            limit = timeout if timeout is not None else _SUBPROCESS_TIMEOUT_S
+            raise TimeoutError(
+                f"Subprocess check timed out after {limit:g}s for {Path(target_path).name}"
+            ) from exc
         raw_out = out_path.read_text(encoding="utf-8") if out_path.is_file() else ""
         if raw_out.strip():
             payload = json.loads(raw_out)
@@ -2056,7 +2148,13 @@ def check_script(
         raise FileNotFoundError(f"No such script: {script}")
     interp = _resolve_python(script, python)
     if interp is not None:
-        return _run_via_subprocess(interp, script, mode="script", claim=claim, width=width)
+        try:
+            return _run_via_subprocess(interp, script, mode="script", claim=claim, width=width)
+        except RuntimeError as exc:
+            if python is None and _is_missing_matplotlib_error(exc):
+                _MPL_PROBE_CACHE[_interp_cache_key(interp)] = False
+                return _run_script_in_process(script, claim=claim, width=width)
+            raise
     return _run_script_in_process(script, claim=claim, width=width)
 
 
@@ -2143,7 +2241,13 @@ def check_notebook(
         raise FileNotFoundError(f"No such notebook: {nb_path}")
     interp = _resolve_python(nb_path, python)
     if interp is not None:
-        return _run_via_subprocess(interp, nb_path, mode="notebook", claim=claim, width=width)
+        try:
+            return _run_via_subprocess(interp, nb_path, mode="notebook", claim=claim, width=width)
+        except RuntimeError as exc:
+            if python is None and _is_missing_matplotlib_error(exc):
+                _MPL_PROBE_CACHE[_interp_cache_key(interp)] = False
+                return _run_notebook_in_process(nb_path, claim=claim, width=width)
+            raise
     return _run_notebook_in_process(nb_path, claim=claim, width=width)
 
 

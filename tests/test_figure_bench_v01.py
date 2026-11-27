@@ -422,7 +422,8 @@ def test_grade_dir_end_to_end(tmp_path: Path) -> None:
     fig.savefig(t2 / "figure.png", dpi=100)
     plt.close(fig)
     (t2 / "reply.md").write_text(
-        "Median checkout latency fell by 83.5 ms (19.7%).\n\n![Latency](figure.png)\n",
+        "Median checkout latency fell by 83.5 ms (19.7%), trimming the right-skewed tail.\n\n"
+        "![Latency](figure.png)\n",
         encoding="utf-8",
     )
     (t2 / "timing.json").write_text(json.dumps({"seconds": 22.0}), encoding="utf-8")
@@ -559,3 +560,355 @@ fig.savefig("figure.png", dpi=150)
     with Image.open(copied2) as im:
         assert im.width == 450
     assert item2["display_width_px"] == 450
+
+
+# --------------------------------------------------------------------------- 100-task suite, hardening & timing
+
+
+def test_v01_suite_has_100_validated_tasks_with_full_rubrics() -> None:
+    tasks = rubric.discover_task_dirs(HERE)
+    assert len(tasks) == 100
+
+    splits: dict[str, int] = {}
+    tracks_by_split: dict[str, set[str]] = {}
+    surfaces: set[str] = set()
+    for tdir in tasks:
+        assert rubric.validate_task_dir(tdir) == [], f"{tdir.name} failed validation"
+        rub = rubric.load_rubric(tdir)
+        assert rub["_source"] == "rubric.json", f"{tdir.name} missing canonical rubric.json"
+        assert len(rub["reader_questions"]) >= 3, f"{tdir.name} has < 3 reader_questions"
+        splits[rub["split"]] = splits.get(rub["split"], 0) + 1
+        tracks_by_split.setdefault(rub["split"], set()).add(rub["track"])
+        surfaces.add(rub["surface"])
+
+    assert splits == {"dev": 25, "public-test": 50, "heldout": 25}
+    for sp in ("dev", "public-test", "heldout"):
+        assert tracks_by_split[sp] == set(rubric.VALID_TRACKS)
+    assert {"chat", "narrow", "slide", "dark", "html", "terminal"} <= surfaces
+
+
+def test_hardened_rubric_disclosures_overclaims_and_structural_checks(tmp_path: Path) -> None:
+    import neutral
+
+    # 1. Truncated bar chart detected by neutral.audit_saved_figure and penalized when forbid_truncated_bars=True
+    trunc_png = tmp_path / "trunc.png"
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.bar(["A", "B"], [94.1, 95.8], color=["#4e79a7", "#f28e2b"])
+    ax.set_ylim(93.0, 97.0)
+    ax.set_title("Charger-D gains +1.7 pp (n = 6 units)")
+    fig.tight_layout()
+    fig.savefig(trunc_png, dpi=100)
+    aud_trunc = neutral.audit_saved_figure(fig, trunc_png, dpi=100, tight=False)
+    plt.close(fig)
+    assert aud_trunc["truncated_bar_axes"], "should detect truncated bar y-axis"
+    assert aud_trunc["has_log_axis"] is False
+    assert any("Charger-D" in s for s in aud_trunc["all_texts"])
+
+    rub_trunc = {
+        "schema_version": "0.1", "id": "t_trunc", "split": "dev", "track": "epistemic_traps",
+        "domain": "Power", "title": "Truncated bait", "display_width_px": 700, "surface": "chat",
+        "what": "+1.7 pp gain", "accept": [1.7], "rel_tol": 0.1, "abs_tol": 0.1,
+        "uncertainty_required": True, "no_effect_trap": False,
+        "forbidden_overclaim_phrases": ["massive advantage"],
+        "required_disclosures": ["n=6|6 units|s.d."],
+        "forbid_truncated_bars": True, "require_log_scale": False, "min_panels": 0,
+        "reader_questions": [],
+    }
+    # Non-trap task with forbidden_overclaim_phrases MUST allow normal comparative phrasing ("clearly higher")
+    reply = "Charger-D is clearly higher by +1.7 pp across n = 6 units.\n\n![Eff](figure.png)\n"
+    res = rubric.score_submission(rub_trunc, png_path=trunc_png, reply_text=reply, neutral_audit=aud_trunc)
+    assert any("truncated_bar_baseline" in i for i in res["visual_quality"]["issues"])
+    assert res["uncertainty_calibration"]["overclaim_detected"] is False
+    assert res["uncertainty_calibration"]["missing_disclosures"] == []
+    assert res["uncertainty_calibration"]["passed"] is True
+
+    # 2. require_log_scale catches linear-scale figure and passes log-scale figure
+    log_png = tmp_path / "log.png"
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    ax2.plot([1, 10, 100, 1000], [1, 5, 25, 125])
+    ax2.set_xscale("log")
+    ax2.set_yscale("log")
+    ax2.set_title("Log-log slope 0.70")
+    fig2.tight_layout()
+    fig2.savefig(log_png, dpi=100)
+    aud_log = neutral.audit_saved_figure(fig2, log_png, dpi=100, tight=False)
+    plt.close(fig2)
+    assert aud_log["has_log_axis"] is True
+
+    rub_log = {**rub_trunc, "forbid_truncated_bars": False, "require_log_scale": True, "uncertainty_required": False, "required_disclosures": []}
+    res_lin = rubric.score_submission(rub_log, png_path=trunc_png, reply_text="Gain 1.7.\n\n![f](figure.png)\n", neutral_audit=aud_trunc)
+    assert any("missing_log_scale" in i for i in res_lin["visual_quality"]["issues"])
+    res_log = rubric.score_submission(rub_log, png_path=log_png, reply_text="Slope 1.7.\n\n![f](figure.png)\n", neutral_audit=aud_log)
+    assert not any("missing_log_scale" in i for i in res_log["visual_quality"]["issues"])
+
+
+def test_comprehensive_timing_capture_grade_and_export(tmp_path: Path) -> None:
+    run = tmp_path / "timed_run"
+    bench.main(["start", "01_ablation", "--run", str(run), "--arm", "matplotlib-hook", "--python", sys.executable])
+    work = run / "01_ablation"
+    script = tmp_path / "fig.py"
+    script.write_text(
+        """import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.barh(["no reranker", "full model"], [80.5, 82.1])
+ax.set_title("Reranker adds 1.6 points (5 seeds)")
+fig.tight_layout()
+fig.savefig("figure.png", dpi=100)
+""",
+        encoding="utf-8",
+    )
+    reply = tmp_path / "reply.md"
+    reply.write_text("Reranker adds 1.6 points across 5 seeds.\n\n![Ablation](figure.png)\n", encoding="utf-8")
+    bench.main(["submit", "01_ablation", str(script), "--run", str(run), "--reply", str(reply)])
+
+    # Simulate sweep_timing.json and Claude CLI agent.log JSON output
+    (work / ".bench" / "sweep_timing.json").write_text(
+        json.dumps({"start_s": 0.4, "agent_wall_s": 9.2, "wall_s": 9.6, "timed_out": False}),
+        encoding="utf-8",
+    )
+    (work / ".bench" / "agent.log").write_text(
+        json.dumps({
+            "type": "result", "subtype": "success", "duration_ms": 9100, "duration_api_ms": 7800,
+            "ttft_ms": 620, "num_turns": 4, "total_cost_usd": 0.042,
+            "usage": {"input_tokens": 100, "output_tokens": 420, "output_tokens_details": {"thinking_tokens": 80}},
+        }),
+        encoding="utf-8",
+    )
+
+    # Check per-task timing.json written on submit
+    t_json = json.loads((work / ".bench" / "timing.json").read_text(encoding="utf-8"))
+    assert t_json["attempts"] == 1
+    assert t_json["total_render_s"] >= 0.0
+    assert t_json["total_script_exec_s"] >= 0.0
+    assert t_json["total_audit_s"] >= 0.0
+    assert len(t_json["per_attempt"]) == 1
+    assert "think_s" in t_json["per_attempt"][0]
+    assert "delivery_check_s" in t_json["per_attempt"][0]
+
+    # Grade run and verify timing_summary + parsed agent_cli + by_split + by_track
+    bench.main(["grade", "--run", str(run)])
+    results = json.loads((run / "results.json").read_text(encoding="utf-8"))
+    assert "timing_summary" in results
+    assert results["timing_summary"]["seconds_to_pass"]["count"] == 1
+    assert results["timing_summary"]["cli_duration_s"]["median"] == pytest.approx(9.1, abs=0.05)
+    assert results["timing_summary"]["cli_api_duration_s"]["median"] == pytest.approx(7.8, abs=0.05)
+    assert "dev" in results["by_split"]
+    assert "science_uncertainty" in results["by_track"]
+    detail = results["tasks_detail"][0]
+    assert detail["timing"]["agent_cli"]["num_turns"] == 4
+    assert detail["timing"]["agent_cli"]["tokens"]["thinking_tokens"] == 80
+
+    # Export submission and verify it passes verify_submission with timing fields intact
+    sub_out = tmp_path / "submission.json"
+    bench.main([
+        "export-submission", "--run", str(run), "--out", str(sub_out),
+        "--submission-id", "test-timed-run", "--model", "Test Model", "--split", "dev",
+    ])
+    sub_data = json.loads(sub_out.read_text(encoding="utf-8"))
+    assert "timing_summary" in sub_data["provenance"]
+    assert sub_data["per_task"][0]["timing"]["attempts"] == 1
+
+
+def test_external_bridge_import_and_audit(tmp_path: Path) -> None:
+    ext = _load("external_bridge", HERE / "external_bridge.py")
+
+    # 1. Mock MatPlotBench import
+    mpb_src = tmp_path / "mpb_src"
+    (mpb_src / "data" / "1").mkdir(parents=True)
+    (mpb_src / "data" / "1" / "points.csv").write_text("x,y\n1,2\n2,4\n", encoding="utf-8")
+    (mpb_src / "benchmark_instructions.json").write_text(
+        json.dumps([{"id": 1, "simple_instruction": "Plot y vs x from points.csv"}]),
+        encoding="utf-8",
+    )
+    mpb_out = tmp_path / "mpb_tasks"
+    m1 = ext.import_matplotbench(mpb_src, mpb_out)
+    assert m1["count"] == 1
+    assert (mpb_out / "mpb_1" / "context.md").is_file()
+    assert (mpb_out / "mpb_1" / "data" / "points.csv").is_file()
+
+    # 2. Mock PandasPlotBench import
+    ppb_jsonl = tmp_path / "ppb.jsonl"
+    ppb_jsonl.write_text(
+        json.dumps({"id": "task-7", "task": "Bar chart of sales", "data_csv": "cat,val\nA,10\nB,20\n"}) + "\n",
+        encoding="utf-8",
+    )
+    ppb_out = tmp_path / "ppb_tasks"
+    m2 = ext.import_pandasplotbench(ppb_jsonl, ppb_out)
+    assert m2["count"] == 1
+    assert (ppb_out / "ppb_task-7" / "data" / "dataset.csv").is_file()
+
+    # 3. Audit external outputs with --run-scripts + timing capture
+    ext_outs = tmp_path / "ext_outputs"
+    good = ext_outs / "mpb_1"
+    bad = ext_outs / "mpb_2"
+    good.mkdir(parents=True)
+    bad.mkdir(parents=True)
+    (good / "figure.py").write_text(
+        """import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.plot([1, 2, 3], [2, 4, 6])
+ax.set_title("Linear growth (n = 3)")
+fig.tight_layout()
+fig.savefig("figure.png", dpi=100)
+""",
+        encoding="utf-8",
+    )
+    (good / "timing.json").write_text(json.dumps({"seconds": 12.5}), encoding="utf-8")
+    (bad / "figure.py").write_text(
+        """import matplotlib.pyplot as plt
+import numpy as np
+fig, ax = plt.subplots(figsize=(14, 6))
+ax.imshow(np.linspace(0, 1, 64).reshape(8, 8), cmap="jet")
+ax.set_title("Tiny title with %% typo", fontsize=6)
+fig.savefig("figure.png", dpi=100)
+""",
+        encoding="utf-8",
+    )
+    rep = ext.audit_external_outputs(ext_outs, display_width_px=700, run_scripts=True, python_bin=sys.executable)
+    assert rep["task_count"] == 2
+    assert rep["per_task"]["mpb_1"]["clean"] is True
+    assert rep["per_task"]["mpb_2"]["clean"] is False
+    assert "banned_colormaps" in rep["per_task"]["mpb_2"]["defects"]
+    assert "text_legible" in rep["per_task"]["mpb_2"]["defects"]
+    assert rep["timing_summary"]["per_task_script_exec_s"]["count"] == 2
+    assert rep["timing_summary"]["external_seconds"]["median"] == pytest.approx(12.5, abs=0.05)
+
+
+# --------------------------------------------------------------------------- credibility hardening tests
+
+
+def test_answer_matches_is_sign_aware() -> None:
+    neg_key = {"accept": [-18.04878], "abs_tol": 1.0, "rel_tol": 0.0}
+    assert rubric.answer_matches("Libraries budget cut -18%", neg_key)[0] is True
+    assert rubric.answer_matches("Libraries budget cut −18.0%", neg_key)[0] is True
+    assert rubric.answer_matches("Libraries budget rose +18%", neg_key)[0] is False
+    assert rubric.answer_matches("Libraries budget rose 18%", neg_key)[0] is False
+    assert rubric.answer_matches("Dots = patients (n=18/arm)", {"accept": [-18.4], "abs_tol": 1.0})[0] is False
+
+    # Same contract in bench.answer_matches
+    assert bench.answer_matches("Budget change -18%", neg_key)[0] is True
+    assert bench.answer_matches("Budget change +18%", neg_key)[0] is False
+
+    # Positive targets reject negative values unless both signs are listed
+    pos_key = {"accept": [18.0], "abs_tol": 1.0, "rel_tol": 0.0}
+    assert rubric.answer_matches("Throughput rose +18%", pos_key)[0] is True
+    assert rubric.answer_matches("Throughput fell -18%", pos_key)[0] is False
+
+    # Dual-sign keys accept either sign explicitly
+    dual_key = {"accept": [-9.4, 9.4], "abs_tol": 0.2, "rel_tol": 0.0}
+    assert rubric.answer_matches("Organic fell -9.4 pp", dual_key)[0] is True
+    assert rubric.answer_matches("Organic fell 9.4 pp", dual_key)[0] is True
+
+    # Negative scientific notation preserves sign
+    sci_key = {"accept": [-1.3e-7], "rel_tol": 0.05, "abs_tol": 0.0}
+    assert rubric.answer_matches("Drift is -1.3×10⁻⁷", sci_key)[0] is True
+    assert rubric.answer_matches("Drift is 1.3×10⁻⁷", sci_key)[0] is False
+
+
+def test_neutral_ascii_minus_is_advisory_and_headlines_ignore_footer(tmp_path: Path) -> None:
+    import neutral
+
+    png = tmp_path / "fig.png"
+    fig, ax = plt.subplots(figsize=(6.4, 4.4))
+    ax.bar(["Control", "Variant"], [10.0, 8.2], color=["#4e79a7", "#f28e2b"])
+    ax.set_title("Variant changes score by -18% vs control")
+    fig.suptitle("Headline: -18% drop across cohorts", y=0.96)
+    fig.text(0.02, 0.02, "Source: synthetic db (+18% decoy in footer)", fontsize=9)
+    fig.text(0.02, 0.08, "Note: n=18 replicates excluded", fontsize=9)
+    fig.tight_layout(rect=(0, 0.12, 1, 0.90))
+    fig.savefig(png, dpi=100)
+    aud = neutral.audit_saved_figure(fig, png, dpi=100, tight=False)
+    plt.close(fig)
+
+    checks = {c["name"]: c["passed"] for c in neutral.neutral_checks(aud)}
+    assert checks["text_well_formed"] is True, aud["text_faults"]
+    assert aud["text_faults"] == []
+    assert any("ASCII hyphen as minus sign" in a for a in aud["text_advisories"])
+
+    # Headlines include suptitle & ax title, NOT footer Source:/Note: texts
+    joined_heads = " ".join(aud["headlines"])
+    assert "Headline: -18% drop" in joined_heads
+    assert "Variant changes score by -18%" in joined_heads
+    assert "Source:" not in joined_heads
+    assert "Note:" not in joined_heads
+
+
+def test_matplotlib_coached_arm_and_terminal_surface_support(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # 1. matplotlib-coached on a chat task
+    run = tmp_path / "coached_run"
+    bench.main([
+        "start", "01_ablation", "--run", str(run), "--arm", "matplotlib-coached",
+        "--python", sys.executable,
+    ])
+    start_out = capsys.readouterr().out
+    assert "Prompt-Coached Matplotlib, No Mintfig" in start_out
+    assert "700 px" in start_out
+    assert "start linear bar charts at 0" in start_out
+    assert "SKILL.md" not in start_out
+
+    script = tmp_path / "fig.py"
+    script.write_text(
+        """import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.barh(["no reranker", "full model"], [80.5, 82.1])
+ax.set_title("Reranker adds 1.6 points (5 seeds)")
+fig.tight_layout()
+fig.savefig("figure.png", dpi=100)
+""",
+        encoding="utf-8",
+    )
+    reply = tmp_path / "reply.md"
+    reply.write_text("Reranker adds 1.6 points across 5 seeds.\n\n![Ablation](figure.png)\n", encoding="utf-8")
+    bench.main(["submit", "01_ablation", str(script), "--run", str(run), "--reply", str(reply)])
+    sub_out = capsys.readouterr().out
+    assert "Task complete" in sub_out
+    state = json.loads((run / "01_ablation" / ".bench" / "state.json").read_text(encoding="utf-8"))
+    assert state["arm"] == "matplotlib-coached"
+    assert state["attempts"][0]["done"] is True
+    assert state["attempts"][0]["passed"] is True
+
+    # Export verifies hook_enabled=False for prompt-coached baseline
+    sub_out_json = tmp_path / "coached_sub.json"
+    bench.main([
+        "export-submission", "--run", str(run), "--out", str(sub_out_json),
+        "--submission-id", "test-coached-run", "--model", "Test Model", "--split", "dev",
+    ])
+    sub_data = json.loads(sub_out_json.read_text(encoding="utf-8"))
+    assert sub_data["hook_enabled"] is False
+    assert "Prompt-Coached Matplotlib" in sub_data["skill_or_prompt"]
+
+    # 2. matplotlib-plain respects surface="terminal" without requiring figure.png
+    term_run = tmp_path / "term_run"
+    bench.main([
+        "start", "pt27_terminal_only_bench", "--run", str(term_run), "--arm", "matplotlib-plain",
+        "--python", sys.executable,
+    ])
+    term_out = capsys.readouterr().out
+    assert "72-column" in term_out
+    assert "do NOT require saving figure.png" in term_out
+
+    term_script = tmp_path / "term.py"
+    term_script.write_text('print("ok")\n', encoding="utf-8")
+    term_reply = tmp_path / "term_reply.md"
+    term_reply.write_text(
+        "Parser-B is fastest at 1837 MB/s:\n\n"
+        "```text\n"
+        "Codec      Throughput (MB/s)\n"
+        "lz4-fast   ################ 1837\n"
+        "zstd-3     ########          932\n"
+        "```\n",
+        encoding="utf-8",
+    )
+    bench.main([
+        "submit", "pt27_terminal_only_bench", str(term_script),
+        "--run", str(term_run), "--reply", str(term_reply),
+    ])
+    t_state = json.loads(
+        (term_run / "pt27_terminal_only_bench" / ".bench" / "state.json").read_text(encoding="utf-8")
+    )
+    assert t_state["attempts"][0]["done"] is True
+    assert t_state["attempts"][0]["passed"] is True
+    assert t_state["attempts"][0]["delivery"]["passed"] is True
+

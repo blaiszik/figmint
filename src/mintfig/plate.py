@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.figure import Figure
 
-from . import export, style
+from . import export
 from .specs import JournalSpec, get_spec, mm_to_in
 
+style = importlib.import_module("mintfig.style")
+
 if TYPE_CHECKING:
+    from contextlib import AbstractContextManager
     from types import TracebackType
 
     from matplotlib.axes import Axes
@@ -199,7 +202,7 @@ class Plate:
             raise ValueError(f"height_mm must be positive, got {self.height_mm}")
 
         self.palette = palette
-        self._prev_rc: dict[str, Any] = dict(mpl.rcParams)
+        self._style_ctx: AbstractContextManager[None] | None = None
         self._panel_label_artists: dict[str, Text] = {}
         self.takeaway: str | None = None
         self.takeaway_subtitle: str | None = None
@@ -222,10 +225,8 @@ class Plate:
         if height_ratios is not None:
             gridspec_kw["height_ratios"] = list(height_ratios)
 
-        # Apply journal style so subsequent plotting calls on plate["a"] inherit exact
-        # journal typography, linewidths, sans-serif mathtext, and editable PDF fonttype.
-        style.apply(self.spec, palette=palette)
-
+        # Scope journal style during figure & axes creation so global matplotlib.rcParams
+        # are never mutated outside an explicit `with Plate(...)` or `mint.pub.apply()`.
         with style.use(self.spec, palette=palette):
             self.fig: Figure = plt.figure(
                 figsize=(mm_to_in(self.width_mm), mm_to_in(self.height_mm)),
@@ -279,6 +280,8 @@ class Plate:
             engine.set(**set_kw)
 
     def __enter__(self) -> Plate:  # noqa: PYI034
+        self._style_ctx = style.use(self.spec, palette=self.palette)
+        self._style_ctx.__enter__()
         return self
 
     def __exit__(
@@ -287,7 +290,10 @@ class Plate:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        mpl.rcParams.update(self._prev_rc)
+        if self._style_ctx is not None:
+            ctx = self._style_ctx
+            self._style_ctx = None
+            ctx.__exit__(exc_type, exc_val, exc_tb)
 
     def _lock_size(self) -> None:
         """Re-assert the exact physical canvas size (guards against GUI pixel snapping)."""
@@ -341,6 +347,26 @@ class Plate:
         again replaces the previous labels and reproduces the same layout.
         """
         # Remove any previously placed labels before re-computing positions.
+        with style.use(self.spec, palette=self.palette):
+            return self._label_panels_impl(
+                dx_mm=dx_mm,
+                dy_mm=dy_mm,
+                case=case,
+                align_columns=align_columns,
+                align_rows=align_rows,
+                labels=labels,
+            )
+
+    def _label_panels_impl(
+        self,
+        *,
+        dx_mm: float = -7.0,
+        dy_mm: float = 1.5,
+        case: Literal["auto", "lower", "upper"] = "auto",
+        align_columns: bool = True,
+        align_rows: bool = True,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Text]:
         for old_txt in self._panel_label_artists.values():
             try:
                 old_txt.remove()
@@ -666,30 +692,33 @@ class Plate:
     ) -> Path:
         """Export this plate with exact physical dimensions and editable vector fonts."""
         self._lock_size()
-        return export.save_figure(
-            self.fig,
-            path,
-            spec=self.spec,
-            dpi=dpi,
-            rasterize_above=rasterize_above,
-            transparent=transparent,
-            lock_dimensions=True,
-        )
+        with style.use(self.spec, palette=self.palette):
+            return export.save_figure(
+                self.fig,
+                path,
+                spec=self.spec,
+                dpi=dpi,
+                rasterize_above=rasterize_above,
+                transparent=transparent,
+                lock_dimensions=True,
+            )
 
     def preflight(self, *, strict: bool = False) -> PreflightReport:
         """Run automated journal compliance checks on this plate."""
         from . import preflight as _preflight
 
         self._lock_size()
-        return _preflight.preflight_figure(self.fig, self.spec, strict=strict)
+        with style.use(self.spec, palette=self.palette):
+            return _preflight.preflight_figure(self.fig, self.spec, strict=strict)
 
     def save_proof(self, path: str | Path, *, dpi: int = 220) -> PreflightReport:
         """Run preflight checks and render a visual CVD + compliance proof sheet PNG."""
         from . import proof as _proof
 
-        report = self.preflight(strict=False)
-        _proof.render_proof_sheet(self.fig, report, path, dpi=dpi)
-        return report
+        with style.use(self.spec, palette=self.palette):
+            report = self.preflight(strict=False)
+            _proof.render_proof_sheet(self.fig, report, path, dpi=dpi)
+            return report
 
     def set_takeaway(
         self,
@@ -741,21 +770,22 @@ class Plate:
         merged_notes = dict(self.panel_notes)
         if panel_notes:
             merged_notes.update(panel_notes)
-        return _bundle.bundle_figure(
-            self,
-            out_dir,
-            journal=self.spec,
-            source_path=source_path,
-            source_code=source_code,
-            caption=caption if caption is not None else self.caption,
-            label=label,
-            takeaway=takeaway if takeaway is not None else self.takeaway,
-            takeaway_subtitle=self.takeaway_subtitle,
-            panel_notes=merged_notes or None,
-            include_proof=include_proof,
-            preview_dpi=preview_dpi,
-            rasterize_above=rasterize_above,
-        )
+        with style.use(self.spec, palette=self.palette):
+            return _bundle.bundle_figure(
+                self,
+                out_dir,
+                journal=self.spec,
+                source_path=source_path,
+                source_code=source_code,
+                caption=caption if caption is not None else self.caption,
+                label=label,
+                takeaway=takeaway if takeaway is not None else self.takeaway,
+                takeaway_subtitle=self.takeaway_subtitle,
+                panel_notes=merged_notes or None,
+                include_proof=include_proof,
+                preview_dpi=preview_dpi,
+                rasterize_above=rasterize_above,
+            )
 
 
 def figure(
@@ -773,7 +803,6 @@ def figure(
     if h_mm <= 0:
         raise ValueError(f"height_mm must be positive, got {h_mm}")
 
-    style.apply(spec, palette=palette)
     with style.use(spec, palette=palette):
         fig, ax = plt.subplots(
             figsize=(mm_to_in(w_mm), mm_to_in(h_mm)),

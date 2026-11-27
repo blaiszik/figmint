@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "id": "05_retrofit",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Building Energy",
+  "title": "Campus HVAC retrofit daily electricity savings",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Lab annex median daily drop after retrofit (%), or kWh saved per day",
+  "accept": [
+    28.995051,
+    1491.422672
+  ],
+  "rel_tol": 0.12,
+  "abs_tol": 0.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "gym|control|comparison",
+    "2026-07-16|jul 16|july 16|retrofit"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By what percentage did the Lab annex's daily electricity use fall after the retrofit?",
+      "expected": "About 29% (~1,491 kWh/day saved)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is the 4-day Gym meter gap handled?",
+      "expected": "Shown as a gap/missing data without fake zero interpolation."
+    },
+    {
+      "kind": "nuance",
+      "question": "What did the unretrofitted Gym show over the same period?",
+      "expected": "The Gym stayed roughly flat, confirming the Lab annex drop was due to the retrofit rather than weather."
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt46_surface_slide_exec_kpi",
+  "split": "public-test",
+  "track": "multi_surface",
+  "domain": "Finance / Executive",
+  "title": "1280 px boardroom slide of 5-quarter gross margin expansion",
+  "display_width_px": 1280,
+  "surface": "slide",
+  "what": "Gross margin rose +11.4 pp over 5 quarters (56.8% -> 68.2%) while revenue scaled to $31.8M",
+  "accept": [
+    11.4,
+    68.2,
+    56.8
+  ],
+  "rel_tol": 0.04,
+  "abs_tol": 0.3,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "68.2%|11.4",
+    "s.d.|sd|±|3 month|spread|ci"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "By how many percentage points did gross margin expand from 2025-Q2 to 2026-Q2?",
+      "expected": "+11.4 percentage points (from 56.8% to 68.2%)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "How is intra-quarter variability shown?",
+      "expected": "Monthly SD (±1.0 to ±1.4 pp across 3 months per quarter)."
+    },
+    {
+      "kind": "nuance",
+      "question": "How did revenue trend over the same five quarters?",
+      "expected": "Revenue grew from $18.4M to $31.8M alongside margin expansion."
+    }
+  ]
+}

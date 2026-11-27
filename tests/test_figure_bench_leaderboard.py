@@ -64,7 +64,19 @@ def test_all_three_seed_submissions_pass_verification() -> None:
         errors = verify_submission.verify_submission_file(path)
         assert errors == [], f"{path.name} failed verification: {errors}"
 
-    # Verify full 60-task v0.1 sweep entries exist and pass invariants
+    # Verify full 100-task and 60-task v0.1 sweep entries exist and pass invariants
+    for name in (
+        "v01_all100_mintfig_sonnet55.json",
+        "v01_all100_matplotlib_hook_sonnet55.json",
+        "v01_all100_matplotlib_plain_sonnet55.json",
+    ):
+        sub = _load_seed(name)
+        assert sub["split"] == "all"
+        assert sub["task_count"] == 100
+        assert len(sub["per_task"]) == 100
+        assert "timing_summary" in sub["provenance"]
+        assert sub["per_task"][0].get("timing") is not None
+
     for name in (
         "v01_all60_mintfig_sonnet55.json",
         "v01_all60_matplotlib_hook_sonnet55.json",
