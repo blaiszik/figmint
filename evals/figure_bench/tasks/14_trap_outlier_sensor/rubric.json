@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "14_trap_outlier_sensor",
+  "split": "dev",
+  "track": "epistemic_traps",
+  "domain": "Chemistry",
+  "title": "Reactor yield vs temperature with corrupted thermocouple spike",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "clean peak yield (~85\u201387%) and top operating temperature (~242 \u00b0C) after excluding 999.9 \u00b0C fault",
+  "accept": [
+    84.7,
+    241.04,
+    211.084286,
+    19.5
+  ],
+  "rel_tol": 0.04,
+  "abs_tol": 1.5,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "999.9 \u00b0C peak",
+    "reached 999.9"
+  ],
+  "required_disclosures": [
+    "excluded",
+    "999.9"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Yield rises to ~84.7% at the top operating temperature of ~241.0 \u00b0C (gain ~19.5 pp)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; across the 35 valid hourly readings, yield rises monotonically with tight scatter (~0.6 pp SD)."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Hour 19 recorded an unphysical 999.9 \u00b0C thermocouple fault and must be excluded and disclosed."
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt27_terminal_only_bench",
+  "split": "public-test",
+  "track": "multi_surface",
+  "domain": "Systems",
+  "title": "SSH terminal-only serialization benchmark comparison",
+  "display_width_px": 700,
+  "surface": "terminal",
+  "what": "flatwire mean decode throughput (MB/s) or its speedup ratio vs json-std / cbor-fast",
+  "accept": [
+    1413.49,
+    4.480016,
+    1.553713
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.15,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "<=72-column plain-text or Unicode table/bars",
+    "run-to-run spread (s.d.) across 10 runs"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which serialization library decodes fastest and how fast is it?",
+      "expected": "flatwire leads at ~1413 MB/s (4.5\u00d7 json-std and 1.55\u00d7 cbor-fast)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is flatwire's decode lead outside run-to-run spread?",
+      "expected": "Yes; flatwire (~1,425 \u00b1 29 MB/s) is separated by >500 MB/s from runner-up cbor-fast (~912 \u00b1 22 MB/s)."
+    },
+    {
+      "kind": "nuance",
+      "question": "What is the payload-size tradeoff of choosing flatwire over proto-lite?",
+      "expected": "flatwire payloads are 148.2 kB vs proto-lite's 96.4 kB (+54% larger, though still smaller than json-std at 174.5 kB)."
+    }
+  ]
+}

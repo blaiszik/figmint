@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt26_dark_dashboard_card",
+  "split": "public-test",
+  "track": "multi_surface",
+  "domain": "Systems",
+  "title": "Dark-theme cache eviction policy comparison card",
+  "display_width_px": 700,
+  "surface": "dark",
+  "what": "S3-FIFO mean hit rate (%), gain over default LRU (pts), or gain over TinyLFU (pts)",
+  "accept": [
+    89.3925,
+    8.55,
+    4.07625
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 0.4,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "dark background with high-contrast labels",
+    "spread across 8 replay runs"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which eviction policy achieves the highest hit rate and by how much over LRU?",
+      "expected": "S3-FIFO leads at 89.4%, beating LRU (80.8%) by +8.6 percentage points."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is S3-FIFO's lead over TinyLFU outside trace-to-trace spread?",
+      "expected": "Yes; S3-FIFO leads TinyLFU (85.3%) by +4.1 pts, well outside \u00b10.7\u20130.8 pt s.d."
+    },
+    {
+      "kind": "nuance",
+      "question": "How does S3-FIFO compare to TinyLFU on eviction CPU overhead?",
+      "expected": "S3-FIFO uses roughly half the eviction CPU of TinyLFU (~1.4 \u00b5s vs ~2.9 \u00b5s), close to LRU (~1.2 \u00b5s)."
+    }
+  ]
+}

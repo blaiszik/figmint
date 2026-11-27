@@ -490,7 +490,7 @@ _CHANGE_CLAIM_RE = re.compile(
 _PCT_CLAIM_RE = re.compile(
     r"(?<![A-Za-z0-9_.~≈<>≤≥±/])"
     r"(?P<num>\d+(?:,\d{3})*(?:\.\d+)?)\s*%"
-    r"(?!\s*(?:CI\b|confidence\b|credible\b|prediction\b|interval\b|quantile\b|percentile\b|IQR\b))",
+    r"(?!\s*(?:CI\b|confidence\b|credible\b|prediction\b|interval\b|quantile\b|percentile\b|IQR\b|bootstrap\b|band\b|bounds?\b))",
     re.IGNORECASE,
 )
 
@@ -942,39 +942,243 @@ _POINTS_TAIL_RE = re.compile(r"\s*(?:percentage[- ]points?|points?|pts?|pp)\b", 
 _ANY_NUM_RE = re.compile(r"(?<![\w.=/^~≈±])(?<!\w-)(?P<num>\d+(?:,\d{3})*(?:\.\d+)?)(?![\w.]*\d)")
 _PLAIN_END_RE = re.compile(r"\s*(?:[,;:)!?]|\.(?!\d)|$)")
 
+# Non-metric identifiers / statistical boilerplate ignored by claim_numbers.
+_NON_METRIC_RE = re.compile(
+    r"(?:"
+    # Statistical test boilerplate: p < 0.05, p = 0.01, q <= 0.001, FDR < 0.05, alpha = 0.05
+    r"\b(?:p|q|FDR|p-?val(?:ue)?|alpha|α)\s*(?:<=|>=|<|>|=|≤|≥)\s*"
+    r"(?:0?\.\d+(?:[eE][+-]?\d+)?|\d+(?:\.\d+)?(?:[eE][+-]?\d+|\s*[×x]\s*10\^?[+-]?\d+))\b"
+    # Sample-size / top-k / pass@k design labels
+    r"|\b[nN]\s*=\s*\d+(?:,\d{3})*(?:\.\d+)?[kKmM]?\b"
+    r"|\btop[-\s]+\d+\b"
+    r"|\b(?:pass|best|recall|hit|ndcg|precision)@\d+\b"
+    # Model / architecture / hardware identifiers (both hyphenated and space-separated)
+    r"|\b(?:GPT|Llama|LLaMA|Qwen|Claude|Gemini|Mistral|Mixtral|Gemma|Phi|DeepSeek|"
+    r"ResNet|DenseNet|EfficientNet|MobileNet|ConvNeXt|ViT|Swin|CLIP|BERT|RoBERTa|DeBERTa|"
+    r"T5|Flan|Whisper|YOLO|SDXL|RTX|GTX|Tesla|AlphaFold|ESM)\s*[-/]?\s*v?\d+(?:\.\d+)*[A-Za-z0-9_./-]*\b"
+    # Precision / quantization / bit-width / percentile tokens
+    r"|\b(?:FP|BF|INT|UINT|NF|TF)(?:4|8|16|32|64)\b"
+    r"|\bQ\d+_[A-Za-z0-9_]+\b"
+    r"|\b\d+[- ]bits?\b"
+    r"|\bv\d+(?:\.\d+)*\b"
+    # Parameter counts (8B, 70B, 1.5B, 125M) when not preceded by a currency sign
+    r"|(?<![$€£])\b\d+(?:\.\d+)?[BM]\b"
+    r")",
+    re.IGNORECASE,
+)
+
+# Trailing design/sample count nouns ("5 seeds", "3 replicates", "10k steps").
+_DESIGN_COUNT_NOUN_RE = re.compile(
+    r"^\s+(?P<noun>seeds?|replicates?|triplicates?|duplicates?|runs?|trials?|epochs?|steps?|"
+    r"iterations?|iters?|folds?|layers?|heads?|experts?|GPUs?|TPUs?|CPUs?|nodes?|workers?|"
+    r"threads?|models?|variants?|benchmarks?|datasets?|tasks?|prompts?|subjects?|patients?|"
+    r"mice|wells?|plates?|batches?|classes?|groups?|clusters?|panels?)\b",
+    re.IGNORECASE,
+)
+
+# Unit canonicalization: unit string -> (dimension, scale_in_base_unit)
+_UNIT_CANON: dict[str, tuple[str, float]] = {
+    # Time (base: s)
+    "ps": ("time", 1e-12),
+    "ns": ("time", 1e-9),
+    "us": ("time", 1e-6),
+    "µs": ("time", 1e-6),
+    "μs": ("time", 1e-6),
+    "ms": ("time", 1e-3),
+    "s": ("time", 1.0),
+    "sec": ("time", 1.0),
+    "secs": ("time", 1.0),
+    "second": ("time", 1.0),
+    "seconds": ("time", 1.0),
+    "min": ("time", 60.0),
+    "mins": ("time", 60.0),
+    "minute": ("time", 60.0),
+    "minutes": ("time", 60.0),
+    "h": ("time", 3600.0),
+    "hr": ("time", 3600.0),
+    "hrs": ("time", 3600.0),
+    "hour": ("time", 3600.0),
+    "hours": ("time", 3600.0),
+    # Length (base: m)
+    "pm": ("length", 1e-12),
+    "nm": ("length", 1e-9),
+    "um": ("length", 1e-6),
+    "µm": ("length", 1e-6),
+    "μm": ("length", 1e-6),
+    "mm": ("length", 1e-3),
+    "cm": ("length", 1e-2),
+    "m": ("length", 1.0),
+    "km": ("length", 1e3),
+    # Concentration (base: M)
+    "pM": ("conc", 1e-12),
+    "nM": ("conc", 1e-9),
+    "uM": ("conc", 1e-6),
+    "µM": ("conc", 1e-6),
+    "μM": ("conc", 1e-6),
+    "mM": ("conc", 1e-3),
+    "M": ("conc", 1.0),
+    # Mass (base: g)
+    "ng": ("mass", 1e-9),
+    "ug": ("mass", 1e-6),
+    "µg": ("mass", 1e-6),
+    "μg": ("mass", 1e-6),
+    "mg": ("mass", 1e-3),
+    "g": ("mass", 1.0),
+    "kg": ("mass", 1e3),
+    # Power (base: W)
+    "uW": ("power", 1e-6),
+    "µW": ("power", 1e-6),
+    "μW": ("power", 1e-6),
+    "mW": ("power", 1e-3),
+    "W": ("power", 1.0),
+    "kW": ("power", 1e3),
+    "MW": ("power", 1e6),
+    "GW": ("power", 1e9),
+    # Energy (base: J / Wh)
+    "mJ": ("energy", 1e-3),
+    "J": ("energy", 1.0),
+    "kJ": ("energy", 1e3),
+    "MJ": ("energy", 1e6),
+    "Wh": ("watt_hour", 1.0),
+    "kWh": ("watt_hour", 1e3),
+    "MWh": ("watt_hour", 1e6),
+    # Frequency (base: Hz)
+    "Hz": ("freq", 1.0),
+    "kHz": ("freq", 1e3),
+    "MHz": ("freq", 1e6),
+    "GHz": ("freq", 1e9),
+    # Bytes (base: B)
+    "B": ("bytes", 1.0),
+    "kB": ("bytes", 1e3),
+    "KB": ("bytes", 1e3),
+    "MB": ("bytes", 1e6),
+    "GB": ("bytes", 1e9),
+    "TB": ("bytes", 1e12),
+    "KiB": ("bytes", 1024.0),
+    "MiB": ("bytes", 1024.0**2),
+    "GiB": ("bytes", 1024.0**3),
+    "TiB": ("bytes", 1024.0**4),
+    # Voltage / Current / Pressure
+    "mV": ("volt", 1e-3),
+    "V": ("volt", 1.0),
+    "kV": ("volt", 1e3),
+    "uA": ("curr", 1e-6),
+    "µA": ("curr", 1e-6),
+    "μA": ("curr", 1e-6),
+    "mA": ("curr", 1e-3),
+    "A": ("curr", 1.0),
+    "Pa": ("press", 1.0),
+    "kPa": ("press", 1e3),
+    "MPa": ("press", 1e6),
+    "GPa": ("press", 1e9),
+}
+
+_SCALE_UNIT_MAP: dict[str, float] = {
+    "k": 1e3,
+    "K": 1e3,
+    "$k": 1e3,
+    "thousand": 1e3,
+    "thousands": 1e3,
+    "million": 1e6,
+    "millions": 1e6,
+    "$M": 1e6,
+}
+
+
+def unit_scale_factor(from_unit: str | None, to_unit: str | None) -> float | None:
+    """Return ``f`` such that ``1 from_unit == f to_unit``, or ``None`` if incompatible."""
+    fu = (from_unit or "").strip()
+    tu = (to_unit or "").strip()
+    if fu == tu and fu:
+        return 1.0
+    a = _UNIT_CANON.get(fu)
+    b = _UNIT_CANON.get(tu)
+    if a is not None and b is not None and a[0] == b[0]:
+        return a[1] / b[1]
+    if fu in _SCALE_UNIT_MAP and not tu:
+        return _SCALE_UNIT_MAP[fu]
+    if tu in _SCALE_UNIT_MAP and not fu:
+        return 1.0 / _SCALE_UNIT_MAP[tu]
+    return None
+
+
+def _compatible_units(unit: str) -> list[str]:
+    u = unit.strip()
+    info = _UNIT_CANON.get(u)
+    if info is None:
+        return [u] if u else []
+    dim = info[0]
+    peers = [k for k, (d, _) in _UNIT_CANON.items() if d == dim]
+    return sorted(set(peers), key=len, reverse=True)
+
+
+def _match_unit_tail(rest: str, unit: str | None) -> str | None:
+    if not unit or not unit.strip():
+        return None
+    for cand_unit in _compatible_units(unit):
+        m = re.match(rf"\s*({re.escape(cand_unit)})(?!\w)", rest)
+        if m:
+            return m.group(1)
+    return None
+
 
 def claim_numbers(takeaway: str, unit: str | None = None) -> list[tuple[str, float, str]]:
     """Numbers the takeaway states, in order, as ``(kind, value, text)``.
 
     ``kind`` is "percent" ("12%", not "95% CI"), "fold" ("4x", "2.3×"), "points"
-    ("8 points", "3 pp") or "plain": a bare number that ends a clause ("costs 13") or
-    carries ``unit`` ("12 ms"). Counts of things ("5 seeds") and years are left out.
+    ("8 points", "3 pp") or "plain": a bare number that ends a clause ("costs 13"),
+    uses a ``k`` magnitude suffix ("1.5k"), or carries ``unit`` (or an SI-compatible
+    unit, e.g. "80 ms" when ``unit="s"``). Model/precision tokens, p-values, sample
+    counts ("5 seeds", "10k steps"), and calendar years (1990–2035) are left out.
     """
     if not isinstance(takeaway, str):
         return []
+    ignored: list[tuple[int, int]] = [m.span() for m in _NON_METRIC_RE.finditer(takeaway)]
     found: list[tuple[int, str, float, str]] = []
     taken: list[tuple[int, int]] = []
     for kind, rx in (("percent", _PCT_CLAIM_RE), ("fold", _FOLD_CLAIM_RE)):
         for m in rx.finditer(takeaway):
+            if any(s <= m.start() < e for s, e in ignored):
+                continue
             val = float(m.group("num").replace(",", ""))
             if math.isfinite(val) and (kind == "percent" or val > 1.0):
                 found.append((m.start(), kind, val, m.group(0).strip()))
                 taken.append(m.span())
     for m in _ANY_NUM_RE.finditer(takeaway):
-        if any(s <= m.start() < e for s, e in taken):
+        if any(s <= m.start() < e for s, e in taken) or any(s <= m.start() < e for s, e in ignored):
             continue
         text, rest = m.group("num"), takeaway[m.end() :]
         if rest[:1] in {"%", "x", "\N{MULTIPLICATION SIGN}"}:
             continue
         val = float(text.replace(",", ""))
+        # Support k/K magnitude suffix ("1.5k" -> 1500), unless followed by a design count noun ("10k steps").
+        k_match = re.match(r"([kK])(?![A-Za-z0-9_])", rest)
+        if k_match:
+            after_k = rest[1:]
+            noun_m = _DESIGN_COUNT_NOUN_RE.match(after_k)
+            if noun_m and (not unit or noun_m.group("noun").lower() != unit.strip().lower()):
+                continue
+            u_match = _match_unit_tail(after_k, unit)
+            if u_match or _PLAIN_END_RE.match(after_k):
+                raw = f"{text}{k_match.group(1)}" + (f" {u_match}" if u_match else "")
+                found.append((m.start(), "plain", val * 1000.0, raw))
+            continue
         tail = _POINTS_TAIL_RE.match(rest)
         if tail:
             found.append((m.start(), "points", val, text + tail.group(0)))
             continue
-        if re.fullmatch(r"(1[89]|20)\d\d", text):
-            continue  # a year
-        unit_tail = unit and re.match(rf"\s*{re.escape(unit.strip())}(?!\w)", rest)
-        if unit_tail or _PLAIN_END_RE.match(rest):
+        noun_m = _DESIGN_COUNT_NOUN_RE.match(rest)
+        if noun_m and (not unit or noun_m.group("noun").lower() != unit.strip().lower()):
+            continue
+        u_match = _match_unit_tail(rest, unit)
+        if u_match:
+            # Include unit in raw when it differs from exact axis unit so callers can scale it.
+            raw = f"{text} {u_match}" if unit and u_match != unit.strip() else text
+            found.append((m.start(), "plain", val, raw))
+            continue
+        if re.fullmatch(r"\d{4}", text) and 1990 <= int(text) <= 2035:
+            continue  # a calendar year
+        if _PLAIN_END_RE.match(rest):
             found.append((m.start(), "plain", val, text))
     return [(kind, val, text) for _, kind, val, text in sorted(found)]
 
@@ -984,6 +1188,8 @@ def stated_match(claim: float, text: str, candidate: float) -> bool:
     8.15..8.25): tighter than the mismatch audit, for marks drawn on the strength of it."""
     digits = re.search(r"\.(\d+)", text)
     half = 0.5 * 10.0 ** -(len(digits.group(1)) if digits else 0)
+    if re.search(r"\d[kK](?!\w)", text):
+        half *= 1000.0
     return math.isfinite(candidate) and abs(abs(candidate) - claim) <= half * (1 + 1e-9)
 
 

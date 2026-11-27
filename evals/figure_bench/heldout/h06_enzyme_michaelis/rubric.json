@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "h06_enzyme_michaelis",
+  "split": "heldout",
+  "track": "science_uncertainty",
+  "domain": "Biology",
+  "title": "Michaelis-Menten kinetics of wild-type vs E142A mutant",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "E142A mutant Km (~24 uM), wild-type Km (~6 uM), or the ~4x Km ratio",
+  "accept": [
+    21.25341,
+    5.809343,
+    3.658488
+  ],
+  "rel_tol": 0.15,
+  "abs_tol": 1.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "replicates",
+    "Km"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "E142A increases Km ~3.7x (21.3 vs 5.8 uM) while Vmax stays nearly unchanged (45.2 vs 48.5 uM/min)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; triplicate scatter (~1.1 uM/min SD) is tight and cleanly separates the low-substrate binding region."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Because Vmax is preserved (~47\u201348 uM/min), the mutation impairs substrate affinity rather than maximal catalytic turnover."
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+name: figure-bench PR Verify
+
+on:
+  pull_request:
+    paths:
+      - "evals/figure_bench/leaderboard/submissions/**"
+      - "evals/figure_bench/tasks/**"
+      - "evals/figure_bench/public_test/**"
+      - "evals/figure_bench/heldout/**"
+
+concurrency:
+  group: figure-bench-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify-figure-bench:
+    name: Verify leaderboard submissions & benchmark tasks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - run: uv sync --extra dev --python 3.12
+      - name: Verify all leaderboard submission JSONs
+        env:
+          SUBMISSIONS_DIR: evals/figure_bench/leaderboard/submissions
+        run: |
+          uv run python evals/figure_bench/leaderboard/verify_submission.py "$SUBMISSIONS_DIR"
+      - name: Smoke-test leaderboard static site build
+        env:
+          SITE_TMP: ${{ runner.temp }}/figure-bench-site.html
+        run: |
+          uv run python evals/figure_bench/leaderboard/build_site.py --out "$SITE_TMP"
+          test -s "$SITE_TMP"
+      - name: Validate benchmark task folders
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/mpl-mintfig
+        run: |
+          uv run python evals/figure_bench/bench.py validate-tasks

@@ -1,8 +1,9 @@
 # Adoption plan: from "nice tool" to "used by thousands"
 
-Written 2026-11-25. Current estimate: 4/10 likely to reach thousands of users.
-The goal is to remove the reasons a person or an agent would choose plain
-Matplotlib instead, and to give everyone else a concrete reason to switch.
+Written 2026-11-25 (updated 2026-11-26 after Phases 1–2). Current estimate: ~6/10
+likely to reach thousands of users (up from 4/10). The goal is to remove the
+reasons a person or an agent would choose plain Matplotlib instead, and to give
+everyone else a concrete reason to switch.
 
 ## The pitch, restated
 
@@ -43,48 +44,62 @@ Most people, and most agents, already have Matplotlib code. Today the only way i
 is to rewrite it into one of the eleven forms. Make mintfig a layer they add, not
 a library they switch to:
 
-1. `mint.style()`: one call that gives any Matplotlib figure the house look at
-   chat width. It's a thin wrapper over the existing `mint.pub.use`.
-2. `mint.explain(takeaway, fig_or_ax)`: accept an existing Figure/Axes as a panel,
-   and run the layout audit, `ship`, `deliver`, and HTML/terminal output on it.
-3. **Facts from artists:** read the data back out of `Line2D`, `BarContainer`,
-   `PathCollection` and error bars, then compute the same facts (highest, ratios,
-   crossings, interval overlap). Then `claim_number_mismatch` works on any plot.
-   This is the "linked to facts" promise extended to code nobody rewrote.
+- [x] **B1 `mint.style()` (shipped 2026-11-26):** leak-free context manager in `src/mintfig/byo.py`
+  giving any Matplotlib/Seaborn plot chat-readable sizing (>=11 px), CVD-safe palettes, despining,
+  and `viridis` default cmap.
+- [x] **B2 `mint.explain(takeaway, fig_or_ax)` (shipped 2026-11-26):** accepts any existing
+  Matplotlib `Figure`, `Axes`, or `SubFigure` as a panel, runs `mint.check` facts & audit, and
+  wires `ship`, `deliver`, HTML, terminal, and `mint.brief` (`gallery/byo_matplotlib_examples.py`
+  upgrades 5 ugly scripts to `ship: True` in 1–2 lines).
+- [x] **B3 Facts from artists & zero-rewrite audit (`mint.check`, `mintfig check`):**
+  - Shipped 2026-11-26: `mint.check(fig, claim)` and `mintfig check plot.py` (facts from
+    `Line2D`, `BarContainer`, `PathCollection`, error bars, plus Phase 1 hardening for
+    `QuadMesh`/heatmaps, colorbar exclusion, histograms, `PolyCollection` CI bands,
+    boxplots/violinplots, and false-positive filtering for model/precision tokens,
+    sample counts, years, and unit conversions).
+  - Shipped 2026-11-26: cross-venv `--python` / `uvx` auto-detection, zero-dep `.ipynb`
+    notebook checking (`mintfig check analysis.ipynb`), and the Wild-50 verification
+    corpus (`evals/check_bench/`).
 
 Done when: a gallery of five ugly agent-written Matplotlib scripts each becomes
-a shippable figure with facts by adding 1–2 lines.
-
-**Shipped 2026-11-26: `mint.check(fig, claim)` and `mintfig check plot.py`** (item 3
-plus the audit half of item 2: facts from artists, the claim checked against them,
-the bench's text audit at reading width, a `ship` gate with concrete fix hints).
-Still open: B1 `mint.style()` and B2 `mint.explain(takeaway, fig)`.
+a shippable figure with facts by adding 1–2 lines (audit half done; B1 + B2 open).
 
 ## C. Prove it, against Matplotlib rather than against text
 
 The README compares mintfig only to a text answer. The objection people actually
 raise is "my agent already makes plots."
 
-1. **A Matplotlib arm in figure-bench (cheap, do first).** Run the same 15 tasks
-   with an agent told to use plain Matplotlib. Score whether the takeaway's number
-   is right, text size at display width, audit defects (overlap, clipping),
-   unlabelled intervals, and time. The harness already exists.
-2. **A three-column README opener:** agent text | agent Matplotlib | mintfig, on a
-   genuinely complex result (multi-panel, uncertainty, a control).
-3. **Reader benchmark** (HANDOFF §6, item 1): factual accuracy and time for VLM
-   readers first, then 20–50 people, comparing text, agent Matplotlib and mintfig.
+- [x] **C1 A Matplotlib arm in figure-bench (shipped 2026-11-25).** Ran the same 15 tasks
+  with an agent told to use plain Matplotlib (`--arm matplotlib`, `--arm matplotlib-plain`)
+  and scored headline accuracy, display-width text size, layout defects, unlabelled
+  intervals, and time.
+- [x] **C2 A three-column README opener (shipped 2026-11-26):** agent text | default agent
+  Matplotlib (`13/15 defective, 4/15 accurate headline`) | `mintfig`, rendered from the
+  same 5-variant, 5-seed ablation dataset via `gallery/make_readme_comparison.py`, with
+  the wedge-first adoption ladder (`mint.check` + `mintfig hook` alongside `mint.explain`).
+- [ ] **C3 Reader benchmark** (HANDOFF §6, item 1): factual accuracy and time for VLM
+  readers at display size first, then 20–50 people, comparing text, agent Matplotlib and
+  mintfig.
 
 ## D. Distribution
 
-- ~~Settle the PyPI name.~~ Settled 2026-11-26: `mintfig`, secured by the owner.
-- Package the skill as a Claude Code plugin and submit it to the plugin, skill
-  and Codex/Cursor directories. This is packaging only; CLI + SKILL.md stays the
-  interface, not MCP (a settled decision).
-- **Trigger eval:** 30 realistic prompts that never mention mintfig ("summarize
-  the benchmark run", "how did the ablation go"). Measure how often the agent uses
-  the skill, and iterate on the description until it triggers reliably.
-- `mintfig skill --print` should also print the reference files.
-- Notebook, Quarto and marimo examples in the gallery.
+- [x] ~~Settle the PyPI name.~~ Settled 2026-11-26: `mintfig`, secured by the owner.
+- [x] **Global skill install & full reference print (shipped 2026-11-26):**
+  `mintfig skill --install --global` (auto-detecting `~/.claude`, `~/.codex`,
+  `~/.gemini`, `~/.cursor`), `--target all`, and `mintfig skill --print --all`
+  printing `SKILL.md` + all `references/*.md`.
+- [x] **Automatic `PostToolUse` hooks (shipped 2026-11-26):** `mintfig hook --install`
+  silently audits agent-written Matplotlib scripts and reports `fix_hint`s only when
+  `ship` is `false`.
+- [x] **Claude Code plugin packaging (shipped 2026-11-26):** `plugins/claude-code/`
+  with synced `SKILL.md` + `references/`, `PostToolUse` hook config, and `/mintfig:check`.
+  (Submission to public Claude Code / Codex / Cursor directories still open.)
+- [x] **Trigger eval (shipped 2026-11-26):** 40 realistic prompts (20 positive, 20 negative,
+  zero mentions of `mintfig`) in `evals/trigger_eval/` with offline rubric scorer,
+  `--live` CLI adapter (`claude`, `codex`, `gemini`), and tuned `SKILL.md` /
+  `AGENTS_SNIPPET.md` trigger criteria (exit gate: recall >= 85%, false-trigger <= 5%).
+- [ ] Submit plugin and skill listings to Claude Code, Codex, and Cursor directories.
+- [ ] Notebook, Quarto, and marimo examples in the gallery.
 
 ## E. Complex scientific topics where Matplotlib is weakest
 
@@ -101,12 +116,12 @@ searchable gallery site organized by question and by field.
 
 ## Order
 
-| Phase | Work | Expected effect |
-| :--- | :--- | :--- |
-| 1 (~1 week) | C1 Matplotlib arm, C2 README opener, A relax rules, settle the name | The objection gets a measured answer |
-| 2 | B bring-your-own Matplotlib | Adopting costs one line |
-| 3 | D plugin and directories, trigger eval, C3 reader study | People can find it, and it triggers on its own |
-| 4 | E domain forms, F 1.0 | Depth in science, and trust |
+| Phase | Work | Status | Expected effect |
+| :--- | :--- | :---: | :--- |
+| 1 | C1 Matplotlib arm, C2 3-col README opener, B3 `mint.check` wild hardening (`--python`, `.ipynb`, Wild-50), settle PyPI name | **Done** (except A rule relaxation) | The objection gets a measured answer & zero-rewrite wedge |
+| 2 | D global skill install, PostToolUse hooks, Claude Code plugin, 40-prompt trigger eval | **Done** | Zero-friction install, auto-audit, reliable triggering |
+| 3 | A relax opt-in rules (`legend=`, `pie`/`donut`), B1 `mint.style()`, B2 `mint.explain(takeaway, fig)`, notebook magic, SWE ingestors + `mintfig diff`, PR cards + GitHub Action, 1.0 stability policy | **Done** | Adopting costs 1–2 lines; strong SWE & CI/PR utility |
+| 4 | D public directory listings, C3 human reader study, E domain forms, F 1.0 API freeze + interactive gallery site | Open | Public proof, discoverability, and 1.0 trust |
 
 ## Decided (owner, 2026-11-25)
 

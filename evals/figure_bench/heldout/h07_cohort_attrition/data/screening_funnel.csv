@@ -1,0 +1,7 @@
+stage_order,stage,n_remaining,n_excluded,primary_exclusion_reason
+1,Records screened,2400,0,Initial registry pull
+2,Age & diagnosis eligible,1680,720,Outside age window or prior therapy
+3,Lab & imaging cleared,1120,560,Renal/hepatic lab threshold
+4,Consented,784,336,Declined travel burden
+5,Randomized,612,172,Withdrew during run-in
+6,Completed 12-week endpoint,540,72,Lost to follow-up

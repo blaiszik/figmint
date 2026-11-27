@@ -25,6 +25,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+chip = [
+    "mintchip>=0.2",
+]
 pub = [
     "pypdf>=4.0",
 ]

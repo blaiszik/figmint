@@ -8,15 +8,54 @@ in :mod:`mintfig.skill`.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from pathlib import Path
+
+
+def _ensure_writable_mplconfigdir() -> None:
+    """Point Matplotlib at a persistent writable temp cache when ``~/.matplotlib`` is read-only.
+
+    Avoids Matplotlib rebuilding its font cache into a fresh random temp directory
+    on every invocation inside sandboxed agent/CI environments (~6-8 s saved per cold run).
+    """
+    if os.environ.get("MPLCONFIGDIR"):
+        return
+    home = Path.home()
+    mpl_dir = home / ".matplotlib"
+    probe = mpl_dir if mpl_dir.exists() else home
+    if os.access(probe, os.W_OK):
+        return
+    fallback = Path(tempfile.gettempdir()) / "mintfig-mpl"
+    try:
+        fallback.mkdir(parents=True, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = str(fallback)
+    except OSError:
+        pass
+
+
+_ensure_writable_mplconfigdir()
+
 # Submodule homes for names that left the top level in 0.3.0 (reachable as mint.pub, ...).
 from . import audit as audit
+from . import byo as byo
 from . import inline
 from . import interactive as interactive
+from . import notebook as notebook
 from . import pub as pub
 from . import skill as skill
 from . import terminal as terminal
 from . import themes as themes
 from .brief import Brief, Session, brief
+from .byo import (
+    load_ipython_extension as load_ipython_extension,
+)
+from .byo import (
+    style,
+)
+from .byo import (
+    unload_ipython_extension as unload_ipython_extension,
+)
 from .edit import edit
 from .explainer import (
     ExplainError,
@@ -73,8 +112,10 @@ __all__ = [
     "load",
     "load_table_file",
     "matrix",
+    "notebook",
     "relate",
     "share",
+    "style",
     "table",
     "timeline",
     "trend",

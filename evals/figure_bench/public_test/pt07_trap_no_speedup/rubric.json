@@ -1,0 +1,49 @@
+{
+  "schema_version": "0.1",
+  "id": "pt07_trap_no_speedup",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Systems",
+  "title": "Solver runtime comparison with overlapping 95% CIs",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "small ~2.8 ms (~2.0%) mean difference between solver_v2 and solver_v1, within noise",
+  "accept": [
+    2.802,
+    1.973226,
+    139.199,
+    142.001
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 1.5,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "clearly faster",
+    "reliable speedup",
+    "significantly faster",
+    "proves",
+    "outside noise"
+  ],
+  "required_disclosures": [
+    "within noise",
+    "95% CI"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "solver_v2 averages 139.2 ms vs solver_v1 142.0 ms (-2.8 ms / -2.0%), showing no reliable speedup."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "No; the 95% CIs (130.3\u2013148.1 ms vs 133.4\u2013150.6 ms) overlap heavily across the 10 trials."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Run-to-run SD (~12 ms) is more than four times larger than the 2.8 ms mean difference."
+    }
+  ]
+}

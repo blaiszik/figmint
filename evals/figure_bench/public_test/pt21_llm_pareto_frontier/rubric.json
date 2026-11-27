@@ -1,0 +1,43 @@
+{
+  "schema_version": "0.1",
+  "id": "pt21_llm_pareto_frontier",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "ML Systems",
+  "title": "Model configuration Pareto frontier",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Number of Pareto-optimal configs (3) or accuracy/cost of key frontier points (cfg-mid-fp8 / cfg-large-bf16)",
+  "accept": [
+    3.0,
+    85.4,
+    90.8,
+    0.64
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.3,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "3 Pareto-optimal configs (cfg-mini-int4, cfg-mid-fp8, cfg-large-bf16)",
+    "accuracy_sd uncertainty across 500 examples"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "Which configurations define the Pareto frontier?",
+      "expected": "Exactly 3 configs: cfg-mini-int4 (74.2%, $0.18), cfg-mid-fp8 (85.4%, $0.64), and cfg-large-bf16 (90.8%, $2.40)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Are the three frontier tiers separated beyond their evaluation s.d.?",
+      "expected": "Yes, accuracy gaps (+11.2 pts and +5.4 pts) are well outside \u00b10.8\u20131.1 pt s.d."
+    },
+    {
+      "kind": "nuance",
+      "question": "What happens with the most expensive configuration (cfg-xl-bf16)?",
+      "expected": "cfg-xl-bf16 ($3.90, 1180 ms, 89.4%) is strictly dominated by cfg-large-bf16 ($2.40, 790 ms, 90.8%)."
+    }
+  ]
+}

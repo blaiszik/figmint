@@ -339,3 +339,290 @@ def test_cli_checks_figures_left_open(tmp_path: Path, capsys: pytest.CaptureFixt
     assert cli_main(["check", str(_script(tmp_path, body, "open.py"))]) in (0, 1)
     assert "figure:" in capsys.readouterr().out
     assert sys.argv  # restored
+
+
+# --------------------------------------------------------------------------- wild artists
+
+
+def test_quadmesh_heatmap_and_colorbar_exclusion() -> None:
+    data = np.array([[12.0, 24.0, 30.0], [18.0, 48.0, 36.0]])
+    fig, ax = plt.subplots(figsize=(6.5, 4.2))
+    qm = ax.pcolormesh(data, cmap="viridis")
+    cb = fig.colorbar(qm, ax=ax)
+    cb.set_label("Score", fontsize=11)
+    ax.set_title("Peak cell reaches 48, 4x the minimum", fontsize=14)
+    ax.set_xlabel("Column", fontsize=11)
+    ax.set_ylabel("Row", fontsize=11)
+    ax.tick_params(labelsize=11)
+    cb.ax.tick_params(labelsize=11)
+    fig.tight_layout()
+
+    report = mint.check(fig, dpi=100)
+    assert report["ship"] is True, report["issues"]
+    assert len(report["panels"]) == 1  # colorbar excluded
+    panel = report["panels"][0]
+    assert panel["kind"] == "heatmap"
+    assert panel["values"]["heatmap"]["min"] == 12.0
+    assert panel["values"]["heatmap"]["max"] == 48.0
+    assert all(n["found"] for n in report["claim"]["numbers"])
+    assert "axis_unlabelled" not in _rules(report)
+
+    # Rainbow colormap on QuadMesh is caught
+    fig2, ax2 = plt.subplots(figsize=(6, 4))
+    qm2 = ax2.pcolormesh(data, cmap="hsv")
+    fig2.colorbar(qm2, ax=ax2)
+    ax2.set_title("Peak cell reaches 48", fontsize=14)
+    r2 = mint.check(fig2, dpi=100)
+    assert "rainbow_colormap" in _rules(r2)
+    assert "claim_number_mismatch" not in _rules(r2)
+
+
+def test_histogram_counts_and_density_not_misread_as_bars() -> None:
+    rng = np.random.default_rng(7)
+    samples = rng.normal(40.0, 3.0, 500)
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.hist(samples, bins=np.linspace(26.25, 53.75, 12))  # 11 bins, center bin [38.75, 41.25] -> 40.0
+    ax.set_title("Latency distribution peaks near 40 ms", fontsize=14)
+    ax.set_xlabel("Latency (ms)", fontsize=11)
+    ax.set_ylabel("Count", fontsize=11)
+    ax.tick_params(labelsize=11)
+    fig.tight_layout()
+
+    report = mint.check(fig, dpi=100)
+    assert report["ship"] is True, report["issues"]
+    panel = report["panels"][0]
+    assert panel["kind"] == "histogram"
+    assert "bars" not in panel["values"]
+    hist = panel["values"]["histogram"]["histogram"]
+    assert hist["bins"] == 11
+    assert hist["total"] == pytest.approx(500.0)
+    assert hist["peak_center"] == pytest.approx(40.0)
+    assert hist["median"] == pytest.approx(40.0, abs=1.5)
+
+    # Density histogram
+    fig2, ax2 = plt.subplots(figsize=(6.8, 3.8))
+    ax2.hist(rng.normal(18.0, 2.0, 400), bins=np.linspace(10.0, 26.0, 9), density=True)
+    ax2.set_title("Density median sits at 18 ms", fontsize=14)
+    ax2.set_xlabel("Duration (ms)", fontsize=11)
+    ax2.set_ylabel("Density", fontsize=11)
+    ax2.tick_params(labelsize=11)
+    fig2.tight_layout()
+    r2 = mint.check(fig2, dpi=100)
+    assert r2["ship"] is True, r2["issues"]
+    assert r2["panels"][0]["kind"] == "histogram"
+
+
+def test_polycollection_ci_band_envelope_and_unlabelled_check() -> None:
+    x = np.arange(0, 10)
+    y = np.linspace(70, 88, 10)
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.plot(x, y, label="mean")
+    ax.fill_between(x, y - 6, y + 6, alpha=0.25)
+    ax.set_title("Upper bound reaches 94% by step 9", fontsize=14)
+    ax.set_xlabel("Step", fontsize=11)
+    ax.set_ylabel("Accuracy (%)", fontsize=11)
+    ax.tick_params(labelsize=11)
+    fig.tight_layout()
+
+    unlabelled = mint.check(fig, dpi=100)
+    assert "interval_unlabelled" in _rules(unlabelled)
+    assert all(n["found"] for n in unlabelled["claim"]["numbers"])
+    assert unlabelled["panels"][0]["values"]["bands"]["band 1"]["peak"] == pytest.approx(94.0)
+
+    ax.set_ylabel("Accuracy (%, 95% CI)", fontsize=11)
+    labelled = mint.check(fig, dpi=100)
+    assert labelled["ship"] is True, labelled["issues"]
+    assert "interval_unlabelled" not in _rules(labelled)
+
+
+@pytest.mark.parametrize("patch_artist", [False, True])
+def test_boxplot_extracted_cleanly_not_as_lines(patch_artist: bool) -> None:
+    g1 = [58, 60, 62, 64, 66, 68, 70]
+    g2 = [72, 74, 76, 78, 80, 82, 84]
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.boxplot([g1, g2], tick_labels=["Baseline", "Model v2"], patch_artist=patch_artist)
+    ax.set_title("Model v2 lifts median by 14 points over Baseline", fontsize=14)
+    ax.set_ylabel("Score (%)", fontsize=11)
+    ax.tick_params(labelsize=11)
+    fig.tight_layout()
+
+    report = mint.check(fig, dpi=100)
+    assert report["ship"] is True, report["issues"]
+    panel = report["panels"][0]
+    assert panel["kind"] == "boxplot"
+    assert "lines" not in panel["values"]
+    assert panel["values"]["boxplot"]["Baseline"]["median"] == pytest.approx(64.0)
+    assert panel["values"]["boxplot"]["Model v2"]["median"] == pytest.approx(78.0)
+    assert report["claim"]["numbers"][0]["found"] is True
+    assert "boxplot medians" in report["claim"]["numbers"][0]["how"]
+
+
+def test_violinplot_medians_and_no_spurious_band_warning() -> None:
+    rng = np.random.default_rng(11)
+    a = rng.normal(45.0, 4.0, 200)
+    b = rng.normal(65.0, 4.0, 200)
+    a = a - np.median(a) + 45.0
+    b = b - np.median(b) + 65.0
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.violinplot([a, b], showmedians=True)
+    ax.set_xticks([1, 2], ["Control", "Treated"])
+    ax.set_title("Treated group reaches median 65", fontsize=14)
+    ax.set_ylabel("Response (a.u.)", fontsize=11)
+    ax.tick_params(labelsize=11)
+    fig.tight_layout()
+
+    report = mint.check(fig, dpi=100)
+    assert report["ship"] is True, report["issues"]
+    assert "interval_unlabelled" not in _rules(report)
+    panel = report["panels"][0]
+    assert panel["kind"] == "violin"
+    assert panel["values"]["violin"]["Treated"]["median"] == pytest.approx(65.0, abs=0.2)
+    assert report["claim"]["numbers"][0]["found"] is True
+
+
+# --------------------------------------------------------------------------- claim hardening
+
+
+def test_claim_hardening_ignores_model_precision_stats_and_converts_units() -> None:
+    from mintfig.epistemic import claim_numbers
+
+    # Non-metric tokens ignored
+    assert claim_numbers("Llama-3.1 8B beats GPT-5 by 6 points across 5 seeds") == [
+        ("points", 6.0, "6 points")
+    ]
+    assert claim_numbers("ResNet-50 (FP16) cuts p95 latency 25% in 2026") == [
+        ("percent", 25.0, "25%")
+    ]
+    assert claim_numbers("INT4 Q4_K_M on 70B holds 98.5% accuracy after 10k steps (p < 0.05, 3 replicates)") == [
+        ("percent", 98.5, "98.5%")
+    ]
+    assert claim_numbers("v2.3 top-5 error drops 4.2% (p = 0.01, 95% CI)") == [
+        ("percent", 4.2, "4.2%")
+    ]
+
+    # Unit conversion: 0.08 s <-> 80 ms
+    fig, ax = plt.subplots(figsize=(6.8, 3.8))
+    ax.bar(["FP16", "INT4"], [0.16, 0.08])
+    ax.set_title("INT4 cuts latency by 80 ms (p = 0.01)", fontsize=14)
+    ax.set_ylabel("Latency (s)", fontsize=11)
+    ax.tick_params(labelsize=11)
+    fig.tight_layout()
+    ok = mint.check(fig, dpi=100)
+    assert ok["ship"] is True, ok["issues"]
+    assert ok["claim"]["numbers"][0]["text"] == "80 ms"
+    assert ok["claim"]["numbers"][0]["found"] is True
+
+    # Wrong converted value is STILL caught
+    bad = mint.check(fig, "INT4 cuts latency by 250 ms (p = 0.01)", dpi=100)
+    assert bad["ship"] is False
+    assert "claim_number_mismatch" in _rules(bad)
+
+    # Magnitude suffix: 1.5k <-> 1500
+    fig2, ax2 = plt.subplots(figsize=(6.8, 3.8))
+    ax2.bar(["v1", "v2"], [900, 1500])
+    ax2.set_title("v2 reaches 1.5k req/s across 3 replicates", fontsize=14)
+    ax2.set_ylabel("Throughput (req/s)", fontsize=11)
+    ax2.tick_params(labelsize=11)
+    fig2.tight_layout()
+    r2 = mint.check(fig2, dpi=100)
+    assert r2["ship"] is True, r2["issues"]
+    assert r2["claim"]["numbers"][0]["found"] is True
+
+
+# --------------------------------------------------------------------------- cross-env & notebook
+
+
+def test_check_script_cross_env_subprocess_and_venv_autodetect(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from mintfig.figcheck import check_script
+
+    # Executable wrapper inside script-parent .venv/bin/python that records invocation
+    marker = tmp_path / "subprocess_invoked.txt"
+    fake_venv = tmp_path / ".venv" / "bin"
+    fake_venv.mkdir(parents=True)
+    fake_py = fake_venv / "python"
+    fake_py.write_text(
+        f'#!/bin/sh\necho invoked >> "{marker}"\nexec "{sys.executable}" "$@"\n',
+        encoding="utf-8",
+    )
+    fake_py.chmod(0o755)
+
+    script = _script(tmp_path, GOOD_SCRIPT, "good.py")
+
+    # 1. Explicit --python via API & CLI
+    reports = check_script(script, python=fake_py)
+    assert len(reports) == 1 and reports[0]["ship"] is True
+    assert marker.read_text(encoding="utf-8").count("invoked") == 1
+    assert cli_main(["check", str(script), "--python", str(fake_py)]) == 0
+    assert "out.png: SHIP" in capsys.readouterr().out
+    assert marker.read_text(encoding="utf-8").count("invoked") == 2
+
+    # 2. Auto-detect script-parent .venv/bin/python when python=None
+    auto_reports = check_script(script)
+    assert len(auto_reports) == 1 and auto_reports[0]["ship"] is True
+    assert marker.read_text(encoding="utf-8").count("invoked") == 3
+
+    # 3. Missing --python fails cleanly
+    assert cli_main(["check", str(script), "--python", str(tmp_path / "no_python")]) == 2
+
+
+def test_check_notebook_and_cli_ipynb(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    from mintfig.figcheck import check_notebook
+
+    nb = {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {},
+        "cells": [
+            {"cell_type": "markdown", "source": ["# Analysis\n"], "metadata": {}},
+            {
+                "cell_type": "code",
+                "source": [
+                    "%matplotlib inline\n",
+                    "!echo ignored_shell_cmd\n",
+                    "import matplotlib.pyplot as plt\n",
+                    "vals = [0.82, 0.74]\n",
+                ],
+                "metadata": {},
+                "outputs": [],
+            },
+            {
+                "cell_type": "code",
+                "source": ["%%bash\n", "exit 1\n"],
+                "metadata": {},
+                "outputs": [],
+            },
+            {
+                "cell_type": "code",
+                "source": [
+                    "%%time\n",
+                    "fig, ax = plt.subplots(figsize=(7, 3.6))\n",
+                    'ax.bar(["full model", "no retrieval"], vals)\n',
+                    'ax.set_title("Removing retrieval costs 8 points", fontsize=15)\n',
+                    'ax.set_ylabel("Accuracy", fontsize=11)\n',
+                    "ax.tick_params(labelsize=11)\n",
+                    "fig.tight_layout()\n",
+                    'fig.savefig("nb_out.png", dpi=100)\n',
+                ],
+                "metadata": {},
+                "outputs": [],
+            },
+        ],
+    }
+    nb_path = tmp_path / "analysis.ipynb"
+    nb_path.write_text(json.dumps(nb), encoding="utf-8")
+
+    reports = check_notebook(nb_path)
+    assert len(reports) == 1
+    assert reports[0]["ship"] is True, reports[0]["issues"]
+    assert reports[0]["path"] == "nb_out.png"
+
+    assert cli_main(["check", str(nb_path)]) == 0
+    out = capsys.readouterr().out
+    assert "nb_out.png: SHIP" in out and "8 points: found" in out
+
+    # Invalid notebook returns exit 2
+    bad_nb = tmp_path / "broken.ipynb"
+    bad_nb.write_text("{}", encoding="utf-8")
+    assert cli_main(["check", str(bad_nb)]) == 2

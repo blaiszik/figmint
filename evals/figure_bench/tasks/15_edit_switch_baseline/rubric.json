@@ -1,0 +1,45 @@
+{
+  "schema_version": "0.1",
+  "id": "15_edit_switch_baseline",
+  "split": "dev",
+  "track": "multiturn_edit",
+  "domain": "Systems",
+  "title": "Re-baseline throughput chart to control_v2 and drop deprecated_exp",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "cache_b throughput gain over control_v2 (req/s or %), or cache_b value",
+  "accept": [
+    192.0,
+    30.967742,
+    812.0
+  ],
+  "rel_tol": 0.05,
+  "abs_tol": 2.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "945 req/s",
+    "deprecated_exp leads"
+  ],
+  "required_disclosures": [
+    "95% CI",
+    "control_v2"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "cache_b reaches 812 req/s, +192 req/s (+31.0%) above control_v2."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; cache_b (812 \u00b1 22 req/s) clears control_v2 (620 \u00b1 19 req/s) well outside their 95% CIs."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "deprecated_exp was dropped after failing durability checks, and legacy_v1 is no longer the baseline."
+    }
+  ]
+}

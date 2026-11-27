@@ -14,7 +14,7 @@ import numpy as np
 from matplotlib import dates as mdates
 from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
+from matplotlib.figure import Figure, SubFigure
 from matplotlib.lines import Line2D
 from matplotlib.ticker import (
     FixedLocator,
@@ -889,6 +889,8 @@ def _as_sentence(text: str) -> str:
 NARROW_DISPLAY_WIDTH_PX = 450
 #: Target display width (CSS px) when rendering a presentation / blog-hero slide.
 SLIDE_DISPLAY_WIDTH_PX = 1280
+#: Visual/legibility defect rules propagated from ``mint.check`` on wrapped Matplotlib figures.
+_BYO_DEFECT_RULES: frozenset[str] = frozenset({"text_too_small", "text_clipped"})
 
 
 class Explanation:
@@ -977,7 +979,10 @@ class Explanation:
         Advisory polish warnings (e.g. ``many_items``, ``too_tall``,
         ``fit_on_weak_relationship``) do not block ``ship``.
         """
-        return self.ok and not any(issue["rule"] in _VISUAL_DEFECT_RULES for issue in self.issues)
+        return self.ok and not any(
+            issue["rule"] in _VISUAL_DEFECT_RULES or issue["rule"] in _BYO_DEFECT_RULES
+            for issue in self.issues
+        )
 
     @property
     def min_text_px(self) -> float:
@@ -1147,8 +1152,10 @@ class Explanation:
         scale: float = 2.0,
         write_spec: bool = False,
         embed: bool = True,
+        compact: bool = False,
+        log: bool = True,
     ) -> Summary:
-        """Write the figure (PNG, SVG or PDF by suffix) and return :meth:`summary`.
+        """Write the figure (PNG, SVG, PDF or HTML by suffix) and return :meth:`summary`.
 
         PNGs for the screen target are ``DISPLAY_WIDTH_PX * scale`` pixels wide
         (1400 px by default: crisp on high-density displays at chat width).
@@ -1156,6 +1163,11 @@ class Explanation:
         A PNG carries its own spec, takeaway and alt text as text chunks
         (``mintfig:spec``, ``mintfig:takeaway``, ``mintfig:alt_text``) so
         :func:`load` can rebuild it later; ``embed=False`` leaves them out.
+        For ``.html`` output, ``compact=True`` writes a single minified SVG with a
+        transparent flush background and live host theme sync for inline chat embeds.
+        When an opt-in ``.mintfig/`` lab notebook exists in the project (created via
+        ``mintfig log --init``), ``log=True`` quietly appends this figure to it;
+        pass ``log=False`` (or set ``MINTFIG_NO_LOG=1``) to skip.
         The figure is written even when ``ok`` is false (``rendered`` says so).
         """
         from ..export import save_figure
@@ -1163,7 +1175,7 @@ class Explanation:
         out = Path(path)
         out.parent.mkdir(parents=True, exist_ok=True)
         if out.suffix.lower() in {".html", ".htm"}:
-            out.write_text(self.to_html(interactive=True), encoding="utf-8")
+            out.write_text(self.to_html(interactive=True, compact=compact), encoding="utf-8")
             self.saved_path = out.resolve()
             self.saved_px = None
             self._delivered["html"] = self.saved_path
@@ -1172,7 +1184,10 @@ class Explanation:
                     json.dumps(self.to_spec(), indent=2, ensure_ascii=False) + "\n",
                     encoding="utf-8",
                 )
-            return self.summary()
+            summ = self.summary()
+            if log:
+                self._maybe_log_notebook(out, summ)
+            return summ
         if self.spec.name == "screen":
             dpi = round(self.display_width_px * float(scale) / float(self.fig.get_figwidth()))
         else:
@@ -1205,7 +1220,18 @@ class Explanation:
             out.with_suffix(".json").write_text(
                 json.dumps(self.to_spec(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
             )
-        return self.summary()
+        summ = self.summary()
+        if log:
+            self._maybe_log_notebook(out, summ)
+        return summ
+
+    def _maybe_log_notebook(self, saved: Path, summ: Summary) -> None:
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            from ..notebook import log_explanation
+
+            log_explanation(self, saved, summary=summ)
 
     def preflight(self) -> Any:
         """Run mintfig's full preflight on the figure under the target's style."""
@@ -1227,11 +1253,15 @@ class Explanation:
         with self.theme.rc_context(self.spec):
             return bundle_figure(self.fig, out_dir, journal=self.spec, **kwargs)
 
-    def to_html(self, interactive: bool = True) -> str:
-        """Render a self-contained interactive HTML document for this figure."""
+    def to_html(self, interactive: bool = True, *, compact: bool = False) -> str:
+        """Render a self-contained interactive HTML document for this figure.
+
+        Pass ``compact=True`` for a lean single-layout minified SVG with transparent
+        flush background and live host theme sync (``themechange`` / ``.light`` / ``.dark``).
+        """
         from ..interactive import render_html
 
-        return render_html(self, interactive=interactive)
+        return render_html(self, interactive=interactive, compact=compact)
 
     def to_terminal(
         self,
@@ -1657,7 +1687,7 @@ def _too_tall_issue(
 @_guarded("explain")
 def explain(
     takeaway: str,
-    *panels: Panel | Mapping[str, Any],
+    *panels: Panel | Mapping[str, Any] | Figure | Axes | SubFigure,
     subtitle: str | None = None,
     source: str | None = None,
     note: str | None = None,
@@ -1765,7 +1795,7 @@ def explain(
 
 def _explain_impl(
     takeaway: str,
-    *panels: Panel | Mapping[str, Any],
+    *panels: Panel | Mapping[str, Any] | Figure | Axes | SubFigure,
     subtitle: str | None = None,
     source: str | None = None,
     note: str | None = None,
@@ -1834,15 +1864,21 @@ def _explain_impl(
             ) from exc
 
     built: list[Panel] = []
+    single_panel = len(panels) == 1
     for item in panels:
         if isinstance(item, Panel):
             built.append(item)
         elif isinstance(item, Mapping):
             built.append(panel_from_spec(item))
+        elif isinstance(item, (Figure, Axes, SubFigure)):
+            from ..byo import figure_to_panel
+
+            check_claim = takeaway if (single_panel and isinstance(takeaway, str) and takeaway.strip()) else ""
+            built.append(figure_to_panel(item, width=width, claim=check_claim))
         else:
             raise ExplainError(
-                f"explain() panels must come from mint.compare/trend/..., got {type(item).__name__}.",
-                fix_hint="e.g. mint.explain('...', mint.compare({...}), mint.trend(x, {...})).",
+                f"explain() panels must come from mint.compare/trend/... or be a Matplotlib Figure/Axes, got {type(item).__name__}.",
+                fix_hint="e.g. mint.explain('...', mint.compare({...}), mint.trend(x, {...})) or mint.explain('...', fig).",
             )
     if not built:
         raise ExplainError(
@@ -2446,7 +2482,9 @@ def _explain_impl(
             actionable = [
                 i
                 for i in issues
-                if i["severity"] == "error" or i["rule"] in _VISUAL_DEFECT_RULES
+                if i["severity"] == "error"
+                or i["rule"] in _VISUAL_DEFECT_RULES
+                or i["rule"] in _BYO_DEFECT_RULES
             ]
             advisory = [i for i in issues if i not in actionable]
             result.issues = actionable

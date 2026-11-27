@@ -45,9 +45,11 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-if str(HERE) not in sys.path:  # neutral.py sits beside this file
+if str(HERE) not in sys.path:  # neutral.py / rubric.py sit beside this file
     sys.path.insert(0, str(HERE))
+BENCH_VERSION = "0.1"
 TASKS = HERE / "tasks"
+PUBLIC_TEST = HERE / "public_test"
 HELDOUT = HERE / "heldout"  # held-out tasks: never used to tune mintfig or SKILL.md
 ANSWERS = HERE / "answers.json"
 MAX_ATTEMPTS = 3
@@ -62,31 +64,58 @@ _CAPTURE = r"""
 import json, os, runpy, sys
 from pathlib import Path
 script, summary_out, audit_out, arm, bench_dir = sys.argv[1:6]
+check_out = sys.argv[6] if len(sys.argv) > 6 else ""
+display_w = int(sys.argv[7]) if len(sys.argv) > 7 and sys.argv[7] else 700
+src_dir = sys.argv[8] if len(sys.argv) > 8 else ""
 sys.path.insert(0, bench_dir)
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib as mpl
-from matplotlib.figure import Figure
-import neutral
 target = Path("figure.png").resolve()
-calls, audits = [], []
-_savefig = Figure.savefig
-def _hooked_savefig(self, fname, *a, **k):
-    result = _savefig(self, fname, *a, **k)
-    try:
-        hit = isinstance(fname, (str, os.PathLike)) and Path(fname).resolve() == target
-    except OSError:
-        hit = False
-    if hit:
+calls, audits, check_reports = [], [], []
+user_mintfig_imported = False
+_user_mintfig_recorded = False
+try:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib as mpl
+    from matplotlib.figure import Figure
+    import neutral
+    _savefig = Figure.savefig
+    def _hooked_savefig(self, fname, *a, **k):
+        global user_mintfig_imported, _user_mintfig_recorded
+        result = _savefig(self, fname, *a, **k)
         try:
+            hit = isinstance(fname, (str, os.PathLike)) and Path(fname).resolve() == target
+        except OSError:
+            hit = False
+        if hit:
+            if not _user_mintfig_recorded:
+                user_mintfig_imported = "mintfig" in sys.modules
+                _user_mintfig_recorded = True
             dpi = k.get("dpi") or mpl.rcParams["savefig.dpi"]
             dpi = self.dpi if dpi == "figure" else float(dpi)
             tight = (k.get("bbox_inches") or mpl.rcParams["savefig.bbox"]) == "tight"
-            audits.append(neutral.audit_saved_figure(self, target, dpi=dpi, tight=tight))
-        except Exception as exc:
-            audits.append({"error": f"{type(exc).__name__}: {exc}"})
-    return result
-Figure.savefig = _hooked_savefig
+            try:
+                audits.append(neutral.audit_saved_figure(self, target, dpi=dpi, tight=tight, display_width_px=display_w))
+            except Exception as exc:
+                audits.append({"error": f"{type(exc).__name__}: {exc}"})
+            if arm == "matplotlib-hook" and check_out:
+                try:
+                    if src_dir and src_dir not in sys.path:
+                        sys.path.insert(0, src_dir)
+                    import mintfig.figcheck as fc
+                    check_w = display_w if display_w >= 100 else 700
+                    rep = fc.check(self, width=check_w, dpi=dpi, bbox_inches="tight" if tight else None)
+                    rep["path"] = "figure.png"
+                    check_reports.append({
+                        "report": json.loads(json.dumps(dict(rep), default=str)),
+                        "formatted": fc.format_report(rep),
+                    })
+                except Exception as exc:
+                    check_reports.append({"error": f"{type(exc).__name__}: {exc}"})
+        return result
+    Figure.savefig = _hooked_savefig
+except ImportError:
+    if arm != "custom":
+        raise
 if arm == "mintfig":
     import mintfig.explainer as ex
     _save = ex.Explanation.save
@@ -98,11 +127,16 @@ if arm == "mintfig":
 try:
     runpy.run_path(script, run_name="__main__")
 finally:
+    if not _user_mintfig_recorded:
+        user_mintfig_imported = "mintfig" in sys.modules
     with open(summary_out, "w") as fh:
         json.dump(calls, fh, ensure_ascii=False)
     with open(audit_out, "w") as fh:
-        json.dump({"audits": audits, "mintfig_imported": "mintfig" in sys.modules}, fh,
+        json.dump({"audits": audits, "mintfig_imported": user_mintfig_imported}, fh,
                   ensure_ascii=False, default=str)
+    if check_out:
+        with open(check_out, "w") as fh:
+            json.dump(check_reports, fh, ensure_ascii=False, default=str)
 """
 
 AGENT_RULES = """\
@@ -178,7 +212,45 @@ Rules for this task:
 - The clock started now and stops when a submission saves the figure.
 """
 
-ARMS = ("mintfig", "matplotlib", "matplotlib-plain")
+AGENT_RULES_MATPLOTLIB_HOOK = """\
+Rules for this task:
+- Read context.md and the files in data/ in this folder.
+  Do not read anything else in the repository.
+- Answer the last request in the thread with ONE figure made with plain Matplotlib
+  (numpy and pandas are available; do not import mintfig in your script). Your script
+  must save it as figure.png in this folder. The person sees it at most {display_px} px wide.
+- Do not render figures yourself (no savefig runs of your own): submit is your
+  renderer. Images found in this folder that submit did not make are counted as
+  local renders. Plain data analysis (numpy/pandas) is fine.
+- Write the reply you would send the person as a Markdown file and hand it in with
+  each submit. It must show the figure with the image line ![<one-line summary>](figure.png).
+  At most {max_words} words of prose outside the image line and code blocks:
+  one sentence, the figure, one caption.
+- Submit with:  {python} {bench} submit {task} --run {run} <your_script.py> --reply <your_reply.md>
+  Submit runs your script, audits the saved figure with mint.check (checking claim numbers
+  against the plotted data, display-width legibility >= {min_px:g} px, overlaps, struck text,
+  malformed text, clipping, and colormaps), and prints the mint.check report plus checks.
+  You have {max_attempts} submissions; stop at the first one that passes.
+- The clock started now and stops when a submission passes.
+"""
+
+AGENT_RULES_CUSTOM = """\
+Rules for this task:
+- Read context.md and the files in data/ in this folder.{skill_line}
+  Do not read anything else in the repository.
+- Answer the last request in the thread with ONE figure using {library}.
+  Your script must save it as figure.png in this folder (and optionally figure.svg
+  for vector auditing). The person sees it at most {display_px} px wide.
+- Do not render figures yourself: submit is your renderer. Plain data analysis is fine.
+- Write the reply you would send the person as a Markdown file and hand it in with
+  each submit. It must show the figure with ![<one-line summary>](figure.png).
+  At most {max_words} words of prose outside the image line and code blocks.
+- Submit with:  {python} {bench} submit {task} --run {run} <your_script.py> --reply <your_reply.md>
+  You have {max_attempts} submissions; stop at the first one that passes.
+- The clock started now and stops when a submission passes.
+"""
+
+ARMS = ("mintfig", "matplotlib", "matplotlib-plain", "matplotlib-hook", "custom")
 _PLAIN_SHOWN = ("script_runs", "one_figure_saved", "no_mintfig")
 
 # One question per task for blind readers, who see only the figure. Scored with the
@@ -225,17 +297,28 @@ def _local_images(work: Path, state: dict) -> list[str]:
 # --------------------------------------------------------------------------- #
 
 
-def _all_tasks() -> list[Path]:
-    return [t for root in (TASKS, HELDOUT) if root.exists()
-            for t in sorted(root.iterdir()) if (t / "context.md").exists()]
+def _all_tasks(*, split: str | None = None, track: str | None = None, base_dir: Path | None = None) -> list[Path]:
+    import rubric
+
+    return rubric.discover_task_dirs(base_dir or HERE, split=split, track=track)
 
 
-def _task_dir(task: str) -> Path:
-    for path in _all_tasks():
+def _task_dir(task: str, *, base_dir: Path | None = None) -> Path:
+    for path in _all_tasks(base_dir=base_dir):
         if path.name == task:
             return path
-    names = ", ".join(t.name for t in _all_tasks())
+    names = ", ".join(t.name for t in _all_tasks(base_dir=base_dir))
     sys.exit(f"unknown task {task!r}; tasks: {names}")
+
+
+def _task_rubric(task: str, *, base_dir: Path | None = None) -> dict:
+    import rubric
+
+    for path in _all_tasks(base_dir=base_dir):
+        if path.name == task:
+            return rubric.load_rubric(path)
+    answers = json.loads(ANSWERS.read_text()) if ANSWERS.exists() else {}
+    return rubric.load_rubric((base_dir or HERE) / "tasks" / task, answers=answers)
 
 
 def _work(run: Path, task: str) -> Path:
@@ -352,7 +435,14 @@ def audit_layout(png: Path) -> dict:
     return out
 
 
-def run_checks(work: Path, calls: list[dict], returncode: int, stderr: str) -> list[dict]:
+def run_checks(
+    work: Path,
+    calls: list[dict],
+    returncode: int,
+    stderr: str,
+    *,
+    display_width_px: int = CHAT_WIDTH_PX,
+) -> list[dict]:
     """Every automated check, in order. Each: {name, passed, detail}."""
     checks: list[dict] = []
 
@@ -375,10 +465,12 @@ def run_checks(work: Path, calls: list[dict], returncode: int, stderr: str) -> l
     display = s.get("display", {})
     min_px = display.get("min_text_px")
     add("text_legible", isinstance(min_px, (int, float)) and min_px >= MIN_TEXT_PX,
-        f"smallest text {min_px} px at chat width (floor {MIN_TEXT_PX})")
-    add("chat_width", display.get("width_px") in (CHAT_WIDTH_PX, NARROW_WIDTH_PX),
-        f"display width {display.get('width_px')} px (expected {CHAT_WIDTH_PX}, or "
-        f"{NARROW_WIDTH_PX} for phones)")
+        f"smallest text {min_px} px at display width (floor {MIN_TEXT_PX})")
+    allowed_widths = {CHAT_WIDTH_PX, NARROW_WIDTH_PX}
+    if display_width_px >= 100:
+        allowed_widths.add(display_width_px)
+    add("chat_width", display.get("width_px") in allowed_widths,
+        f"display width {display.get('width_px')} px (expected one of {sorted(allowed_widths)})")
     takeaway = str(s.get("takeaway") or "")
     add("takeaway_has_number", bool(re.search(r"\d", takeaway)), takeaway)
     panels = s.get("panels", [])
@@ -422,6 +514,47 @@ def run_checks_matplotlib(work: Path, meta: dict, returncode: int, stderr: str) 
                    "detail": "mintfig was imported" if meta.get("mintfig_imported") else ""})
     if audits and png.exists():
         checks += neutral.neutral_checks(audits[-1])
+    return checks
+
+
+def run_checks_custom(
+    work: Path,
+    meta: dict,
+    returncode: int,
+    stderr: str,
+    *,
+    display_width_px: int = CHAT_WIDTH_PX,
+    surface: str = "chat",
+) -> list[dict]:
+    """Library-agnostic gate for the ``custom`` arm: Matplotlib neutral audit if captured,
+    else SVG + PNG pixel audit."""
+    import neutral
+    import pixel_audit
+    import svg_audit
+
+    checks: list[dict] = []
+    png = work / "figure.png"
+    svg = work / "figure.svg"
+    tail = stderr.strip().splitlines()[-1] if stderr.strip() else ""
+    audits = [x for x in meta.get("audits", []) if "error" not in x]
+    checks.append({"name": "script_runs", "passed": returncode == 0,
+                   "detail": "" if returncode == 0 else f"exit {returncode}: {tail}"})
+    checks.append({"name": "one_figure_saved", "passed": png.exists() or svg.exists(),
+                   "detail": f"figure.png {'found' if png.exists() else 'missing'}"
+                             + ("; figure.svg found" if svg.exists() else "")})
+    if audits and png.exists():
+        checks += neutral.neutral_checks(audits[-1])
+    elif svg.exists():
+        sa = svg_audit.audit_svg(svg, display_width_px=display_width_px)
+        checks += svg_audit.svg_checks(sa)
+    if png.exists():
+        pa = pixel_audit.audit_png(png, display_width_px=display_width_px, surface=surface)
+        checks.append({"name": "non_empty_canvas", "passed": not pa["empty_canvas"],
+                       "detail": f"ink_fraction={pa['ink_fraction']}"})
+        checks.append({"name": "no_rainbow_colormap", "passed": not pa["rainbow_colormap_suspected"],
+                       "detail": "" if not pa["rainbow_colormap_suspected"] else "rainbow/jet hue sweep suspected"})
+        checks.append({"name": "cvd_and_grayscale_ok", "passed": bool(pa["cvd_ok"] and pa["grayscale_ok"]),
+                       "detail": "; ".join(pa["issues"]) if not (pa["cvd_ok"] and pa["grayscale_ok"]) else ""})
     return checks
 
 
@@ -539,33 +672,70 @@ def answer_matches(takeaway: str, key: dict) -> tuple[bool, list[float]]:
 # --------------------------------------------------------------------------- #
 
 
-def cmd_list(_: argparse.Namespace) -> None:
-    for t in _all_tasks():
-        lines = (t / "context.md").read_text().split("**User:**")
-        ask = " ".join(lines[1].split("**Assistant:**")[0].split()) if len(lines) > 1 else ""
-        print(f"{t.name:18s} {ask[:96]}")
+def cmd_list(a: argparse.Namespace) -> None:
+    import rubric
+
+    split = getattr(a, "split", None)
+    track = getattr(a, "track", None)
+    for t in _all_tasks(split=split, track=track):
+        rub = rubric.load_rubric(t)
+        ctx = t / "context.md"
+        ask = ""
+        if ctx.exists():
+            lines = ctx.read_text(encoding="utf-8").split("**User:**")
+            ask = " ".join(lines[1].split("**Assistant:**")[0].split()) if len(lines) > 1 else ""
+        if not ask:
+            ask = rub.get("title", "")
+        print(f"{t.name:22s} [{rub['split']:11s} | {rub['track']:19s}] {ask[:72]}")
 
 
 def cmd_start(a: argparse.Namespace) -> None:
+    import rubric
+
     src = _task_dir(a.task)
+    rub = rubric.load_rubric(src)
     run = Path(a.run).resolve()
     work = _work(run, a.task)
     if work.exists():
         sys.exit(f"{work} already exists; use a new --run folder for a new run")
     work.mkdir(parents=True)
-    shutil.copy(src / "context.md", work / "context.md")
-    shutil.copytree(src / "data", work / "data")
+    if (src / "context.md").exists():
+        shutil.copy(src / "context.md", work / "context.md")
+    if (src / "data").is_dir():
+        shutil.copytree(src / "data", work / "data")
+    for extra in src.iterdir():
+        if extra.is_file() and extra.name not in ("context.md", "rubric.json"):
+            shutil.copy(extra, work / extra.name)
     (work / ".bench").mkdir()
-    state = {"task": a.task, "arm": a.arm, "started": time.time(), "python": a.python,
-             "attempts": []}
+    skill = getattr(a, "skill", None)
+    library = getattr(a, "library", None)
+    display_px = int(rub.get("display_width_px", CHAT_WIDTH_PX))
+    state = {
+        "task": a.task,
+        "arm": a.arm,
+        "started": time.time(),
+        "python": a.python,
+        "display_width_px": display_px,
+        "surface": rub.get("surface", "chat"),
+        "skill": str(Path(skill).resolve()) if skill else None,
+        "library": library,
+        "attempts": [],
+    }
     _save_state(run, a.task, state)
     print(f"Task {a.task} started. Work folder: {work}\n")
-    rules = {"matplotlib": AGENT_RULES_MATPLOTLIB, "matplotlib-plain": AGENT_RULES_MATPLOTLIB_PLAIN}.get(
-        a.arm, AGENT_RULES)
-    print(rules.format(skill=_skill_path(), python=a.python, bench=Path(__file__).resolve(),
+    rules = {
+        "matplotlib": AGENT_RULES_MATPLOTLIB,
+        "matplotlib-plain": AGENT_RULES_MATPLOTLIB_PLAIN,
+        "matplotlib-hook": AGENT_RULES_MATPLOTLIB_HOOK,
+        "custom": AGENT_RULES_CUSTOM,
+    }.get(a.arm, AGENT_RULES)
+    skill_line = f"\n  Also read the custom skill: {state['skill']}" if state["skill"] else ""
+    print(rules.format(skill=state["skill"] or _skill_path(), python=a.python,
+                       bench=Path(__file__).resolve(),
                        task=a.task, run=run, max_attempts=MAX_ATTEMPTS,
-                       max_words=REPLY_MAX_WORDS, display_px=CHAT_WIDTH_PX,
-                       min_px=MIN_TEXT_PX))
+                       max_words=REPLY_MAX_WORDS, display_px=display_px,
+                       min_px=MIN_TEXT_PX, skill_line=skill_line,
+                       library=library or "your chosen plotting library"))
 
 
 def cmd_submit(a: argparse.Namespace) -> None:
@@ -588,18 +758,32 @@ def cmd_submit(a: argparse.Namespace) -> None:
     state["local_renders"] += [x for x in local if x not in state["local_renders"]]
     kept = work / ".bench" / f"attempt{n}.py"
     shutil.copy(script, kept)
-    for stale in ("figure.png", "figure.json"):
+    for stale in ("figure.png", "figure.svg", "figure.json"):
         (work / stale).unlink(missing_ok=True)
     capture = work / ".bench" / "capture.py"
     capture.write_text(_CAPTURE)
     calls_path = work / ".bench" / f"attempt{n}_summary.json"
     audit_path = work / ".bench" / f"attempt{n}_audit.json"
+    check_path = work / ".bench" / f"attempt{n}_check.json"
     arm = state.get("arm", "mintfig")
+    display_px = int(state.get("display_width_px", CHAT_WIDTH_PX))
+    surface = str(state.get("surface", "chat"))
+    src_dir = str(HERE.parents[1] / "src")
     t0 = time.time()
     try:
         proc = subprocess.run(
-            [state["python"], str(capture), str(kept), str(calls_path), str(audit_path), arm,
-             str(HERE)],
+            [
+                state["python"],
+                str(capture),
+                str(kept),
+                str(calls_path),
+                str(audit_path),
+                arm,
+                str(HERE),
+                str(check_path) if arm == "matplotlib-hook" else "",
+                str(display_px),
+                src_dir,
+            ],
             cwd=work, capture_output=True, text=True, timeout=TIMEOUT_S, check=False,
             env={**__import__("os").environ, "MPLCONFIGDIR": "/tmp/mpl-figbench"},
         )
@@ -609,12 +793,15 @@ def cmd_submit(a: argparse.Namespace) -> None:
     render_s = time.time() - t0
     calls = json.loads(calls_path.read_text()) if calls_path.exists() else []
     meta = json.loads(audit_path.read_text()) if audit_path.exists() else {}
+    check_reports = json.loads(check_path.read_text()) if check_path.exists() else []
     audits = [x for x in meta.get("audits", []) if "error" not in x]
     audit = audits[-1] if audits else None
-    if arm in ("matplotlib", "matplotlib-plain"):
+    if arm in ("matplotlib", "matplotlib-plain", "matplotlib-hook"):
         checks = run_checks_matplotlib(work, meta, rc, err)
+    elif arm == "custom":
+        checks = run_checks_custom(work, meta, rc, err, display_width_px=display_px, surface=surface)
     else:
-        checks = run_checks(work, calls, rc, err)
+        checks = run_checks(work, calls, rc, err, display_width_px=display_px)
     passed = all(c["passed"] for c in checks)
     # The uninstructed arm gets no defect feedback: it is done once the figure is saved.
     shown = [c for c in checks if c["name"] in _PLAIN_SHOWN] if arm == "matplotlib-plain" else checks
@@ -623,16 +810,21 @@ def cmd_submit(a: argparse.Namespace) -> None:
     if reply_path is not None:
         reply = reply_path.read_text(encoding="utf-8")
         (work / ".bench" / f"attempt{n}_reply.md").write_text(reply, encoding="utf-8")
-    if arm in ("matplotlib", "matplotlib-plain"):
+    if arm in ("matplotlib", "matplotlib-plain", "matplotlib-hook", "custom"):
         reply_summary = {"deliver": {"markdown": "![figure](figure.png)"}}
     else:
         reply_summary = calls[-1] if calls else {}
     delivery = check_reply(reply, reply_summary, work)
     if (work / "figure.png").exists():
         shutil.copy(work / "figure.png", work / ".bench" / f"attempt{n}.png")
+    if (work / "figure.svg").exists():
+        shutil.copy(work / "figure.svg", work / ".bench" / f"attempt{n}.svg")
+    valid_checks = [r for r in check_reports if "report" in r]
     attempt = {"n": n, "submitted": t0, "finished": time.time(), "render_s": round(render_s, 2),
                "passed": passed, "done": done, "checks": checks, "delivery": delivery,
                "audit": audit, "audit_errors": [x["error"] for x in meta.get("audits", []) if "error" in x]}
+    if valid_checks:
+        attempt["mint_check"] = valid_checks[-1]["report"]
     state["produced"] = [
         f"{f.relative_to(work)}:{f.stat().st_mtime_ns}"
         for f in work.rglob("*")
@@ -657,6 +849,9 @@ def cmd_submit(a: argparse.Namespace) -> None:
             print(f"panel {p.get('key')} ({p.get('kind')}): {p.get('title')}")
             for f in p.get("facts", []):
                 print(f"   - {f}")
+    if arm == "matplotlib-hook" and valid_checks:
+        print("--- mint.check report ---")
+        print(valid_checks[-1]["formatted"])
     print(f"--- checks (attempt {n} of {MAX_ATTEMPTS}) ---")
     for c in shown:
         print(f"[{'PASS' if c['passed'] else 'FAIL'}] {c['name']}" + (f": {c['detail']}" if c["detail"] else ""))
@@ -676,7 +871,6 @@ def cmd_submit(a: argparse.Namespace) -> None:
 
 def cmd_grade(a: argparse.Namespace) -> None:
     run = Path(a.run).resolve()
-    answers = json.loads(ANSWERS.read_text())
     rows = []
     for work in sorted(p for p in run.iterdir() if (p / ".bench" / "state.json").exists()):
         state = json.loads((work / ".bench" / "state.json").read_text())
@@ -691,15 +885,16 @@ def cmd_grade(a: argparse.Namespace) -> None:
             calls = json.loads(summ.read_text())
             if calls:
                 takeaway = calls[-1].get("takeaway", "")
-        if state["task"] in answers and takeaway:
-            correct, _found = answer_matches(takeaway, answers[state["task"]])
+        key = _task_rubric(state["task"])
+        has_key = bool(key.get("accept"))
+        if has_key and takeaway:
+            correct, _found = answer_matches(takeaway, key)
         failed = [c["name"] for c in (last["checks"] if last else []) if not c["passed"]]
         arm = state.get("arm", "mintfig")
-        key = answers.get(state["task"])
         neutral_rows = {}
         for label, att_i in (("first", att[0] if att else None), ("final", last)):
-            neutral_rows[label] = _neutral_row(work, state["task"], att_i, key)
-        if arm in ("matplotlib", "matplotlib-plain"):
+            neutral_rows[label] = _neutral_row(work, state["task"], att_i, key if has_key else None)
+        if arm in ("matplotlib", "matplotlib-plain", "matplotlib-hook", "custom"):
             heads = (neutral_rows["final"] or {}).get("headlines") or []
             takeaway = heads[0] if heads else ""
             correct = (neutral_rows["final"] or {}).get("headline_correct")
@@ -712,7 +907,7 @@ def cmd_grade(a: argparse.Namespace) -> None:
                      "seconds_to_pass": round(t_pass, 1) if t_pass is not None else None,
                      "seconds_total": round(t_last, 1) if t_last is not None else None,
                      "render_s": [x["render_s"] for x in att], "failed_checks": failed,
-                     "answer_correct": correct, "answer_expected": answers.get(state["task"], {}).get("what"),
+                     "answer_correct": correct, "answer_expected": key.get("what") or None,
                      "takeaway": takeaway})
     def _split(rs: list[dict]) -> dict:
         ts = [r["seconds_to_pass"] for r in rs if r["seconds_to_pass"] is not None]
@@ -802,6 +997,7 @@ def _neutral_row(work: Path, task: str, attempt: dict | None, key: dict | None) 
     head_text = " ".join(heads)
     reply_file = work / ".bench" / f"attempt{attempt['n']}_reply.md"
     reply = reply_file.read_text(encoding="utf-8") if reply_file.exists() else None
+    unc_req = bool(key.get("uncertainty_required")) if key else (task in UNCERTAINTY_TASKS)
     row = {
         "saved": audit is not None,
         "clean": audit is not None and all(checks.values()),
@@ -812,7 +1008,7 @@ def _neutral_row(work: Path, task: str, attempt: dict | None, key: dict | None) 
         "headline_has_number": bool(re.search(r"\d", head_text)) if audit else None,
         "headline_correct": answer_matches(head_text, key)[0] if (key and head_text) else (False if audit else None),
         "reply_correct": answer_matches(reply_prose(reply), key)[0] if (key and reply) else None,
-        "uncertainty_named": (audit or {}).get("uncertainty_named") if task in UNCERTAINTY_TASKS else None,
+        "uncertainty_named": (audit or {}).get("uncertainty_named") if unc_req else None,
         "legends": (audit or {}).get("legends"),
         "panels": (audit or {}).get("panels"),
         "banned_colormaps": (audit or {}).get("banned_colormaps"),
@@ -940,23 +1136,40 @@ def strip_png_text(src: Path, dst: Path) -> None:
 
 
 
+def _reader_question_for(task: str, rub: dict) -> str | None:
+    rqs = rub.get("reader_questions") or []
+    for q in rqs:
+        if isinstance(q, dict) and q.get("kind") == "primary" and q.get("question"):
+            return str(q["question"])
+    if rqs and isinstance(rqs[0], dict) and rqs[0].get("question"):
+        return str(rqs[0]["question"])
+    return READER_QUESTIONS.get(task)
+
+
 def cmd_readers_prepare(a: argparse.Namespace) -> None:
-    """Blind reader batches: each figure with its question, under a random id; no task twice per batch."""
+    """Blind reader batches: each figure downscaled to reading width under a random id; no task twice per batch."""
     import random
+
+    import pixel_audit
 
     rng = random.Random(a.seed)
     out = Path(a.out).resolve()
     if out.exists():
         sys.exit(f"{out} already exists; use a new --out folder")
+    override_w = getattr(a, "display_width", None)
     items = []
     for run in a.runs:
         run = Path(run).resolve()
         for work in sorted(p for p in run.iterdir() if (p / ".bench" / "state.json").exists()):
             state = json.loads((work / ".bench" / "state.json").read_text())
             png = _final_png(work, state)
-            if png is not None and state["task"] in READER_QUESTIONS:
+            rub = _task_rubric(state["task"])
+            question = _reader_question_for(state["task"], rub)
+            if png is not None and question:
+                target_w = int(override_w) if override_w is not None else int(rub.get("display_width_px", CHAT_WIDTH_PX))
                 items.append({"run": str(run), "task": state["task"], "arm": state.get("arm", "mintfig"),
-                              "png": str(png)})
+                              "png": str(png), "question": question, "display_width_px": target_w,
+                              "reader_questions": rub.get("reader_questions", [])})
     rng.shuffle(items)
     batches: list[list[dict]] = []
     for item in items:
@@ -973,9 +1186,19 @@ def cmd_readers_prepare(a: argparse.Namespace) -> None:
             fid = f"{rng.randrange(16**6):06x}"
             fdir = bdir / fid
             fdir.mkdir(parents=True)
-            strip_png_text(Path(item["png"]), fdir / "figure.png")
-            (fdir / "question.md").write_text(READER_QUESTIONS[item["task"]] + "\n", encoding="utf-8")
-            key[fid] = {**item, "batch": bdir.name}
+            shown_w, shown_h = pixel_audit.render_at_display_width(
+                Path(item["png"]), fdir / "figure.png", width_px=item["display_width_px"], strip_metadata=True
+            )
+            (fdir / "question.md").write_text(item["question"] + "\n", encoding="utf-8")
+            key[fid] = {
+                "run": item["run"],
+                "task": item["task"],
+                "arm": item["arm"],
+                "png": item["png"],
+                "batch": bdir.name,
+                "display_width_px": item["display_width_px"],
+                "shown_px": [shown_w, shown_h],
+            }
             ids.append(fid)
         (bdir / "README.md").write_text(READER_RULES.format(ids=", ".join(ids)), encoding="utf-8")
     (out / "key.json").write_text(json.dumps(key, indent=2) + "\n")
@@ -983,10 +1206,9 @@ def cmd_readers_prepare(a: argparse.Namespace) -> None:
 
 
 def cmd_readers_score(a: argparse.Namespace) -> None:
-    """Score every batch's answers.json against the answer key; write <run>/readers.json per run."""
+    """Score every batch's answers.json against the task rubric/answer key; write <run>/readers.json per run."""
     out = Path(a.set).resolve()
     key = json.loads((out / "key.json").read_text())
-    answers_key = json.loads(ANSWERS.read_text())
     per_run: dict[str, dict] = {}
     missing = 0
     for fid, item in key.items():
@@ -997,7 +1219,8 @@ def cmd_readers_score(a: argparse.Namespace) -> None:
             continue
         text = str(got.get("answer", "")) if isinstance(got, dict) else str(got)
         not_shown = "not shown" in text.lower()
-        correct = (not not_shown) and answer_matches(text, answers_key[item["task"]])[0]
+        rub = _task_rubric(item["task"])
+        correct = (not not_shown) and answer_matches(text, rub)[0]
         per_run.setdefault(item["run"], {})[item["task"]] = {
             "answer": text, "where": got.get("where") if isinstance(got, dict) else None,
             "correct": bool(correct), "not_shown": not_shown, "arm": item["arm"]}
@@ -1011,17 +1234,437 @@ def cmd_readers_score(a: argparse.Namespace) -> None:
         print(f"{missing} figure(s) have no answer yet")
 
 
+def cmd_grade_dir(a: argparse.Namespace) -> None:
+    """Library-agnostic Bring-Your-Own-Output grader for ``<outputs_dir>/<task_id>/{figure.png, reply.md, figure.svg?}``."""
+    import rubric
+
+    outputs_dir = Path(a.outputs_dir).resolve()
+    if not outputs_dir.is_dir():
+        sys.exit(f"outputs directory not found: {outputs_dir}")
+    base_dir = Path(a.base_dir).resolve() if getattr(a, "base_dir", None) else HERE
+
+    discovered = rubric.discover_task_dirs(base_dir, split=a.split, track=a.track)
+    task_map = {t.name: t for t in discovered}
+
+    per_task: dict[str, dict] = {}
+    timings: list[float] = []
+    present_dirs = sorted(p for p in outputs_dir.iterdir() if p.is_dir() and p.name in task_map)
+    for out_task_dir in present_dirs:
+        task_id = out_task_dir.name
+        rub = rubric.load_rubric(task_map[task_id])
+        png = out_task_dir / "figure.png"
+        svg = out_task_dir / "figure.svg"
+        reply_file = out_task_dir / "reply.md"
+        audit_file = out_task_dir / "neutral_audit.json"
+        timing_file = out_task_dir / "timing.json"
+
+        reply_text = reply_file.read_text(encoding="utf-8") if reply_file.is_file() else None
+        neutral_audit = json.loads(audit_file.read_text(encoding="utf-8")) if audit_file.is_file() else None
+        res = rubric.score_submission(
+            rub,
+            png_path=png if png.is_file() else None,
+            reply_text=reply_text,
+            svg_path=svg if svg.is_file() else None,
+            neutral_audit=neutral_audit,
+        )
+        if timing_file.is_file():
+            tdata = json.loads(timing_file.read_text(encoding="utf-8"))
+            sec = tdata.get("seconds")
+            if isinstance(sec, (int, float)):
+                res["seconds"] = round(float(sec), 2)
+                timings.append(float(sec))
+        per_task[task_id] = res
+
+    task_count = len(per_task)
+    missing_tasks = [tid for tid in sorted(task_map) if tid not in per_task]
+
+    def _avg(vals: list[float]) -> float:
+        return round(sum(vals) / len(vals), 1) if vals else 0.0
+
+    rows = list(per_task.values())
+    scores = {
+        "composite": _avg([r["composite"] for r in rows]),
+        "visual_quality": _avg([r["visual_quality"]["score"] for r in rows]),
+        "claim_accuracy": _avg([r["claim_accuracy"]["score"] for r in rows]),
+        "uncertainty_calibration": _avg([r["uncertainty_calibration"]["score"] for r in rows]),
+        "delivery_rate": round(100.0 * sum(1 for r in rows if r["delivery"]["passed"]) / task_count, 1)
+        if task_count
+        else 0.0,
+        "pass_rate": round(100.0 * sum(1 for r in rows if r["passed"]) / task_count, 1) if task_count else 0.0,
+        "median_seconds": round(statistics.median(timings), 1) if timings else None,
+    }
+
+    by_track: dict[str, dict] = {}
+    for track_name in sorted({r["track"] for r in rows}):
+        tr_rows = [r for r in rows if r["track"] == track_name]
+        by_track[track_name] = {
+            "tasks": len(tr_rows),
+            "composite": _avg([r["composite"] for r in tr_rows]),
+            "passed": sum(1 for r in tr_rows if r["passed"]),
+        }
+
+    report: dict = {
+        "schema_version": rubric.SCHEMA_VERSION,
+        "bench_version": BENCH_VERSION,
+        "outputs_dir": str(outputs_dir),
+        "split": a.split or "all",
+        "track": a.track or "all",
+        "task_count": task_count,
+        "expected_task_count": len(task_map),
+        "missing_tasks": missing_tasks,
+        "scores": scores,
+        "by_track": by_track,
+        "per_task": per_task,
+    }
+
+    if a.meta:
+        meta_path = Path(a.meta).resolve()
+        if not meta_path.is_file():
+            sys.exit(f"metadata file not found: {meta_path}")
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        for k, v in meta.items():
+            if k not in ("scores", "per_task", "task_count", "bench_version"):
+                report[k] = v
+
+    if a.out:
+        out_path = Path(a.out).resolve()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    md_lines = [
+        f"# figure-bench v{BENCH_VERSION} grade-dir report: {outputs_dir.name}",
+        "",
+        f"- Graded tasks: **{task_count}**"
+        + (f" (split: `{a.split}`)" if a.split else "")
+        + (f" (track: `{a.track}`)" if a.track else ""),
+        f"- Composite score: **{scores['composite']} / 100** (pass rate: {scores['pass_rate']}%)",
+        (
+            f"- Visual quality: **{scores['visual_quality']}** | Claim accuracy: **{scores['claim_accuracy']}** | "
+            f"Uncertainty calibration: **{scores['uncertainty_calibration']}** | Delivery rate: **{scores['delivery_rate']}%**"
+        ),
+        "",
+        "| Task | Track | Composite | Visual | Claim | Uncertainty | Delivery | Pass |",
+        "| :--- | :--- | ---: | ---: | ---: | ---: | ---: | :---: |",
+    ]
+    for tid, r in per_task.items():
+        md_lines.append(
+            f"| {tid} | {r['track']} | {r['composite']} | {r['visual_quality']['score']} | "
+            f"{r['claim_accuracy']['score']} | {r['uncertainty_calibration']['score']} | "
+            f"{r['delivery']['score']} | {'yes' if r['passed'] else 'no'} |"
+        )
+    md_text = "\n".join(md_lines) + "\n"
+    if a.markdown:
+        md_path = Path(a.markdown).resolve()
+        md_path.parent.mkdir(parents=True, exist_ok=True)
+        md_path.write_text(md_text, encoding="utf-8")
+    print(md_text)
+
+
+def cmd_export_submission(a: argparse.Namespace) -> None:
+    """Export a completed figure-bench run folder as a verified v0.1 leaderboard JSON."""
+    import datetime
+
+    import rubric
+
+    lb_dir = HERE / "leaderboard"
+    if str(lb_dir) not in sys.path:
+        sys.path.insert(0, str(lb_dir))
+    import verify_submission
+
+    run = Path(a.run).resolve()
+    if not run.is_dir():
+        sys.exit(f"run directory not found: {run}")
+
+    readers_path = run / "readers.json"
+    readers_map = json.loads(readers_path.read_text(encoding="utf-8")) if readers_path.is_file() else {}
+
+    artifacts_out: Path | None = Path(a.artifacts_dir).resolve() if a.artifacts_dir else None
+    if artifacts_out is not None:
+        artifacts_out.mkdir(parents=True, exist_ok=True)
+
+    per_task: list[dict] = []
+    first_clean_hits = 0
+    first_clean_total = 0
+    arm_seen = "mintfig"
+
+    for work in sorted(p for p in run.iterdir() if (p / ".bench" / "state.json").is_file()):
+        state = json.loads((work / ".bench" / "state.json").read_text(encoding="utf-8"))
+        task_id = state["task"]
+        arm_seen = state.get("arm", "mintfig")
+        rub = _task_rubric(task_id)
+        if a.split and a.split != "all" and rub.get("split") != a.split:
+            continue
+
+        atts = state.get("attempts") or []
+        first = atts[0] if atts else None
+        last = atts[-1] if atts else None
+
+        if first is not None and first.get("audit") is not None:
+            import neutral
+
+            if all(c["passed"] for c in neutral.neutral_checks(first["audit"])):
+                first_clean_hits += 1
+        first_clean_total += 1
+
+        png = (work / ".bench" / f"attempt{last['n']}.png") if last else None
+        if png is not None and not png.is_file():
+            png = None
+        svg = (work / ".bench" / f"attempt{last['n']}.svg") if last else None
+        if svg is not None and not svg.is_file():
+            svg = None
+        reply_file = (work / ".bench" / f"attempt{last['n']}_reply.md") if last else None
+        reply_text = reply_file.read_text(encoding="utf-8") if reply_file and reply_file.is_file() else None
+        neutral_audit = (last or {}).get("audit")
+
+        scored = rubric.score_submission(
+            rub,
+            png_path=png,
+            reply_text=reply_text,
+            svg_path=svg,
+            neutral_audit=neutral_audit,
+        )
+
+        # Extract takeaway/headline
+        takeaway = ""
+        if last is not None:
+            summ = work / ".bench" / f"attempt{last['n']}_summary.json"
+            if summ.is_file():
+                calls = json.loads(summ.read_text(encoding="utf-8"))
+                if calls:
+                    takeaway = str(calls[-1].get("takeaway") or "")
+        if not takeaway and neutral_audit and neutral_audit.get("headlines"):
+            takeaway = str(neutral_audit["headlines"][0])
+
+        failed_checks: list[str] = []
+        failed_checks.extend(scored["visual_quality"].get("issues") or [])
+        if not scored["claim_accuracy"]["passed"]:
+            failed_checks.append("claim_accuracy_mismatch")
+        failed_checks.extend(scored["uncertainty_calibration"].get("issues") or [])
+        if not scored["delivery"]["passed"]:
+            failed_checks.append("delivery_failed")
+
+        # Keep uncertainty_calibration null on tasks where neither uncertainty nor trap applies
+        uc_applicable = bool(
+            rub.get("uncertainty_required")
+            or rub.get("no_effect_trap")
+            or rub.get("forbidden_overclaim_phrases")
+            or rub.get("required_disclosures")
+        )
+        uc_score = scored["uncertainty_calibration"]["score"] if uc_applicable else None
+
+        reader_entry = readers_map.get(task_id)
+        reader_score = (100.0 if reader_entry.get("correct") else 0.0) if isinstance(reader_entry, dict) else None
+
+        # Recompute composite cleanly with applicable weights (matching rubric.py)
+        vq_s = float(scored["visual_quality"]["score"])
+        ca_s = float(scored["claim_accuracy"]["score"])
+        dl_s = float(scored["delivery"]["score"])
+        uc_for_comp = float(uc_score) if uc_score is not None else 100.0
+        composite = round(0.35 * vq_s + 0.30 * ca_s + 0.20 * uc_for_comp + 0.15 * dl_s, 1)
+
+        elapsed = round(last["finished"] - state["started"], 1) if last else None
+        fig_rel = None
+        if artifacts_out is not None and png is not None:
+            dst = artifacts_out / f"{task_id}.png"
+            shutil.copy(png, dst)
+            fig_rel = dst.name
+
+        display_px = int(rub.get("display_width_px", CHAT_WIDTH_PX))
+        per_task.append({
+            "task_id": task_id,
+            "track": rub["track"],
+            "split": rub["split"],
+            "passed": bool(scored["passed"]),
+            "visual_quality": vq_s,
+            "claim_accuracy": ca_s,
+            "uncertainty_calibration": uc_score,
+            "reader_score": reader_score,
+            "delivery": dl_s,
+            "composite": composite,
+            "seconds": elapsed,
+            "attempts": max(1, len(atts)),
+            "failed_checks": failed_checks,
+            "takeaway": takeaway,
+            "figure_path": fig_rel,
+            "display_width_px": max(100, display_px),
+        })
+
+    if not per_task:
+        sys.exit(f"no completed tasks found in {run} for split={a.split!r}")
+
+    agg = verify_submission.compute_aggregates(per_task)
+    scores = {
+        "composite": agg["composite"] or 0.0,
+        "visual_quality": agg["visual_quality"] or 0.0,
+        "claim_accuracy": agg["claim_accuracy"] or 0.0,
+        "uncertainty_calibration": agg["uncertainty_calibration"],
+        "reader_score": agg["reader_score"],
+        "delivery_rate": agg["delivery_rate"] or 0.0,
+        "median_seconds": agg["median_seconds"],
+    }
+
+    commit = a.commit
+    if not commit:
+        proc = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=HERE, capture_output=True, text=True, check=False)
+        commit = proc.stdout.strip() or "unknown"
+
+    first_clean_rate = round(100.0 * first_clean_hits / first_clean_total, 1) if first_clean_total else None
+    default_skill = {
+        "mintfig": "mintfig SKILL.md + mint.explain",
+        "matplotlib-plain": "plain Matplotlib (no rules, no hook)",
+        "matplotlib-hook": "plain Matplotlib + mint.check feedback hook",
+        "matplotlib": "plain Matplotlib (told display width & layout rules)",
+        "custom": f"custom ({a.library or 'plotting library'})",
+    }.get(arm_seen, arm_seen)
+
+    out_path = Path(a.out).resolve()
+    artifacts_rel = None
+    if artifacts_out is not None:
+        try:
+            artifacts_rel = str(artifacts_out.relative_to(HERE.parents[1]))
+        except ValueError:
+            artifacts_rel = str(artifacts_out)
+
+    submission = {
+        "schema_version": rubric.SCHEMA_VERSION,
+        "submission_id": a.submission_id,
+        "date": a.date or datetime.date.today().isoformat(),
+        "team": a.team,
+        "model": a.model,
+        "library": a.library or ("mintfig" if arm_seen == "mintfig" else "matplotlib"),
+        "skill_or_prompt": a.skill or default_skill,
+        "hook_enabled": bool(arm_seen in ("mintfig", "matplotlib-hook", "matplotlib")),
+        "split": a.split or "all",
+        "work_in_progress": bool(a.work_in_progress),
+        "task_count": len(per_task),
+        "scores": scores,
+        "per_task": per_task,
+        "provenance": {
+            "commit": commit,
+            "bench_version": BENCH_VERSION,
+            "reproduce_command": a.reproduce_command or f"python evals/figure_bench/run_sweep.py --arm {arm_seen} --split {a.split or 'all'}",
+            "first_submission_clean_rate": first_clean_rate,
+            **({"notes": a.notes} if a.notes else {}),
+        },
+        "artifacts_dir": artifacts_rel,
+    }
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(submission, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    errs = verify_submission.verify_submission_file(out_path)
+    if errs:
+        sys.exit("Exported submission failed verification:\n  - " + "\n  - ".join(errs))
+    print(f"Exported verified submission ({len(per_task)} tasks, composite={scores['composite']}) -> {out_path}")
+
+
+def cmd_validate_tasks(a: argparse.Namespace) -> None:
+    """Validate every task folder across splits; exit 0 on pass, 1 on any error."""
+    import rubric
+
+    base_dir = Path(a.base_dir).resolve() if getattr(a, "base_dir", None) else HERE
+    splits = [a.split] if a.split else list(rubric.VALID_SPLITS)
+    total = 0
+    failed = 0
+    for sp in splits:
+        root = base_dir / rubric.SPLIT_DIRS[sp]
+        if not root.is_dir():
+            continue
+        for child in sorted(root.iterdir()):
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            total += 1
+            errs = rubric.validate_task_dir(child)
+            if errs:
+                failed += 1
+                print(f"[FAIL] {sp}/{child.name}: {'; '.join(errs)}")
+            else:
+                print(f"[OK]   {sp}/{child.name}")
+    print(f"\nValidated {total} task(s): {total - failed} passed, {failed} failed.")
+    if failed:
+        sys.exit(1)
+
+
+def cmd_new_task(a: argparse.Namespace) -> None:
+    """Scaffold a clean v0.1 task folder (context.md, data/, rubric.json) for contributors."""
+    import rubric
+
+    task_id = a.id.strip()
+    if not re.match(r"^[a-z0-9][a-z0-9_-]*$", task_id):
+        sys.exit(f"invalid task id {task_id!r}: use lowercase letters, digits, underscores, or hyphens")
+    base_dir = Path(a.base_dir).resolve() if getattr(a, "base_dir", None) else HERE
+    split_dir = base_dir / rubric.SPLIT_DIRS[a.split]
+    tdir = split_dir / task_id
+    if tdir.exists():
+        sys.exit(f"task folder already exists: {tdir}")
+
+    surface = a.surface
+    display_w = rubric.SURFACE_DEFAULT_WIDTH.get(surface, CHAT_WIDTH_PX)
+    title = a.title or task_id.replace("_", " ").replace("-", " ").title()
+    domain = a.domain or "General"
+
+    (tdir / "data").mkdir(parents=True)
+    (tdir / "context.md").write_text(
+        f"**User:** Here is `data/sample.csv` for {title}. Can you inspect the data and share one clear figure "
+        f"that answers the main question?\n\n"
+        f"**Assistant:** I'll analyze `data/sample.csv` and return a single figure with the key takeaway.\n",
+        encoding="utf-8",
+    )
+    (tdir / "data" / "sample.csv").write_text(
+        "group,value,n,se\ncontrol,10.0,12,0.5\ntreatment,12.5,12,0.6\n",
+        encoding="utf-8",
+    )
+    rub = {
+        "schema_version": rubric.SCHEMA_VERSION,
+        "id": task_id,
+        "split": a.split,
+        "track": a.track,
+        "domain": domain,
+        "title": title,
+        "display_width_px": display_w,
+        "surface": surface,
+        "what": "treatment gain over control (+2.5 units)",
+        "accept": [2.5, 12.5],
+        "rel_tol": 0.08,
+        "abs_tol": 0.05,
+        "uncertainty_required": a.track in ("science_uncertainty", "epistemic_traps"),
+        "no_effect_trap": False,
+        "forbidden_overclaim_phrases": [],
+        "required_disclosures": [],
+        "reader_questions": [
+            {"kind": "primary", "question": "What is the main difference between treatment and control?", "expected": "2.5"},
+            {"kind": "uncertainty", "question": "What measure of uncertainty or sample size is reported?", "expected": "SE and n = 12"},
+            {"kind": "nuance", "question": "What caveat or baseline context should a reader notice?", "expected": "control baseline is 10.0"},
+        ],
+    }
+    (tdir / "rubric.json").write_text(json.dumps(rub, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+    errs = rubric.validate_task_dir(tdir)
+    if errs:
+        sys.exit(f"scaffolded task failed validation: {'; '.join(errs)}")
+    print(f"Created valid v{rubric.SCHEMA_VERSION} task at {tdir}")
+
+
 def main(argv: list[str] | None = None) -> None:
+    import rubric
+
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("list").set_defaults(fn=cmd_list)
+    s = sub.add_parser("list")
+    s.add_argument("--split", choices=rubric.VALID_SPLITS, default=None)
+    s.add_argument("--track", choices=rubric.VALID_TRACKS, default=None)
+    s.set_defaults(fn=cmd_list)
     s = sub.add_parser("start")
     s.add_argument("task")
     s.add_argument("--run", required=True)
     s.add_argument("--python", default=sys.executable)
     s.add_argument("--arm", choices=ARMS, default="mintfig",
                    help="mintfig (SKILL.md, mint.explain); matplotlib (told the display width and checks); "
-                        "matplotlib-plain (told neither, no defect feedback)")
+                        "matplotlib-plain (told neither, no defect feedback); "
+                        "matplotlib-hook (plain Matplotlib + mint.check feedback on submit); "
+                        "custom (bring your own skill and plotting library)")
+    s.add_argument("--skill", default=None, help="Path to a custom skill file (for --arm custom)")
+    s.add_argument("--library", default=None, help="Library name shown in instructions (for --arm custom)")
     s.set_defaults(fn=cmd_start)
     s = sub.add_parser("submit")
     s.add_argument("task")
@@ -1036,11 +1679,51 @@ def main(argv: list[str] | None = None) -> None:
     s = sub.add_parser("grade")
     s.add_argument("--run", required=True)
     s.set_defaults(fn=cmd_grade)
+    s = sub.add_parser("grade-dir")
+    s.add_argument("outputs_dir", help="Folder containing <task_id>/{figure.png, reply.md, figure.svg?}")
+    s.add_argument("--split", choices=rubric.VALID_SPLITS, default=None)
+    s.add_argument("--track", choices=rubric.VALID_TRACKS, default=None)
+    s.add_argument("--meta", default=None, help="Optional submission metadata JSON to merge into report")
+    s.add_argument("--out", default=None, help="Write JSON report to this path")
+    s.add_argument("--markdown", default=None, help="Write Markdown report to this path")
+    s.add_argument("--base-dir", default=None, help=argparse.SUPPRESS)
+    s.set_defaults(fn=cmd_grade_dir)
+    s = sub.add_parser("export-submission")
+    s.add_argument("--run", required=True, help="Completed run directory")
+    s.add_argument("--out", required=True, help="Output leaderboard submission JSON path")
+    s.add_argument("--submission-id", required=True, help="Lowercase submission slug")
+    s.add_argument("--model", required=True, help="Model display name (e.g. 'Claude Sonnet 4.6')")
+    s.add_argument("--team", default="mintfig")
+    s.add_argument("--library", default=None)
+    s.add_argument("--skill", default=None)
+    s.add_argument("--split", choices=["all", *rubric.VALID_SPLITS], default="all")
+    s.add_argument("--date", default=None)
+    s.add_argument("--commit", default=None)
+    s.add_argument("--reproduce-command", default=None)
+    s.add_argument("--artifacts-dir", default=None)
+    s.add_argument("--notes", default=None)
+    s.add_argument("--work-in-progress", action="store_true")
+    s.set_defaults(fn=cmd_export_submission)
+    s = sub.add_parser("validate-tasks")
+    s.add_argument("--split", choices=rubric.VALID_SPLITS, default=None)
+    s.add_argument("--base-dir", default=None, help=argparse.SUPPRESS)
+    s.set_defaults(fn=cmd_validate_tasks)
+    s = sub.add_parser("new-task")
+    s.add_argument("--id", required=True, help="Task slug (e.g. pt26_my_task)")
+    s.add_argument("--split", choices=rubric.VALID_SPLITS, required=True)
+    s.add_argument("--track", choices=rubric.VALID_TRACKS, required=True)
+    s.add_argument("--domain", default="General")
+    s.add_argument("--surface", choices=rubric.VALID_SURFACES, default="chat")
+    s.add_argument("--title", default=None)
+    s.add_argument("--base-dir", default=None, help=argparse.SUPPRESS)
+    s.set_defaults(fn=cmd_new_task)
     s = sub.add_parser("readers-prepare")
     s.add_argument("runs", nargs="+")
     s.add_argument("--out", required=True)
     s.add_argument("--per-reader", type=int, default=5)
     s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--display-width", type=int, default=None,
+                   help="Override target display width in px (default: each task's display_width_px)")
     s.set_defaults(fn=cmd_readers_prepare)
     s = sub.add_parser("readers-score")
     s.add_argument("set")

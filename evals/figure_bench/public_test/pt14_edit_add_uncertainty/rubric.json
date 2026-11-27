@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt14_edit_add_uncertainty",
+  "split": "public-test",
+  "track": "multiturn_edit",
+  "domain": "Biology",
+  "title": "Replace bare bar chart with replicates and named 95% CI",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "dose_high secretion lift over control (pg/mL or %), or dose_high mean",
+  "accept": [
+    122.985714,
+    63.069597,
+    317.985714
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 5.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "95% CI",
+    "replicates"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "dose_high reaches 318 pg/mL, +123 pg/mL (+63%) above control (195 pg/mL)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; dose_high 95% CI (295\u2013341) separates cleanly from control (173\u2013217), while dose_low overlaps control."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "dose_low (212 pg/mL) overlaps heavily with control across the n=7 replicates, indicating a threshold above low dose."
+    }
+  ]
+}

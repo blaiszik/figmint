@@ -1,0 +1,45 @@
+{
+  "schema_version": "0.1",
+  "id": "pt10_trap_near_zero_pct",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Manufacturing",
+  "title": "Near-zero baseline defect rate shift (+0.12 pp vs misleading +600%)",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Line-C defect rate moves from 0.02% to 0.14% (+0.12 pp absolute change)",
+  "accept": [
+    0.12,
+    0.14,
+    0.02
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 0.015,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "600% crisis",
+    "catastrophic 600%"
+  ],
+  "required_disclosures": [
+    "0.02%",
+    "0.14%"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Line-C defect rate rose from 0.02% to 0.14% (+0.12 pp, +60 defects per 50,000 units)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; with 50,000 units per period, 10 vs 70 defects is a real jump on Line-C, though absolute yield stays at 99.86%."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "The alarming '+600%' figure is an artifact of dividing by a tiny 0.02% baseline; Lines A, B, and D stayed flat near 0.03\u20130.04%."
+    }
+  ]
+}

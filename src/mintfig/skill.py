@@ -15,8 +15,39 @@ VALID_TARGETS: tuple[str, ...] = (
     "claude-md",
 )
 
+GLOBAL_TARGETS: tuple[str, ...] = (
+    "claude",
+    "antigravity",
+    "cursor",
+    "codex",
+)
+
+_DEFAULT_LOCAL_TARGETS: tuple[str, ...] = ("claude", "antigravity", "agents-md")
+_DEFAULT_GLOBAL_FALLBACK: tuple[str, ...] = ("claude", "antigravity")
+
+_AGENT_HOME_DIRS: tuple[tuple[str, str], ...] = (
+    ("claude", ".claude"),
+    ("codex", ".codex"),
+    ("antigravity", ".gemini"),
+    ("cursor", ".cursor"),
+)
+
 MARKER_START: str = "<!-- mintfig:start -->"
 MARKER_END: str = "<!-- mintfig:end -->"
+
+
+def detect_installed_agents(home: str | Path | None = None) -> list[str]:
+    """Return agent targets whose standard home directory exists under ``home``.
+
+    Checks ``~/.claude`` (``"claude"``), ``~/.codex`` (``"codex"``),
+    ``~/.gemini`` (``"antigravity"``), and ``~/.cursor`` (``"cursor"``).
+    """
+    home_path = Path(home).expanduser() if home is not None else Path.home()
+    detected: list[str] = []
+    for target, dirname in _AGENT_HOME_DIRS:
+        if (home_path / dirname).is_dir():
+            detected.append(target)
+    return detected
 
 
 def get_skill_markdown() -> str:
@@ -43,6 +74,15 @@ def get_skill_references() -> dict[str, str]:
         if entry.name.endswith(".md"):
             out[entry.name] = entry.read_text(encoding="utf-8")
     return out
+
+
+def get_full_skill_bundle() -> str:
+    """Return ``SKILL.md`` followed by all bundled ``references/*.md`` with section headers."""
+    parts: list[str] = [get_skill_markdown().rstrip()]
+    for fname, content in get_skill_references().items():
+        header = f"---\n\n# Reference: `references/{fname}`\n\n"
+        parts.append(header + content.strip())
+    return "\n\n".join(parts) + "\n"
 
 
 def _strip_yaml_frontmatter(markdown: str) -> str:
@@ -99,37 +139,74 @@ def _upsert_marked_block(path: Path, snippet: str) -> Path:
     return path
 
 
+def _normalize_targets(
+    targets: Sequence[str] | None,
+    *,
+    global_install: bool,
+    home_path: Path,
+) -> list[str]:
+    if targets is None:
+        if global_install:
+            detected = detect_installed_agents(home_path)
+            return detected if detected else list(_DEFAULT_GLOBAL_FALLBACK)
+        return list(_DEFAULT_LOCAL_TARGETS)
+
+    expanded: list[str] = []
+    for raw in targets:
+        key = raw.strip().lower()
+        if key == "all":
+            expanded.extend(GLOBAL_TARGETS if global_install else VALID_TARGETS)
+        else:
+            expanded.append(key)
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for key in expanded:
+        if key not in VALID_TARGETS:
+            valid = ", ".join((*VALID_TARGETS, "all"))
+            raise ValueError(f"Unknown skill install target {key!r}. Valid targets: {valid}")
+        if key not in seen:
+            normalized.append(key)
+            seen.add(key)
+    return normalized
+
+
 def install_skill(
     root: str | Path = ".",
     *,
-    targets: Sequence[str] = ("claude", "antigravity", "agents-md"),
+    targets: Sequence[str] | None = None,
+    global_install: bool = False,
+    home: str | Path | None = None,
 ) -> list[Path]:
-    """Install mintfig agent skills and/or project instruction snippets under ``root``.
+    """Install mintfig agent skills and/or project instruction snippets.
 
     Parameters
     ----------
     root:
-        Target project root directory.
+        Target project root directory (used when ``global_install=False``).
     targets:
-        One or more target identifiers from :data:`VALID_TARGETS`:
+        One or more target identifiers from :data:`VALID_TARGETS` or ``"all"``:
         ``"claude"``, ``"antigravity"``, ``"cursor"``, ``"codex"``,
         ``"agents-md"``, ``"claude-md"``.
+        When omitted, project-local installs default to
+        ``("claude", "antigravity", "agents-md")``; global installs auto-detect
+        installed agents via :func:`detect_installed_agents` and fall back to
+        ``("claude", "antigravity")``.
+    global_install:
+        When ``True``, install into user-home agent directories under ``home``
+        (default :meth:`pathlib.Path.home`): ``~/.claude/skills/mintfig/``,
+        ``~/.codex/skills/mintfig/``, ``~/.gemini/config/skills/mintfig/``,
+        and ``~/.cursor/rules/mintfig.mdc``.
+    home:
+        Optional home directory override for ``global_install=True``.
 
     Returns
     -------
     list[Path]
         Paths created or updated, in the order requested.
     """
-    normalized: list[str] = []
-    seen: set[str] = set()
-    for raw in targets:
-        key = raw.strip().lower()
-        if key not in VALID_TARGETS:
-            valid = ", ".join(VALID_TARGETS)
-            raise ValueError(f"Unknown skill install target {raw!r}. Valid targets: {valid}")
-        if key not in seen:
-            normalized.append(key)
-            seen.add(key)
+    home_path = Path(home).expanduser() if home is not None else Path.home()
+    normalized = _normalize_targets(targets, global_install=global_install, home_path=home_path)
 
     root_path = Path(root)
     skill_md = get_skill_markdown()
@@ -149,27 +226,37 @@ def install_skill(
 
     for target in normalized:
         if target == "claude":
-            written.append(_write_skill_dir(root_path / ".claude" / "skills" / "mintfig" / "SKILL.md"))
+            base = home_path if global_install else root_path
+            written.append(_write_skill_dir(base / ".claude" / "skills" / "mintfig" / "SKILL.md"))
         elif target == "antigravity":
-            written.append(_write_skill_dir(root_path / ".agents" / "skills" / "mintfig" / "SKILL.md"))
+            if global_install:
+                dest = home_path / ".gemini" / "config" / "skills" / "mintfig" / "SKILL.md"
+            else:
+                dest = root_path / ".agents" / "skills" / "mintfig" / "SKILL.md"
+            written.append(_write_skill_dir(dest))
         elif target == "cursor":
-            dest = root_path / ".cursor" / "rules" / "mintfig.mdc"
+            base = home_path if global_install else root_path
+            dest = base / ".cursor" / "rules" / "mintfig.mdc"
             dest.parent.mkdir(parents=True, exist_ok=True)
             # Cursor reads only the .mdc rule, so the reference files go beside it
-            # and the rule points at them by their path from the project root.
-            ref_dir = ".cursor/rules/mintfig/references/"
-            body = skill_md.replace("`references/", f"`{ref_dir}")
+            # and the rule points at them by path.
+            ref_rel = ".cursor/rules/mintfig/references/"
+            ref_display = f"~/{ref_rel}" if global_install else ref_rel
+            body = skill_md.replace("`references/", f"`{ref_display}")
             dest.write_text(_build_cursor_mdc(body), encoding="utf-8")
             for fname, content in references.items():
-                ref_path = root_path / ref_dir / fname
+                ref_path = base / ref_rel / fname
                 ref_path.parent.mkdir(parents=True, exist_ok=True)
                 ref_path.write_text(content, encoding="utf-8")
             written.append(dest)
         elif target == "codex":
-            written.append(_write_skill_dir(root_path / ".codex" / "skills" / "mintfig" / "SKILL.md"))
+            base = home_path if global_install else root_path
+            written.append(_write_skill_dir(base / ".codex" / "skills" / "mintfig" / "SKILL.md"))
         elif target == "agents-md":
-            written.append(_upsert_marked_block(root_path / "AGENTS.md", snippet))
+            dest = (home_path / ".codex" / "AGENTS.md") if global_install else (root_path / "AGENTS.md")
+            written.append(_upsert_marked_block(dest, snippet))
         elif target == "claude-md":
-            written.append(_upsert_marked_block(root_path / "CLAUDE.md", snippet))
+            dest = (home_path / ".claude" / "CLAUDE.md") if global_install else (root_path / "CLAUDE.md")
+            written.append(_upsert_marked_block(dest, snippet))
 
     return written

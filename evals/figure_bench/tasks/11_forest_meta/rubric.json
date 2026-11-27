@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "id": "11_forest_meta",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Clinical",
+  "title": "Six-trial meta-analysis odds ratios and pooled effect",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "pooled odds ratio (~0.74) or odds reduction (%) with 95% CI",
+  "accept": [
+    0.748414,
+    25.158589
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 0.03,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "95% CI",
+    "1.0"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Pooled OR = 0.75 (95% CI 0.67\u20130.84), a 25% odds reduction."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; the pooled 95% CI (0.67\u20130.84) stays well below the 1.0 null line."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Smaller trials (COAST-3, PLAINS-5) have wide 95% CIs crossing 1.0 individually."
+    }
+  ]
+}

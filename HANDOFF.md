@@ -741,8 +741,100 @@ already have, not a library to switch to.
   run over every attempt-1 script in runs u1 and b1 (29 that run here), the five text
   checks agree with `neutral.py` on every figure.
 - Not done: `mint.explain(takeaway, fig)` (B2) and `mint.style()` (B1); checking a PNG
-  without its Figure; reading `hist` bins, `fill_between` bounds or `boxplot` stats as
-  values (bands are only counted, for `interval_unlabelled`).
+  without its Figure (wild artists `QuadMesh`, `hist`, `fill_between`, `boxplot`,
+  `violinplot` were added in section 4n).
+
+## 4n. Phases 1 & 2 on `mintfig-neon`: `mint.check` wild hardening & automatic distribution (2026-11-26)
+
+Implemented via a 4-worker swarm on branch `mintfig-neon`:
+
+1. **Wild Matplotlib/Seaborn hardening (`src/mintfig/figcheck.py`, `src/mintfig/epistemic.py`, `src/mintfig/_check_runner.py`):**
+   - Artist extraction for `QuadMesh` (`sns.heatmap` / `pcolormesh`), colorbar axes exclusion,
+     contiguous-edge `hist` bins, `PolyCollection` CI bands (`fill_between`), and `boxplot`/
+     `violinplot` clusters (no longer misread as data lines).
+   - False-positive claim filtering for model/precision tokens (`GPT-5`, `Llama-3.1`, `8B`,
+     `FP16`, `INT4`, `ResNet-50`, `v2.3`), statistical/sample counts (`p < 0.05`, `5 seeds`,
+     `top-5`, `95% CI`), calendar years (`1990`–`2035`), plus SI/scale unit conversions
+     (`0.08` ↔ `8%` ↔ `8 points`, `0.08 s` ↔ `80 ms`, `1500` ↔ `1.5k`).
+   - Cross-env `uvx` runner (`--python` + auto-detecting script-parent/cwd `.venv`,
+     `VIRTUAL_ENV`, `CONDA_PREFIX` via `_check_runner.py`) and zero-dep `.ipynb` checking
+     (`check_notebook`, `mintfig check analysis.ipynb`).
+2. **Wild-50 verification corpus (`evals/check_bench/`, `tests/test_figcheck_wild.py`):**
+   - 25 clean + 25 defective deterministic Matplotlib/Seaborn-idiom figures.
+   - Reduced baseline FP from 9/25 (36.0%) to **0/25 (0.0%)** while holding **25/25 (100%)**
+     defect catch and **25/25 (100%)** exact-rule recall.
+3. **Global skill install, PostToolUse hooks & Claude Code plugin (`src/mintfig/skill.py`, `src/mintfig/hooks.py`, `plugins/claude-code/`, `tests/test_hooks_and_skill.py`):**
+   - `mintfig skill --install --global` (auto-detecting `~/.claude`, `~/.codex`, `~/.gemini`,
+     `~/.cursor`), `--target all`, and `mintfig skill --print --all`.
+   - `mintfig hook --install|--uninstall|--status|run`: idempotent `PostToolUse` hook merging
+     without clobbering existing settings; silent exit 0 on non-plot or clean scripts; emits
+     structured `fix_hint` feedback only when `ship: false`.
+   - Native Claude Code plugin bundle in `plugins/claude-code/` synced with `src/mintfig/assets/`.
+4. **40-prompt trigger eval, 3-column README opener & release notes (`evals/trigger_eval/`, `gallery/make_readme_comparison.py`, `README.md`, `CHANGELOG.md`, `ADOPTION_PLAN.md`):**
+   - 20 positive + 20 negative realistic prompts (none naming `mintfig`), offline rubric
+     scorer + `--live` CLI adapter: **100% recall (20/20)** and **0% false-trigger (0/20)**.
+   - Sharpened `SKILL.md` (11.8 kB chat section) and `AGENTS_SNIPPET.md` with explicit
+     non-trigger exclusions for regular coding tasks.
+   - 3-column README opener (`Agent text` | `Default agent Matplotlib` | `mintfig`) and
+     wedge-first Quickstart (`mint.check` + `mintfig hook --install` + `mint.explain`), plus
+     `CHANGELOG.md`.
+
+## 4o. Phase 3 on `mintfig-neon`: BYO Matplotlib, opt-in rules, SWE workflows & PR/CI (2026-11-26)
+
+Implemented via a second 4-worker swarm on branch `mintfig-neon`:
+
+1. **Zero-rewrite Matplotlib upgrade path (`src/mintfig/byo.py`, `src/mintfig/_explain/layout.py`, `gallery/byo_matplotlib_examples.py`, `tests/test_byo_matplotlib.py`):**
+   - `mint.style(style="mintfig", *, palette=None, width="chat", accent=None)` leak-free
+     context manager (`.rc_params()`, `.apply()`) ensuring >=11 px display text and CVD-safe
+     cycles. Exported at top level (`mint.__all__`).
+   - `mint.explain(takeaway, fig_or_ax, ...)` accepting plain Matplotlib `Figure`/`Axes`/
+     `SubFigure` directly (standalone or mixed with built-in panels), extracting `mint.check`
+     facts and propagating blocking issues into `ship`, `deliver`, HTML, text, and `mint.brief`.
+   - Zero-dep IPython/Jupyter magic (`%load_ext mintfig`, `%mintfig_check`, `auto_check()`).
+   - 5-example BYO gallery (`gallery/output/byo_matplotlib/`): all 5 BEFORE fail `mint.check`,
+     all 5 AFTER pass `mint.explain` with `ship: True`.
+2. **Opt-in defaults (`src/mintfig/_explain/{core,compare,compare_grouped,trend,relate}.py`, `tests/test_optin_rules.py`):**
+   - `mint.share(..., kind="bars" | "pie" | "donut")` (<=5 parts; non-blocking
+     `pie_close_slices` advisory within 5 pp; serializes via `share_kind` alias so top-level
+     `{"kind": "pie"}` stays rejected and `mint.load()` round-trips cleanly).
+   - Opt-in `legend=True` on `trend`, `relate`, and grouped `compare` (frameless top legend;
+     direct labels remain default). Synced into `SKILL.md` and `plugins/claude-code/`.
+3. **SWE tool ingestors & `mintfig diff` (`src/mintfig/ingest.py`, `src/mintfig/diff.py`, `src/mintfig/inspect_data.py`, `src/mintfig/cli.py`, `tests/test_swe_ingest_and_diff.py`):**
+   - Zero-dep auto-detection for `hyperfine`, `pytest-benchmark`, `go test -bench`,
+     `cargo bench`, GitHub Actions CI timings, Chrome Trace/OTEL, `k6`, `esbuild`/`vite`
+     metafiles, and LLM eval tables.
+   - `mintfig diff base head` (`--out`, `--text`, `--markdown`, `--json`, `--fail-on-regression`)
+     with interval-overlap noise suppression, plus `--text` / `--markdown` flags on `mintfig plot`.
+4. **GitHub PR cards, composite Action & 1.0 policy (`src/mintfig/pr_card.py`, `.github/actions/mintfig-check/`, `docs/STABILITY_POLICY.md`, `tests/test_pr_card_and_action.py`):**
+   - `save_pr_card()` emitting light+dark PNGs + `<picture>` Markdown + `<details>` facts,
+     and `format_check_pr_comment()`.
+   - Reusable `.github/actions/mintfig-check/action.yml` + manual example workflow + 1.0
+     SemVer & deprecation policy (`docs/STABILITY_POLICY.md`).
+
+## 4p. `figure-bench` v0.1 on `mintfig-neon`: 60 tasks, universal grader & open leaderboard (2026-11-26)
+
+Implemented via a third 4-worker swarm on branch `mintfig-neon`:
+
+1. **Library-agnostic v0.1 scoring engine (`evals/figure_bench/{svg_audit,pixel_audit,rubric,bench}.py`, `tests/test_figure_bench_v01.py`):**
+   - `svg_audit.py` (stdlib XML): display-scaled font sizes, bbox overlaps, line/path crossings,
+     clipping, malformed text, and uncertainty terms for Altair/Plotly/D3/ggplot2/Matplotlib SVGs.
+   - `pixel_audit.py` (Pillow/NumPy, zero `mintfig` import): display-width downscaling,
+     calibrated HSV rainbow/jet detector (0% FP on discrete categorical palettes), Machado
+     deuteranopia + grayscale contrast check, empty-canvas and edge-clip checks.
+   - `rubric.py` + `bench.py` (`BENCH_VERSION = "0.1"`): canonical `rubric.json` v0.1 with
+     `no_effect_trap` overclaim detection, `grade-dir` (Bring-Your-Own-Output for any library/
+     language), `validate-tasks`, `new-task` scaffolder, `matplotlib-hook` & `custom` arms,
+     `--split`/`--track` filters, and display-width `readers-prepare`.
+2. **60-task expansion (`make_tasks_sci.py`, `make_tasks_swe.py`):**
+   - Scaled from 15 → **60 deterministic tasks** across 3 splits (15 `dev`, 30 frozen
+     `public-test`, 15 `heldout`) and 6 tracks (`science_uncertainty`, `swe_coding`,
+     `epistemic_traps`, `multiturn_edit`, `multi_surface`, `byo_repair`). All 60 pass
+     `bench.py validate-tasks` and re-run byte-identically.
+3. **Open leaderboard, PR verification CI & human reader study (`evals/figure_bench/{leaderboard,site,human_study}/`, `.github/workflows/figure-bench-verify.yml`, `CONTRIBUTING.md`, `tests/test_figure_bench_leaderboard.py`):**
+   - Anti-tamper `verify_submission.py` + 3 honest seed submissions from `compare_r6_b1_u1.md`
+     (`split: "v0.1-initial-15"`).
+   - Zero-CDN interactive Leaderboard & Side-by-Side Explorer (`site/index.html`) and
+     display-width-locked Human Blind Reader Study app (`human_study/index.html`).
 
 ## 5. Verified at the end of this pass, and what was not
 

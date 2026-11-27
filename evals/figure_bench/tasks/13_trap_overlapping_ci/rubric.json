@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1",
+  "id": "13_trap_overlapping_ci",
+  "split": "dev",
+  "track": "epistemic_traps",
+  "domain": "ML",
+  "title": "Candidate variants with overlapping 95% CIs across five seeds",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "small ~0.6 pt mean edge of cand_b over baseline, inside overlapping 95% CIs",
+  "accept": [
+    0.602,
+    79.0,
+    78.398
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 0.4,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "clearly beats",
+    "significantly outperforms",
+    "proves",
+    "outside seed noise"
+  ],
+  "required_disclosures": [
+    "95% CI",
+    "overlap"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "cand_b averages 79.0 vs baseline 78.4 (+0.6 pts), with no reliable winner."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "No; all four variants' 95% CIs heavily overlap across the 5 seeds, so the +0.6 pt gap is within seed noise."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "With only 5 seeds and ~1.4 pt seed SD, more seeds or a larger effect is needed before shipping."
+    }
+  ]
+}

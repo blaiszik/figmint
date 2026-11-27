@@ -1,0 +1,9 @@
+region,release,success_rate_pct,n_requests
+us-east,v4.1,97.6,480000
+us-east,v4.2,98.8,492000
+us-west,v4.1,97.3,410000
+us-west,v4.2,98.5,425000
+eu-central,v4.1,97.8,390000
+eu-central,v4.2,98.9,402000
+ap-south,v4.1,96.9,310000
+ap-south,v4.2,98.2,318000

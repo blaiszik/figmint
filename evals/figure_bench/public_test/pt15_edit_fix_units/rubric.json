@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1",
+  "id": "pt15_edit_fix_units",
+  "split": "public-test",
+  "track": "multiturn_edit",
+  "domain": "Engineering",
+  "title": "Fix 10x mW-to-W unit conversion error without changing layout",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "corrected Board-D load power (1.49 W or 1490 mW) or saving vs Board-A (1.63 W or 1630 mW)",
+  "accept": [
+    1.49,
+    1490.0,
+    1.63,
+    1630.0
+  ],
+  "rel_tol": 0.04,
+  "abs_tol": 0.05,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [
+    "14.9 W",
+    "31.2 W",
+    "16.3 W"
+  ],
+  "required_disclosures": [
+    "W"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Board-D draws 1.49 W (1490 mW) under load, saving 1.63 W (1630 mW, 52%) vs Board-A (3.12 W)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "This is a deterministic benchtop summary table across revisions; no replicate intervals are given."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "The prior chart was off by 10x from dividing mW by 100 instead of 1,000; idle power also drops from 0.64 W to 0.38 W."
+    }
+  ]
+}

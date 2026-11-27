@@ -159,19 +159,27 @@ def _colormaps(fig: Any) -> set[str]:
     return names
 
 
-def audit_saved_figure(fig: Any, png: Path, *, dpi: float, tight: bool) -> dict:
+def audit_saved_figure(
+    fig: Any,
+    png: Path,
+    *,
+    dpi: float,
+    tight: bool,
+    display_width_px: int = DISPLAY_WIDTH_PX,
+) -> dict:
     """Measure a figure that was just saved to ``png`` at ``dpi``.
 
     Text size is reported as the reader sees it: the PNG is shown at
-    ``min(DISPLAY_WIDTH_PX, its own width)``, so a point of text is
+    ``min(display_width_px, its own width)``, so a point of text is
     ``dpi / 72 * shown / png_width`` display pixels.
     """
+    target_w = display_width_px if display_width_px >= 100 else DISPLAY_WIDTH_PX
     size = png_size(png)
     texts = drawn_texts(fig)
     out: dict[str, Any] = {"png_px": list(size) if size else None, "dpi": dpi, "tight": tight,
                            "texts": len(texts)}
     if size:
-        shown = min(DISPLAY_WIDTH_PX, size[0])
+        shown = min(target_w, size[0])
         px_per_pt = dpi / 72.0 * shown / size[0]
         out["display_width_px"] = shown
         sizes = sorted(((t.get_fontsize() * px_per_pt, t.get_text()) for t in texts),

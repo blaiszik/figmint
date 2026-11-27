@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "12_survival_km",
+  "split": "dev",
+  "track": "science_uncertainty",
+  "domain": "Clinical",
+  "title": "Two-arm Kaplan-Meier progression-free survival curves",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "median survival gain (months) of combination over standard, or the two medians",
+  "accept": [
+    7.102869,
+    23.502869,
+    16.4
+  ],
+  "rel_tol": 0.1,
+  "abs_tol": 1.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "95% CI",
+    "at risk"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Combination extends median survival by ~7.1 months (23.5 vs 16.4 mo)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; the 95% CI bands separate cleanly through the middle follow-up window (months 12\u201328)."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Numbers at risk drop sharply after month 24 due to censoring, widening the late confidence bands."
+    }
+  ]
+}

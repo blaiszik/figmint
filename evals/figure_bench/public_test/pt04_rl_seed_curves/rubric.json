@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt04_rl_seed_curves",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "ML",
+  "title": "RL training curves across six seeds with final-step spread",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "SAC-tuned 100k mean return (~840) or its lead over TD3-clip / PPO-base",
+  "accept": [
+    837.95,
+    88.766667,
+    133.95
+  ],
+  "rel_tol": 0.06,
+  "abs_tol": 15.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "SD",
+    "6 seeds"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "SAC-tuned reaches 838 (\u00b115 SD), ahead of TD3-clip by +89 and PPO-base by +134."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; SAC-tuned separates cleanly above both baselines outside \u00b11 SD by 100k steps."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "TD3-clip and PPO-base show wider seed-to-seed variance and partial overlap between themselves."
+    }
+  ]
+}

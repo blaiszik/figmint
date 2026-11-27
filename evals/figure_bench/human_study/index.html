@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>figure-bench v0.1 — Human Blind Reader Study</title>
+<style>
+  :root {
+    --bg: #fafbf9;
+    --surface: #ffffff;
+    --surface-alt: #f3f5f2;
+    --ink: #1a1d21;
+    --ink-muted: #57606a;
+    --border: #d8dee4;
+    --accent: #0e7c66;
+    --accent-soft: #e6f4f0;
+    --accent-ink: #0a5848;
+    --warn-bg: #fff6e5;
+    --warn-ink: #8a5300;
+    --warn-border: #f0d39a;
+    --good-bg: #e7f6ee;
+    --good-ink: #146c43;
+    --shadow: 0 1px 2px rgba(26, 29, 33, 0.05), 0 4px 16px rgba(26, 29, 33, 0.04);
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  [data-theme="dark"] {
+    --bg: #0e1318;
+    --surface: #151c23;
+    --surface-alt: #1b242e;
+    --ink: #e6edf3;
+    --ink-muted: #93a1b1;
+    --border: #2a3542;
+    --accent: #2dd4bf;
+    --accent-soft: rgba(45, 212, 191, 0.14);
+    --accent-ink: #5eead4;
+    --warn-bg: rgba(245, 158, 11, 0.15);
+    --warn-ink: #fbbf24;
+    --warn-border: rgba(245, 158, 11, 0.35);
+    --good-bg: rgba(34, 197, 94, 0.15);
+    --good-ink: #4ade80;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 18px 60px; }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  h1 { margin: 0; font-size: 1.45rem; letter-spacing: -0.02em; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 600;
+  }
+  .badge-wip { background: var(--warn-bg); color: var(--warn-ink); border: 1px solid var(--warn-border); }
+  .badge-accent { background: var(--accent-soft); color: var(--accent-ink); }
+  .badge-good { background: var(--good-bg); color: var(--good-ink); }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 24px 16px;
+    text-align: center;
+    background: var(--surface-alt);
+    transition: border-color 0.15s ease, background 0.15s ease;
+    margin: 14px 0;
+  }
+  .dropzone.dragover { border-color: var(--accent); background: var(--accent-soft); }
+  button, input[type="text"], textarea, select {
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+  button { cursor: pointer; font-weight: 600; }
+  button:hover { border-color: var(--accent); }
+  .btn-primary { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+  [data-theme="dark"] .btn-primary { color: #0a1414; }
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .muted { color: var(--ink-muted); font-size: 0.88rem; }
+  .mono { font-family: var(--mono); }
+  .hidden { display: none !important; }
+
+  /* Trial view */
+  .trial-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .progress-track {
+    width: 180px;
+    height: 7px;
+    background: var(--surface-alt);
+    border-radius: 99px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s ease; }
+
+  /* Strict display-width lock: never zoom to full resolution */
+  .figure-stage {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    overflow-x: auto;
+    margin-bottom: 18px;
+  }
+  .width-lock-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    color: var(--ink-muted);
+    margin-bottom: 10px;
+  }
+  .locked-figure-box {
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    touch-action: pan-x pan-y;
+  }
+  .locked-figure-box img {
+    display: block;
+    height: auto !important;
+    max-width: none !important;
+    transform: none !important;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* Questions form */
+  .q-block {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+  }
+  .q-block label.q-title {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 0.93rem;
+  }
+  .q-kind {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 5px;
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+    margin-right: 6px;
+  }
+  .q-block input[type="text"], .q-block textarea { width: 100%; }
+  .slider-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+  }
+  .slider-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+  .summary-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin: 14px 0; }
+  .summary-table th, .summary-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .summary-table th { color: var(--ink-muted); font-size: 0.76rem; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h1>figure-bench · Human Blind Reader Study</h1>
+      <span class="badge badge-wip">v0.1</span>
+      <span class="badge badge-accent">Exact Display-Width Lock · Offline</span>
+    </div>
+    <button id="theme-btn" type="button">Toggle theme</button>
+  </header>
+
+  <!-- Setup / Load Screen -->
+  <section id="view-setup" class="card">
+    <h2 style="margin-top:0;">Start a Blind Reading Session</h2>
+    <p class="muted">
+      Every figure is shown <strong>locked to its target reading width</strong> (<code>700 px</code> for chat/dark or <code>450 px</code> for phone/IDE — never zoomed to full resolution). Answer three short questions per figure based <em>only</em> on what you can read in the image. Response time is measured automatically with <code>performance.now()</code>.
+    </p>
+
+    <div class="dropzone" id="dropzone">
+      <strong>Drop a <code>readers-prepare</code> study manifest JSON here</strong>
+      <p class="muted" style="margin:6px 0 12px;">Optionally drop the batch's PNG files at the same time (or pick them below) to run 100% locally via <code>file://</code>.</p>
+      <div class="btn-row" style="justify-content:center;">
+        <label style="cursor:pointer;">
+          <input id="manifest-input" type="file" accept=".json,application/json" style="display:none;">
+          <span class="badge badge-accent" style="padding:8px 14px;font-size:0.86rem;">Choose manifest JSON</span>
+        </label>
+        <label style="cursor:pointer;">
+          <input id="images-input" type="file" accept="image/png" multiple style="display:none;">
+          <span class="badge badge-wip" style="padding:8px 14px;font-size:0.86rem;">Attach local PNGs (optional)</span>
+        </label>
+      </div>
+      <div id="load-status" class="muted" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="btn-row" style="justify-content:space-between;margin-top:14px;">
+      <button id="start-sample-btn" class="btn-primary" type="button">Launch Built-In 3-Figure Sample Study</button>
+      <button id="start-loaded-btn" class="btn-primary hidden" type="button">Start Loaded Study</button>
+    </div>
+  </section>
+
+  <!-- Active Trial Screen -->
+  <section id="view-trial" class="card hidden" aria-live="polite">
+    <div class="trial-bar">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <strong id="trial-counter">Figure 1 of 3</strong>
+        <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+        <span class="mono muted" id="trial-folder-id"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span class="badge badge-accent" id="timer-readout">0.0 s</span>
+      </div>
+    </div>
+
+    <div class="figure-stage">
+      <div class="width-lock-banner">
+        <span id="width-lock-label">Locked display width: 700 px (chat) — zoom disabled</span>
+        <span class="mono" id="natural-size-label"></span>
+      </div>
+      <div class="locked-figure-box" id="locked-figure-box">
+        <img id="trial-img" alt="Blinded study figure">
+      </div>
+    </div>
+
+    <form id="trial-form">
+      <div class="q-block">
+        <label class="q-title" for="ans-primary">
+          <span class="q-kind">primary</span><span id="q-primary-text"></span>
+        </label>
+        <input id="ans-primary" type="text" required placeholder="Type the number/finding you read from the figure (or check 'Not shown' below)">
+        <label style="display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:0.84rem;">
+          <input id="ans-not-shown" type="checkbox"> Answer is not shown or is illegible at this display width
+        </label>
+      </div>
+
+      <div class="q-block">
+        <label class="q-title" for="ans-uncertainty">
+          <span class="q-kind">uncertainty</span><span id="q-uncertainty-text"></span>
+        </label>
+        <input id="ans-uncertainty" type="text" required placeholder="e.g., Outside 95% CI / overlapping error bars / no uncertainty shown">
+      </div>
+
+      <div class="q-block">
+        <label class="q-title" for="ans-nuance">
+          <span class="q-kind">nuance</span><span id="q-nuance-text"></span>
+        </label>
+        <input id="ans-nuance" type="text" required placeholder="Caveat, excluded sample, control comparison, or secondary pattern">
+      </div>
+
+      <div class="q-block">
+        <label class="q-title" for="ans-confidence">
+          Confidence in your answers: <strong id="confidence-val">3 / 5</strong>
+        </label>
+        <div class="slider-row">
+          <span class="muted">1 (Guess)</span>
+          <input id="ans-confidence" type="range" min="1" max="5" step="1" value="3">
+          <span class="muted">5 (Certain)</span>
+        </div>
+        <div style="margin-top:10px;">
+          <label class="muted" for="ans-where" style="display:block;margin-bottom:4px;">Where in the figure did you read the main answer? (optional)</label>
+          <input id="ans-where" type="text" placeholder="e.g., headline, bar label, axis tick, legend">
+        </div>
+      </div>
+
+      <div class="btn-row" style="justify-content:flex-end;">
+        <button id="submit-trial-btn" class="btn-primary" type="submit">Submit &amp; Next Figure →</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Completion & Export Screen -->
+  <section id="view-done" class="card hidden">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <h2 style="margin:0;">Study Complete</h2>
+      <span class="badge badge-good">Ready to export</span>
+    </div>
+    <p class="muted">
+      All responses are anonymized (no name, email, or IP recorded; random local participant token: <code id="anon-id"></code>). Download the JSON file below and return it to the study organizer or score with <code>bench.py readers-score</code>.
+    </p>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Folder ID</th>
+          <th>Width</th>
+          <th>Time (s)</th>
+          <th>Primary</th>
+          <th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="summary-body"></tbody>
+    </table>
+    <div class="btn-row">
+      <button id="export-full-btn" class="btn-primary" type="button">Download Anonymized Study JSON</button>
+      <button id="export-answers-btn" type="button">Download bench.py answers.json</button>
+      <button id="restart-btn" type="button">Run Another Session</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function() {
+  // Theme toggle
+  const rootEl = document.documentElement;
+  const initDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  rootEl.setAttribute("data-theme", initDark ? "dark" : "light");
+  document.getElementById("theme-btn").addEventListener("click", () => {
+    rootEl.setAttribute("data-theme", rootEl.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+
+  // Generate clean synthetic sample PNGs on offscreen canvas so the built-in sample is 100% zero-CDN
+  function makeSamplePng(widthPx, heightPx, drawFn) {
+    const scale = 2; // 2x hi-DPI backing PNG rendered locked to widthPx CSS px
+    const canvas = document.createElement("canvas");
+    canvas.width = widthPx * scale;
+    canvas.height = heightPx * scale;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, widthPx, heightPx);
+    drawFn(ctx, widthPx, heightPx);
+    return canvas.toDataURL("image/png");
+  }
+
+  function buildSampleStudy() {
+    const png1 = makeSamplePng(700, 340, (ctx, w, h) => {
+      ctx.fillStyle = "#1a1d21";
+      ctx.font = "bold 17px -apple-system, sans-serif";
+      ctx.fillText("Reranker adds +1.6 pts accuracy (5 seeds, 95% CI); encoder adds +0.4 pts within noise", 22, 34);
+      ctx.fillStyle = "#57606a";
+      ctx.font = "12px -apple-system, sans-serif";
+      ctx.fillText("Accuracy delta vs baseline (percentage points, mean ± 95% CI across 5 random seeds)", 22, 56);
+      const bars = [
+        { label: "Baseline", val: 0.0, ci: 0.4, color: "#94a3b8" },
+        { label: "+ Bigger encoder", val: 0.4, ci: 0.5, color: "#64748b" },
+        { label: "+ Reranker", val: 1.6, ci: 0.3, color: "#0e7c66" },
+      ];
+      bars.forEach((b, i) => {
+        const y = 100 + i * 68;
+        ctx.fillStyle = "#1a1d21";
+        ctx.font = "13px -apple-system, sans-serif";
+        ctx.fillText(b.label, 24, y + 18);
+        const x0 = 180;
+        const barW = Math.max(8, b.val * 170);
+        ctx.fillStyle = b.color;
+        ctx.fillRect(x0, y, barW, 28);
+        // Error bar
+        const cx = x0 + barW;
+        const half = b.ci * 170;
+        ctx.strokeStyle = "#1a1d21";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(Math.max(x0 - 15, cx - half), y + 14);
+        ctx.lineTo(cx + half, y + 14);
+        ctx.stroke();
+        ctx.fillStyle = "#1a1d21";
+        ctx.font = "bold 13px -apple-system, sans-serif";
+        ctx.fillText((b.val >= 0 ? "+" : "") + b.val.toFixed(1) + " pts (±" + b.ci.toFixed(1) + ")", cx + half + 10, y + 18);
+      });
+      ctx.fillStyle = "#57606a";
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.fillText("Source: sample ablation study · n = 5 seeds · latency cost: +121 ms for reranker", 22, h - 16);
+    });
+
+    const png2 = makeSamplePng(450, 290, (ctx, w, h) => {
+      ctx.fillStyle = "#1a1d21";
+      ctx.font = "bold 14px -apple-system, sans-serif";
+      ctx.fillText("Payments error rate spiked to 2.1% (280× normal)", 16, 28);
+      ctx.fillStyle = "#57606a";
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.fillText("Phone alert (450 px narrow) · 5 services · 13 Nov", 16, 46);
+      ctx.strokeStyle = "#d8dee4";
+      ctx.beginPath(); ctx.moveTo(46, 230); ctx.lineTo(420, 230); ctx.stroke();
+      // Baseline flat lines
+      ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(46, 222); ctx.lineTo(420, 220); ctx.stroke();
+      // Spike line
+      ctx.strokeStyle = "#c92a2a"; ctx.lineWidth = 2.6;
+      ctx.beginPath();
+      ctx.moveTo(46, 218); ctx.lineTo(200, 217); ctx.lineTo(255, 82); ctx.lineTo(310, 214); ctx.lineTo(420, 217);
+      ctx.stroke();
+      ctx.fillStyle = "#c92a2a";
+      ctx.font = "bold 12px -apple-system, sans-serif";
+      ctx.fillText("Payments: 2.1%", 266, 92);
+      ctx.fillStyle = "#57606a";
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.fillText("Other 4 services < 0.02%", 250, 206);
+      ctx.fillText("Source: sample incident monitor (450 px phone view)", 16, h - 14);
+    });
+
+    const png3 = makeSamplePng(700, 320, (ctx, w, h) => {
+      ctx.fillStyle = "#1a1d21";
+      ctx.font = "bold 17px -apple-system, sans-serif";
+      ctx.fillText("Solver B shows no reliable speedup over Solver A (+1.8%, overlapping ±1 SD)", 22, 34);
+      ctx.fillStyle = "#57606a";
+      ctx.font = "12px -apple-system, sans-serif";
+      ctx.fillText("Runtime across 10 benchmark trials (ms, lower is better) · individual trials shown", 22, 56);
+      const drawRow = (label, y, meanX, pts, color) => {
+        ctx.fillStyle = "#1a1d21";
+        ctx.font = "13px -apple-system, sans-serif";
+        ctx.fillText(label, 24, y + 5);
+        ctx.strokeStyle = color; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(meanX - 58, y); ctx.lineTo(meanX + 58, y); ctx.stroke();
+        pts.forEach((px) => {
+          ctx.fillStyle = color;
+          ctx.beginPath(); ctx.arc(px, y, 4.5, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.fillStyle = "#1a1d21";
+        ctx.font = "bold 12px -apple-system, sans-serif";
+        ctx.fillText(label === "Solver A" ? "412 ± 24 ms" : "405 ± 26 ms", meanX + 74, y + 5);
+      };
+      drawRow("Solver A", 132, 360, [315, 332, 348, 355, 362, 370, 381, 398, 405, 334], "#475569");
+      drawRow("Solver B", 210, 346, [302, 318, 330, 340, 347, 358, 366, 385, 392, 322], "#0e7c66");
+      ctx.fillStyle = "#57606a";
+      ctx.font = "11px -apple-system, sans-serif";
+      ctx.fillText("Source: sample hyperfine no-effect trap · n = 10 trials per solver", 22, h - 16);
+    });
+
+    return {
+      study_id: "sample-v01-demo",
+      items: [
+        {
+          folder_id: "sample_01",
+          display_width_px: 700,
+          surface: "chat",
+          image_url: png1,
+          questions: {
+            primary: "How many percentage points of accuracy does adding the reranker provide?",
+            uncertainty: "Is the bigger encoder gain clearly outside seed uncertainty, or within noise?",
+            nuance: "What latency cost accompanies the reranker gain?",
+          },
+        },
+        {
+          folder_id: "sample_02",
+          display_width_px: 450,
+          surface: "narrow",
+          image_url: png2,
+          questions: {
+            primary: "What peak error rate did the payments service reach?",
+            uncertainty: "Is the spike isolated relative to baseline variation?",
+            nuance: "How did the other four services behave during the incident?",
+          },
+        },
+        {
+          folder_id: "sample_03",
+          display_width_px: 700,
+          surface: "chat",
+          image_url: png3,
+          questions: {
+            primary: "How large is the mean runtime difference between Solver B and Solver A?",
+            uncertainty: "Does the figure support claiming Solver B is reliably faster, or are they within noise?",
+            nuance: "How many trials per solver are shown?",
+          },
+        },
+      ],
+    };
+  }
+
+  // State
+  let activeStudy = null;
+  let loadedManifest = null;
+  const localImageMap = new Map(); // filename or folder_id -> ObjectURL
+  let currentIdx = 0;
+  let trialStartMs = 0;
+  let hiddenStartMs = null;
+  let hiddenAccumMs = 0;
+  let timerInterval = null;
+  const responses = [];
+  const participantId = "anon-" + Array.from(crypto.getRandomValues(new Uint8Array(6)))
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+
+  // Track tab-away pauses so AFK time is recorded separately
+  document.addEventListener("visibilitychange", () => {
+    if (!timerInterval) return;
+    if (document.hidden) {
+      hiddenStartMs = performance.now();
+    } else if (hiddenStartMs !== null) {
+      hiddenAccumMs += performance.now() - hiddenStartMs;
+      hiddenStartMs = null;
+    }
+  });
+
+  function showView(id) {
+    ["view-setup", "view-trial", "view-done"].forEach((v) => {
+      document.getElementById(v).classList.toggle("hidden", v !== id);
+    });
+  }
+
+  // Normalize manifest from readers-prepare or custom study JSON
+  function normalizeManifest(raw) {
+    const rawItems = Array.isArray(raw) ? raw : (raw.items || raw.figures || []);
+    const studyId = (raw && raw.study_id) || "figure-bench-study";
+    const items = rawItems.map((it, idx) => {
+      const qs = it.questions || {};
+      let primary = qs.primary || it.question || "What is the primary quantitative finding shown in the figure?";
+      let uncertainty = qs.uncertainty || "Is the reported difference outside uncertainty/noise, or is uncertainty shown?";
+      let nuance = qs.nuance || "What caveat, control, outlier, or secondary pattern matters?";
+      if (Array.isArray(it.reader_questions)) {
+        it.reader_questions.forEach((rq) => {
+          if (rq.kind === "primary") primary = rq.question;
+          if (rq.kind === "uncertainty") uncertainty = rq.question;
+          if (rq.kind === "nuance") nuance = rq.question;
+        });
+      }
+      return {
+        folder_id: it.folder_id || it.id || `item_${idx + 1}`,
+        display_width_px: Number(it.display_width_px || (it.surface === "narrow" ? 450 : 700)),
+        surface: it.surface || (Number(it.display_width_px) === 450 ? "narrow" : "chat"),
+        image_url: it.image_url || it.png || `${it.folder_id || it.id}/figure.png`,
+        questions: { primary, uncertainty, nuance },
+      };
+    });
+    return { study_id: studyId, items };
+  }
+
+  function resolveImageSrc(item) {
+    if (localImageMap.has(item.folder_id)) return localImageMap.get(item.folder_id);
+    const basename = String(item.image_url || "").split("/").pop();
+    if (basename && localImageMap.has(basename)) return localImageMap.get(basename);
+    return item.image_url;
+  }
+
+  function handleFiles(fileList) {
+    const files = Array.from(fileList || []);
+    const status = document.getElementById("load-status");
+    files.forEach((f) => {
+      if (f.name.toLowerCase().endsWith(".json")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(String(reader.result));
+            loadedManifest = normalizeManifest(parsed);
+            status.textContent = `Loaded manifest "${loadedManifest.study_id}" (${loadedManifest.items.length} figures).`;
+            document.getElementById("start-loaded-btn").classList.remove("hidden");
+          } catch (err) {
+            status.textContent = `Failed to parse JSON: ${err.message}`;
+          }
+        };
+        reader.readAsText(f);
+      } else if (f.name.toLowerCase().endsWith(".png")) {
+        const url = URL.createObjectURL(f);
+        localImageMap.set(f.name, url);
+        const rel = f.webkitRelativePath || "";
+        const parts = rel.split("/");
+        if (parts.length >= 2) localImageMap.set(parts[parts.length - 2], url);
+        status.textContent = `Attached ${localImageMap.size} local PNG reference(s).` + (loadedManifest ? ` Ready to start (${loadedManifest.items.length} figures).` : "");
+      }
+    });
+  }
+
+  const dz = document.getElementById("dropzone");
+  dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("dragover"); });
+  dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
+  dz.addEventListener("drop", (e) => {
+    e.preventDefault(); dz.classList.remove("dragover");
+    handleFiles(e.dataTransfer.files);
+  });
+  document.getElementById("manifest-input").addEventListener("change", (e) => handleFiles(e.target.files));
+  document.getElementById("images-input").addEventListener("change", (e) => handleFiles(e.target.files));
+
+  function startStudy(study) {
+    activeStudy = study;
+    currentIdx = 0;
+    responses.length = 0;
+    showView("view-trial");
+    renderTrial();
+  }
+
+  document.getElementById("start-sample-btn").addEventListener("click", () => startStudy(buildSampleStudy()));
+  document.getElementById("start-loaded-btn").addEventListener("click", () => {
+    if (loadedManifest && loadedManifest.items.length) startStudy(loadedManifest);
+  });
+
+  const notShownBox = document.getElementById("ans-not-shown");
+  const primaryInput = document.getElementById("ans-primary");
+  notShownBox.addEventListener("change", () => {
+    if (notShownBox.checked) {
+      primaryInput.value = "not shown";
+      primaryInput.readOnly = true;
+    } else {
+      primaryInput.value = "";
+      primaryInput.readOnly = false;
+    }
+  });
+
+  const confSlider = document.getElementById("ans-confidence");
+  confSlider.addEventListener("input", () => {
+    document.getElementById("confidence-val").textContent = `${confSlider.value} / 5`;
+  });
+
+  function stopTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  }
+
+  function renderTrial() {
+    stopTimer();
+    const item = activeStudy.items[currentIdx];
+    const total = activeStudy.items.length;
+    document.getElementById("trial-counter").textContent = `Figure ${currentIdx + 1} of ${total}`;
+    document.getElementById("trial-folder-id").textContent = `ID: ${item.folder_id}`;
+    document.getElementById("progress-fill").style.width = `${Math.round((currentIdx / total) * 100)}%`;
+
+    // Enforce exact display-width lock (700 px or 450 px, never zoomed to full-res)
+    const lockPx = item.display_width_px || 700;
+    const box = document.getElementById("locked-figure-box");
+    const img = document.getElementById("trial-img");
+    box.style.width = lockPx + "px";
+    box.style.minWidth = lockPx + "px";
+    box.style.maxWidth = lockPx + "px";
+    img.style.width = lockPx + "px";
+    img.style.minWidth = lockPx + "px";
+    img.style.maxWidth = lockPx + "px";
+    document.getElementById("width-lock-label").textContent =
+      `Locked display width: ${lockPx} px (${item.surface || "chat"}) — zoom disabled`;
+
+    document.getElementById("q-primary-text").textContent = item.questions.primary;
+    document.getElementById("q-uncertainty-text").textContent = item.questions.uncertainty;
+    document.getElementById("q-nuance-text").textContent = item.questions.nuance;
+
+    document.getElementById("trial-form").reset();
+    primaryInput.readOnly = false;
+    confSlider.value = "3";
+    document.getElementById("confidence-val").textContent = "3 / 5";
+
+    hiddenAccumMs = 0;
+    hiddenStartMs = null;
+    const beginTiming = () => {
+      trialStartMs = performance.now();
+      document.getElementById("natural-size-label").textContent =
+        img.naturalWidth ? `source PNG: ${img.naturalWidth}×${img.naturalHeight} px → locked to ${lockPx} px` : "";
+      timerInterval = setInterval(() => {
+        const activeMs = Math.max(0, performance.now() - trialStartMs - hiddenAccumMs);
+        document.getElementById("timer-readout").textContent = `${(activeMs / 1000).toFixed(1)} s`;
+      }, 100);
+    };
+
+    img.onload = beginTiming;
+    img.onerror = beginTiming;
+    img.src = resolveImageSrc(item);
+    document.getElementById("submit-trial-btn").textContent =
+      currentIdx + 1 === total ? "Finish & Review Export →" : "Submit & Next Figure →";
+  }
+
+  document.getElementById("trial-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const now = performance.now();
+    stopTimer();
+    const item = activeStudy.items[currentIdx];
+    const totalMs = Math.max(0, now - trialStartMs);
+    const activeMs = Math.max(0, totalMs - hiddenAccumMs);
+
+    responses.push({
+      folder_id: item.folder_id,
+      display_width_px: item.display_width_px || 700,
+      surface: item.surface || "chat",
+      elapsed_ms: Math.round(activeMs),
+      total_wall_ms: Math.round(totalMs),
+      hidden_ms: Math.round(hiddenAccumMs),
+      not_shown: notShownBox.checked,
+      answers: {
+        primary: primaryInput.value.trim(),
+        uncertainty: document.getElementById("ans-uncertainty").value.trim(),
+        nuance: document.getElementById("ans-nuance").value.trim(),
+      },
+      confidence: Number(confSlider.value),
+      where: document.getElementById("ans-where").value.trim() || null,
+    });
+
+    currentIdx += 1;
+    if (currentIdx < activeStudy.items.length) {
+      renderTrial();
+    } else {
+      renderDone();
+    }
+  });
+
+  function renderDone() {
+    showView("view-done");
+    document.getElementById("anon-id").textContent = participantId;
+    const tbody = document.getElementById("summary-body");
+    tbody.innerHTML = responses.map((r) => `
+      <tr>
+        <td class="mono">${r.folder_id}</td>
+        <td>${r.display_width_px} px</td>
+        <td>${(r.elapsed_ms / 1000).toFixed(1)} s</td>
+        <td>${r.answers.primary.replace(/</g, "&lt;")}</td>
+        <td>${r.confidence} / 5</td>
+      </tr>`).join("");
+  }
+
+  function downloadJson(filename, obj) {
+    const blob = new Blob([JSON.stringify(obj, null, 2) + "\n"], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  document.getElementById("export-full-btn").addEventListener("click", () => {
+    const payload = {
+      schema_version: "0.1",
+      study_id: activeStudy.study_id,
+      participant_id: participantId,
+      completed_at: new Date().toISOString(),
+      viewport_px: { width: window.innerWidth, height: window.innerHeight },
+      device_pixel_ratio: window.devicePixelRatio || 1,
+      responses,
+    };
+    downloadJson(`human_study_${activeStudy.study_id}_${participantId}.json`, payload);
+  });
+
+  document.getElementById("export-answers-btn").addEventListener("click", () => {
+    const compat = {};
+    responses.forEach((r) => {
+      compat[r.folder_id] = {
+        answer: r.not_shown ? "not shown" : r.answers.primary,
+        where: r.where || "",
+        uncertainty: r.answers.uncertainty,
+        nuance: r.answers.nuance,
+        confidence: r.confidence,
+        elapsed_ms: r.elapsed_ms,
+      };
+    });
+    downloadJson("answers.json", compat);
+  });
+
+  document.getElementById("restart-btn").addEventListener("click", () => showView("view-setup"));
+})();
+</script>
+</body>
+</html>

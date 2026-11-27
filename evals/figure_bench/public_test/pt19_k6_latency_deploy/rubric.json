@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt19_k6_latency_deploy",
+  "split": "public-test",
+  "track": "swe_coding",
+  "domain": "Infrastructure",
+  "title": "Tail latency jump past 500 ms SLA after deploy",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "Post-deploy p99 latency multiplier vs pre-deploy, or post-deploy p99 median (ms)",
+  "accept": [
+    2.881102,
+    729.135,
+    476.06
+  ],
+  "rel_tol": 0.1,
+  "abs_tol": 0.15,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "500 ms SLA breach",
+    "p50 barely changed"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "How much did p99 latency jump after deploy_v4.12.0?",
+      "expected": "p99 jumped 2.88\u00d7 from ~253 ms to ~729 ms (+476 ms), breaching the 500 ms SLA."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Was the p99 jump a one-minute blip or sustained?",
+      "expected": "Sustained across all 30 post-deploy minutes (every post-deploy minute exceeds the 500 ms SLA)."
+    },
+    {
+      "kind": "nuance",
+      "question": "Why did the release owner think the deploy looked harmless?",
+      "expected": "Median (p50) latency barely moved (41.7 ms to 43.9 ms), masking the tail regression."
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "id": "pt02_raman_peaks",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Materials",
+  "title": "Raman G-band peak shift across annealing temperatures",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "600 C G-band blueshift (cm^-1) relative to as-deposited, or 600 C peak position",
+  "accept": [
+    16.0,
+    1594.0,
+    1578.0
+  ],
+  "rel_tol": 0.0,
+  "abs_tol": 4.0,
+  "uncertainty_required": false,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "cm"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "The 600 C anneal blueshifts the G-band by +16 cm^-1 (from 1578 to 1594 cm^-1)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; the +16 cm^-1 shift is four spectral steps wide and well above the low baseline noise."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "The 350 C anneal shifts the G-band only slightly (+8 cm^-1), while the D-band near 1352 cm^-1 shrinks noticeably at 600 C."
+    }
+  ]
+}

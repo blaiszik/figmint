@@ -1,0 +1,48 @@
+{
+  "schema_version": "0.1",
+  "id": "pt09_trap_small_n",
+  "split": "public-test",
+  "track": "epistemic_traps",
+  "domain": "Biology",
+  "title": "Small-n (n=3) Western blot replicates with wide spread",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "apparent +0.27 (+26.6%) mean increase across n=3 replicates, inconclusive due to wide overlap",
+  "accept": [
+    0.27,
+    26.644737,
+    1.283333,
+    1.013333
+  ],
+  "rel_tol": 0.1,
+  "abs_tol": 0.08,
+  "uncertainty_required": true,
+  "no_effect_trap": true,
+  "forbidden_overclaim_phrases": [
+    "significantly increases",
+    "proves",
+    "clearly elevates",
+    "statistically significant"
+  ],
+  "required_disclosures": [
+    "n=3",
+    "replicates"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Inhibitor averages 1.28 vs vehicle 1.01 (+0.27 / +27%), but the pilot is inconclusive."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "No; with n=3 per arm, individual replicates overlap (95% CIs 0.05\u20132.51 vs 0.19\u20131.83)."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Two of the three inhibitor replicates fall inside the vehicle range; one high replicate (1.84) drives the mean."
+    }
+  ]
+}

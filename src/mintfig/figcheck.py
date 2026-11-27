@@ -31,9 +31,17 @@ import struct
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .epistemic import _HEDGE_RE, claim_numbers, pair_derivations, stated_match
+from .epistemic import _HEDGE_RE, claim_numbers, pair_derivations, stated_match, unit_scale_factor
 
-__all__ = ["MIN_TEXT_PX", "WIDTHS", "FigureCheck", "check", "check_script", "format_report"]
+__all__ = [
+    "MIN_TEXT_PX",
+    "WIDTHS",
+    "FigureCheck",
+    "check",
+    "check_notebook",
+    "check_script",
+    "format_report",
+]
 
 #: Display widths, in CSS pixels, a PNG is scaled down to (never up).
 WIDTHS: dict[str, int] = {"narrow": 450, "chat": 700, "slide": 1280}
@@ -222,12 +230,20 @@ def _masked(t: Any, legend_texts: set[int]) -> bool:
     return alpha >= 0.5
 
 
+def _is_colorbar_axes(ax: Any) -> bool:
+    """True for Matplotlib/Seaborn colorbar axes so they are excluded from panels and axis checks."""
+    label = str(ax.get_label() or "")
+    if label == "<colorbar>" or label.startswith("<colorbar"):
+        return True
+    return getattr(ax, "_colorbar", None) is not None
+
+
 def _headline(fig: Any, renderer: Any) -> str | None:
     """Where a reader looks for the claim: the largest figure-level text or title, the
     highest one on a tie (a suptitle over a subtitle, a title over a footnote)."""
     cands = [getattr(fig, "_suptitle", None), *fig.texts]
     for ax in fig.axes:
-        if ax.get_visible():
+        if ax.get_visible() and not _is_colorbar_axes(ax):
             cands += [ax.title, getattr(ax, "_left_title", None), getattr(ax, "_right_title", None)]
     shown = [t for t in cands if t is not None and t.get_visible() and t.get_text().strip()]
     if not shown:
@@ -279,15 +295,100 @@ def _series_label(artist: Any, fallback: str) -> str:
     return fallback if not lab or str(lab).startswith("_") else str(lab)
 
 
-def _read_bars(ax: Any) -> tuple[dict[str, dict[str, float]], str, list[Any]]:
-    """Bar values as {series: {category: value}}, the orientation and the containers."""
+def _is_histogram_container(ax: Any, container: Any) -> bool:
+    """True when a BarContainer's patches form contiguous histogram bins on a numeric axis."""
+    patches = list(container.patches)
+    if len(patches) < 4:
+        return False
+    orientation = getattr(container, "orientation", None) or "vertical"
+    bin_axis = "x" if orientation == "vertical" else "y"
+    ticks = _tick_names(ax, bin_axis)
+    if any(not _is_numeric_label(t) for _, t in ticks):
+        return False
+    geom: list[tuple[float, float]] = []
+    for r in patches:
+        start = float(r.get_x() if bin_axis == "x" else r.get_y())
+        span = float(r.get_width() if bin_axis == "x" else r.get_height())
+        if not (math.isfinite(start) and math.isfinite(span)) or span <= 0:
+            return False
+        geom.append((start, span))
+    geom.sort(key=lambda pair: pair[0])
+    touching = 0
+    for (s0, w0), (s1, w1) in itertools.pairwise(geom):
+        gap = abs(s1 - (s0 + w0))
+        if gap <= 0.05 * max(w0, w1, 1e-12):
+            touching += 1
+    return touching >= max(3, int(0.8 * (len(geom) - 1)))
+
+
+def _read_histograms(
+    ax: Any,
+    containers: Sequence[Any],
+) -> dict[str, dict[str, Any]]:
+    """Extract summary statistics from contiguous-edge histogram BarContainers."""
+    out: dict[str, dict[str, Any]] = {}
+    for k, c in enumerate(containers):
+        orientation = getattr(c, "orientation", None) or "vertical"
+        bin_axis = "x" if orientation == "vertical" else "y"
+        bins: list[tuple[float, float, float, float, float]] = []
+        for r in c.patches:
+            lo = float(r.get_x() if bin_axis == "x" else r.get_y())
+            span = float(r.get_width() if bin_axis == "x" else r.get_height())
+            h = float(r.get_height() if bin_axis == "x" else r.get_width())
+            if math.isfinite(lo) and math.isfinite(span) and math.isfinite(h) and span > 0:
+                bins.append((lo, lo + span, lo + span / 2.0, h, span))
+        if not bins:
+            continue
+        bins.sort(key=lambda b: b[0])
+        name = _series_label(c, f"histogram {k + 1}" if len(containers) > 1 else "histogram")
+        if name in out:
+            name = f"{name} ({k + 1})"
+        total_height = sum(b[3] for b in bins)
+        weights = [max(0.0, b[3] * b[4]) for b in bins]
+        total_w = sum(weights)
+        peak = max(bins, key=lambda b: b[3])
+        if total_w > 0:
+            mean_est = sum(b[2] * w for b, w in zip(bins, weights)) / total_w
+            half = 0.5 * total_w
+            cum = 0.0
+            median_est = peak[2]
+            for (lo, hi, center, _h, _w), wt in zip(bins, weights):
+                if cum + wt >= half and wt > 0:
+                    frac = (half - cum) / wt
+                    median_est = lo + frac * (hi - lo)
+                    break
+                cum += wt
+        else:
+            mean_est = peak[2]
+            median_est = peak[2]
+        nonempty = [b for b in bins if b[3] > 0]
+        range_lo = nonempty[0][0] if nonempty else bins[0][0]
+        range_hi = nonempty[-1][1] if nonempty else bins[-1][1]
+        out[name] = {
+            "bins": len(bins),
+            "total": total_height,
+            "peak_center": peak[2],
+            "peak_range": [peak[0], peak[1]],
+            "peak_height": peak[3],
+            "median": median_est,
+            "mean": mean_est,
+            "range": [range_lo, range_hi],
+            "orientation": orientation,
+        }
+    return out
+
+
+def _read_bars(ax: Any) -> tuple[dict[str, dict[str, float]], str, list[Any], list[Any]]:
+    """Bar values as {series: {category: value}}, orientation, bar containers, and hist containers."""
     from matplotlib.container import BarContainer
 
-    containers = [c for c in ax.containers if isinstance(c, BarContainer) and len(c.patches)]
+    all_containers = [c for c in ax.containers if isinstance(c, BarContainer) and len(c.patches)]
+    hist_containers = [c for c in all_containers if _is_histogram_container(ax, c)]
+    containers = [c for c in all_containers if c not in hist_containers]
     series: dict[str, dict[str, float]] = {}
     orientation = "vertical"
     if not containers:
-        return series, orientation, []
+        return series, orientation, [], hist_containers
     orientation = getattr(containers[0], "orientation", None) or "vertical"
     cat_axis = "x" if orientation == "vertical" else "y"
     ticks = _tick_names(ax, cat_axis)
@@ -313,7 +414,7 @@ def _read_bars(ax: Any) -> tuple[dict[str, dict[str, float]], str, list[Any]]:
             if math.isfinite(v):
                 vals[cat] = v
         series[name] = vals
-    return series, orientation, containers
+    return series, orientation, containers, hist_containers
 
 
 def _read_errorbars(ax: Any) -> list[dict[str, Any]]:
@@ -420,8 +521,379 @@ class _Candidates:
             self.other.append((f"total of {where or 'values'}", total))
 
 
+def _box_bounds_from_verts(verts: Any) -> tuple[float, float, float, float] | None:
+    """Return ``(x0, x1, y0, y1)`` if ``verts`` form a closed box/notched-box polygon."""
+    import numpy as np
+
+    arr = np.asarray(verts, dtype=float)
+    if arr.ndim != 2 or arr.shape[1] != 2 or len(arr) < 4 or len(arr) > 14:
+        return None
+    if not np.isfinite(arr).all():
+        return None
+    # Strip trailing closing vertices equal to the start vertex (PathPatch adds CLOSEPOLY duplicate)
+    pts = arr
+    while len(pts) > 1 and np.allclose(pts[0], pts[-1], atol=1e-9):
+        pts = pts[:-1]
+    if len(pts) not in {4, 6, 8, 10}:
+        return None
+    xs, ys = pts[:, 0], pts[:, 1]
+    x0, x1 = float(xs.min()), float(xs.max())
+    y0, y1 = float(ys.min()), float(ys.max())
+    if x1 <= x0 or y1 <= y0:
+        return None
+    # Standard 4-corner rectangle: every point sits on the bounding box perimeter.
+    if len(pts) == 4:
+        ux = len({round(float(v), 7) for v in xs})
+        uy = len({round(float(v), 7) for v in ys})
+        if ux != 2 or uy != 2:
+            return None
+    return (x0, x1, y0, y1)
+
+
+def _read_boxplots(
+    ax: Any,
+    skip_line_ids: set[int],
+) -> tuple[dict[str, dict[str, float]], str, set[int]]:
+    """Detect Matplotlib/Seaborn boxplot clusters so their lines are not misread as data lines.
+
+    Returns ``(boxes_by_group, orientation, consumed_line_ids)``.
+    """
+    from matplotlib.container import BarContainer
+    from matplotlib.patches import PathPatch, Polygon
+
+    bar_patch_ids = {
+        id(r) for c in ax.containers if isinstance(c, BarContainer) for r in c.patches
+    }
+    raw_boxes: list[tuple[float, float, float, float, int | None]] = []
+    # 1. patch_artist=True (and sns.boxplot): PathPatch / Polygon boxes in ax.patches
+    for patch in ax.patches:
+        if id(patch) in bar_patch_ids or not patch.get_visible():
+            continue
+        if isinstance(patch, (PathPatch, Polygon)):
+            bounds = _box_bounds_from_verts(patch.get_path().vertices)
+            if bounds is not None:
+                raw_boxes.append((*bounds, None))
+    # 2. patch_artist=False (default ax.boxplot): closed 5-point Line2D rectangles in ax.lines
+    for ln in ax.lines:
+        if id(ln) in skip_line_ids or not ln.get_visible() or _is_reference_line(ax, ln) is not None:
+            continue
+        xs = _finite(ln.get_xdata(orig=False))
+        ys = _finite(ln.get_ydata(orig=False))
+        if len(xs) == len(ys) and 5 <= len(xs) <= 12:
+            bounds = _box_bounds_from_verts(list(zip(xs, ys)))
+            if bounds is not None:
+                raw_boxes.append((*bounds, id(ln)))
+    if not raw_boxes:
+        return {}, "vertical", set()
+
+    # Collect 2-point candidate segments (whiskers, caps, medians) and marker-only lines (fliers).
+    segs: list[tuple[int, float, float, float, float]] = []
+    flier_lines: list[tuple[int, list[float], list[float]]] = []
+    box_line_candidates = {lid for *_, lid in raw_boxes if lid is not None}
+    for ln in ax.lines:
+        lid = id(ln)
+        if lid in skip_line_ids or lid in box_line_candidates or not ln.get_visible():
+            continue
+        if _is_reference_line(ax, ln) is not None:
+            continue
+        xs = _finite(ln.get_xdata(orig=False))
+        ys = _finite(ln.get_ydata(orig=False))
+        if len(xs) != len(ys) or not xs:
+            continue
+        ls = ln.get_linestyle()
+        if ls in ("None", "", " "):
+            flier_lines.append((lid, xs, ys))
+        elif len(xs) == 2:
+            segs.append((lid, xs[0], ys[0], xs[1], ys[1]))
+
+    def _match_orientation(orient: str) -> tuple[list[tuple[float, dict[str, float]]], set[int]]:
+        matched: list[tuple[float, dict[str, float]]] = []
+        used: set[int] = set()
+        for x0, x1, y0, y1, box_lid in raw_boxes:
+            if orient == "vertical":
+                c0, c1, v0, v1 = x0, x1, y0, y1
+            else:
+                c0, c1, v0, v1 = y0, y1, x0, x1
+            center = 0.5 * (c0 + c1)
+            cspan = max(c1 - c0, 1e-12)
+            vspan = max(v1 - v0, 1e-12)
+            ctol = max(1e-5, 0.12 * cspan)
+            vtol = max(1e-5, 1e-3 * vspan)
+
+            medians: list[float] = []
+            whisker_lo = v0
+            whisker_hi = v1
+            has_whisker = False
+            local_used: set[int] = set()
+            if box_lid is not None:
+                local_used.add(box_lid)
+
+            for lid, sx0, sy0, sx1, sy1 in segs:
+                if orient == "vertical":
+                    sc0, sc1, sv0, sv1 = sx0, sx1, sy0, sy1
+                else:
+                    sc0, sc1, sv0, sv1 = sy0, sy1, sx0, sx1
+                # Whisker: constant category coordinate at center, one endpoint at v0 or v1
+                if abs(sc0 - sc1) <= ctol and abs(0.5 * (sc0 + sc1) - center) <= ctol:
+                    slo, shi = min(sv0, sv1), max(sv0, sv1)
+                    if abs(shi - v0) <= vtol and slo <= v0 + vtol:
+                        whisker_lo = min(whisker_lo, slo)
+                        has_whisker = True
+                        local_used.add(lid)
+                        continue
+                    if abs(slo - v1) <= vtol and shi >= v1 - vtol:
+                        whisker_hi = max(whisker_hi, shi)
+                        has_whisker = True
+                        local_used.add(lid)
+                        continue
+                # Median (or mean) line: constant value coordinate inside [v0, v1], spans box width
+                if abs(sv0 - sv1) <= vtol and v0 - vtol <= sv0 <= v1 + vtol:
+                    smin, smax = min(sc0, sc1), max(sc0, sc1)
+                    if smin >= c0 - ctol and smax <= c1 + ctol and (smax - smin) >= 0.25 * cspan:
+                        medians.append(0.5 * (sv0 + sv1))
+                        local_used.add(lid)
+                        continue
+
+            if not medians and not has_whisker:
+                continue
+
+            # Collect caps at whisker_lo / whisker_hi centered on `center`
+            for lid, sx0, sy0, sx1, sy1 in segs:
+                if lid in local_used:
+                    continue
+                if orient == "vertical":
+                    sc0, sc1, sv0, sv1 = sx0, sx1, sy0, sy1
+                else:
+                    sc0, sc1, sv0, sv1 = sy0, sy1, sx0, sx1
+                if abs(sv0 - sv1) <= vtol and abs(0.5 * (sc0 + sc1) - center) <= ctol:
+                    v_cap = 0.5 * (sv0 + sv1)
+                    if abs(v_cap - whisker_lo) <= vtol or abs(v_cap - whisker_hi) <= vtol:
+                        local_used.add(lid)
+
+            # Collect flier marker lines aligned with this box center
+            for lid, fxs, fys in flier_lines:
+                coords = fxs if orient == "vertical" else fys
+                if all(abs(c - center) <= ctol for c in coords):
+                    local_used.add(lid)
+
+            med = medians[0] if medians else 0.5 * (v0 + v1)
+            matched.append((
+                center,
+                {
+                    "median": float(med),
+                    "q1": float(v0),
+                    "q3": float(v1),
+                    "iqr": float(v1 - v0),
+                    "whisker_lo": float(whisker_lo),
+                    "whisker_hi": float(whisker_hi),
+                },
+            ))
+            used |= local_used
+        return matched, used
+
+    v_matched, v_used = _match_orientation("vertical")
+    h_matched, h_used = _match_orientation("horizontal")
+    if len(h_matched) > len(v_matched):
+        chosen, orient, used = h_matched, "horizontal", h_used
+    else:
+        chosen, orient, used = v_matched, "vertical", v_used
+    if not chosen:
+        return {}, "vertical", set()
+
+    chosen.sort(key=lambda item: item[0])
+    cat_axis = "x" if orient == "vertical" else "y"
+    ticks = _tick_names(ax, cat_axis)
+    centers = [pos for pos, _ in chosen]
+    spacing = _spacing([loc for loc, _ in ticks]) if len(ticks) > 1 else _spacing(centers)
+    out: dict[str, dict[str, float]] = {}
+    for k, (pos, stats) in enumerate(chosen):
+        name = _name_at(pos, ticks, spacing, f"group {k + 1}")
+        if name in out:
+            name = f"{name} ({k + 1})"
+        out[name] = stats
+    return out, orient, used
+
+
+def _violin_body_profile(coll: Any) -> tuple[str, float, list[tuple[float, float]]] | None:
+    """Return ``(orientation, center_pos, [(val, half_width), ...])`` for a symmetric violin body."""
+    import numpy as np
+
+    paths = coll.get_paths()
+    if len(paths) != 1:
+        return None
+    verts = np.asarray(paths[0].vertices, dtype=float)
+    if verts.ndim != 2 or verts.shape[1] != 2 or len(verts) < 12 or not np.isfinite(verts).all():
+        return None
+
+    for orient, v_idx, c_idx in (("vertical", 1, 0), ("horizontal", 0, 1)):
+        vs = verts[:, v_idx]
+        cs = verts[:, c_idx]
+        c_span = float(cs.max() - cs.min())
+        v_span = float(vs.max() - vs.min())
+        if c_span <= 0 or v_span <= 0:
+            continue
+        buckets: dict[float, list[float]] = {}
+        scale = 1e5 / max(v_span, 1e-12)
+        for v, c in zip(vs, cs):
+            key = round(float(v) * scale) / scale
+            buckets.setdefault(key, []).append(float(c))
+        mids: list[float] = []
+        profile: list[tuple[float, float]] = []
+        for v_key in sorted(buckets):
+            cvals = buckets[v_key]
+            lo, hi = min(cvals), max(cvals)
+            if hi - lo > 0.02 * c_span:
+                mids.append(0.5 * (lo + hi))
+            profile.append((v_key, 0.5 * (hi - lo)))
+        if len(mids) >= 5 and (max(mids) - min(mids)) <= 0.03 * c_span:
+            mids_s = sorted(mids)
+            center = mids_s[len(mids_s) // 2]
+            return orient, float(center), profile
+    return None
+
+
+def _profile_quantile(
+    profile: Sequence[tuple[float, float]],
+    weights: Sequence[float],
+    total_w: float,
+    vmin: float,
+    vmax: float,
+    q: float,
+) -> float:
+    if total_w <= 0:
+        return vmin + q * (vmax - vmin)
+    target = q * total_w
+    cum = 0.0
+    for (v, _), w in zip(profile, weights):
+        cum += w
+        if cum >= target:
+            return v
+    return vmax
+
+
+def _read_violins(
+    ax: Any,
+    has_data_lines: bool,
+) -> tuple[dict[str, dict[str, float]], str, set[int]]:
+    """Detect Matplotlib/Seaborn violinplot bodies and extract per-group stats."""
+    from matplotlib.collections import LineCollection, PathCollection, PolyCollection
+
+    candidates: list[tuple[Any, str, float, list[tuple[float, float]]]] = []
+    for coll in ax.collections:
+        if isinstance(coll, PolyCollection) and not isinstance(coll, PathCollection) and coll.get_visible():
+            prof = _violin_body_profile(coll)
+            if prof is not None:
+                candidates.append((coll, *prof))
+    if not candidates:
+        return {}, "vertical", set()
+
+    # Collect LineCollection segments (cbars, cmins, cmaxes, cmedians) to confirm violins & read medians.
+    line_segs: list[tuple[float, float, float, float]] = []
+    for coll in ax.collections:
+        if isinstance(coll, LineCollection) and coll.get_visible():
+            for seg in coll.get_segments():
+                if len(seg) >= 2:
+                    (x0, y0), (x1, y1) = seg[0], seg[-1]
+                    if all(math.isfinite(float(u)) for u in (x0, y0, x1, y1)):
+                        line_segs.append((float(x0), float(y0), float(x1), float(y1)))
+
+    # A single horizontal symmetric band alongside a data line is a fill_between band, not a violin.
+    orient = candidates[0][1]
+    if orient == "horizontal" and len(candidates) == 1 and has_data_lines and not line_segs:
+        return {}, "vertical", set()
+    # Require either multiple bodies, vertical orientation, or matching LineCollection bars.
+    if len(candidates) == 1 and not line_segs and orient != "vertical":
+        return {}, "vertical", set()
+
+    same_orient = [c for c in candidates if c[1] == orient]
+    same_orient.sort(key=lambda item: item[2])
+    cat_axis = "x" if orient == "vertical" else "y"
+    ticks = _tick_names(ax, cat_axis)
+    centers = [item[2] for item in same_orient]
+    spacing = _spacing([loc for loc, _ in ticks]) if len(ticks) > 1 else _spacing(centers)
+    ctol = max(1e-4, 0.08 * spacing)
+
+    out: dict[str, dict[str, float]] = {}
+    used_colls: set[int] = set()
+    for k, (coll, _o, pos, profile) in enumerate(same_orient):
+        used_colls.add(id(coll))
+        vals = [v for v, _ in profile]
+        vmin, vmax = min(vals), max(vals)
+        vtol = max(1e-5, 0.01 * max(vmax - vmin, 1e-12))
+
+        # Estimate Q1, median, Q3 from the violin density profile (width = KDE density)
+        weights = [max(0.0, w) for _, w in profile]
+        total_w = sum(weights)
+        q1 = _profile_quantile(profile, weights, total_w, vmin, vmax, 0.25)
+        med = _profile_quantile(profile, weights, total_w, vmin, vmax, 0.50)
+        q3 = _profile_quantile(profile, weights, total_w, vmin, vmax, 0.75)
+
+        # Prefer an explicit cmedians segment inside (vmin, vmax) if present
+        interior_ticks: list[float] = []
+        for x0, y0, x1, y1 in line_segs:
+            if orient == "vertical":
+                sc0, sc1, sv0, sv1 = x0, x1, y0, y1
+            else:
+                sc0, sc1, sv0, sv1 = y0, y1, x0, x1
+            if abs(sv0 - sv1) <= vtol and abs(0.5 * (sc0 + sc1) - pos) <= ctol:
+                vm = 0.5 * (sv0 + sv1)
+                if vmin + vtol < vm < vmax - vtol:
+                    interior_ticks.append(vm)
+        if interior_ticks:
+            med = min(interior_ticks, key=lambda v: abs(v - med))
+
+        name = _name_at(pos, ticks, spacing, f"group {k + 1}")
+        if name in out:
+            name = f"{name} ({k + 1})"
+        out[name] = {
+            "median": float(med),
+            "q1": float(q1),
+            "q3": float(q3),
+            "min": float(vmin),
+            "max": float(vmax),
+        }
+    return out, orient, used_colls
+
+
+def _read_band_envelope(coll: Any) -> dict[str, Any] | None:
+    """Extract upper/lower envelope summary from a fill_between / CI PolyCollection."""
+    import numpy as np
+
+    xs_map: dict[float, list[float]] = {}
+    for path in coll.get_paths():
+        verts = np.asarray(path.vertices, dtype=float)
+        if verts.ndim != 2 or verts.shape[1] != 2 or len(verts) < 4:
+            continue
+        ok = np.isfinite(verts).all(axis=1)
+        pts = verts[ok]
+        if len(pts) < 4:
+            continue
+        x_span = float(pts[:, 0].max() - pts[:, 0].min())
+        scale = 1e6 / max(x_span, 1e-12)
+        for xv, yv in pts:
+            xk = round(float(xv) * scale) / scale
+            xs_map.setdefault(xk, []).append(float(yv))
+    pairs = [(x, min(ys), max(ys)) for x, ys in sorted(xs_map.items()) if len(ys) >= 2]
+    if len(pairs) < 2:
+        return None
+    los = [p[1] for p in pairs]
+    his = [p[2] for p in pairs]
+    widths = [h - lo for lo, h in zip(los, his)]
+    return {
+        "n": len(pairs),
+        "lower_range": [min(los), max(los)],
+        "upper_range": [min(his), max(his)],
+        "peak": max(his),
+        "trough": min(los),
+        "start_interval": [los[0], his[0]],
+        "end_interval": [los[-1], his[-1]],
+        "max_width": max(widths),
+        "max_half_width": 0.5 * max(widths),
+    }
+
+
 def _read_axes(ax: Any, index: int, cands: _Candidates) -> dict[str, Any]:
-    from matplotlib.collections import PathCollection, PolyCollection
+    from matplotlib.collections import PathCollection, PolyCollection, QuadMesh
     from matplotlib.image import AxesImage
 
     panel: dict[str, Any] = {"axes": index, "kind": "empty", "title": ax.get_title() or None,
@@ -430,7 +902,7 @@ def _read_axes(ax: Any, index: int, cands: _Candidates) -> dict[str, Any]:
     facts: list[str] = panel["facts"]
     kinds: list[str] = []
 
-    bars, orientation, bar_containers = _read_bars(ax)
+    bars, _orientation, bar_containers, hist_containers = _read_bars(ax)
     if bars:
         kinds.append("bars")
         panel["values"]["bars"] = bars
@@ -452,14 +924,63 @@ def _read_axes(ax: Any, index: int, cands: _Candidates) -> dict[str, Any]:
                 row = {s: vals[cat] for s, vals in bars.items() if cat in vals}
                 if len(row) >= 2:
                     cands.add_group(row, cat)
-        value_lim = ax.get_ylim() if orientation == "vertical" else ax.get_xlim()
-        scale = ax.get_yscale() if orientation == "vertical" else ax.get_xscale()
-        allv = [v for vals in bars.values() for v in vals.values()]
+
+    if hist_containers:
+        hists = _read_histograms(ax, hist_containers)
+        if hists:
+            kinds.append("histogram")
+            panel["values"]["histogram"] = {
+                n: {k: v for k, v in d.items() if k != "orientation"} for n, d in hists.items()
+            }
+            medians_map: dict[str, float] = {}
+            peaks_map: dict[str, float] = {}
+            for name, h in hists.items():
+                prefix = "" if len(hists) == 1 else f"{name}: "
+                plo, phi = h["peak_range"]
+                facts.append(
+                    f"{prefix}histogram ({h['bins']} bins, total {_fmt(h['total'])}): "
+                    f"peak bin {_fmt(plo)}–{_fmt(phi)} (center {_fmt(h['peak_center'])}); "
+                    f"median ≈ {_fmt(h['median'])}"
+                )
+                medians_map[name] = h["median"]
+                peaks_map[name] = h["peak_center"]
+                cands.add_group(
+                    {
+                        "peak center": h["peak_center"],
+                        "median": h["median"],
+                        "mean": h["mean"],
+                        "min": h["range"][0],
+                        "max": h["range"][1],
+                    },
+                    name,
+                )
+                cands.other += [
+                    (f"{name} peak bin low", plo),
+                    (f"{name} peak bin high", phi),
+                    (f"{name} peak height", h["peak_height"]),
+                    (f"{name} bin count", float(h["bins"])),
+                    (f"{name} total", h["total"]),
+                ]
+            if len(hists) >= 2:
+                cands.add_group(medians_map, "histogram medians")
+                cands.add_group(peaks_map, "histogram peaks")
+
+    # Truncated baseline check for both regular bar charts and histograms
+    all_bar_containers = [*bar_containers, *hist_containers]
+    if all_bar_containers:
+        bar_orient = getattr(all_bar_containers[0], "orientation", None) or "vertical"
+        value_lim = ax.get_ylim() if bar_orient == "vertical" else ax.get_xlim()
+        scale = ax.get_yscale() if bar_orient == "vertical" else ax.get_xscale()
+        allv = [
+            float(r.get_height() if bar_orient == "vertical" else r.get_width())
+            for c in all_bar_containers for r in c.patches
+        ]
+        allv = [v for v in allv if math.isfinite(v)]
         lo_lim = min(value_lim)
         hi_lim = max(value_lim)
         bars_from_zero = all(
-            abs(r.get_y() if orientation == "vertical" else r.get_x()) < 1e-12
-            for c in bar_containers for r in c.patches
+            abs(r.get_y() if bar_orient == "vertical" else r.get_x()) < 1e-12
+            for c in all_bar_containers for r in c.patches
         )
         if scale == "linear" and bars_from_zero and allv and (
             (min(allv) >= 0 and lo_lim > 0) or (max(allv) <= 0 and hi_lim < 0)
@@ -508,6 +1029,41 @@ def _read_axes(ax: Any, index: int, cands: _Candidates) -> dict[str, Any]:
         facts.append(f"intervals of {a} and {b} " + ("overlap" if overlap else "do not overlap"))
 
     skip = _errorbar_line_ids(ax)
+    boxes, box_orient, box_line_ids = _read_boxplots(ax, skip)
+    skip |= box_line_ids
+    if boxes:
+        kinds.append("boxplot")
+        panel["values"]["boxplot"] = boxes
+        panel["_dist_orient"] = box_orient
+        meds = {g: d["median"] for g, d in boxes.items()}
+        cands.add_group(meds, "boxplot medians")
+        for g, d in boxes.items():
+            cands.other += [
+                (f"{g} Q1", d["q1"]),
+                (f"{g} Q3", d["q3"]),
+                (f"{g} IQR", d["iqr"]),
+                (f"{g} whisker low", d["whisker_lo"]),
+                (f"{g} whisker high", d["whisker_hi"]),
+            ]
+            cands.pairs.append((f"{g} Q3 vs Q1", d["q3"], d["q1"]))
+            cands.pairs.append((f"{g} whisker high vs low", d["whisker_hi"], d["whisker_lo"]))
+        if len(boxes) >= 2:
+            ranked = sorted(boxes.items(), key=lambda kv: kv[1]["median"], reverse=True)
+            (top, dt), (second, d2) = ranked[0], ranked[1]
+            low, dl = ranked[-1]
+            gap = dt["median"] - d2["median"]
+            fact = (f"highest median {top} {_fmt(dt['median'])} (IQR {_fmt(dt['q1'])}–{_fmt(dt['q3'])}), "
+                    f"{_fmt(gap)} above {second} ({_fmt(d2['median'])})")
+            if d2["median"] > 0 and dt["median"] > 0:
+                fact += f", {dt['median'] / d2['median']:.2f}×"
+            facts.append(fact + f"; lowest {low} {_fmt(dl['median'])}")
+        else:
+            g, d = next(iter(boxes.items()))
+            facts.append(
+                f"{g}: median {_fmt(d['median'])}, IQR {_fmt(d['q1'])}–{_fmt(d['q3'])}, "
+                f"whiskers {_fmt(d['whisker_lo'])}–{_fmt(d['whisker_hi'])}"
+            )
+
     series: dict[str, tuple[list[float], list[float]]] = {}
     references: list[str] = []
     ref_levels: list[float] = []
@@ -591,10 +1147,107 @@ def _read_axes(ax: Any, index: int, cands: _Candidates) -> dict[str, Any]:
                             facts.append(f"{a} and {b} cross near x={_fmt(xc)}")
                             cands.other.append((f"{a}/{b} crossing x", xc))
 
+    violins, violin_orient, violin_coll_ids = _read_violins(ax, bool(series))
+    if violins:
+        kinds.append("violin")
+        panel["values"]["violin"] = violins
+        panel.setdefault("_dist_orient", violin_orient)
+        vmeds = {g: d["median"] for g, d in violins.items()}
+        cands.add_group(vmeds, "violin medians")
+        for g, d in violins.items():
+            cands.other += [
+                (f"{g} Q1", d["q1"]),
+                (f"{g} Q3", d["q3"]),
+                (f"{g} min", d["min"]),
+                (f"{g} max", d["max"]),
+            ]
+            cands.pairs.append((f"{g} max vs min", d["max"], d["min"]))
+        if len(violins) >= 2:
+            ranked = sorted(violins.items(), key=lambda kv: kv[1]["median"], reverse=True)
+            (top, dt), (low, dl) = ranked[0], ranked[-1]
+            facts.append(
+                f"highest violin median {top} {_fmt(dt['median'])} (range {_fmt(dt['min'])}–{_fmt(dt['max'])}); "
+                f"lowest {low} {_fmt(dl['median'])}"
+            )
+        else:
+            g, d = next(iter(violins.items()))
+            facts.append(f"{g}: violin median {_fmt(d['median'])}, range {_fmt(d['min'])}–{_fmt(d['max'])}")
+
     means: dict[str, tuple[float, float]] = {}
+    band_idx = 0
     for coll in ax.collections:
+        if id(coll) in violin_coll_ids or not coll.get_visible():
+            continue
+        if isinstance(coll, QuadMesh) and coll.get_array() is not None:
+            import numpy as np
+
+            arr = np.ma.asarray(coll.get_array(), dtype=float)
+            vals = _finite(arr)
+            if not vals:
+                continue
+            kinds.append("heatmap")
+            lo, hi = min(vals), max(vals)
+            mean_v = sum(vals) / len(vals)
+            svals = sorted(vals)
+            med_v = (
+                svals[len(svals) // 2]
+                if len(svals) % 2
+                else 0.5 * (svals[len(svals) // 2 - 1] + svals[len(svals) // 2])
+            )
+            panel["values"]["heatmap"] = {
+                "cells": len(vals), "min": lo, "max": hi, "mean": mean_v, "median": med_v,
+            }
+            facts.append(f"heatmap cells span {_fmt(lo)}–{_fmt(hi)} (median {_fmt(med_v)}, {len(vals)} cells)")
+            cands.other += [
+                ("highest cell", hi), ("lowest cell", lo), ("mean cell", mean_v), ("median cell", med_v),
+            ]
+            cands.pairs.append(("highest vs lowest cell", hi, lo))
+            if lo > 0:
+                cands.other.append(("highest/lowest cell ratio", hi / lo))
+            if len(vals) <= _MAX_POINTS:
+                if arr.ndim == 2 and arr.size <= 64:
+                    xticks = _tick_names(ax, "x")
+                    yticks = _tick_names(ax, "y")
+                    ny, nx = arr.shape
+                    cell_map: dict[str, float] = {}
+                    for r_i in range(ny):
+                        rname = _name_at(r_i + 0.5, yticks, 1.0, f"r{r_i}")
+                        for c_i in range(nx):
+                            v = float(np.ma.filled(arr[r_i, c_i], np.nan))
+                            if math.isfinite(v):
+                                cname = _name_at(c_i + 0.5, xticks, 1.0, f"c{c_i}")
+                                cell_map[f"{rname}/{cname}"] = v
+                    cands.add_group(cell_map, "heatmap")
+                else:
+                    for v in sorted({round(x, 8) for x in vals}):
+                        cands.levels.append(("heatmap cell", v))
+            continue
         if isinstance(coll, PolyCollection) and not isinstance(coll, PathCollection):
             panel["bands"] = panel.get("bands", 0) + 1
+            band_idx += 1
+            env = _read_band_envelope(coll)
+            if env is not None:
+                bname = _series_label(coll, f"band {band_idx}")
+                panel["values"].setdefault("bands", {})[bname] = env
+                facts.append(
+                    f"{bname} band spans {_fmt(env['trough'])}–{_fmt(env['peak'])} "
+                    f"(end {_fmt(env['end_interval'][0])}–{_fmt(env['end_interval'][1])})"
+                )
+                cands.other += [
+                    (f"{bname} band max", env["peak"]),
+                    (f"{bname} band min", env["trough"]),
+                    (f"{bname} band start low", env["start_interval"][0]),
+                    (f"{bname} band start high", env["start_interval"][1]),
+                    (f"{bname} band end low", env["end_interval"][0]),
+                    (f"{bname} band end high", env["end_interval"][1]),
+                    (f"{bname} max band width", env["max_width"]),
+                    (f"{bname} max half-width", env["max_half_width"]),
+                ]
+                cands.pairs.append((f"{bname} band max vs min", env["peak"], env["trough"]))
+                cands.pairs.append(
+                    (f"{bname} band end high vs low", env["end_interval"][1], env["end_interval"][0])
+                )
+            continue
         if isinstance(coll, PathCollection):
             import numpy as np
 
@@ -642,8 +1295,11 @@ def _read_axes(ax: Any, index: int, cands: _Candidates) -> dict[str, Any]:
             panel["values"]["image"] = {"cells": len(vals), "min": lo, "max": hi}
             facts.append(f"cells span {_fmt(lo)}–{_fmt(hi)} ({len(vals)} cells)")
             cands.other += [("highest cell", hi), ("lowest cell", lo)]
+            cands.pairs.append(("highest vs lowest cell", hi, lo))
             if lo > 0:
                 cands.other.append(("highest/lowest cell ratio", hi / lo))
+            if len(vals) <= 64:
+                cands.add_group({f"cell {i}": v for i, v in enumerate(vals)}, "image")
     panel["kind"] = "+".join(dict.fromkeys(kinds)) or "empty"
     return panel
 
@@ -714,15 +1370,62 @@ def _named(how: str, words: set[str]) -> int:
     return sum(1 for w in words if w in subject)
 
 
-def _nearest(val: float, kind: str, cands: _Candidates, text: str = "") -> str | None:
+def _claim_scale_factors(kind: str, val: float, raw: str, fig_units: Sequence[str | None]) -> list[tuple[float, str | None]]:
+    """Return ``[(factor, claim_unit), ...]`` to scale data candidates into ``raw``'s unit."""
+    m = re.match(r"^\d+(?:,\d{3})*(?:\.\d+)?[kK]?\s+(.+)$", raw.strip())
+    claim_unit = m.group(1).strip() if m else None
+    if claim_unit and kind == "plain":
+        factors: list[tuple[float, str | None]] = []
+        seen_f: set[float] = set()
+        for ax_unit in fig_units:
+            if not ax_unit:
+                continue
+            f = unit_scale_factor(ax_unit, claim_unit)
+            if f is not None and f not in seen_f:
+                seen_f.add(f)
+                factors.append((f, claim_unit))
+        if factors:
+            return factors
+        return [(1.0, claim_unit)]
+
+    factors = [(1.0, None)]
+    seen_f = {1.0}
+    if kind == "plain":
+        if "%" in fig_units and 0 < val <= 1.0:
+            factors.append((0.01, None))
+            seen_f.add(0.01)
+        for ax_unit in fig_units:
+            if not ax_unit:
+                continue
+            f = unit_scale_factor(ax_unit, "")
+            if f is not None and f not in seen_f:
+                seen_f.add(f)
+                factors.append((f, None))
+    return factors
+
+
+def _nearest(
+    val: float,
+    kind: str,
+    cands: _Candidates,
+    text: str = "",
+    factors: Sequence[tuple[float, str | None]] = ((1.0, None),),
+) -> str | None:
     """The derivation closest to a claimed number that was not found: what the data says.
     Derivations naming something the claim names ("retrieval") come first."""
-    pool = [(how, v) for how, v in _derivations(cands, kind)
-            if kind == "fold" or not how.startswith("x=") and " at x" not in how.split(":")[0][-6:]]
-    pool = [(how, v) for how, v in pool if math.isfinite(v) and v > 0]
-    if not pool:
-        return None
-    pool = [(how, v) for how, v in pool if 0.25 <= v / max(val, 1e-300) <= 4]
+    base_pool = [
+        (how, v) for how, v in _derivations(cands, kind)
+        if kind == "fold" or not how.startswith("x=") and " at x" not in how.split(":")[0][-6:]
+    ]
+    pool: list[tuple[str, float]] = []
+    for how, v in base_pool:
+        if not math.isfinite(v) or v <= 0:
+            continue
+        for f, c_unit in factors:
+            sv = v * f
+            if math.isfinite(sv) and sv > 0 and 0.25 <= sv / max(val, 1e-300) <= 4:
+                label = f"{how} ({_fmt(sv)} {c_unit})" if f != 1.0 and c_unit else how
+                pool.append((label, sv))
     if not pool:
         return None
     words = _claim_words(text)
@@ -744,8 +1447,9 @@ def _crossing_match(val: float, raw: str, others: Sequence[float], cands: _Candi
 
 
 def _check_claim(text: str, fig: Any, cands: _Candidates) -> dict[str, Any]:
+    fig_units = _units(fig)
     seen: dict[str, tuple[str, float, str]] = {}
-    for unit in _units(fig):
+    for unit in fig_units:
         for kind, val, raw in claim_numbers(text, unit):
             idx = text.find(raw)
             if idx >= 0 and _COUNT_BEFORE.search(text[:idx]):
@@ -755,7 +1459,14 @@ def _check_claim(text: str, fig: Any, cands: _Candidates) -> dict[str, Any]:
     words = _claim_words(text)
     numbers = []
     for kind, val, raw in seen.values():
-        matches = [how for how, cand in _derivations(cands, kind) if _close(val, raw, cand)]
+        factors = _claim_scale_factors(kind, val, raw, fig_units)
+        matches: list[str] = []
+        for how, cand in _derivations(cands, kind):
+            for f, c_unit in factors:
+                if _close(val, raw, cand * f):
+                    label = f"{how} ({_fmt(cand * f)} {c_unit})" if f != 1.0 and c_unit else how
+                    matches.append(label)
+                    break
         if kind in {"plain", "points"}:
             crossing = _crossing_match(val, raw, [v for k, v, r in seen.values() if r != raw], cands)
             if crossing is not None:
@@ -765,7 +1476,7 @@ def _check_claim(text: str, fig: Any, cands: _Candidates) -> dict[str, Any]:
         entry = {"text": raw, "value": val, "kind": kind, "found": found is not None,
                  "how": found or ("hedged; not checked" if hedged else None)}
         if found is None:
-            nearest = _nearest(val, kind, cands, text)
+            nearest = _nearest(val, kind, cands, text, factors)
             if nearest is not None:
                 entry["nearest"] = nearest
         numbers.append(entry)
@@ -833,11 +1544,15 @@ def check(
         renderer = figure.canvas.get_renderer()
         headline = _headline(figure, renderer)
         report = _audit(figure, texts, renderer, size=size, dpi=save_dpi, tight=tight, width_px=width_px)
+        from matplotlib.collections import QuadMesh
+
         cands = _Candidates()
         panels = [
             _read_axes(ax, i, cands)
             for i, ax in enumerate(figure.axes)
-            if ax.get_visible() and (ax.axison or ax.images)
+            if ax.get_visible()
+            and not _is_colorbar_axes(ax)
+            and (ax.axison or ax.images or any(isinstance(c, QuadMesh) for c in ax.collections))
         ]
 
     issues: list[dict] = report.pop("issues")
@@ -865,11 +1580,13 @@ def check(
         ))
     for p in panels:
         ax = figure.axes[p["axes"]]
-        if "lines" in p["kind"] or "scatter" in p["kind"] or "bars" in p["kind"] or "intervals" in p["kind"]:
+        val_axes = _value_axes(p, ax)
+        p.pop("_dist_orient", None)
+        if val_axes:
             for axis, label in (("x", ax.get_xlabel()), ("y", ax.get_ylabel())):
                 ticks = [t for _, t in _tick_names(ax, axis)]
                 numeric = ticks and all(_is_numeric_label(t) for t in ticks)
-                if numeric and not (label or "").strip() and axis in _value_axes(p, ax):
+                if numeric and not (label or "").strip() and axis in val_axes:
                     issues.append(_issue(
                         "axis_unlabelled", "warning",
                         f"Axes {p['axes']} has numbers on its {axis} axis but no label saying what they measure.",
@@ -939,22 +1656,25 @@ def check(
 
 
 def _value_axes(panel: Mapping[str, Any], ax: Any) -> set[str]:
-    if "lines" in panel["kind"] or "scatter" in panel["kind"]:
+    kind = panel["kind"]
+    if "lines" in kind or "scatter" in kind or "histogram" in kind:
         return {"x", "y"}
+    if "boxplot" in kind or "violin" in kind:
+        return {"y"} if panel.get("_dist_orient", "vertical") == "vertical" else {"x"}
     bars = panel["values"].get("bars")
     if bars:
         from matplotlib.container import BarContainer
 
         c = next((c for c in ax.containers if isinstance(c, BarContainer)), None)
         return {"y"} if (getattr(c, "orientation", "vertical") or "vertical") == "vertical" else {"x"}
-    if "intervals" in panel["kind"]:
+    if "intervals" in kind:
         return {"x", "y"}
     return set()
 
 
 def _twin_axes(fig: Any) -> int:
     seen = 0
-    axes = [ax for ax in fig.axes if ax.get_visible()]
+    axes = [ax for ax in fig.axes if ax.get_visible() and not _is_colorbar_axes(ax)]
     for i, a in enumerate(axes):
         for b in axes[i + 1:]:
             same_box = all(abs(u - v) < 1e-6 for u, v in zip(a.get_position().bounds, b.get_position().bounds))
@@ -1094,24 +1814,143 @@ def _audit(fig: Any, texts: list[Any], renderer: Any, *, size: tuple[int, int] |
     return out
 
 
-# --------------------------------------------------------------------------- scripts
+# --------------------------------------------------------------------------- scripts & notebooks
 
 
-def check_script(
-    path: str | os.PathLike[str],
+def _venv_python(venv_dir: Any) -> Any:
+    """Return the Python executable inside a virtualenv / conda prefix, or None."""
+    from pathlib import Path
+
+    root = Path(venv_dir)
+    for rel in (("bin", "python"), ("bin", "python3"), ("Scripts", "python.exe")):
+        cand = root.joinpath(*rel)
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return cand
+    return None
+
+
+def _is_same_interpreter(candidate: Any) -> bool:
+    """True when ``candidate`` points to the running interpreter's environment.
+
+    Avoids following the final symlink so two virtualenvs sharing a base Python
+    binary are recognized as distinct interpreters.
+    """
+    import sys
+
+    abs_cand = os.path.normcase(os.path.abspath(os.fspath(candidate)))
+    abs_curr = os.path.normcase(os.path.abspath(sys.executable))
+    if abs_cand == abs_curr:
+        return True
+    prefix = os.path.normcase(os.path.abspath(sys.prefix))
+    return abs_cand.startswith(prefix + os.sep)
+
+
+def _resolve_python(target_path: Any, python: str | os.PathLike[str] | None) -> Any:
+    """Resolve the Python interpreter to run a script/notebook with, or None for in-process."""
+    import shutil
+    from pathlib import Path
+
+    if python is not None:
+        raw = os.fspath(python)
+        cand = Path(raw)
+        if not cand.is_file():
+            found = shutil.which(raw)
+            if found is None:
+                raise FileNotFoundError(f"Python interpreter not found: {python}")
+            cand = Path(found)
+        return None if _is_same_interpreter(cand) else cand
+
+    target = Path(target_path).resolve()
+    search_roots: list[Path] = [target.parent / ".venv"]
+    if target.parent.parent != target.parent:
+        search_roots.append(target.parent.parent / ".venv")
+    search_roots.append(Path.cwd() / ".venv")
+    for env_var in ("VIRTUAL_ENV", "CONDA_PREFIX"):
+        val = os.environ.get(env_var)
+        if val:
+            search_roots.append(Path(val))
+
+    for root in search_roots:
+        cand = _venv_python(root)
+        if cand is not None:
+            return None if _is_same_interpreter(cand) else cand
+    return None
+
+
+def _run_via_subprocess(
+    interpreter: Any,
+    target_path: Any,
+    *,
+    mode: str,
+    claim: str | None,
+    width: str | int,
+) -> list[FigureCheck]:
+    """Execute ``_check_runner.py`` in a subprocess using ``interpreter``."""
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    pkg_dir = Path(__file__).resolve().parent
+    runner = pkg_dir / "_check_runner.py"
+    mintfig_root = pkg_dir.parent
+
+    env = os.environ.copy()
+    existing_pp = env.get("PYTHONPATH", "")
+    root_str = str(mintfig_root)
+    if mintfig_root.name in {"site-packages", "dist-packages"}:
+        env["PYTHONPATH"] = f"{existing_pp}{os.pathsep}{root_str}" if existing_pp else root_str
+    else:
+        env["PYTHONPATH"] = f"{root_str}{os.pathsep}{existing_pp}" if existing_pp else root_str
+
+    with tempfile.NamedTemporaryFile(prefix="mintfig_check_", suffix=".json", delete=False) as tf:
+        out_path = Path(tf.name)
+    try:
+        cmd = [
+            os.fspath(interpreter),
+            str(runner),
+            "--target",
+            str(Path(target_path).resolve()),
+            "--mode",
+            mode,
+            "--output",
+            str(out_path),
+            "--width",
+            str(width),
+            "--mintfig-root",
+            root_str,
+        ]
+        if claim is not None:
+            cmd.extend(["--claim", claim])
+        proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
+        raw_out = out_path.read_text(encoding="utf-8") if out_path.is_file() else ""
+        if raw_out.strip():
+            payload = json.loads(raw_out)
+            if payload.get("ok"):
+                return [FigureCheck(r) for r in payload.get("reports", [])]
+            err_type = payload.get("error_type", "RuntimeError")
+            err_msg = payload.get("error", "Script execution failed")
+            if err_type == "FileNotFoundError":
+                raise FileNotFoundError(err_msg)
+            if err_type == "ValueError":
+                raise ValueError(err_msg)
+            raise RuntimeError(f"{err_type}: {err_msg}")
+        stderr = (proc.stderr or proc.stdout or "").strip()
+        raise RuntimeError(
+            f"Subprocess check failed (exit {proc.returncode}) with {interpreter}: {stderr}"
+        )
+    finally:
+        if out_path.exists():
+            out_path.unlink()
+
+
+def _run_with_savefig_hook(
+    target_path: Any,
+    exec_fn: Any,
     *,
     claim: str | None = None,
     width: str | int = "chat",
 ) -> list[FigureCheck]:
-    """Run a plotting script and :func:`check` every figure it saves (or leaves open).
-
-    The script runs with the Agg backend, from its own folder, with ``plt.show()``
-    as a no-op. Each figure is checked once, as it was saved (its ``dpi`` and
-    ``bbox_inches``), preferring the PNG when it is saved in several formats. The
-    report's ``path`` is the file it was saved to (``None`` if it was never saved).
-    Exceptions from the script propagate.
-    """
-    import runpy
+    """Run ``exec_fn()`` under the Agg backend and ``Figure.savefig`` / ``plt.show`` hooks."""
     import sys
     from pathlib import Path
 
@@ -1121,9 +1960,7 @@ def check_script(
     import matplotlib.pyplot as plt
     from matplotlib.figure import Figure
 
-    script = Path(path).resolve()
-    if not script.is_file():
-        raise FileNotFoundError(f"No such script: {script}")
+    target = Path(target_path).resolve()
     saves: dict[int, tuple[Any, str, dict[str, Any]]] = {}
     original_save, original_show = Figure.savefig, plt.show
     busy = False
@@ -1142,12 +1979,12 @@ def check_script(
     cwd, argv = os.getcwd(), sys.argv
     Figure.savefig = _recording_save  # type: ignore[method-assign]
     plt.show = lambda *a, **k: None  # type: ignore[assignment]
-    sys.path.insert(0, str(script.parent))
+    sys.path.insert(0, str(target.parent))
     try:
-        os.chdir(script.parent)
-        sys.argv = [str(script)]
+        os.chdir(target.parent)
+        sys.argv = [str(target)]
         plt.close("all")
-        runpy.run_path(str(script), run_name="__main__")
+        exec_fn(target)
         busy = True
         for fig, name, kw in saves.values():
             dpi = kw["dpi"] if isinstance(kw["dpi"], (int, float)) else None
@@ -1167,10 +2004,147 @@ def check_script(
         plt.show = original_show  # type: ignore[assignment]
         os.chdir(cwd)
         sys.argv = argv
-        if sys.path and sys.path[0] == str(script.parent):
+        if sys.path and sys.path[0] == str(target.parent):
             sys.path.pop(0)
         plt.close("all")
     return reports
+
+
+def _run_script_in_process(
+    path: str | os.PathLike[str],
+    *,
+    claim: str | None = None,
+    width: str | int = "chat",
+) -> list[FigureCheck]:
+    import runpy
+    from pathlib import Path
+
+    script = Path(path).resolve()
+    if not script.is_file():
+        raise FileNotFoundError(f"No such script: {script}")
+    return _run_with_savefig_hook(
+        script,
+        lambda p: runpy.run_path(str(p), run_name="__main__"),
+        claim=claim,
+        width=width,
+    )
+
+
+def check_script(
+    path: str | os.PathLike[str],
+    *,
+    claim: str | None = None,
+    width: str | int = "chat",
+    python: str | os.PathLike[str] | None = None,
+) -> list[FigureCheck]:
+    """Run a plotting script and :func:`check` every figure it saves (or leaves open).
+
+    The script runs with the Agg backend, from its own folder, with ``plt.show()``
+    as a no-op. Each figure is checked once, as it was saved (its ``dpi`` and
+    ``bbox_inches``), preferring the PNG when it is saved in several formats. The
+    report's ``path`` is the file it was saved to (``None`` if it was never saved).
+    Exceptions from the script propagate.
+
+    When ``python`` is given (or a project virtualenv is auto-detected) and differs
+    from ``sys.executable``, the script executes in that interpreter via a subprocess
+    so scripts importing project-local packages (pandas, seaborn, scipy) work under ``uvx``.
+    """
+    from pathlib import Path
+
+    script = Path(path).resolve()
+    if not script.is_file():
+        raise FileNotFoundError(f"No such script: {script}")
+    interp = _resolve_python(script, python)
+    if interp is not None:
+        return _run_via_subprocess(interp, script, mode="script", claim=claim, width=width)
+    return _run_script_in_process(script, claim=claim, width=width)
+
+
+_PYTHON_CELL_MAGICS = frozenset({"time", "capture", "prun"})
+_HELP_LOOKUP_RE = re.compile(r"^(?:\?{1,2}[A-Za-z_][\w.]*|[A-Za-z_][\w.]*\?{1,2})\s*$")
+
+
+def _strip_ipython_magics(source: str) -> str:
+    """Strip IPython ``%``/``%%`` magics, ``!`` shell escapes, and ``?`` help queries."""
+    lines = source.splitlines()
+    first_idx = next((i for i, ln in enumerate(lines) if ln.strip()), None)
+    if first_idx is None:
+        return ""
+    first = lines[first_idx].lstrip()
+    if first.startswith("%%"):
+        m = re.match(r"%%\s*(\w+)", first)
+        if m and m.group(1).lower() in _PYTHON_CELL_MAGICS:
+            lines[first_idx] = "# skipped cell magic"
+        else:
+            return ""
+    out: list[str] = []
+    for ln in lines:
+        stripped = ln.lstrip()
+        indent = ln[: len(ln) - len(stripped)]
+        if stripped.startswith(("%", "!")) or _HELP_LOOKUP_RE.match(stripped):
+            out.append(f"{indent}pass  # skipped magic" if indent else "# skipped magic")
+        else:
+            out.append(ln)
+    return "\n".join(out)
+
+
+def _run_notebook_in_process(
+    path: str | os.PathLike[str],
+    *,
+    claim: str | None = None,
+    width: str | int = "chat",
+) -> list[FigureCheck]:
+    from pathlib import Path
+
+    nb_path = Path(path).resolve()
+    if not nb_path.is_file():
+        raise FileNotFoundError(f"No such notebook: {nb_path}")
+    data = json.loads(nb_path.read_text(encoding="utf-8"))
+    cells = data.get("cells")
+    if not isinstance(cells, list):
+        raise TypeError(f"Invalid notebook (missing 'cells' list): {nb_path}")
+
+    code_cells: list[tuple[int, str]] = []
+    for idx, cell in enumerate(cells):
+        if not isinstance(cell, dict) or cell.get("cell_type") != "code":
+            continue
+        raw_src = cell.get("source", "")
+        src = "".join(raw_src) if isinstance(raw_src, list) else str(raw_src)
+        cleaned = _strip_ipython_magics(src)
+        if cleaned.strip():
+            code_cells.append((idx, cleaned))
+
+    def _exec_nb(target: Path) -> None:
+        ns: dict[str, Any] = {"__name__": "__main__", "__file__": str(target)}
+        for idx, cleaned in code_cells:
+            code_obj = compile(cleaned, f"{target.name}#cell-{idx}", "exec")
+            exec(code_obj, ns)  # noqa: S102 - executing user notebook cells like runpy
+
+    return _run_with_savefig_hook(nb_path, _exec_nb, claim=claim, width=width)
+
+
+def check_notebook(
+    path: str | os.PathLike[str],
+    *,
+    claim: str | None = None,
+    width: str | int = "chat",
+    python: str | os.PathLike[str] | None = None,
+) -> list[FigureCheck]:
+    """Execute a Jupyter notebook's code cells in order and :func:`check` every figure.
+
+    Zero extra dependencies: parses ``.ipynb`` JSON directly, strips IPython ``%``/``%%``
+    magics and ``!`` shell escapes cleanly, and audits every saved or left-open figure
+    under the same Agg/``savefig`` hook as :func:`check_script`.
+    """
+    from pathlib import Path
+
+    nb_path = Path(path).resolve()
+    if not nb_path.is_file():
+        raise FileNotFoundError(f"No such notebook: {nb_path}")
+    interp = _resolve_python(nb_path, python)
+    if interp is not None:
+        return _run_via_subprocess(interp, nb_path, mode="notebook", claim=claim, width=width)
+    return _run_notebook_in_process(nb_path, claim=claim, width=width)
 
 
 def format_report(report: Mapping[str, Any]) -> str:

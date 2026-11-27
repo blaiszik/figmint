@@ -69,6 +69,13 @@ def load_table_file(path: str | Path) -> list[dict[str, Any]]:
     suffix = src.suffix.lower()
     raw_text = src.read_text(encoding="utf-8-sig")
 
+    if suffix not in {".csv", ".tsv"}:
+        from .ingest import try_load_tool_output
+
+        tool_ds = try_load_tool_output(src, raw_text=raw_text)
+        if tool_ds is not None:
+            return list(tool_ds["rows"])
+
     if suffix in {".csv", ".tsv"}:
         delimiter = "\t" if suffix == ".tsv" else ","
         reader = csv.DictReader(raw_text.splitlines(), delimiter=delimiter)
@@ -150,7 +157,7 @@ def load_table_file(path: str | Path) -> list[dict[str, Any]]:
 
     raise ExplainError(
         f"Unsupported data file suffix {suffix!r} for {src.name}.",
-        fix_hint="Supported formats: .csv, .tsv, .json, .jsonl, .ndjson.",
+        fix_hint="Supported formats: .csv, .tsv, .json, .jsonl, .ndjson, or benchmark logs (.txt, .log, .out).",
     )
 
 
@@ -214,9 +221,13 @@ def inspect_data(
     and ``preview`` (first 3 rows).
     """
     src_label: str | None = None
+    tool_ds: Any = None
     if isinstance(source, (str, Path)):
+        from .ingest import try_load_tool_output
+
         src_label = str(source)
-        rows = load_table_file(source)
+        tool_ds = try_load_tool_output(source)
+        rows = list(tool_ds["rows"]) if tool_ds is not None else load_table_file(source)
         cols = list(dict.fromkeys(k for r in rows for k in r))
     elif is_tabular(source):
         cols, rows = extract_records(source, what="inspect_data(source)")
@@ -228,7 +239,7 @@ def inspect_data(
         )
 
     if not rows:
-        return {
+        out_empty: dict[str, Any] = {
             "source": src_label,
             "rows": 0,
             "columns": cols,
@@ -236,6 +247,10 @@ def inspect_data(
             "recommendations": [],
             "preview": [],
         }
+        if tool_ds is not None:
+            out_empty["tool_format"] = tool_ds["format"]
+            out_empty["tool_meta"] = tool_ds["meta"]
+        return out_empty
 
     profiles = [_profile_column(c, [r.get(c) for r in rows]) for c in cols]
     by_name = {p["name"]: p for p in profiles}
@@ -261,6 +276,44 @@ def inspect_data(
         if params:
             entry["params"] = params
         recs.append(entry)
+
+    # 0. Native SWE dev-tool format recommendations (when auto-detected)
+    tool_format: str | None = tool_ds["format"] if tool_ds is not None else None
+    tool_meta: dict[str, Any] | None = dict(tool_ds["meta"]) if tool_ds is not None else None
+    if tool_ds is not None:
+        for trec in tool_ds.get("recommendations", []):
+            _add_rec(
+                trec["kind"],
+                trec["reason"],
+                trec["python"],
+                trec.get("cli_flags", ""),
+                trec.get("params"),
+            )
+
+    # 0b. LLM / Agent evaluation table recognition (model + score/pass_rate + cost/latency)
+    from .ingest import detect_llm_eval_columns
+
+    eval_cols = detect_llm_eval_columns(rows) if tool_ds is None else None
+    if eval_cols is not None:
+        tool_format = "llm_eval"
+        tool_meta = dict(eval_cols)
+        rx, ry, nm_col = eval_cols["x"], eval_cols["y"], eval_cols["name"]
+        if len(rows) >= 3:
+            _add_rec(
+                "relate",
+                f"LLM/agent eval trade-off ({rx!r} vs {ry!r}) across {len(rows)} {nm_col}s.",
+                f'mint.relate("{rx}", "{ry}", data=rows, names="{nm_col}", frontier=True, label_all=True, x_label="{rx}", y_label="{ry}")',
+                f"--x {rx} --y {ry} --names {nm_col} --frontier --label-all",
+                {"x": rx, "y": ry, "names": nm_col, "frontier": True, "label_all": True},
+            )
+        if len(rows) <= 20:
+            _add_rec(
+                "table",
+                f"LLM/agent eval scorecard ({len(rows)} {nm_col}s × {len(cols)} columns).",
+                f'mint.table(rows, bold_best=True, sort="-{ry}")',
+                f"--sort -{ry}",
+                {"bold_best": True, "sort": f"-{ry}"},
+            )
 
     # 1. Timeline spans: explicit start & end numeric columns
     start_c = next((lower_cols[k] for k in ("start", "t_start", "start_s", "start_ms", "begin") if k in lower_cols), None)
@@ -394,7 +447,7 @@ def inspect_data(
                     f"--name {id_col} --value {val_c}",
                     {"name": id_col, "value": val_c},
                 )
-            elif len(num_cols) == 2:
+            elif len(num_cols) == 2 and eval_cols is None:
                 _add_rec(
                     "change",
                     f"Two numeric states ({num_cols[0]!r}, {num_cols[1]!r}) per {id_col!r} fit a slopegraph.",
@@ -433,7 +486,7 @@ def inspect_data(
     if not recs and len(rows) <= 20 and len(cols) <= 8:
         _add_rec("table", f"Compact {len(rows)}×{len(cols)} table for exact lookup.", "mint.table(rows)", "", {})
 
-    return {
+    result: dict[str, Any] = {
         "source": src_label,
         "rows": len(rows),
         "columns": cols,
@@ -441,6 +494,11 @@ def inspect_data(
         "recommendations": recs[:4],
         "preview": rows[:3],
     }
+    if tool_format is not None:
+        result["tool_format"] = tool_format
+        if tool_meta is not None:
+            result["tool_meta"] = tool_meta
+    return result
 
 
 def auto_panel(
@@ -461,7 +519,7 @@ def auto_panel(
 
     if isinstance(source, (str, Path)):
         rows = load_table_file(source)
-        info = inspect_data(rows)
+        info = inspect_data(source)
     elif is_tabular(source):
         _, rows = extract_records(source, what="auto_panel(source)")
         rows = [{k: _parse_scalar(v) for k, v in r.items()} for r in rows]
@@ -489,6 +547,8 @@ def auto_panel(
         common["label"] = label
     if unit is not None:
         common["unit"] = unit
+    elif params.get("unit") is not None:
+        common["unit"] = params["unit"]
     if highlight is not None:
         common["highlight"] = highlight
 
@@ -524,10 +584,20 @@ def auto_panel(
             kw["baseline"] = baseline
         kw.setdefault("label", params.get("y"))
         return fm_exp.trend(params["x"], params.get("series"), **kw)
+    if kind == "share":
+        kw = {**common, "name": params.get("name"), "value": params.get("value")}
+        kw.setdefault("label", params.get("value"))
+        return fm_exp.share(rows, **kw)
     if kind == "compare":
         kw = {**common, "name": params.get("name"), "value": params.get("value")}
         if params.get("group"):
             kw["group"] = params["group"]
+        if params.get("error") is not None:
+            kw["error"] = params["error"]
+        if params.get("error_label") is not None:
+            kw["error_label"] = params["error_label"]
+        if "sort" in params and params["sort"] is not None:
+            kw["sort"] = params["sort"]
         if baseline is not None:
             kw["baseline"] = baseline
         kw.setdefault("label", params.get("value"))

@@ -1,0 +1,68 @@
+{
+  "inputs": {
+    "node_modules/ui-core/runtime.js": {
+      "bytes": 200070,
+      "imports": []
+    },
+    "node_modules/state-store/index.js": {
+      "bytes": 84240,
+      "imports": []
+    },
+    "node_modules/schema-check/index.js": {
+      "bytes": 56430,
+      "imports": []
+    },
+    "src/app/router.ts": {
+      "bytes": 73710,
+      "imports": []
+    },
+    "src/charts/canvas.ts": {
+      "bytes": 107055,
+      "imports": []
+    },
+    "src/features/checkout/promo.ts": {
+      "bytes": 48870,
+      "imports": []
+    },
+    "src/features/calendar/picker.ts": {
+      "bytes": 55485,
+      "imports": []
+    },
+    "src/legacy/polyfill-grid.ts": {
+      "bytes": 24840,
+      "imports": []
+    }
+  },
+  "outputs": {
+    "dist/app.bundle.js": {
+      "bytes": 482000,
+      "entryPoint": "src/app/router.ts",
+      "inputs": {
+        "node_modules/ui-core/runtime.js": {
+          "bytesInOutput": 148200
+        },
+        "node_modules/state-store/index.js": {
+          "bytesInOutput": 62400
+        },
+        "node_modules/schema-check/index.js": {
+          "bytesInOutput": 41800
+        },
+        "src/app/router.ts": {
+          "bytesInOutput": 54600
+        },
+        "src/charts/canvas.ts": {
+          "bytesInOutput": 79300
+        },
+        "src/features/checkout/promo.ts": {
+          "bytesInOutput": 36200
+        },
+        "src/features/calendar/picker.ts": {
+          "bytesInOutput": 41100
+        },
+        "src/legacy/polyfill-grid.ts": {
+          "bytesInOutput": 18400
+        }
+      }
+    }
+  }
+}

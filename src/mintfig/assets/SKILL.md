@@ -1,24 +1,24 @@
 ---
 name: mintfig
-description: Use before showing a person five or more numbers (results, benchmarks, ablations, experiment outcomes, profiles, logs) so they get one figure or table whose title is the takeaway instead of a wall of text, via mint.explain, mint.table or `mintfig plot data.csv`, with computed facts and a ship/no-ship gate. Also use before sharing any plain Matplotlib figure (mint.check checks its title against the plotted data and its text at reading size). Also use for publication plates (Nature, Science, Cell, PNAS, NeurIPS) that need exact millimetre geometry, preflight QA and reproducible bundles.
+description: Use when showing a person five or more numbers (benchmarks, ablations, comparisons, trends, distributions, CSV/experiment outcomes, profiles, logs) so they get a message-first figure or table via mint.explain, mint.table, or `mintfig plot data.csv` with computed facts and a ship gate; before sharing any plain Matplotlib figure, script, or notebook (`mint.check`, `mintfig check plot.py`, `analysis.ipynb`); or for journal/manuscript plates (Nature, Science, Cell, PNAS, NeurIPS) needing exact mm geometry and preflight QA. Do NOT use for routine code edits, bug fixes, refactoring, unit tests, git operations, stack traces, architecture explanations, config/Docker changes, or replies with 1–3 scalar numbers (answer those in prose).
 ---
 
 # mintfig: figures that say one thing
 
-Install with `pip install mintfig`. Read only what the task needs:
+Install: `pip install mintfig`, `mintfig skill --install --global`, and optionally `mintfig hook --install` for automatic Matplotlib checks. Read only what the task needs:
 
 | Task | Read |
 | :--- | :--- |
 | A figure or table for a person (most tasks) | This file, down to "Publication Figures", then stop |
 | Intervals, replicates, log axes, units, small n, height budgets, colours across figures, styles | `references/science.md` |
-| Worked code: tidy rows, scorecards, model-release charts, waterfall/timeline/flow, `mint.edit`, `mint.Session`, `mint.brief`, HTML and terminal output | `references/recipes.md` |
+| Worked code: tidy rows, scorecards, release charts, `mint.edit`, `Session`, `brief`, HTML/terminal | `references/recipes.md` |
 | A manuscript or journal plate | `references/publication.md` |
 
 ## Explain in a Conversation (`mint.explain`)
 
-Draw a chart for five or more numbers or any trend, spread or relationship. Use `mint.table` for exact lookups and prose for one to three numbers.
+Draw a chart for five or more numbers or any comparison, trend, spread, or relationship; use `mint.table` for exact lookups. Use `mintchip` for inline word-sized chips in prose or quick zero-dep terminal/PR tables; escalate to `mintfig` for full figures, multi-panel arguments, publication plates, and Matplotlib audits. Do NOT plot for 1–3 scalar numbers or routine coding tasks — reply in prose.
 
-**1. Write the takeaway first.** It is one sentence with its number ("Removing retrieval costs 8 points of accuracy", not "Ablation results"), and it becomes the title. Each figure gets one takeaway.
+**1. Write the takeaway first.** One sentence with its number ("Removing retrieval costs 8 points of accuracy", not "Ablation results") becomes the title. Each figure gets one takeaway.
 
 **2. Pick each panel by the question it answers.** Every form accepts dicts, arrays, Series, or tidy rows (`list[dict]` or a DataFrame).
 
@@ -36,7 +36,7 @@ Draw a chart for five or more numbers or any trend, spread or relationship. Use 
 | Phase or execution spans | `mint.timeline(spans)` | `{stage: (start, end)}` or rows |
 | Cohort or pipeline attrition | `mint.flow(stages)` | `{stage: n}` or `[(stage, n, reason)]` |
 
-**3. Name what is measured and what matters:** `label=`, `unit=`, `highlight=` (at most 3; the rest turn grey), `baseline=` (the control, drawn in ink; facts are stated against it), `source=`. Name every interval (`error_label=`, `band_label=`). Write units in Unicode (`µm`, `cm⁻³`, `°C`), never `$...$`.
+**3. Name what is measured and what matters:** `label=`, `unit=`, `highlight=` (at most 3; the rest turn grey), `baseline=` (control, drawn in ink; facts compare against it), `source=`. Name every interval (`error_label=`, `band_label=`). Write units in Unicode (`µm`, `cm⁻³`, `°C`), never `$...$`.
 
 ```python
 import mintfig as mint
@@ -64,23 +64,24 @@ print(summary)
 Without Python: `mintfig inspect data.csv` recommends forms, and `mintfig plot data.csv --kind auto --takeaway "..." --out fig.png` draws one.
 
 **4. Check the summary, then ship.**
-- Read `summary["panels"][i]["facts"]` instead of recomputing. They hold rankings, gaps against the baseline, whether intervals overlap, `P(A > B)`, slopes and crossings. The takeaway must agree with them.
-- If `summary["ship"]` is `true` (no errors, no overlapping, struck or malformed text, nothing under 11 px), send it now and ignore advisory warnings. Otherwise apply each issue's `fix_hint`, for at most 2 rounds. `summary["advisories"]` (such as `low_density`) are suggestions, not problems.
-- An `ExplainError` names its rule and fix. For a quick chart, `strict=False` or `with mint.lenient():` adjusts soft limits instead and lists the changes in `summary["adjustments"]`.
-- `print(summary)` is compact. `json.dumps(summary)` holds every key (`narrative`, `alt_text`, `colors`, `display`).
+- Read `summary["panels"][i]["facts"]` instead of recomputing (ranks, baseline gaps, CI overlap, `P(A > B)`, slopes, crossings); the takeaway must match them.
+- Ship when `summary["ship"]` is `true` (no errors, overlaps, clipped text, or text < 11 px); ignore advisories (`low_density`). Otherwise apply `fix_hint` (max 2 rounds).
+- `ExplainError` names its rule and fix; `strict=False` or `with mint.lenient():` auto-adjusts soft limits (`summary["adjustments"]`).
+- `print(summary)` is compact; `json.dumps(summary)` holds all keys (`narrative`, `alt_text`, `colors`, `display`).
 
-**5. Put it in front of the reader.** `summary["deliver"]` holds `markdown` (an image line with a path relative to the cwd), `caption` (the fact behind the takeaway), `text` (plain, at most 72 columns) and `html` (set once saved as `.html`).
+**5. Put it in front of the reader.** `summary["deliver"]` holds `markdown` (relative image line), `caption` (fact behind the takeaway), `text` (plain, ≤ 72 cols), and `html` (once saved as `.html`).
 
 | Where the reply lands | Render with | Send |
 | :--- | :--- | :--- |
 | Chat that renders images | default `width="chat"` (700 px) | `deliver["markdown"]` |
-| Read on a phone, or an IDE sidebar (~450 px) | `width="narrow"` (panels stack) | `deliver["markdown"]` |
-| Artifact host or review page | `fig.save("fig.html")` | the file at `deliver["html"]` |
-| Plain terminal or unknown | (any) | `deliver["text"]` in a fenced code block |
+| Phone or IDE sidebar (~450 px) | `width="narrow"` (panels stack) | `deliver["markdown"]` |
+| Artifact host or review page | `fig.save("fig.html")` | file at `deliver["html"]` |
+| Inline HTML embed (Antigravity / webview) | `fig.save("fig.html", compact=True)` | lean single-SVG HTML, flush bg, `themechange` sync; never hand-write SVG |
+| Plain terminal or unknown | (any) | `deliver["text"]` in a code fence |
 | Notebook | (any) | return `fig` |
-| Slide or PR | `width="slide"` (1280 px) for slides | the PNG, by repo path in a PR |
+| Slide or PR | `width="slide"` (1280 px) for slides | PNG (by repo path in a PR) |
 
-Reply with the sentence, the figure and the caption, and nothing more. Keep the facts to yourself:
+Reply with the sentence, the figure, and the caption — nothing more:
 
 ```markdown
 Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13.
@@ -90,11 +91,11 @@ Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13.
 *No retrieval −0.08 vs full model (0.82); no fine-tuning −0.13 vs full model (0.82).*
 ```
 
-If you can't tell which surface you're on, `fig.show()` picks one and `mintfig doctor` reports which ones work here.
+If unsure which surface you're on, `fig.show()` picks one and `mintfig doctor` reports what works here.
 
 ### Already drawn with Matplotlib (`mint.check`)
 
-Before you show a plain Matplotlib figure (yours, the user's, or one a library drew), check it: `report = mint.check(fig, "the sentence you will send", dpi=<your savefig dpi>)`, or `mintfig check plot.py` (exit 0 ship, 1 fix, 2 script error). It reads the plotted values back, says where each number in the claim comes from (or the closest one the data gives), and measures text at `width=` (`"chat"` 700 px, `"narrow"` for phones). Apply each `fix_hint` until `report["ship"]` is true.
+Before sharing any plain Matplotlib figure, script, or notebook, run `mint.check(fig, "claim", dpi=...)`, `mintfig check plot.py`, or `mintfig check analysis.ipynb` (exit `0` ship, `1` fix, `2` error; `--python` auto-detects `.venv`). It checks claim numbers against plotted data and text legibility at `width=`; apply `fix_hint` until `ship` is `true`. Use `mintfig hook --install` to run automatically.
 
 ### Every argument (unknown arguments raise `ExplainError` naming valid ones)
 
@@ -117,7 +118,7 @@ mint.compare(values,          # {name: num}, {cat: {s: num}}, Series, or rows
     name=None, group=None, value=None, sort=True, zero=True, log=False,
     error=None, inner_error=None, error_label=None,  # inner_error= inner CI inside error=
     boost=None, boost_label=None, show_delta="auto",  # auto: bracket a gap the takeaway states
-    n=None, reference=None, facet=False)
+    n=None, reference=None, facet=False, legend=False)
 
 mint.trend(x, series=None,    # wide (x, {s: [nums]}) or tidy ("x", "s", y="y", data=rows)
     y=None, data=None, x_label=None, x_unit=None, log=False, log_x=False, zero=False,
@@ -125,7 +126,7 @@ mint.trend(x, series=None,    # wide (x, {s: [nums]}) or tidy ("x", "s", y="y", 
     band=None, band_label=None,  # band={s: (lo, hi)}, each a list along x
     points=None, points_label=None,  # raw replicates: points={s: [[reps at x0], [reps at x1], ...]}
     events=None, regions=None, callouts=None,  # regions=[(x0, x1, txt)], callouts=[(x, y, txt)]
-    reference=None, end_values=True, facet=False)
+    reference=None, end_values=True, facet=False, legend=False)
 
 mint.change(before, after, data=None, name=None, labels=("Before", "After"))
 
@@ -138,9 +139,10 @@ mint.histogram(values, group=None, value=None, bins="auto", stat="median", log=F
 
 mint.relate(x, y, x_label=, y_label=, data=None, x_unit=None, names=None, groups=None,
     fit=False, frontier=False, label_all=False, connect_groups=False,
-    regions=None, callouts=None, log_x=False, log_y=False, reference=None, facet=False)
+    regions=None, callouts=None, log_x=False, log_y=False, reference=None, facet=False,
+    legend=False)
 
-mint.share(parts, name=None, value=None, top=7)
+mint.share(parts, name=None, value=None, top=7, kind="bars")  # "bars" | "pie" | "donut" (<=5)
 
 mint.matrix(values, rows=None, cols=None, value=None, diverging=False, center=0.0,
     triangle=None, mask_diagonal=False, highlight=None)  # triangle="lower"|"upper" for symmetric
@@ -160,9 +162,9 @@ mint.custom(draw_fn, height_mm=48.0, describe="...")  # escape hatch: draw_fn(ax
 
 ### Limits
 
-- **Strict limits** (`ExplainError` in strict mode): `compare`, `timeline` and `table` take at most 20 items, `change` and `waterfall` 14, `flow` 12, `distribution` 8 groups (with at least 3 observations each), `matrix` 16×12, `table` 8 columns, and `relate(groups=)` 4 (12 with `facet=True`). `trend` draws at most 4 coloured series; for more, use `highlight=` or `facet=True` (up to 12). Each figure allows 3 highlights, 4 shared colours and 6 panels. `too_tall` warns above 135 mm.
-- The `scales_differ` advisory means two panels show one measure on different ranges. Merge them into one `facet=` panel so they share a scale.
-- Revise a saved figure with `mint.edit("fig.png", highlight=..., drop=..., out="v2.png")`. Keep colours across turns with `mint.Session`, and combine figures into one report with `mint.brief(...)`. All three are in `references/recipes.md`.
+- **Strict limits** (`ExplainError`): `compare`/`timeline`/`table` ≤ 20, `change`/`waterfall` ≤ 14, `flow` ≤ 12, `distribution` ≤ 8 groups (≥ 3 obs), `matrix` ≤ 16×12, `table` ≤ 8 cols, `relate(groups=)` ≤ 4 (12 with `facet=True`), `trend` ≤ 4 coloured series (12 faceted). Max 3 highlights, 4 colours, 6 panels; `too_tall` > 135 mm.
+- `scales_differ` means two panels share a measure on different ranges — merge into one `facet=` panel.
+- Revise with `mint.edit("fig.png", ...)`, persist colours with `mint.Session`, and combine into reports with `mint.brief(...)` (`references/recipes.md`).
 
 ## Publication Figures
 

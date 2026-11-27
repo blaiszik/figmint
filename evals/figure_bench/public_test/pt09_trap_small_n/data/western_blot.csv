@@ -1,0 +1,7 @@
+condition,replicate,normalized_band_intensity
+vehicle,1,0.92
+vehicle,2,1.38
+vehicle,3,0.74
+inhibitor,1,1.12
+inhibitor,2,1.84
+inhibitor,3,0.89

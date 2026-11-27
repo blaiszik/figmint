@@ -1,0 +1,250 @@
+{
+  "version": "1.0",
+  "description": "40 realistic developer and scientist prompts (20 should_trigger=true, 20 should_trigger=false) that never mention mintfig, used to evaluate skill trigger recall and false-trigger rate.",
+  "gates": {
+    "min_recall": 0.85,
+    "max_false_trigger_rate": 0.05
+  },
+  "prompts": [
+    {
+      "id": "pos_01_ml_ablation",
+      "should_trigger": true,
+      "category": "ml_ablation",
+      "prompt": "Summarize our 5-variant ablation study from runs/ablation.csv (5 seeds each) showing test accuracy, 95% confidence intervals, and validation curves over 2,000 steps."
+    },
+    {
+      "id": "pos_02_benchmark_suite",
+      "should_trigger": true,
+      "category": "benchmark_run",
+      "prompt": "Compare our 6 model checkpoints across MMLU, HumanEval, GSM8K, and latency_ms from eval_results.json so the team can see which checkpoint to ship."
+    },
+    {
+      "id": "pos_03_noisy_csv_explore",
+      "should_trigger": true,
+      "category": "csv_exploration",
+      "prompt": "Explore sensor_readings.csv (1,800 rows across 4 reactor zones) and show me the trends, outliers, and spread across zones."
+    },
+    {
+      "id": "pos_04_dose_response",
+      "should_trigger": true,
+      "category": "pharmacology",
+      "prompt": "Analyze our triplicate dose-response CSV for 4 kinase inhibitors across 10 concentrations (0.001 to 30 uM) and compare IC50 inhibition against cell viability."
+    },
+    {
+      "id": "pos_05_materials_doping",
+      "should_trigger": true,
+      "category": "materials_science",
+      "prompt": "Show how four-probe conductivity varies across 5 Li-doping levels (0 to 4 at.%) from 80 K to 330 K and highlight which doping level gives the lowest activation energy."
+    },
+    {
+      "id": "pos_06_genomics_fold_change",
+      "should_trigger": true,
+      "category": "genomics",
+      "prompt": "Inspect differential_expression.tsv and compare log2 fold changes across 18 pathway genes for wild type, knockout, and rescue replicates."
+    },
+    {
+      "id": "pos_07_review_matplotlib_script",
+      "should_trigger": true,
+      "category": "matplotlib_review",
+      "prompt": "Review plots/make_ablation.py before I paste its PNG into Slack — check whether the headline number actually matches the plotted data and whether labels are legible at chat width."
+    },
+    {
+      "id": "pos_08_nature_manuscript_plate",
+      "should_trigger": true,
+      "category": "publication_plate",
+      "prompt": "Prepare Figure 2 for our Nature submission: a 2-panel 89 mm single-column plate with exact millimeter dimensions, sans-serif typography, and preflight checks."
+    },
+    {
+      "id": "pos_09_neurips_scaling_figure",
+      "should_trigger": true,
+      "category": "publication_plate",
+      "prompt": "Build a double-column NeurIPS scaling law figure comparing 4 parameter scales with confidence bands, direct curve labels, and a reproducible submission bundle."
+    },
+    {
+      "id": "pos_10_ci_latency_spike",
+      "should_trigger": true,
+      "category": "ops_latency",
+      "prompt": "Look at ci_latency_24h.csv covering 6 microservices (p50, p95, p99 every 15 minutes) and show which service spiked and when the regression started."
+    },
+    {
+      "id": "pos_11_ab_rollout_distribution",
+      "should_trigger": true,
+      "category": "ab_experiment",
+      "prompt": "Compare checkout latency distributions between control and treatment from rollout_samples.csv (n=400 per arm), highlighting medians and the p95 tail."
+    },
+    {
+      "id": "pos_12_training_curves_hyperparams",
+      "should_trigger": true,
+      "category": "ml_training",
+      "prompt": "Compare validation loss trajectories over 50 epochs for 4 learning-rate schedules with plus/minus 1 s.d. across 3 random seeds from training_logs.csv."
+    },
+    {
+      "id": "pos_13_battery_capacity_fade",
+      "should_trigger": true,
+      "category": "materials_science",
+      "prompt": "Analyze cycle_life.csv for 8 pouch cells over 500 charge cycles, show when each cell crosses 80% capacity retention, and call out the defective cell."
+    },
+    {
+      "id": "pos_14_descriptor_correlation",
+      "should_trigger": true,
+      "category": "scientific_analysis",
+      "prompt": "Compute and display the pairwise Pearson correlation matrix across 8 crystal descriptors from descriptors_412.csv so we can drop redundant features."
+    },
+    {
+      "id": "pos_15_funnel_attrition",
+      "should_trigger": true,
+      "category": "product_analytics",
+      "prompt": "Show user drop-off across our 6 onboarding stages from funnel_q4.csv along with the main drop reason at each step."
+    },
+    {
+      "id": "pos_16_pipeline_timeline",
+      "should_trigger": true,
+      "category": "profiling",
+      "prompt": "Profile our 7-stage ETL build trace in trace.json (start and end timestamps per stage) so we can see which parallel stages dominate wall-clock time."
+    },
+    {
+      "id": "pos_17_cost_waterfall",
+      "should_trigger": true,
+      "category": "attribution",
+      "prompt": "Break down the monthly inference bill change from $42k to $68k across 8 cost drivers in billing_delta.csv so leadership sees what caused the jump."
+    },
+    {
+      "id": "pos_18_retrofit_before_after",
+      "should_trigger": true,
+      "category": "before_after",
+      "prompt": "Compare daily kWh consumption before and after the HVAC retrofit across 9 campus buildings in retrofit_energy.csv against the unretrofitted control building."
+    },
+    {
+      "id": "pos_19_check_notebook_figures",
+      "should_trigger": true,
+      "category": "matplotlib_review",
+      "prompt": "Audit the Matplotlib charts in notebooks/experiment_analysis.ipynb before we attach them to the PR — make sure there are no clipped labels, truncated bar axes, or wrong title numbers."
+    },
+    {
+      "id": "pos_20_model_scorecard_table",
+      "should_trigger": true,
+      "category": "benchmark_scorecard",
+      "prompt": "Turn benchmark_summary.csv (8 candidate models with accuracy, 95% CI, p99 latency, and GPU memory) into a clean comparison scorecard for our weekly review."
+    },
+    {
+      "id": "neg_01_fix_keyerror_bug",
+      "should_trigger": false,
+      "category": "bug_fix",
+      "prompt": "Fix the KeyError when optional metadata fields are missing in src/parser/loader.py."
+    },
+    {
+      "id": "neg_02_refactor_module",
+      "should_trigger": false,
+      "category": "refactor",
+      "prompt": "Refactor src/services/billing.py to split invoice calculation and PDF rendering into two separate classes."
+    },
+    {
+      "id": "neg_03_write_unit_tests",
+      "should_trigger": false,
+      "category": "unit_tests",
+      "prompt": "Write pytest unit tests covering expired tokens and invalid signatures in src/auth/jwt_validator.py."
+    },
+    {
+      "id": "neg_04_git_rebase_conflict",
+      "should_trigger": false,
+      "category": "git_ops",
+      "prompt": "Help me resolve the git rebase merge conflict in src/api/routes.py against origin/main."
+    },
+    {
+      "id": "neg_05_read_stack_trace",
+      "should_trigger": false,
+      "category": "stack_trace",
+      "prompt": "Explain this Python traceback from our worker queue: AttributeError: 'NoneType' object has no attribute 'encode' at line 142 of serializer.py."
+    },
+    {
+      "id": "neg_06_explain_architecture",
+      "should_trigger": false,
+      "category": "architecture",
+      "prompt": "Walk me through the high-level architecture of this repository and how requests flow from the CLI entrypoint to the storage layer."
+    },
+    {
+      "id": "neg_07_update_dockerfile",
+      "should_trigger": false,
+      "category": "config_docker",
+      "prompt": "Update our Dockerfile to use a multi-stage build with python:3.12-slim and cache pip wheels cleanly."
+    },
+    {
+      "id": "neg_08_two_scalar_numbers",
+      "should_trigger": false,
+      "category": "few_scalars",
+      "prompt": "How many tests passed and how many failed in the last pytest run?"
+    },
+    {
+      "id": "neg_09_single_scalar_lookup",
+      "should_trigger": false,
+      "category": "few_scalars",
+      "prompt": "What was the single peak memory value in MB reported for run 42 in run42.log?"
+    },
+    {
+      "id": "neg_10_three_scalar_numbers",
+      "should_trigger": false,
+      "category": "few_scalars",
+      "prompt": "Just tell me the min, median, and max response time from this single endpoint check — three numbers is all I need."
+    },
+    {
+      "id": "neg_11_rename_symbol",
+      "should_trigger": false,
+      "category": "refactor",
+      "prompt": "Rename fetch_user_records to list_user_records across the codebase and update all imports and call sites."
+    },
+    {
+      "id": "neg_12_sql_migration",
+      "should_trigger": false,
+      "category": "code_edit",
+      "prompt": "Write an Alembic migration that adds a composite index on (tenant_id, created_at) to the events table."
+    },
+    {
+      "id": "neg_13_pr_diff_review",
+      "should_trigger": false,
+      "category": "code_review",
+      "prompt": "Review my uncommitted git diff for race conditions, thread-safety bugs, and missing error handling."
+    },
+    {
+      "id": "neg_14_fix_ruff_mypy",
+      "should_trigger": false,
+      "category": "bug_fix",
+      "prompt": "Fix the mypy type annotation errors and ruff lint warnings in src/utils/retry.py."
+    },
+    {
+      "id": "neg_15_add_cli_flag",
+      "should_trigger": false,
+      "category": "code_edit",
+      "prompt": "Add a --timeout flag with a default of 30 seconds to the argparse CLI in scripts/sync_data.py."
+    },
+    {
+      "id": "neg_16_debug_ci_workflow",
+      "should_trigger": false,
+      "category": "config_docker",
+      "prompt": "Why is .github/workflows/ci.yml failing to restore the uv dependency cache on macOS runners?"
+    },
+    {
+      "id": "neg_17_explain_python_decorator",
+      "should_trigger": false,
+      "category": "code_explanation",
+      "prompt": "Explain how the @retry_with_backoff decorator in src/http_client.py handles jitter and cancellation."
+    },
+    {
+      "id": "neg_18_update_pyproject",
+      "should_trigger": false,
+      "category": "config_docker",
+      "prompt": "Bump the minimum httpx version to 0.27 in pyproject.toml and move black out of optional dev dependencies."
+    },
+    {
+      "id": "neg_19_write_docstrings",
+      "should_trigger": false,
+      "category": "code_edit",
+      "prompt": "Add NumPy-style docstrings to the public functions in src/cache/lru.py."
+    },
+    {
+      "id": "neg_20_check_regex",
+      "should_trigger": false,
+      "category": "bug_fix",
+      "prompt": "Does the regex in src/versioning.py accept pre-release semver tags like 1.4.0-rc.2? Fix it if not."
+    }
+  ]
+}

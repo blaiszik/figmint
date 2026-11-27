@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1",
+  "id": "pt03_arrhenius_kinetics",
+  "split": "public-test",
+  "track": "science_uncertainty",
+  "domain": "Chemistry",
+  "title": "Arrhenius kinetics comparing catalyst activation energies",
+  "display_width_px": 700,
+  "surface": "chat",
+  "what": "activation energy Ea (kJ/mol) of Cat-Pt, Cat-Ni, or their difference",
+  "accept": [
+    53.092343,
+    84.660646,
+    31.568303
+  ],
+  "rel_tol": 0.08,
+  "abs_tol": 2.0,
+  "uncertainty_required": true,
+  "no_effect_trap": false,
+  "forbidden_overclaim_phrases": [],
+  "required_disclosures": [
+    "kJ/mol",
+    "replicates"
+  ],
+  "reader_questions": [
+    {
+      "kind": "primary",
+      "question": "What is the primary quantitative finding or value?",
+      "expected": "Cat-Pt has Ea = 53.1 kJ/mol vs Cat-Ni Ea = 84.7 kJ/mol (a 31.6 kJ/mol lower barrier)."
+    },
+    {
+      "kind": "uncertainty",
+      "question": "Is the difference clearly outside uncertainty or noise?",
+      "expected": "Yes; triplicate scatter is tight (~5.5% CV) around both Arrhenius lines, separating the slopes cleanly."
+    },
+    {
+      "kind": "nuance",
+      "question": "What caveat, outlier, control, or subgroup pattern matters?",
+      "expected": "Because Cat-Ni has a steeper slope (higher pre-exponential factor), its rate approaches Cat-Pt at the 625 K high-T end."
+    }
+  ]
+}

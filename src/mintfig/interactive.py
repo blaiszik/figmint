@@ -170,6 +170,9 @@ def _render_svg(exp: Explanation, *, interactive: bool = True) -> tuple[str, dic
         )
     svg = buf.getvalue().decode("utf-8")
     svg = _METADATA_RE.sub("", _DOCTYPE_RE.sub("", _XML_DECL_RE.sub("", svg))).strip()
+    # Matplotlib writes the pieces of a coloured headline ("Only ", "retrieval", " gets ...")
+    # as separate <text> elements; SVG collapses their edge spaces unless told not to.
+    svg = svg.replace('<text style="', '<text style="white-space: pre; ')
     if not interactive:
         return svg, {}
     marks: dict[str, Any] = {}
@@ -963,6 +966,68 @@ def _data_section(exp: Explanation, *, facts: bool = True) -> str:
     return '<div class="mf-data" hidden>' + "".join(parts) + "</div>"
 
 
+_ROTATE_ZERO_RE = re.compile(r' transform="rotate\(-?0(?:\.0+)? [^)]+\)"')
+_FONT_FAMILY_RE = re.compile(r"font-family:[^;\"<>]+;?\s*")
+_WHITE_SPACE_PRE_RE = re.compile(r"white-space:\s*pre;?\s*")
+_LONG_FLOAT_RE = re.compile(r"(\d+\.\d)\d+")
+_INLINE_STYLE_RE = re.compile(r'style="([^"]+)"')
+_PLAIN_GROUP_RE = re.compile(r"<g>((?:(?!</?g\b).)*)</g>")
+
+
+def _minify_svg(raw: str) -> str:
+    """Compact Matplotlib SVG markup for fast inline chat embeds (~50% smaller, visually identical)."""
+    out = _ROTATE_ZERO_RE.sub("", raw)
+    out = _FONT_FAMILY_RE.sub("", out)
+    out = _WHITE_SPACE_PRE_RE.sub("", out)
+    out = _LONG_FLOAT_RE.sub(r"\1", out)
+    out = re.sub(r"\s*\n\s*", " ", out)
+    out = re.sub(r">\s+<", "><", out)
+    out = out.replace("<g/>", "")
+    for _ in range(4):
+        nxt = _PLAIN_GROUP_RE.sub(r"\1", out)
+        if nxt == out:
+            break
+        out = nxt
+    counts: dict[str, int] = {}
+    for m in _INLINE_STYLE_RE.finditer(out):
+        st = m.group(1).strip()
+        counts[st] = counts.get(st, 0) + 1
+    cls_map: dict[str, str] = {}
+    rules: list[str] = []
+    for idx, (st, n) in enumerate(sorted(counts.items(), key=lambda kv: -kv[1] * len(kv[0]))):
+        if n >= 2 and len(st) > 10:
+            cname = f"m{idx}"
+            cls_map[st] = cname
+            rules.append(f".{cname}{{{st}}}")
+
+    def _repl(match: re.Match[str]) -> str:
+        st = match.group(1).strip()
+        return f'class="{cls_map[st]}"' if st in cls_map else match.group(0)
+
+    out = _INLINE_STYLE_RE.sub(_repl, out)
+    out = out.replace("xlink:href=", "href=")
+    extra = "text{white-space:pre;font-family:Helvetica,Arial,sans-serif}" + "".join(rules)
+    return re.sub(r"(<style[^>]*>)", lambda m: m.group(1) + extra, out, count=1)
+
+
+_THEME_SYNC_JS = (
+    "(function(){var H=document.documentElement;"
+    "function sync(){"
+    "var c=H.classList;"
+    "if(c.contains('light')){H.setAttribute('data-mf-scheme','light');}"
+    "else if(c.contains('dark')){H.setAttribute('data-mf-scheme','dark');}"
+    "else if(window.matchMedia){"
+    "H.setAttribute('data-mf-scheme',window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}"
+    "}"
+    "sync();"
+    "window.addEventListener('themechange',sync);"
+    "if(window.matchMedia){"
+    "var mq=window.matchMedia('(prefers-color-scheme:dark)');"
+    "if(mq.addEventListener)mq.addEventListener('change',sync);}"
+    "})();"
+)
+
+
 def render_html_fragment(
     exp_or_spec: Explanation | Mapping[str, Any],
     *,
@@ -970,6 +1035,7 @@ def render_html_fragment(
     facts: bool = True,
     responsive: bool = True,
     caption: str | None = None,
+    compact: bool = False,
 ) -> str:
     """Render a self-contained embeddable HTML fragment (for Jupyter ``_repr_html_()``).
 
@@ -979,6 +1045,8 @@ def render_html_fragment(
     ``facts=False`` leaves the facts out of the data drawer (its data table stays), for a
     page that lists them elsewhere. ``responsive=False`` embeds only the figure's own
     layout (still light and dark): a static thumbnail with ``interactive=False``.
+    ``compact=True`` emits a single minified SVG with transparent flush background and
+    omits the full ``spec`` JSON blob (~80% smaller, designed for fast inline chat embeds).
     ``caption`` is shown under the figure, above the ``data · svg · spec`` line.
     """
     exp = _ensure_explanation(exp_or_spec)
@@ -987,7 +1055,8 @@ def render_html_fragment(
     auto = exp.theme.name == "mintfig"
     twin_style = _dark_twin_style() if auto else None
 
-    own = _layout_widths(exp) if responsive else [_OWN]
+    use_responsive = responsive and not compact
+    own = _layout_widths(exp) if use_responsive else [_OWN]
     own_name = own[-1]
     variants: list[tuple[int, Explanation, Explanation | None]] = []
     for name in own:
@@ -1027,6 +1096,8 @@ def render_html_fragment(
                     f'<div class="mf-light">{body}</div><div class="mf-dark">'
                     f'{_scope_ids(dark_svg, f"{root_id}-{i}d-")}</div>'
                 )
+        if compact:
+            body = _minify_svg(body)
         blocks.append(f'<div class="mf-v mf-v{i}">{body}</div>')
 
     light_ui = _ui_tokens(exp.theme)
@@ -1040,6 +1111,15 @@ def render_html_fragment(
         max(px for px, _, _ in variants),
         swaps,
     )
+    if compact:
+        compact_css = (
+            f"#{root_id}{{background:transparent;--mf-bg:transparent}}"
+            f'#{root_id}[data-mf-scheme="dark"],[data-mf-scheme="dark"] #{root_id}'
+            f"{{background:transparent;--mf-bg:transparent}}"
+            f'#{root_id}[data-mf-scheme="light"],[data-mf-scheme="light"] #{root_id}'
+            f"{{background:transparent;--mf-bg:transparent}}"
+        )
+        css = css.replace("</style>", f"\n{compact_css}\n</style>", 1)
     mode = "dark" if relative_luminance(exp.theme.background) < 0.2 else "light"
     escaped_alt = html.escape(exp.alt_text, quote=True)
     stage = (
@@ -1058,19 +1138,28 @@ def render_html_fragment(
     if not interactive:
         return f"{css}\n{open_tag}{stage}</figure>"
 
-    foot = (
-        '<p class="mf-foot">'
-        '<button type="button" data-mf-act="data" aria-expanded="false">data</button>'
-        " \N{MIDDLE DOT} "
-        '<button type="button" data-mf-act="svg">svg</button>'
-        " \N{MIDDLE DOT} "
-        '<button type="button" data-mf-act="spec">spec</button>'
-        '<span class="mf-note" role="status" aria-live="polite"></span></p>'
-    )
+    if compact:
+        foot = (
+            '<p class="mf-foot">'
+            '<button type="button" data-mf-act="data" aria-expanded="false">data</button>'
+            " \N{MIDDLE DOT} "
+            '<button type="button" data-mf-act="svg">svg</button>'
+            '<span class="mf-note" role="status" aria-live="polite"></span></p>'
+        )
+    else:
+        foot = (
+            '<p class="mf-foot">'
+            '<button type="button" data-mf-act="data" aria-expanded="false">data</button>'
+            " \N{MIDDLE DOT} "
+            '<button type="button" data-mf-act="svg">svg</button>'
+            " \N{MIDDLE DOT} "
+            '<button type="button" data-mf-act="spec">spec</button>'
+            '<span class="mf-note" role="status" aria-live="polite"></span></p>'
+        )
     js = _JS % {
         "id": json.dumps(root_id),
         "marks": _safe_json_for_script(marks),
-        "spec": _safe_json_for_script(spec_dict),
+        "spec": "{}" if compact else _safe_json_for_script(spec_dict),
         "file": _safe_json_for_script(_citation_file(exp)),
     }
     return (
@@ -1084,11 +1173,47 @@ def render_html(
     exp_or_spec: Explanation | Mapping[str, Any],
     *,
     interactive: bool = True,
+    compact: bool = False,
 ) -> str:
-    """Render a standalone, self-contained HTML5 document for an ``Explanation`` or spec dict."""
+    """Render a standalone, self-contained HTML5 document for an ``Explanation`` or spec dict.
+
+    When ``compact=True``, emits a lean, single-layout minified SVG document with a
+    transparent flush background and live host theme sync (``themechange`` / ``.light``
+    / ``.dark`` / ``prefers-color-scheme``), ideal for inline chat embeds.
+    """
     exp = _ensure_explanation(exp_or_spec)
-    fragment = render_html_fragment(exp, interactive=interactive)
+    fragment = render_html_fragment(exp, interactive=interactive, compact=compact)
     light = _ui_tokens(exp.theme)
+    if compact:
+        page = f"html,body{{margin:0;padding:0;background:transparent;color:{light['ink']}}}"
+        page += "body{padding:4px 0}"
+        scheme = "light dark"
+        if exp.theme.name == "mintfig":
+            dark = _ui_tokens(THEMES["dark"])
+            page += (
+                f"@media (prefers-color-scheme:dark){{html,body{{color:{dark['ink']}}}}}"
+                f'html[data-mf-scheme="dark"],html[data-mf-scheme="dark"] body{{color:{dark["ink"]}}}'
+                f'html[data-mf-scheme="light"],html[data-mf-scheme="light"] body{{color:{light["ink"]}}}'
+            )
+        else:
+            scheme = "dark" if relative_luminance(exp.theme.background) < 0.2 else "light"
+        sync_tag = f"\n<script>{_THEME_SYNC_JS}</script>" if exp.theme.name == "mintfig" else ""
+        return (
+            "<!DOCTYPE html>\n"
+            '<html lang="en">\n'
+            "<head>\n"
+            '<meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+            f'<meta name="color-scheme" content="{scheme}">\n'
+            f"<title>{html.escape(exp.takeaway, quote=True)}</title>\n"
+            f"<style>\n{page}\n</style>\n"
+            "</head>\n"
+            "<body>\n"
+            f"{fragment}{sync_tag}\n"
+            "</body>\n"
+            "</html>\n"
+        )
+
     page = f"html,body{{margin:0;background:{light['bg']};color:{light['ink']}}}"
     page += "body{padding:16px}@media (max-width:480px){body{padding:8px 4px}}"
     scheme = "light dark"
