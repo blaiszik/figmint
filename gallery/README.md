@@ -4,9 +4,46 @@ Every primary function, visual theme, color palette, and publication plate in `m
 
 | Section | Jump to |
 | :--- | :--- |
-| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#mintexplain--multi-panel-arguments) · [`mint.compare`](#mintcompare--size-and-intervals) · [`mint.trend`](#minttrend--change-over-time-dose-or-scale) · [`mint.change`](#mintchange--paired-before-and-after) · [`mint.distribution`](#mintdistribution--raw-observations-and-spread) · [`mint.histogram`](#minthistogram--binned-distributions) · [`mint.relate`](#mintrelate--two-continuous-measures) · [`mint.share`](#mintshare--part-of-a-whole) · [`mint.matrix`](#mintmatrix--two-categorical-dimensions) · [`mint.forest`](#mintforest--effect-sizes-and-meta-analysis) · [`mint.table`](#minttable--exact-lookups-and-scorecards) · [`mint.card`](#mintcard--pr-and-release-kpi-summary-cards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [New in 0.3](#new-in-03-delivery-table-graphics-and-briefings) · [Model Release Hero Charts](#model-release-hero-charts) |
-| **Themes, Palettes & CLI** | [Terminal Braille & True-Color](#terminal-braille--true-color-gallery) · [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
+| **Highlights** | [Editorial Masterpiece](#editorial-masterpiece-3-panel-briefing) · [Editorial × Terminal Braille](#editorial--24-braille-terminal) · [Terminal Braille & True-Color](#terminal-braille--true-color-gallery) |
+| **Conversation Forms (`mint.explain`)** | [`mint.explain`](#mintexplain--multi-panel-arguments) · [`mint.compare`](#mintcompare--size-and-intervals) · [`mint.trend`](#minttrend--change-over-time-dose-or-scale) · [`mint.change`](#mintchange--paired-before-and-after) · [`mint.distribution`](#mintdistribution--raw-observations-and-spread) · [`mint.histogram`](#minthistogram--binned-distributions) · [`mint.relate`](#mintrelate--two-continuous-measures) · [`mint.share`](#mintshare--part-of-a-whole) · [`mint.matrix`](#mintmatrix--two-categorical-dimensions) · [`mint.forest`](#mintforest--effect-sizes-and-meta-analysis) · [`mint.table`](#minttable--exact-lookups-and-scorecards) · [`mint.card`](#mintcard--pr-and-release-kpi-summary-cards) · [Agent Workflow Forms & Briefings](#agent-workflow-forms--multi-turn-briefings) · [Visual-Science & Harness Delivery](#visual-science--harness-adaptive-delivery) · [Table-Graphics & Words on Marks](#table-graphics-words-on-marks--compact-density) · [Model Release Hero Charts](#model-release-hero-charts) |
+| **Themes, Palettes & CLI** | [Themes (`style=`)](#themes-style) · [Color Palettes (`palette=`)](#color-palettes-palette) · [Editing & CLI (`mint.load`)](#editing-returned-figures-and-cli) |
 | **Publication Plates** | [Before vs. After](#before-vs-after-default-matplotlib) · [Journal Switch](#one-line-journal-switch-nature-183-mm-vs-science-184-mm) · [Multi-Panel Plates](#multi-panel-publication-plates) · [CVD Proof Sheet](#automated-cvd--grayscale-proof-sheet-platebundle) |
+
+---
+
+## Editorial Masterpiece (3-Panel Briefing)
+
+One `mint.explain(..., style="prism", density="compact", width="slide")` call combining a log-scale ECDF with labeled `p50`/`p95` guides, a deterministic beeswarm with tabular medians, and a clean booktabs table-graphics scorecard (in-cell CI whiskers, shared-scale bars, and 7-day rollout sparklines):
+
+![Three-panel checkout latency canary combining log-scale ECDF, beeswarm raw traces, and a table-graphics scorecard](output/readme_comparison/repo_header_hero.png)
+
+### Matching 116-Column 3-Panel 2×4 Dot-Matrix Counterpart (`--matrix`)
+
+The exact same three panels rendered in high-resolution 2×4 Unicode dot-matrix + 24-bit ANSI (`style="obsidian"`, `mode="matrix"`) with 1:1 color alignment (`v2 Cached` mint, `v2 Uncached` arctic sky, `v1 Baseline` off-white):
+
+![116-column 3-panel 2x4 dot-matrix terminal counterpart of the checkout latency canary](output/readme_comparison/repo_header_braille.png)
+
+### Promoted Curated Surface Themes (`style=`)
+
+Same three-panel figure rendered with one-word built-in styles — zero custom `Theme(...)` boilerplate:
+
+| `style="folio"` (`#FFFFFF` editorial serif) | `style="nordic"` (`#F8FBFA` whisper-mint) |
+| :---: | :---: |
+| ![folio editorial serif edition](output/palette_matching/npg_editorial_serif.png) | ![nordic whisper-mint edition](output/palette_matching/nordic_emerald_slate.png) |
+| **`style="obsidian"` (`#0F1715` dark mode)** | **`style="monograph"` (`#FAF7F0` archival serif)** |
+| ![obsidian dark mode edition](output/palette_matching/pine_obsidian_dark.png) | ![monograph archival serif edition](output/palette_matching/monograph_ivory_serif.png) |
+
+*Generator: [`make_repo_header.py`](make_repo_header.py)*
+
+---
+
+## Editorial × 2×4 Braille Terminal
+
+One `mint.explain()` call renders as an editorial graphic (masthead accent bar, uppercase kicker, DP-balanced serif headline, inline above-gridline y-ticks) or as a color-aligned 2×4 Unicode Braille + 24-bit ANSI terminal view with zero image viewer needed:
+
+![Same mint.explain() call rendered in editorial style and 2x4 Braille dark terminal](output/readme_comparison/flagship_editorial_braille.png)
+
+*Generator: [`make_flagship_and_03_gallery.py`](make_flagship_and_03_gallery.py)*
 
 ---
 
@@ -150,6 +187,10 @@ mint.explain(
     source="synthetic example data",
 )
 ```
+
+### Deterministic beeswarm with tabular readout (`mint.distribution(..., mode="swarm")`)
+
+![Dot strip vs deterministic beeswarm with right-aligned median readout column](output/explain_forms/distribution_swarm.png)
 
 ### Empirical CDF tail comparison (`mint.distribution(..., mode="ecdf")`)
 
@@ -428,15 +469,16 @@ Grounded in empirical visual communication research (Kay & Hullman quantile dotp
 
 ---
 
-## New in 0.3: delivery, table-graphics and briefings
+## Table-Graphics, Words on Marks & Compact Density
 
-These are not rendered in this gallery yet, and the images above were drawn before them (names in titles are not coloured there, and no delta brackets are drawn). Runnable code for each is in the [main README](../README.md#put-it-in-front-of-the-reader); the tests named below build small examples.
+- **In-cell table graphics (`mint.table(bars=, interval=, spark=)`)**: shared-scale latency bars, 95% CI whiskers, and training sparklines right beside each number.
+- **Words on marks & auto delta brackets (`color_names=True`, `show_delta="auto"`, `density="compact"`)**: entity names in the serif headline inherit their mark's colour, stated differences draw clean brackets automatically, and `density="compact"` tightens row height while holding type size steady.
 
-- **Delivery:** `summary["deliver"]` (`markdown`, `caption`, `text`, `html`), `fig.show()`, `fig.to_text()` and `mintfig doctor`. Tests: [`test_delivery.py`](../tests/test_delivery.py).
-- **HTML page:** layouts at 360 px, 450 px and the figure's own width, light and dark from one file, values on hover, click to cite. Code: [`interactive.py`](../src/mintfig/interactive.py); tests: [`test_html_surface.py`](../tests/test_html_surface.py).
-- **Words on the marks:** `color_names=`, `compare(show_delta="auto")` brackets, `density="compact"`. Tests: [`test_words_and_marks.py`](../tests/test_words_and_marks.py), [`test_density.py`](../tests/test_density.py).
-- **Table-graphics:** `mint.table(bars=, interval=, interval_label=, spark=)`. Tests: [`test_table_graphics.py`](../tests/test_table_graphics.py).
-- **Briefings with prose:** `mint.brief(title, "paragraph", fig, "## Section", fig, ...)`. Code: [`brief.py`](../src/mintfig/brief.py); tests: [`test_brief_document.py`](../tests/test_brief_document.py).
+| In-cell table graphics (`bars=`, `interval=`, `spark=`) | Words on marks + auto delta brackets (`density="compact"`) |
+| :---: | :---: |
+| ![Table-graphics scorecard with 95% CI whiskers, bars, and sparklines](output/explain_forms/table_graphics_scorecard.png) | ![Words on marks editorial figure with auto delta brackets and compact density](output/explain_forms/words_on_marks_compact.png) |
+
+*Generator: [`make_flagship_and_03_gallery.py`](make_flagship_and_03_gallery.py). Also see `summary["deliver"]`, adaptive `fig.save("fig.html")`, and `mint.brief(...)` in the [main README](../README.md).*
 
 ---
 
@@ -459,6 +501,8 @@ Combine grouped `mint.compare`, stacked `boost=` extensions, Pareto frontier `mi
 ## Terminal Braille & True-Color Gallery
 
 High-resolution **2×4 Unicode Braille** charts, **24-bit ANSI true-color** heatmaps, side-by-side 2-panel layouts (`width >= 104`), rounded terminal KPI summary cards (`mint.card(...).to_terminal()`), and `mintchip --braille --theme mint_dark` tables — rendered directly from live terminal outputs. **[Full guide with runnable Python & CLI snippets →](../docs/terminal-braille.md)**
+
+![Animated tour of mintfig 2x4 Braille terminal charts, 24-bit true-color matrices, PR KPI cards, and mintchip tables](output/terminal/braille_showcase.gif)
 
 | 1. Training curves with stippled 95% CI bands (`mint.trend`) | 2. Wide 116-col 2-panel ECDF + beeswarm (`layout=[["a", "b"]]`) |
 | :---: | :---: |

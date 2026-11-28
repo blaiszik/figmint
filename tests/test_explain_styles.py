@@ -44,6 +44,11 @@ ALL_STYLES = (
     "mint",
     "pine",
     "botanical",
+    "prism",
+    "folio",
+    "nordic",
+    "obsidian",
+    "monograph",
     "bold",
     "editorial",
     "paper",
@@ -153,6 +158,11 @@ def test_theme_aliases_and_unknown_style_rejection() -> None:
     assert get_theme("bold").name == "bold"
     assert get_theme("newspaper").name == "editorial"
     assert get_theme("hand-drawn").name == "sketch"
+    assert get_theme("npg").name == "prism"
+    assert get_theme("npg_clean").name == "prism"
+    assert get_theme("npg_editorial").name == "folio"
+    assert get_theme("pine_obsidian").name == "obsidian"
+    assert get_theme("ivory").name == "monograph"
     for retired in ("538", "nytimes", "xkcd", "fivethirtyeight", "nyt"):
         with pytest.raises(ValueError):
             get_theme(retired)
@@ -160,6 +170,39 @@ def test_theme_aliases_and_unknown_style_rejection() -> None:
         mint.explain(TAKEAWAY, mint.compare(SERVICES, unit="ms"), style="bauhaus")
     assert err.value.rule == "unknown_style"
     assert "editorial" in err.value.fix_hint and "bold" in err.value.fix_hint
+
+
+def test_matrix_mode_matches_braille_alias(capsys: pytest.CaptureFixture[str]) -> None:
+    exp = mint.explain(
+        TAKEAWAY,
+        mint.trend(WEEKS, LATENCY, label="p99 latency", unit="ms", x_label="Week"),
+        style="obsidian",
+    )
+    assert exp.to_text(mode="matrix", width=78, color=True) == exp.to_text(
+        mode="braille", width=78, color=True
+    )
+    from mintfig.terminal import show_in_terminal
+
+    assert show_in_terminal(exp, mode="matrix", width=78, color=True) == show_in_terminal(
+        exp, mode="braille", width=78, color=True
+    )
+    rc = cli_main(["explain", "--example"])
+    assert rc == 0
+    spec_text = capsys.readouterr().out
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tmp:
+        tmp.write(spec_text)
+        spec_path = tmp.name
+    try:
+        rc_mat = cli_main(["show", spec_path, "--matrix", "--style", "obsidian", "--width", "78"])
+        out_mat = capsys.readouterr().out
+        rc_br = cli_main(["show", spec_path, "--braille", "--style", "obsidian", "--width", "78"])
+        out_br = capsys.readouterr().out
+        assert rc_mat == 0 and rc_br == 0
+        assert out_mat == out_br
+    finally:
+        Path(spec_path).unlink(missing_ok=True)
 
 
 @pytest.mark.parametrize("style_name", ALL_STYLES)

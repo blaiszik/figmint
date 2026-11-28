@@ -168,7 +168,7 @@ def table(
         _plain,
         _range_with_unit,
         _record_adjustment,
-        _relative_luminance,
+        _text_color,
         _with_unit,
     )
     from ._explain.marks import tag
@@ -850,12 +850,9 @@ def table(
         ax.set_xlim(0.0, 1.0)
         ax.set_ylim(total_y, 0.0)
 
-        light_ground = _relative_luminance(theme.background) > 0.5
-        tint_alpha = 0.11 if light_ground else 0.18
-        base_alpha = 0.06 if light_ground else 0.10
-
-        # Row background tints + left accent stripes (Patches, never Line2D)
-        stripe_w = min(0.012, 2.2 / max(total_w, 1.0))
+        # Crisp left accent stripes only (no muddy full-row background washes so the
+        # booktabs surface stays airy and in-cell graphics / entity text carry the colour).
+        stripe_w = min(0.009, 1.8 / max(total_w, 1.0))
         for r in range(n_rows):
             y0 = head_units + r
             rk = row_keys[r]
@@ -863,20 +860,9 @@ def table(
                 accent = ctx.colors.get(rk, theme.series_colors[0])
                 ax.add_patch(
                     Rectangle(
-                        (0.0, y0),
-                        1.0,
-                        1.0,
-                        facecolor=accent,
-                        edgecolor="none",
-                        alpha=tint_alpha,
-                        zorder=1,
-                    )
-                )
-                ax.add_patch(
-                    Rectangle(
-                        (0.0, y0 + 0.06),
+                        (0.0, y0 + 0.14),
                         stripe_w,
-                        0.88,
+                        0.72,
                         facecolor=accent,
                         edgecolor="none",
                         alpha=0.95,
@@ -886,20 +872,9 @@ def table(
             elif base is not None and rk == base:
                 ax.add_patch(
                     Rectangle(
-                        (0.0, y0),
-                        1.0,
-                        1.0,
-                        facecolor=theme.ink,
-                        edgecolor="none",
-                        alpha=base_alpha,
-                        zorder=1,
-                    )
-                )
-                ax.add_patch(
-                    Rectangle(
-                        (0.0, y0 + 0.06),
+                        (0.0, y0 + 0.14),
                         stripe_w,
-                        0.88,
+                        0.72,
                         facecolor=theme.ink,
                         edgecolor="none",
                         alpha=0.85,
@@ -997,7 +972,13 @@ def table(
                 is_dash = cell_str == "\N{EM DASH}"
                 is_winner = (r, c) in best_cells
                 weight = "bold" if (is_winner or (c == 0 and (is_hl or is_base))) else "normal"
-                color = theme.muted if is_dash else theme.ink
+                if is_dash:
+                    color = theme.muted
+                elif c == 0 and is_hl:
+                    accent = ctx.colors.get(rk, theme.series_colors[0])
+                    color = _text_color(accent, background=theme.background, ink=theme.ink)
+                else:
+                    color = theme.ink
                 t = ax.text(
                     tx,
                     yc,

@@ -2249,16 +2249,33 @@ def _ecdf_panel(
                 labelpad=3,
             )
 
-        # Horizontal quantile reference lines (p50 / p95 / p99 or custom quantiles)
+        # Horizontal quantile reference lines (skip lines jammed within 3% of 100% like p99
+        # when 100% is already the top tick, and label each drawn guide directly on the line).
         q_line_col = theme.axis if theme.grid_style == "none" else theme.grid
-        for qv in ecdf_qs:
+        visible_qs = [qv for qv in ecdf_qs if qv <= 0.96] or list(ecdf_qs)
+        for qv in visible_qs:
+            yp = qv * 100.0
             ax.axhline(
-                qv * 100.0,
+                yp,
                 color=q_line_col,
                 linewidth=0.75 * sz.scale,
                 linestyle=(0, (3, 2)),
                 zorder=1,
             )
+            if len(names) > 1 or names[0]:
+                # Quiet inline tag right on the horizontal dashed guide (never collides with left ticks)
+                ax.annotate(
+                    _plain(_q_tag(qv), theme),
+                    (0.99, yp),
+                    xycoords=("axes fraction", "data"),
+                    xytext=(0.0, -2.5 if yp >= 90.0 else 2.5),
+                    textcoords="offset points",
+                    ha="right",
+                    va="top" if yp >= 90.0 else "bottom",
+                    fontsize=sz.foot,
+                    color=theme.muted,
+                    zorder=2,
+                )
 
         ref_note: Any = None
         if ref is not None:
@@ -2379,39 +2396,40 @@ def _ecdf_panel(
                 )
                 label_entries.append((ann, yp, col0))
         else:
-            # Order curves from fastest (leftmost, highest CDF) to slowest (rightmost, lowest CDF).
+            # All ECDF curves terminate at y = 100%, so stretching labels down to arbitrary
+            # y-positions (e.g. 43% or 19%) misleads readers into misreading p95 heights.
+            # Render a compact, tightly grouped swatch key anchored cleanly near the top-right.
             ordered = sorted(names, key=lambda nm: (pcts[nm][0.5], pcts[nm][0.95]))
-            x_probe = float(np.median(everything))
-            raw_ys: list[float] = []
-            for idx, nm in enumerate(ordered):
-                arr = data[nm]
-                ecdf_at_probe = 100.0 * float((arr <= x_probe).sum()) / arr.size
-                # Blend empirical height with rank spread so labels distribute smoothly.
-                rank_y = (
-                    86.0 - idx * (64.0 / max(1, len(ordered) - 1))
-                    if len(ordered) > 1
-                    else 50.0
-                )
-                y_anchor = float(np.clip(0.55 * ecdf_at_probe + 0.45 * rank_y, 12.0, 95.0))
-                raw_ys.append(y_anchor)
-            # Enforce monotone descending anchor order matching fastest->slowest curves.
-            for i in range(1, len(raw_ys)):
-                if raw_ys[i] > raw_ys[i - 1] - 4.0:
-                    raw_ys[i] = max(8.0, raw_ys[i - 1] - 4.0)
-
             cell_pt = ctx.cell_width_mm * sz.scale / PT_TO_MM
             max_lbl_pt = 0.34 * cell_pt
-            for nm, y_anchor in zip(ordered, raw_ys, strict=True):
+            # Compact key spacing (anchored near the top so it never pretends to align with y-values)
+            step_y = min(13.0, 56.0 / max(1, len(ordered)))
+            top_y = 86.0
+            ax.annotate(
+                _plain("Curve (p95)", theme),
+                (1.0, min(97.0, top_y + step_y * 0.85)),
+                xycoords=("axes fraction", "data"),
+                xytext=(6.0, 0.0),
+                textcoords="offset points",
+                ha="left",
+                va="center",
+                fontsize=sz.foot,
+                color=theme.muted,
+                annotation_clip=False,
+            )
+            for idx, nm in enumerate(ordered):
+                y_anchor = max(12.0, top_y - idx * step_y)
                 col = curve_colors[nm]
                 is_emph = nm in emphasis_set
                 weight = "bold" if (nm in hl or nm == base or len(names) == 1) else "normal"
                 text_col = ctx.text_color(col) if (nm in hl or not hl) else (theme.ink if nm == base else theme.muted)
-                candidate = f"{nm} (p95 {_u(pcts[nm][0.95])})"
+                swatch = "- " if theme.minus_sign == "-" else "\N{BOX DRAWINGS HEAVY HORIZONTAL} "
+                candidate = f"{swatch}{nm} ({_u(pcts[nm][0.95])})"
                 lbl_text = (
                     candidate
                     if len(names) <= 4
                     and ctx.measure.width_pt(candidate, sz.small, weight) <= max_lbl_pt
-                    else nm
+                    else f"{swatch}{nm}"
                 )
                 ann = ax.annotate(
                     _plain(lbl_text, theme),

@@ -57,10 +57,10 @@ class TestBrailleCanvasPrimitives:
         joined_colored = "\n".join(colored)
 
         assert _has_braille(joined_plain)
-        # Band stipple color and foreground curve color both appear
-        assert _rgb_seq("#23765C") in joined_colored
+        # Shaded 24-bit ANSI ribbon background and foreground curve color both appear
+        assert "\x1b[48;2;35;118;92m" in joined_colored
         assert _rgb_seq("#38DDA9") in joined_colored
-        # Stipple must stay sparse (not solid U+28FF blocks everywhere)
+        # Monochrome stipple fallback stays sparse (not solid U+28FF blocks everywhere)
         solid_cells = joined_plain.count("⣿")
         braille_cells = len(_BRAILLE_RE.findall(joined_plain))
         assert braille_cells > 10
