@@ -276,7 +276,8 @@ def test_editorial_surface_tokens_serif_title_and_inline_y_ticks() -> None:
     assert result.issues == []
     title = result.fig.texts[0]
     assert getattr(title, "_mintfig_allow_serif", False) is True
-    assert "Georgia" in title.get_fontfamily()
+    assert "serif" in title.get_fontfamily()
+    assert set(title.get_fontfamily()) <= set(get_theme("editorial").title_family or ())
     assert len(result.fig.artists) == 2  # crisp top rule + subtle footer rule
     ax = result["a"]
     # Traditional left y-tick labels are hidden in favour of inline above-gridline annotations
@@ -499,7 +500,8 @@ def test_mint_theme_aliases_and_surface_tokens() -> None:
     assert to_hex(bot_res.fig.get_facecolor()).upper() == "#F5F8F4"
     title = bot_res.fig.texts[0]
     assert getattr(title, "_mintfig_allow_serif", False) is True
-    assert "Georgia" in title.get_fontfamily()
+    assert "serif" in title.get_fontfamily()
+    assert set(title.get_fontfamily()) <= set(get_theme("botanical").title_family or ())
 
 
 def test_resolve_default_style_and_palette_precedence(

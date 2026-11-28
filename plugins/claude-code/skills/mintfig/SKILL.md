@@ -5,38 +5,38 @@ description: Use when showing a person five or more numbers (benchmarks, ablatio
 
 # mintfig: figures that say one thing
 
-Install: `pip install mintfig`, `mintfig skill --install --global`, `mintfig mcp --install` (MCP tools + interactive `ui://mintfig/figure` MCP App), and `mintfig hook --install` for auto Matplotlib checks. Try `uvx mintfig demo` for a 15-second showcase. Read only what the task needs:
+Install: `pip install mintfig`, `mintfig skill --install --global`, `mintfig mcp --install` (MCP + `ui://mintfig/figure` App), `mintfig hook --install`. Try `uvx mintfig demo`.
 
 | Task | Read |
 | :--- | :--- |
-| A figure or table for a person (most tasks) | This file, down to "Publication Figures", then stop |
-| Intervals, replicates, log axes, units, small n, height budgets, colours across figures, styles | `references/science.md` |
-| Worked code: tidy rows, scorecards, release charts, `mint.edit`, `Session`, `brief`, HTML/terminal | `references/recipes.md` |
-| A manuscript or journal plate | `references/publication.md` |
+| Chat figure or table (most tasks) | This file down to "Publication Figures" |
+| Intervals, replicates, log axes, units, small n, styles | `references/science.md` |
+| Tidy rows, scorecards, `mint.edit`, `Session`, `brief`, HTML/terminal | `references/recipes.md` |
+| Manuscript or journal plate | `references/publication.md` |
 
 ## Explain in a Conversation (`mint.explain`)
 
-Draw a chart for five or more numbers or any comparison, trend, spread, or relationship; use `mint.table` for exact lookups. Use `mintchip` for inline word-sized chips in prose or quick zero-dep terminal/PR tables; escalate to `mintfig` for full figures, multi-panel arguments, publication plates, and Matplotlib audits. Do NOT plot for 1–3 scalar numbers or routine coding tasks — reply in prose.
+Plot for 5+ numbers or any comparison, trend, spread, or relationship; use `mint.table` for exact lookups, `mintchip` for inline prose chips or compact terminal/PR tables. Never plot 1–3 scalars or routine code tasks — reply in prose.
 
-**1. Write the takeaway first.** One sentence with its number ("Removing retrieval costs 8 points of accuracy", not "Ablation results") becomes the title. Each figure gets one takeaway.
+**1. Takeaway first.** One sentence with its number ("Removing retrieval costs 8 points of accuracy") becomes the title. One takeaway per figure.
 
-**2. Pick each panel by the question it answers.** Every form accepts dicts, arrays, Series, or tidy rows (`list[dict]` or a DataFrame).
+**2. Pick each panel by question.** Every form accepts dicts, arrays, Series, or tidy rows (`list[dict]` / DataFrame).
 
 | Question | Form | Wide or tidy input |
 | :--- | :--- | :--- |
-| Compare sizes | `mint.compare(values)` | `{name: num}`, `{cat: {s: num}}`, or rows (`name=`, `value=`, `group=`) |
-| Change over order/time | `mint.trend(x, series)` | `(x, {s: [nums]})` or `("x", "s", y="y", data=rows)` |
-| Two states (before→after) | `mint.change(before, after)` | two `{name: num}` or `("c1", "c2", data=rows, name="item")` |
-| Spread of raw values | `mint.distribution(groups)` | `{g: [obs]}` or rows (`group=`, `value=`); `mint.histogram` for bins |
-| Two continuous measures | `mint.relate(x, y, x_label=, y_label=)` | two lists or `("x", "y", data=rows, names=, groups=)` |
-| Part of whole | `mint.share(parts)` | `{name: num}` or rows |
-| Two categorical axes | `mint.matrix(values, rows=, cols=)` | 2-D array, wide DF, or rows (`rows=`, `cols=`, `value=`) |
-| Exact lookup / scorecard | `mint.table(rows)` | `list[dict]`, DataFrame, `{col: [...]}`, or 2-D + `columns=` |
-| Bridge from start to total | `mint.waterfall(steps)` | `{step: delta}` or rows |
-| Phase or execution spans | `mint.timeline(spans)` | `{stage: (start, end)}` or rows |
-| Cohort or pipeline attrition | `mint.flow(stages)` | `{stage: n}` or `[(stage, n, reason)]` |
+| Compare sizes | `mint.compare(values)` | `{name: num}`, `{cat: {s: num}}`, rows (`name=`, `value=`, `group=`) |
+| Over order/time | `mint.trend(x, series)` | `(x, {s: [nums]})`, `("x", "s", y="y", data=rows)` |
+| Before→after | `mint.change(before, after)` | two `{name: num}`, `("c1", "c2", data=rows, name="item")` |
+| Spread of values | `mint.distribution(groups)` | `{g: [obs]}`, rows (`group=`, `value=`); `mint.histogram` for bins |
+| Two measures | `mint.relate(x, y, x_label=, y_label=)` | two lists, `("x", "y", data=rows, names=, groups=)` |
+| Part of whole | `mint.share(parts)` | `{name: num}`, rows |
+| Two categories | `mint.matrix(values, rows=, cols=)` | 2-D array, wide DF, rows (`rows=`, `cols=`, `value=`) |
+| Exact lookup | `mint.table(rows)` | `list[dict]`, DataFrame, `{col: [...]}`, 2-D + `columns=` |
+| Bridge to total | `mint.waterfall(steps)` | `{step: delta}`, rows |
+| Phase spans | `mint.timeline(spans)` | `{stage: (start, end)}`, rows |
+| Pipeline attrition | `mint.flow(stages)` | `{stage: n}`, `[(stage, n, reason)]` |
 
-**3. Name what is measured and what matters:** `label=`, `unit=`, `highlight=` (at most 3; the rest turn grey), `baseline=` (control, drawn in ink; facts compare against it), `source=`. Name every interval (`error_label=`, `band_label=`). Write units in Unicode (`µm`, `cm⁻³`, `°C`), never `$...$`.
+**3. Name measures and highlights:** `label=`, `unit=`, `highlight=` (≤3; rest turn grey), `baseline=` (control, drawn in ink), `source=`. Name intervals (`error_label=`, `band_label=`). Unicode units (`µm`, `cm⁻³`, `°C`), never `$...$`.
 
 ```python
 import mintfig as mint
@@ -61,128 +61,70 @@ summary = fig.save("ablation.png")          # dict; print() shows a compact JSON
 print(summary)
 ```
 
-Without Python: `mintfig inspect data.csv` recommends forms, and `mintfig plot data.csv --kind auto --takeaway "..." --out fig.png` draws one.
+Zero-script CLI: `mintfig inspect data.csv` and `mintfig plot data.csv --kind auto --takeaway "..." --out fig.png`.
 
-**4. Check the summary, then ship.**
-- Read `summary["panels"][i]["facts"]` instead of recomputing (ranks, baseline gaps, CI overlap, `P(A > B)`, slopes, crossings); the takeaway must match them.
-- Ship when `summary["ship"]` is `true` (no errors, overlaps, clipped text, or text < 11 px); ignore advisories (`low_density`). Otherwise apply `fix_hint` (max 2 rounds).
-- `ExplainError` names its rule and fix; `strict=False` or `with mint.lenient():` auto-adjusts soft limits (`summary["adjustments"]`).
+**4. Check summary, then ship.**
+- Read `summary["panels"][i]["facts"]` (ranks, baseline gaps, CI overlap, `P(A > B)`, slopes); takeaway must match them.
+- Ship when `summary["ship"]` is `true` (no errors, overlaps, clipping, or text < 11 px); ignore `low_density`. Else apply `fix_hint` (max 2 rounds).
+- `ExplainError` names its rule/fix; `strict=False` or `with mint.lenient():` auto-adjusts soft limits (`summary["adjustments"]`).
 - `print(summary)` is compact; `json.dumps(summary)` holds all keys (`narrative`, `alt_text`, `colors`, `display`).
 
-**5. Put it in front of the reader.** `summary["deliver"]` holds `markdown` (relative image line), `caption` (fact behind the takeaway), `text` (plain, ≤ 72 cols), and `html` (once saved as `.html`).
+**5. Deliver for the surface.** `summary["deliver"]` has `markdown`, `caption`, `text` (≤72 cols), and `html`.
 
-| Where the reply lands | Render with | Send |
+| Surface | Render | Send |
 | :--- | :--- | :--- |
-| Chat that renders images | default `width="chat"` (700 px) | `deliver["markdown"]` |
-| Phone or IDE sidebar (~450 px) | `width="narrow"` (panels stack) | `deliver["markdown"]` |
-| Artifact host or review page | `fig.save("fig.html")` | file at `deliver["html"]` |
-| Inline HTML embed (Antigravity / webview) | `fig.save("fig.html", compact=True)` | lean single-SVG HTML, flush bg, `themechange` sync; never hand-write SVG |
-| High-res terminal (Ghostty/Kitty/SSH) | `fig.to_text(mode="braille", width="auto")` | 2×4 Braille + 24-bit ANSI (respects `NO_COLOR`); or `fig.show(mode="braille")` |
-| Plain terminal or unknown | (any) | `deliver["text"]` in a code fence (or `mode="ascii"` for 7-bit logs) |
-| PR / release KPI summary card | `mint.card(takeaway, metrics, panel=...)` | `.save_pair("pr")` (`<picture>`) or `.to_terminal()` / `mintfig card --terminal` |
-| Notebook | (any) | return `fig` |
-| Slide or PR | `width="slide"` (1280 px) for slides | PNG (by repo path in a PR) |
+| Image chat / sidebar | `width="chat"` (700 px) / `"narrow"` (450 px) | `deliver["markdown"]` |
+| Artifact / inline HTML | `fig.save("fig.html", compact=True)` | single-SVG HTML (`themechange`); never hand-write SVG |
+| Terminal (Ghostty/Kitty/SSH) | `fig.to_text(mode="braille", width="auto")` | 2×4 Braille + 24-bit ANSI (`NO_COLOR`-safe); `mode="ascii"` for 7-bit |
+| PR / release KPI card | `mint.card(takeaway, metrics, panel=...)` | `.save_pair("pr")` or `.to_terminal()` |
+| Notebook / Slide | return `fig` / `width="slide"` (1280 px) | inline / PNG |
 
-Reply with the sentence, the figure, and the caption — nothing more:
-
-```markdown
-Removing retrieval costs 8 points of accuracy; removing fine-tuning costs 13.
-
-![Removing retrieval costs 8 points of accuracy; …](ablation.png)
-
-*No retrieval −0.08 vs full model (0.82); no fine-tuning −0.13 vs full model (0.82).*
-```
-
-Unsure of surface? Use `mintfig.surface.detect_surface()`, `fig.show()`, or `mintfig doctor`; run `mintfig mcp` (`ui://mintfig/figure`) or `mintfig demo`.
-
-### Terminal Braille, KPI cards & live watch
-
-One-flag `--braille` works directly on `plot`, `show`, `explain`, `diff`, and `watch` (no `--out` needed), rendering 2×4 Braille trends/CI bands, beeswarms, Pareto fits, slopegraphs, forest plots, side-by-side 2-panel views (`width >= 104`), and 24-bit ANSI confusion matrices:
-
-```bash
-mintfig plot data.csv --braille --style pine              # 2×4 Braille + 24-bit ANSI in terminal
-mintfig show fig.png --braille --width auto               # render saved PNG/spec in terminal
-mintfig diff base.json head.json --braille                # paired Braille slopegraph diff
-mintfig card spec.json --terminal --style pine            # box-drawn KPI tiles + sparklines + panel
-mintfig watch train.csv --braille --style pine --once     # live-reload terminal chart on file change
-```
+Reply with takeaway, image, and caption — nothing more. Unsure of surface? Use `mintfig.surface.detect_surface()`, `fig.show()`, `mintfig doctor`, `mintfig mcp` (`ui://mintfig/figure`), or `mintfig demo`. One-flag terminal CLI (no `--out` needed): `mintfig plot|show|diff|watch ... --braille --style pine` and `mintfig card spec.json --terminal`.
 
 ### Already drawn with Matplotlib (`mint.check`)
 
-Before sharing any plain Matplotlib figure, script, or notebook, run `mint.check(fig, "claim", dpi=...)`, `mintfig check plot.py`, or `mintfig check analysis.ipynb` (exit `0` ship, `1` fix, `2` error; `--python` auto-detects `.venv`). It checks claim numbers against plotted data and text legibility at `width=`; apply `fix_hint` until `ship` is `true`. Use `mintfig hook --install` to run automatically.
+Before sharing any Matplotlib figure, script, or notebook, run `mint.check(fig, "claim", dpi=...)` or `mintfig check plot.py|analysis.ipynb` (exit `0` ship, `1` fix, `2` error). Apply `fix_hint` until `ship` is `true`; `mintfig hook --install` automates this.
 
-### Every argument (unknown arguments raise `ExplainError` naming valid ones)
+### Every argument (unknown args raise `ExplainError`)
 
 ```python
 mint.explain(takeaway, *panels,
-    kicker=None, subtitle=None, source=None, note=None,  # uppercase kicker, scope and footer
-    layout=None,            # e.g. [["a"], ["b", "c"]]; repeat a key to widen
-    colors=None,            # pin across figures: {"no retrieval": "red"} (blue/red/green/amber)
-    color_names=True, density="regular",  # names coloured in titles; "compact": tighter rows
-    style="mintfig",        # "mintfig" | "mint" | "pine" ("mint_dark") | "botanical" | "bold" | "editorial" | "paper" | "dark" | "mono" | "sketch"
-    palette=None,           # "mint" | "spearmint" | "matcha" | "glacier" | "mineral" | "default" | "okabe_ito" | "tol" | "earth" | "ocean" | "berry"
-    accent=None,            # custom primary highlight hex, e.g. "#D97757"
-    strict=True,            # False / `with mint.lenient():`: auto-adjust soft limits
-    width="chat")           # "narrow" (450 px), "chat" (700 px), "slide" (1280 px)
+    kicker=None, subtitle=None, source=None, note=None,
+    layout=None, colors=None, color_names=True, density="regular",
+    style="mintfig",        # mintfig|mint|pine(mint_dark)|botanical|bold|editorial|paper|dark|mono|sketch
+    palette=None,           # mint|spearmint|matcha|glacier|mineral|default|okabe_ito|tol|earth|ocean|berry
+    accent=None, strict=True, width="chat")  # narrow|chat|slide
 
-# Shared by every form: title=, label=, unit=, highlight= (1–3 names), fmt=
-# compare, trend, distribution, table also take baseline= (control/"before", drawn in ink)
-
-mint.compare(values,          # {name: num}, {cat: {s: num}}, Series, or rows
-    name=None, group=None, value=None, sort=True, zero=True, log=False,
-    error=None, inner_error=None, error_label=None,  # inner_error= inner CI inside error=
-    boost=None, boost_label=None, show_delta="auto",  # auto: bracket a gap the takeaway states
-    n=None, reference=None, facet=False, legend=False)
-
-mint.trend(x, series=None,    # wide (x, {s: [nums]}) or tidy ("x", "s", y="y", data=rows)
-    y=None, data=None, x_label=None, x_unit=None, log=False, log_x=False, zero=False,
-    fit=False,              # True | "linear" | "log" | "power": dashed regression fit
-    band=None, band_label=None,  # band={s: (lo, hi)}, each a list along x
-    points=None, points_label=None,  # raw replicates: points={s: [[reps at x0], [reps at x1], ...]}
-    events=None, regions=None, callouts=None,  # regions=[(x0, x1, txt)], callouts=[(x, y, txt)]
-    reference=None, end_values=True, facet=False, legend=False)
-
+# Shared: title=, label=, unit=, highlight= (<=3), fmt= ; baseline= on compare/trend/distribution/table
+mint.compare(values, name=None, group=None, value=None, sort=True, zero=True, log=False,
+    error=None, inner_error=None, error_label=None, boost=None, boost_label=None,
+    show_delta="auto", n=None, reference=None, facet=False, legend=False)
+mint.trend(x, series=None, y=None, data=None, x_label=None, x_unit=None, log=False, log_x=False,
+    zero=False, fit=False, band=None, band_label=None, points=None, points_label=None,
+    events=None, regions=None, callouts=None, reference=None, end_values=True, facet=False, legend=False)
 mint.change(before, after, data=None, name=None, labels=("Before", "After"))
-
-mint.distribution(groups,     # {g: [obs]}, wide DF, or rows (group=/value=)
-    group=None, value=None, stat="median",
-    mode="dots", quantiles=20,  # "dots" | "swarm" | "quantile" (5–50 dots) | "ecdf" (quantiles=(0.5, 0.95, 0.99))
-    bins=None, log=False, reference=None, facet=False)
-
+mint.distribution(groups, group=None, value=None, stat="median",
+    mode="dots", quantiles=20, bins=None, log=False, reference=None, facet=False)  # dots|swarm|quantile|ecdf
 mint.histogram(values, group=None, value=None, bins="auto", stat="median", log=False, reference=None, facet=False)
-
 mint.relate(x, y, x_label=, y_label=, data=None, x_unit=None, names=None, groups=None,
     fit=False, frontier=False, label_all=False, connect_groups=False,
-    regions=None, callouts=None, log_x=False, log_y=False, reference=None, facet=False,
-    legend=False)
-
-mint.share(parts, name=None, value=None, top=7, kind="bars")  # "bars" | "pie" | "donut" (<=5)
-
+    regions=None, callouts=None, log_x=False, log_y=False, reference=None, facet=False, legend=False)
+mint.share(parts, name=None, value=None, top=7, kind="bars")  # bars|pie|donut (<=5)
 mint.matrix(values, rows=None, cols=None, value=None, diverging=False, center=0.0,
-    normalize=None, show_counts=False,  # normalize="row"|"col" + show_counts=True for confusion matrices
-    triangle=None, mask_diagonal=False, highlight=None)  # triangle="lower"|"upper" for symmetric
-
-mint.forest(data, error=..., error_label=None, reference=0.0, pooled=None,
-    n=None, log=False, sort=True)  # effect sizes + CI whiskers + pooled diamond + tabular readout
-
-mint.table(rows, columns=None, units=None, highlight=None, baseline=None,
-    bold_best=False, sort=None, align=None, fmt=None, bars=None, interval=None,
-    interval_label=None, spark=None)  # panel.to_markdown() exports Markdown
-
+    normalize=None, show_counts=False, triangle=None, mask_diagonal=False, highlight=None)
+mint.forest(data, error=..., error_label=None, reference=0.0, pooled=None, n=None, log=False, sort=True)
+mint.table(rows, columns=None, units=None, highlight=None, baseline=None, bold_best=False,
+    sort=None, align=None, fmt=None, bars=None, interval=None, interval_label=None, spark=None)
 mint.waterfall(steps, name=None, value=None, start=None, total_label="Total", show_total=True, reference=None)
-
 mint.timeline(spans, name=None, start=None, end=None, group=None, x_label=None, sort=True, reference=None)
-
 mint.flow(stages, name=None, value=None, reason=None, show_pct=True)
-
-mint.custom(draw_fn, height_mm=48.0, describe="...")  # escape hatch: draw_fn(ax)
+mint.custom(draw_fn, height_mm=48.0, describe="...")
 ```
 
 ### Limits
 
-- **Strict limits** (`ExplainError`): `compare`/`timeline`/`table` ≤ 20, `change`/`waterfall` ≤ 14, `flow` ≤ 12, `distribution` ≤ 8 groups (≥ 3 obs), `matrix` ≤ 16×12, `table` ≤ 8 cols, `relate(groups=)` ≤ 4 (12 with `facet=True`), `trend` ≤ 4 coloured series (12 faceted). Max 3 highlights, 4 colours, 6 panels; `too_tall` > 135 mm.
-- `scales_differ` means two panels share a measure on different ranges — merge into one `facet=` panel.
-- Revise with `mint.edit("fig.png", ...)`, persist colours with `mint.Session`, and combine into reports with `mint.brief(...)` (`references/recipes.md`).
+- **Strict** (`ExplainError`): `compare`/`timeline`/`table` ≤ 20, `change`/`waterfall` ≤ 14, `flow` ≤ 12, `distribution` ≤ 8 groups (≥ 3 obs), `matrix` ≤ 16×12, `table` ≤ 8 cols, `relate(groups=)` ≤ 4 (12 faceted), `trend` ≤ 4 series (12 faceted). Max 3 highlights, 4 colours, 6 panels; `too_tall` > 135 mm.
+- `scales_differ`: merge into one `facet=` panel. Revise with `mint.edit("fig.png", ...)`, `mint.Session`, `mint.brief(...)` (`references/recipes.md`).
 
 ## Publication Figures
 

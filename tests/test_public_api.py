@@ -58,7 +58,7 @@ def test_top_level_all_is_the_frozen_list() -> None:
     assert set(mint.__all__) == TOP_LEVEL
     for name in mint.__all__:
         assert hasattr(mint, name), name
-    assert mint.__version__ == "0.3.2"
+    assert mint.__version__ == "0.3.3"
 
 
 @pytest.mark.parametrize("name", sorted(MOVED))
