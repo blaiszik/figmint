@@ -1219,7 +1219,7 @@ class SummaryCard:
 
         out: list[str] = []
 
-        # 1. Editorial Economist/mint top accent bar + bold takeaway + dim subtitle
+        # 1. Editorial masthead accent bar + bold takeaway + dim subtitle
         flag_w = max(4, min(10, w // 10))
         rest_w = max(0, w - flag_w)
         if ascii_only:

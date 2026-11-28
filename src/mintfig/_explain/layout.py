@@ -1175,9 +1175,10 @@ class Explanation:
         """Render a terminal/text view of this figure.
 
         Defaults (``width=72, color=False, high_res=False``) emit plain, escape-free
-        text safe for Markdown code blocks. Pass ``mode="braille"`` for high-resolution
-        2×4 Unicode Braille charts with 24-bit ANSI colors (respecting ``NO_COLOR``),
-        ``mode="ascii"`` for pure ASCII, or ``width="auto"`` to match the active terminal.
+        text safe for Markdown code blocks. Pass ``mode="matrix"`` (alias ``"braille"``)
+        for high-resolution 2×4 Unicode dot-matrix charts with 24-bit ANSI colors
+        (respecting ``NO_COLOR``), ``mode="ascii"`` for pure ASCII, or ``width="auto"``
+        to match the active terminal.
         """
         import os
         import shutil
@@ -1196,11 +1197,11 @@ class Explanation:
 
         if mode is not None:
             mode_norm = mode.strip().lower()
-            if mode_norm not in {"braille", "unicode", "ascii"}:
+            if mode_norm not in {"matrix", "braille", "unicode", "ascii"}:
                 raise ValueError(
-                    f"Unknown text mode {mode!r}. Choose one of: 'braille', 'unicode', 'ascii'."
+                    f"Unknown text mode {mode!r}. Choose one of: 'matrix', 'braille', 'unicode', 'ascii'."
                 )
-            if mode_norm == "braille":
+            if mode_norm in {"matrix", "braille"}:
                 use_high_res = True
                 use_ascii = False
                 if color is None:

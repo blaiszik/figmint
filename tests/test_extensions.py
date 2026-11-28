@@ -56,7 +56,7 @@ def test_claude_code_plugin_mcp_config() -> None:
 
 def test_version_consistency_across_all_manifests() -> None:
     expected = _pyproject_version()
-    assert expected == "0.3.3"
+    assert expected == "0.3.4"
 
     gemini_ext = json.loads((REPO_ROOT / "gemini-extension.json").read_text(encoding="utf-8"))
     marketplace = json.loads(

@@ -453,27 +453,29 @@ def _build_parser() -> argparse.ArgumentParser:
         "--out",
         type=Path,
         default=None,
-        help="Output image path (.png, .svg, .pdf, or .html). Required unless --example or --braille.",
+        help="Output image path (.png, .svg, .pdf, or .html). Required unless --example or --matrix.",
     )
     explain_parser.add_argument(
+        "--matrix",
         "--braille",
+        dest="braille",
         action="store_true",
-        help="Print a high-resolution 2×4 Unicode Braille ANSI chart straight to stdout (no --out required).",
+        help="Print a high-resolution 2×4 dot-matrix ANSI chart straight to stdout (alias: --braille; no --out required).",
     )
     explain_parser.add_argument(
         "--show-width",
         default="78",
-        help="Terminal column width or 'auto' when --braille is set (default: 78).",
+        help="Terminal column width or 'auto' when --matrix/--braille is set (default: 78).",
     )
     explain_parser.add_argument(
         "--no-color",
         action="store_true",
-        help="Disable ANSI color escape sequences when --braille is set.",
+        help="Disable ANSI color escape sequences when --matrix/--braille is set.",
     )
     explain_parser.add_argument(
         "--style",
         default=None,
-        help="Visual style override: mintfig (default), mint, pine, botanical, bold, editorial, paper, dark, mono, or sketch.",
+        help="Visual style override: prism, folio, nordic, obsidian, monograph, mintfig (default), mint, pine, botanical, editorial, paper, bold, dark, mono, or sketch.",
     )
     explain_parser.add_argument(
         "--palette",
@@ -511,40 +513,42 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_density_args(explain_parser)
     _add_summary_arg(explain_parser)
 
-    # `mintfig show <path_or_spec> [--braille] [--mode auto|kitty|iterm2|braille|unicode|ascii] [--style pine] [--width 78|auto] [--no-color]`
+    # `mintfig show <path_or_spec> [--matrix] [--mode auto|kitty|iterm2|matrix|braille|unicode|ascii] [--style obsidian] [--width 78|auto] [--no-color]`
     show_parser = subparsers.add_parser(
         "show",
-        help="Display a mintfig spec or PNG in the terminal (Kitty/iTerm2 graphics or Braille/Unicode/ASCII).",
+        help="Display a mintfig spec or PNG in the terminal (Kitty/iTerm2 graphics or 2×4 dot-matrix/Unicode/ASCII).",
     )
     show_parser.add_argument(
         "path_or_spec",
         help="Path to a JSON spec, a PNG file, or '-' to read a JSON spec from stdin.",
     )
     show_parser.add_argument(
+        "--matrix",
         "--braille",
+        dest="braille",
         action="store_true",
-        help="Render high-resolution 2×4 Unicode Braille with 24-bit ANSI colors (shorthand for --mode braille).",
+        help="Render high-resolution 2×4 dot-matrix ANSI chart (shorthand for --mode matrix; alias: --braille).",
     )
     show_parser.add_argument(
         "--mode",
-        choices=("auto", "kitty", "iterm2", "braille", "unicode", "ascii"),
+        choices=("auto", "kitty", "iterm2", "matrix", "braille", "unicode", "ascii"),
         default="auto",
         help="Rendering mode (default: auto).",
     )
     show_parser.add_argument(
         "--style",
         default=None,
-        help="Optional visual theme override when rendering a spec or mintfig PNG (e.g. pine, mint, editorial).",
+        help="Optional visual theme override when rendering a spec or mintfig PNG (e.g. obsidian, pine, prism, folio).",
     )
     show_parser.add_argument(
         "--width",
         default="78",
-        help="Target text width in columns or 'auto' for braille/unicode/ascii modes (default: 78).",
+        help="Target text width in columns or 'auto' for matrix/unicode/ascii modes (default: 78).",
     )
     show_parser.add_argument(
         "--no-color",
         action="store_true",
-        help="Disable ANSI color sequences in braille/unicode/ascii output.",
+        help="Disable ANSI color sequences in matrix/unicode/ascii output.",
     )
 
     # `mintfig inspect <data.csv|tsv|json|jsonl> [--json]`
@@ -600,14 +604,16 @@ def _build_parser() -> argparse.ArgumentParser:
     plot_parser.add_argument("--out", "-o", type=Path, default=None, help="Output path (.png, .svg, .pdf, or .html).")
     plot_parser.add_argument("--show", action="store_true", help="Display the figure in the terminal.")
     plot_parser.add_argument(
+        "--matrix",
         "--braille",
+        dest="braille",
         action="store_true",
-        help="Print a high-resolution 2×4 Unicode Braille ANSI chart straight to stdout (no --out required).",
+        help="Print a high-resolution 2×4 dot-matrix ANSI chart straight to stdout (alias: --braille; no --out required).",
     )
     plot_parser.add_argument(
         "--no-color",
         action="store_true",
-        help="Disable ANSI color escape sequences in --braille output.",
+        help="Disable ANSI color escape sequences in --matrix/--braille output.",
     )
     plot_parser.add_argument(
         "--text",
@@ -621,14 +627,14 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     plot_parser.add_argument(
         "--show-mode",
-        choices=("auto", "kitty", "iterm2", "braille", "unicode", "ascii"),
+        choices=("auto", "kitty", "iterm2", "matrix", "braille", "unicode", "ascii"),
         default="auto",
         help="Terminal rendering mode when --show is set (default: auto).",
     )
     plot_parser.add_argument(
         "--show-width",
         default="78",
-        help="Terminal text width in columns or 'auto' when --show or --braille is set (default: 78).",
+        help="Terminal text width in columns or 'auto' when --show or --matrix is set (default: 78).",
     )
     plot_parser.add_argument("--subtitle", default=None, help="Figure subtitle.")
     plot_parser.add_argument("--source", default=None, help="Data source line.")
@@ -693,19 +699,21 @@ def _build_parser() -> argparse.ArgumentParser:
     diff_parser.add_argument("head", type=Path, help="Head run file to compare against base.")
     diff_parser.add_argument("--out", "-o", type=Path, default=None, help="Optional figure output path (.png, .svg, .pdf, or .html).")
     diff_parser.add_argument(
+        "--matrix",
         "--braille",
+        dest="braille",
         action="store_true",
-        help="Print a high-resolution 2×4 Unicode Braille ANSI diff chart straight to stdout.",
+        help="Print a high-resolution 2×4 dot-matrix ANSI diff chart straight to stdout (alias: --braille).",
     )
     diff_parser.add_argument(
         "--show-width",
         default="78",
-        help="Terminal column width or 'auto' when --braille is set (default: 78).",
+        help="Terminal column width or 'auto' when --matrix/--braille is set (default: 78).",
     )
     diff_parser.add_argument(
         "--no-color",
         action="store_true",
-        help="Disable ANSI color escape sequences when --braille is set.",
+        help="Disable ANSI color escape sequences when --matrix/--braille is set.",
     )
     diff_parser.add_argument(
         "--text",
@@ -789,7 +797,7 @@ def _build_parser() -> argparse.ArgumentParser:
     edit_parser.add_argument("--show", action="store_true", help="Display the edited figure in the terminal.")
     edit_parser.add_argument(
         "--show-mode",
-        choices=("auto", "kitty", "iterm2", "braille", "unicode", "ascii"),
+        choices=("auto", "kitty", "iterm2", "matrix", "braille", "unicode", "ascii"),
         default="auto",
         help="Terminal rendering mode when --show is set (default: auto).",
     )
@@ -1068,10 +1076,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Use pure ASCII output instead of Unicode Braille and box borders.",
     )
 
-    # `mintfig watch <path> [--braille] [--kind auto] [--takeaway "..."] [--style pine] [--interval 1.0] [--width auto] [--once]`
+    # `mintfig watch <path> [--matrix] [--kind auto] [--takeaway "..."] [--style obsidian] [--interval 1.0] [--width auto] [--once]`
     watch_parser = subparsers.add_parser(
         "watch",
-        help="Live-tail a CSV/TSV/JSON/JSONL metrics file and re-render a Braille ANSI chart on every update.",
+        help="Live-tail a CSV/TSV/JSON/JSONL metrics file and re-render a 2×4 dot-matrix ANSI chart on every update.",
     )
     watch_parser.add_argument(
         "data_path",
@@ -1079,14 +1087,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to a .csv, .tsv, .json, or .jsonl data file to watch.",
     )
     watch_parser.add_argument(
+        "--matrix",
         "--braille",
+        dest="braille",
         action="store_true",
-        help="Render high-resolution 2×4 Unicode Braille ANSI output (enabled by default unless --ascii).",
+        help="Render high-resolution 2×4 dot-matrix ANSI output (alias: --braille; enabled by default unless --ascii).",
     )
     watch_parser.add_argument(
         "--ascii",
         action="store_true",
-        help="Use plain ASCII output instead of Unicode Braille.",
+        help="Use plain ASCII output instead of 2×4 dot-matrix.",
     )
     watch_parser.add_argument(
         "--no-color",

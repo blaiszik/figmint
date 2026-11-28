@@ -10,7 +10,9 @@
     "render:square": "remotion render src/index.ts MintCheckSquare out/mintfig-check-1x1.mp4 --concurrency=2",
     "assets:agent": "MPLCONFIGDIR=/tmp/mpl-mintfig PYTHONPATH=../../../mintchip/src ../../.venv/bin/python make_agent_assets.py",
     "render:agent": "remotion render src/index.ts AgentReply out/agent-reply-16x9.mp4 --concurrency=2",
-    "render:agent:square": "remotion render src/index.ts AgentReplySquare out/agent-reply-1x1.mp4 --concurrency=2"
+    "render:agent:square": "remotion render src/index.ts AgentReplySquare out/agent-reply-1x1.mp4 --concurrency=2",
+    "render:braille": "remotion render src/index.ts BrailleShowcase out/mintfig-braille-16x9.mp4 --concurrency=2",
+    "render:braille:square": "remotion render src/index.ts BrailleShowcaseSquare out/mintfig-braille-1x1.mp4 --concurrency=2"
   },
   "dependencies": {
     "@remotion/cli": "4.0.547",

@@ -1,7 +1,9 @@
 """Visual surface themes and color palettes for ``mint.explain``.
 
-Built-in themes: ``mintfig`` (default), ``mint``, ``pine`` (alias ``mint_dark``),
-``botanical``, ``bold``, ``editorial``, ``paper``, ``dark``, ``mono``, ``sketch``.
+Built-in themes (curated flagships first): ``prism`` (alias ``npg``), ``folio``,
+``nordic``, ``obsidian``, ``monograph`` (alias ``ivory``), ``mintfig`` (default),
+``mint``, ``pine`` (alias ``mint_dark``), ``botanical``, ``editorial``, ``paper``,
+``bold``, ``dark``, ``mono``, ``sketch``.
 Built-in explain palettes: ``default``, ``okabe_ito``, ``tol``, ``earth``,
 ``ocean``, ``berry``, ``mint``, ``spearmint``, ``matcha``, ``glacier``, ``mineral``.
 
@@ -30,7 +32,10 @@ from .specs import JournalSpec
 try:
     import tomllib
 except ImportError:  # pragma: no cover - Python 3.10 fallback
-    tomllib = None  # type: ignore[assignment]
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ImportError:
+        tomllib = None  # type: ignore[assignment]
 
 style = importlib.import_module("mintfig.style")
 
@@ -96,7 +101,7 @@ class Theme:
     bar_edgecolor: str | None = None
     bar_edge_lw: float = 0.0
 
-    # Editorial chrome (header & footer rules + Economist/FT top accent flag)
+    # Editorial chrome (header & footer rules + masthead accent bar)
     top_rule: bool = False
     top_rule_color: str | None = None
     top_rule_lw: float = 1.2
@@ -592,14 +597,91 @@ BOTANICAL_THEME = Theme(
     footer_rule_lw=0.6,
 )
 
+# prism: pure-white crisp sans-serif surface paired with scientific jewel hues
+# (teal, cobalt, vermilion, cerulean) and a subtle teal masthead bar
+# — min_gray=0.094, min_cvd=0.326.
+PRISM_THEME = replace(
+    MINT_THEME,
+    name="prism",
+    description="Pure-white crisp sans surface with high-contrast jewel hues (teal, cobalt, vermilion, cerulean).",
+    background="#FFFFFF",
+    series_colors=("#00A087", "#3C5488", "#D93B26", "#4DBBD5"),
+    accent_colors=("#00A087", "#4DBBD5", "#D93B26"),
+    panel_tag_color="#007A66",
+    top_flag_color="#007A66",
+    top_rule_color="#DCE4E2",
+)
+
+# folio: pure-white editorial serif surface with a jewel-teal masthead accent bar,
+# above-gridline y-ticks, and emerald/vermilion/cobalt/cerulean hues
+# — min_gray=0.094, min_cvd=0.326.
+FOLIO_THEME = replace(
+    EDITORIAL_THEME,
+    name="folio",
+    description="Pure-white editorial serif surface with teal masthead bar and crisp jewel hues.",
+    background="#FFFFFF",
+    muted="#5C5C5C",
+    series_colors=("#00A087", "#D93B26", "#3C5488", "#4DBBD5"),
+    accent_colors=("#00A087", "#D93B26", "#3C5488"),
+    panel_tag_color="#007A66",
+    top_flag_color="#007A66",
+    top_rule_color="#DCE4E2",
+)
+
+# nordic: calm whisper-mint Swiss ground (#F8FBFA) with forest emerald, deep fjord
+# blue, warm copper-terracotta, and cool slate mist — min_gray=0.092, min_cvd=0.241.
+NORDIC_THEME = replace(
+    MINT_THEME,
+    name="nordic",
+    description="Calm whisper-mint Swiss surface with forest emerald, fjord blue, and warm copper.",
+    background="#F8FBFA",
+    series_colors=("#0A7B5C", "#1D446E", "#CC6828", "#8AA2B8"),
+    accent_colors=("#0A7B5C", "#1D446E", "#CC6828"),
+    panel_tag_color="#0A7B5C",
+    top_flag_color="#0A7B5C",
+    top_rule_color="#D4E3DF",
+)
+
+# obsidian: deep pine obsidian dark ground (#0F1715) with luminous mint, arctic sky,
+# warm coral, and twilight violet — color-matched to 24-bit ANSI terminal charts.
+OBSIDIAN_THEME = replace(
+    PINE_THEME,
+    name="obsidian",
+    description="Deep pine obsidian dark ground with luminous mint, arctic sky, and warm coral hues.",
+    background="#0F1715",
+    series_colors=("#38E0AC", "#58C4F0", "#E86E54", "#8A6BD1"),
+    accent_colors=("#38E0AC", "#58C4F0", "#E86E54"),
+    panel_tag_color="#38E0AC",
+)
+
+# monograph: warm museum archival ivory (#FAF7F0) with serif headlines, botanical
+# teal masthead bar, royal indigo, archival crimson, and cool slate.
+MONOGRAPH_THEME = replace(
+    PAPER_THEME,
+    name="monograph",
+    description="Warm museum archival ivory with serif headlines, botanical teal masthead bar, and royal indigo.",
+    background="#FAF7F0",
+    series_colors=("#0F766E", "#243A73", "#D65A4F", "#8A9EB8"),
+    accent_colors=("#0F766E", "#243A73", "#D65A4F"),
+    panel_tag_color="#0F766E",
+    top_flag=True,
+    top_flag_color="#0F766E",
+    top_rule_color="#E2DACB",
+)
+
 THEMES: dict[str, Theme] = {
+    "prism": PRISM_THEME,
+    "folio": FOLIO_THEME,
+    "nordic": NORDIC_THEME,
+    "obsidian": OBSIDIAN_THEME,
+    "monograph": MONOGRAPH_THEME,
     "mintfig": MINTFIG_THEME,
     "mint": MINT_THEME,
     "pine": PINE_THEME,
     "botanical": BOTANICAL_THEME,
-    "bold": BOLD_THEME,
     "editorial": EDITORIAL_THEME,
     "paper": PAPER_THEME,
+    "bold": BOLD_THEME,
     "dark": DARK_THEME,
     "mono": MONO_THEME,
     "sketch": SKETCH_THEME,
@@ -608,6 +690,11 @@ THEMES: dict[str, Theme] = {
 THEME_ALIASES: dict[str, str] = {
     "default": "mintfig",
     "mint_dark": "pine",
+    "npg": "prism",
+    "npg_clean": "prism",
+    "npg_editorial": "folio",
+    "pine_obsidian": "obsidian",
+    "ivory": "monograph",
     "newspaper": "editorial",
     "warm": "paper",
     "print": "mono",
@@ -902,6 +989,27 @@ def register_palette(palette: ExplainPalette, *, overwrite: bool = False) -> Exp
     return palette
 
 
+def _parse_tool_mintfig_fallback(text: str) -> dict[str, Any]:
+    """Minimal zero-dep fallback parser for ``[tool.mintfig]`` on Python 3.10 without ``tomli``."""
+    cfg: dict[str, Any] = {}
+    in_section = False
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_section = line[1:-1].strip() == "tool.mintfig"
+            continue
+        if not in_section or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in {'"', "'"}:
+            cfg[key] = val[1:-1]
+    return cfg
+
+
 def _read_pyproject_mintfig(cwd: Path | None = None) -> dict[str, Any]:
     """Read ``[tool.mintfig]`` from the nearest ``pyproject.toml`` walking up from ``cwd``."""
     start = (cwd if cwd is not None else Path.cwd()).resolve()
@@ -911,11 +1019,15 @@ def _read_pyproject_mintfig(cwd: Path | None = None) -> dict[str, Any]:
         candidate = directory / "pyproject.toml"
         if not candidate.is_file():
             continue
-        if tomllib is None:  # pragma: no cover - Python 3.10 without tomllib
-            return {}
         try:
-            data = tomllib.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            raw_text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            return {}
+        if tomllib is None:  # pragma: no cover - Python 3.10 without tomllib/tomli
+            return _parse_tool_mintfig_fallback(raw_text)
+        try:
+            data = tomllib.loads(raw_text)
+        except ValueError:
             return {}
         tool = data.get("tool")
         if isinstance(tool, dict):
@@ -1055,7 +1167,7 @@ def render_themes_swatch_card(out_path: str | Path) -> Path:
             )
             ax.add_patch(card)
 
-            # Optional theme top accent stripe + Economist/FT top flag inside card
+            # Optional theme top accent stripe + masthead accent bar inside card
             if theme.top_rule and theme.top_rule_color:
                 ax.plot(
                     [x0 + 0.08, x0 + card_w - 0.08],

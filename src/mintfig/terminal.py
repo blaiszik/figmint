@@ -316,11 +316,25 @@ def _all_entity_hex(exp: Explanation) -> dict[str, str]:
         spec = panel.spec
         names: list[str] = []
         if panel.kind == "trend":
-            names = list(_trend_series(panel).keys())
+            hl_p = spec.get("highlight")
+            base_p = spec.get("baseline")
+            base_str = str(base_p) if base_p is not None else None
+            names = [
+                nm
+                for nm in _trend_series(panel)
+                if not (hl_p and base_str is not None and nm == base_str)
+            ]
         elif panel.kind == "distribution":
             grp = spec.get("groups")
             if isinstance(grp, Mapping):
-                names = [str(k) for k in grp]
+                hl_d = spec.get("highlight")
+                base_d = spec.get("baseline")
+                base_ds = str(base_d) if base_d is not None else None
+                names = [
+                    str(k)
+                    for k in grp
+                    if not (hl_d and base_ds is not None and str(k) == base_ds)
+                ]
         elif panel.kind == "relate":
             grp = spec.get("groups")
             if isinstance(grp, Sequence) and not isinstance(grp, (str, bytes)):
@@ -421,7 +435,16 @@ class BrailleCanvas:
         self.px_width = self.width_chars * 2
         self.px_height = self.height_chars * 4
         self._bits: list[list[int]] = [[0] * self.width_chars for _ in range(self.height_chars)]
+        self._fg_bits: list[list[int]] = [[0] * self.width_chars for _ in range(self.height_chars)]
+        self._bg_bits: list[list[int]] = [[0] * self.width_chars for _ in range(self.height_chars)]
+        self._band_bits: list[list[int]] = [[0] * self.width_chars for _ in range(self.height_chars)]
         self._colors: list[list[str | None]] = [
+            [None] * self.width_chars for _ in range(self.height_chars)
+        ]
+        self._bg_colors: list[list[str | None]] = [
+            [None] * self.width_chars for _ in range(self.height_chars)
+        ]
+        self._cell_bg: list[list[str | None]] = [
             [None] * self.width_chars for _ in range(self.height_chars)
         ]
         self._prio: list[list[int]] = [[-1] * self.width_chars for _ in range(self.height_chars)]
@@ -440,10 +463,17 @@ class BrailleCanvas:
             return
         cx, dx = divmod(ix, 2)
         cy, dy = divmod(iy, 4)
-        self._bits[cy][cx] |= _BRAILLE_BITS[dy][dx]
-        if color is not None and priority >= self._prio[cy][cx]:
-            self._colors[cy][cx] = color
-            self._prio[cy][cx] = priority
+        bit = _BRAILLE_BITS[dy][dx]
+        self._bits[cy][cx] |= bit
+        if priority <= 0:
+            self._bg_bits[cy][cx] |= bit
+            if color is not None and self._bg_colors[cy][cx] is None:
+                self._bg_colors[cy][cx] = color
+        else:
+            self._fg_bits[cy][cx] |= bit
+            if color is not None and priority >= self._prio[cy][cx]:
+                self._colors[cy][cx] = color
+                self._prio[cy][cx] = priority
 
     def draw_point(
         self,
@@ -579,11 +609,13 @@ class BrailleCanvas:
         color: str | None = None,
         priority: int = 0,
     ) -> None:
-        """Render a subtle stippled/dithered CI band between ``lo_ys`` and ``hi_ys``.
+        """Render a CI band between ``lo_ys`` and ``hi_ys``.
 
-        Uses a staggered 25% Braille dot dither at ``priority=0`` so main series curves
-        drawn at ``priority=1..3`` remain crisp and unobstructed on top.
+        In color mode, paints a subtle 24-bit ANSI shaded cell ribbon behind the crisp
+        foreground curves (zero dot scatter). In monochrome mode (``color=False``), falls
+        back to a clean non-colliding 50% Braille stipple strictly outside curve cells.
         """
+        del priority  # Bands always live in the recessed background ribbon layer
         n = min(len(xs), len(lo_ys), len(hi_ys))
         if n == 0:
             return
@@ -591,20 +623,17 @@ class BrailleCanvas:
         def _fill_col(px: int, ya: float, yb: float) -> None:
             if not (0 <= px < self.px_width):
                 return
-            y_top = max(0, math.ceil(min(ya, yb)))
-            y_bot = min(self.px_height - 1, math.floor(max(ya, yb)))
+            y_top = max(0, math.floor(min(ya, yb) + 0.5))
+            y_bot = min(self.px_height - 1, math.floor(max(ya, yb) + 0.5))
             if y_bot < y_top:
                 return
-            placed = False
+            cx, dx = divmod(px, 2)
             for py in range(y_top, y_bot + 1):
-                if (px % 2 == 0 and py % 4 == 0) or (px % 2 == 1 and py % 4 == 2):
-                    self.set_pixel(px, py, color=color, priority=priority)
-                    placed = True
-            # Keep narrow bands (< 3 px tall) softly visible on alternating columns
-            if not placed and px % 2 == 0:
-                self.set_pixel(px, y_top, color=color, priority=priority)
-                if y_bot > y_top:
-                    self.set_pixel(px, y_bot, color=color, priority=priority)
+                cy, dy = divmod(py, 4)
+                if color is not None and self._cell_bg[cy][cx] is None:
+                    self._cell_bg[cy][cx] = color
+                if (px + py) % 2 == 0:
+                    self._band_bits[cy][cx] |= _BRAILLE_BITS[dy][dx]
 
         # Group contiguous finite points so missing values leave clean breaks
         segments: list[list[tuple[float, float, float]]] = []
@@ -697,30 +726,48 @@ class BrailleCanvas:
         default_color: str | None = None,
         blank_braille: bool = True,
     ) -> list[str]:
-        """Render the canvas to character rows, batching adjacent cells of identical color."""
+        """Render the canvas to character rows, batching adjacent cells of identical style."""
         rows: list[str] = []
         empty_ch = chr(_BRAILLE_BASE) if blank_braille else " "
         for cy in range(self.height_chars):
-            bits_row = self._bits[cy]
-            col_row = self._colors[cy]
+            fg_row = self._fg_bits[cy]
+            bg_row = self._bg_bits[cy]
+            band_row = self._band_bits[cy]
+            fg_col_row = self._colors[cy]
+            bg_col_row = self._bg_colors[cy]
+            cell_bg_row = self._cell_bg[cy]
             if not color:
-                rows.append(
-                    "".join(chr(_BRAILLE_BASE | b) if b else empty_ch for b in bits_row)
-                )
+                chars: list[str] = []
+                for fb, bb, sb in zip(fg_row, bg_row, band_row, strict=True):
+                    b = fb if fb else (bb if bb else sb)
+                    chars.append(chr(_BRAILLE_BASE | b) if b else empty_ch)
+                rows.append("".join(chars))
                 continue
             buf: list[str] = []
-            active_c: str | None = None
-            for b, cell_c in zip(bits_row, col_row, strict=True):
-                ch = chr(_BRAILLE_BASE | b) if b else empty_ch
-                eff_c = (cell_c or default_color) if b else None
-                if eff_c != active_c:
-                    if active_c is not None:
+            active_style: tuple[str | None, str | None] = (None, None)
+            for fb, bb, fc, bc, cbg in zip(
+                fg_row, bg_row, fg_col_row, bg_col_row, cell_bg_row, strict=True
+            ):
+                if fb:
+                    ch = chr(_BRAILLE_BASE | fb)
+                    eff_fg = fc or default_color
+                elif bb:
+                    ch = chr(_BRAILLE_BASE | bb)
+                    eff_fg = bc or default_color
+                else:
+                    ch = empty_ch
+                    eff_fg = None
+                eff_style = (eff_fg, cbg)
+                if eff_style != active_style:
+                    if active_style != (None, None):
                         buf.append("\x1b[0m")
-                    if eff_c is not None:
-                        buf.append(_ansi_rgb(eff_c))
-                    active_c = eff_c
+                    if cbg is not None:
+                        buf.append(_ansi_bg_rgb(cbg))
+                    if eff_fg is not None:
+                        buf.append(_ansi_rgb(eff_fg))
+                    active_style = eff_style
                 buf.append(ch)
-            if active_c is not None:
+            if active_style != (None, None):
                 buf.append("\x1b[0m")
             rows.append("".join(buf))
         return rows
@@ -1212,6 +1259,7 @@ def _render_box_table(
     style: _Style,
     ascii_only: bool,
     highlight_rows: set[str] | None = None,
+    row_colors: Mapping[str, str] | None = None,
 ) -> list[str]:
     if not headers:
         return []
@@ -1263,6 +1311,7 @@ def _render_box_table(
         lines.append(f"{v} " + f" {v} ".join(hdr_cells) + f" {v}")
     lines.append(mid)
     hl = highlight_rows or set()
+    rc = row_colors or {}
     for row in rows:
         row_key = row[0] if row else ""
         is_hl = row_key in hl
@@ -1270,7 +1319,14 @@ def _render_box_table(
         for c in range(n_cols):
             val = row[c] if c < len(row) else ""
             padded = _pad(val, col_w[c], aligns[c])
-            cells.append(style.accent(padded) if is_hl and c == 0 else padded)
+            if is_hl and c == 0:
+                cells.append(
+                    style.color(padded, rc[row_key], bold=True)
+                    if row_key in rc
+                    else style.accent(padded)
+                )
+            else:
+                cells.append(padded)
         lines.append(f"{v} " + f" {v} ".join(cells) + f" {v}")
     lines.append(bot)
     return lines
@@ -1391,7 +1447,12 @@ def _cell_whisker(
 
 
 def _render_table_graphics(
-    view: Mapping[str, Any], *, width: int, style: _Style, ascii_only: bool
+    view: Mapping[str, Any],
+    *,
+    width: int,
+    style: _Style,
+    ascii_only: bool,
+    colors: Mapping[str, str] | None = None,
 ) -> list[str]:
     """The box table with in-cell bars, whiskers and sparklines on one scale per column."""
     headers, g_ws, text_w = _table_text_layout(view, width)
@@ -1428,6 +1489,7 @@ def _render_table_graphics(
         style=style,
         ascii_only=ascii_only,
         highlight_rows=set(view["highlight"]),
+        row_colors=colors,
     )
     if any(g["kind"] == "interval" for g in graphics.values()):
         label = view.get("interval_label") or "unlabelled"
@@ -1442,10 +1504,13 @@ def _render_table_panel(
     width: int,
     style: _Style,
     ascii_only: bool,
+    colors: Mapping[str, str] | None = None,
 ) -> list[str]:
     view = _table_view(panel)
     if view is not None:
-        return _render_table_graphics(view, width=width, style=style, ascii_only=ascii_only)
+        return _render_table_graphics(
+            view, width=width, style=style, ascii_only=ascii_only, colors=colors
+        )
     spec = panel.spec
     headers = [str(c) for c in (spec.get("columns") or [])]
     raw_rows = spec.get("rows") or []
@@ -1477,6 +1542,7 @@ def _render_table_panel(
         style=style,
         ascii_only=ascii_only,
         highlight_rows=hl_set,
+        row_colors=colors,
     )
 
 
@@ -2114,6 +2180,7 @@ def _render_trend_braille(
     muted_hex: str,
     context_hex: str,
     bg_hex: str = "#0F1715",
+    ink_hex: str = "#E8F1EE",
 ) -> list[str]:
     """High-res 2×4 Braille trend chart with CI bands, events, reference line, and direct labels."""
     spec = panel.spec
@@ -2205,12 +2272,16 @@ def _render_trend_braille(
     # Resolve colors per series matching figure registry
     hl_raw = spec.get("highlight") or []
     hl_set = {str(h) for h in ([hl_raw] if isinstance(hl_raw, str) else hl_raw)}
+    base_raw = spec.get("baseline")
+    base_name = str(base_raw) if base_raw is not None else None
     own = dict(colors)
     spare = [c for c in palette if c not in own.values()]
     series_hex: dict[str, str] = {}
     for nm in series_map:
         if nm in own:
             series_hex[nm] = own[nm]
+        elif base_name is not None and nm == base_name:
+            series_hex[nm] = ink_hex
         elif hl_set:
             series_hex[nm] = context_hex
         else:
@@ -2299,7 +2370,7 @@ def _render_trend_braille(
                 b_lo.append(float("nan"))
                 b_hi.append(float("nan"))
         if any(math.isfinite(v) for v in b_xs):
-            band_hex = _blend_hex(series_hex[nm], bg_hex, 0.50)
+            band_hex = _blend_hex(series_hex[nm], bg_hex, 0.18)
             canvas.draw_band(b_xs, b_lo, b_hi, color=band_hex, priority=0)
             drew_band = True
 
@@ -2373,6 +2444,7 @@ def _render_ecdf_braille(
     colors: Mapping[str, str],
     palette: Sequence[str],
     muted_hex: str,
+    ink_hex: str = "#E8F1EE",
 ) -> list[str]:
     """High-res 2×4 Braille step ECDF chart with dashed p50/p95 lines and colored end labels."""
     groups_raw = panel.spec.get("groups")
@@ -2411,12 +2483,16 @@ def _render_ecdf_braille(
 
     hl_raw = panel.spec.get("highlight") or []
     hl_set = {str(h) for h in ([hl_raw] if isinstance(hl_raw, str) else hl_raw)}
+    base_raw = panel.spec.get("baseline")
+    base_name = str(base_raw) if base_raw is not None else None
     own = dict(colors)
     spare = [c for c in palette if c not in own.values()]
     group_hex: dict[str, str] = {}
     for nm, _ in parsed:
         if nm in own:
             group_hex[nm] = own[nm]
+        elif base_name is not None and nm == base_name:
+            group_hex[nm] = ink_hex
         else:
             group_hex[nm] = spare.pop(0) if spare else (palette[0] if palette else "#1F5A9D")
 
@@ -2943,12 +3019,16 @@ def _render_swarm_braille(
 
     hl_raw = spec.get("highlight") or []
     hl_set = {str(h) for h in ([hl_raw] if isinstance(hl_raw, str) else hl_raw)}
+    base_raw = spec.get("baseline")
+    base_name = str(base_raw) if base_raw is not None else None
     own = dict(colors)
     spare = [c for c in palette if c not in own.values()]
     group_hex: dict[str, str] = {}
     for nm, _ in parsed:
         if nm in own:
             group_hex[nm] = own[nm]
+        elif base_name is not None and nm == base_name:
+            group_hex[nm] = ink_hex
         elif hl_set:
             group_hex[nm] = context_hex
         else:
@@ -3715,7 +3795,11 @@ def _panel_block(
         )
         out.extend(first_fact)
     elif panel.kind == "table":
-        out.extend(_render_table_panel(panel, width=width, style=style, ascii_only=ascii_only))
+        out.extend(
+            _render_table_panel(
+                panel, width=width, style=style, ascii_only=ascii_only, colors=colors
+            )
+        )
         out.extend(first_fact)
     elif panel.kind == "trend":
         if use_braille:
@@ -3729,6 +3813,7 @@ def _panel_block(
                     muted_hex=muted_hex,
                     context_hex=context_hex,
                     bg_hex=bg_hex,
+                    ink_hex=ink_hex,
                 )
             )
         else:
@@ -3751,6 +3836,7 @@ def _panel_block(
             colors=colors,
             palette=palette,
             muted_hex=muted_hex,
+            ink_hex=ink_hex,
         )
         if ecdf_lines:
             out.extend(ecdf_lines)
@@ -4411,15 +4497,16 @@ def show_in_terminal(
     """Return a terminal-ready string (inline graphics escape sequence or rich text).
 
     ``path_or_spec`` may be a PNG path, a JSON spec path, an ``Explanation``, or
-    a spec dict. ``mode`` may be ``"auto"``, ``"kitty"``, ``"iterm2"``, ``"braille"``,
-    ``"unicode"``, or ``"ascii"``. When ``mode="auto"`` falls back to an ANSI terminal
-    without Kitty/iTerm2 and ``color=True``, high-resolution 2×4 Braille plotting is
-    enabled automatically (override with ``high_res=False``). Pass ``width="auto"`` to
-    fit the current terminal width, ``color=None`` to respect ``NO_COLOR``/``FORCE_COLOR``,
-    and ``passthrough=True`` (the default) to wrap Kitty/iTerm2 escape sequences in
+    a spec dict. ``mode`` may be ``"auto"``, ``"kitty"``, ``"iterm2"``, ``"matrix"``
+    (2×4 Unicode dot-matrix; alias ``"braille"``), ``"unicode"``, or ``"ascii"``.
+    When ``mode="auto"`` falls back to an ANSI terminal without Kitty/iTerm2 and
+    ``color=True``, high-resolution 2×4 dot-matrix plotting is enabled automatically
+    (override with ``high_res=False``). Pass ``width="auto"`` to fit the current
+    terminal width, ``color=None`` to respect ``NO_COLOR``/``FORCE_COLOR``, and
+    ``passthrough=True`` (the default) to wrap Kitty/iTerm2 escape sequences in
     ``tmux`` DCS passthrough when ``TMUX`` is present in ``env``.
     """
-    valid_modes = {"auto", "kitty", "iterm2", "braille", "unicode", "ascii"}
+    valid_modes = {"auto", "kitty", "iterm2", "matrix", "braille", "unicode", "ascii"}
     if mode not in valid_modes:
         raise ValueError(
             f"Unknown terminal mode {mode!r}. Choose one of: {', '.join(sorted(valid_modes))}."
@@ -4465,7 +4552,7 @@ def show_in_terminal(
         return seq
 
     ascii_only = resolved == "ascii"
-    if resolved == "braille":
+    if resolved in {"matrix", "braille"}:
         use_high_res = True
     elif high_res is not None:
         use_high_res = bool(high_res) and not ascii_only
