@@ -1,0 +1,93 @@
+{
+  "takeaway": "Retriever B lifts accuracy by 9 points while keeping latency steady across loads",
+  "source": "synthetic example data",
+  "style": "monograph",
+  "layout": [
+    [
+      "a",
+      "b"
+    ]
+  ],
+  "panels": [
+    {
+      "kind": "compare",
+      "values": {
+        "Retriever B": 86.0,
+        "Retriever A": 77.0,
+        "Hybrid": 81.0,
+        "BM25": 68.0
+      },
+      "highlight": [
+        "Retriever B",
+        "Hybrid"
+      ],
+      "baseline": "BM25",
+      "sort": true,
+      "zero": true,
+      "error": {
+        "Retriever B": [
+          84,
+          88
+        ],
+        "Retriever A": [
+          75,
+          79
+        ],
+        "Hybrid": [
+          79,
+          83
+        ],
+        "BM25": [
+          66,
+          70
+        ]
+      },
+      "error_label": "95% CI",
+      "title": "Retriever B leads outside noise",
+      "label": "Top-5 recall",
+      "unit": "%"
+    },
+    {
+      "kind": "trend",
+      "x": [
+        10,
+        25,
+        50,
+        100,
+        200
+      ],
+      "series": {
+        "Retriever B": [
+          42.0,
+          46.0,
+          51.0,
+          58.0,
+          66.0
+        ],
+        "Hybrid": [
+          48.0,
+          56.0,
+          68.0,
+          86.0,
+          112.0
+        ],
+        "BM25": [
+          28.0,
+          30.0,
+          33.0,
+          37.0,
+          42.0
+        ]
+      },
+      "x_label": "Queries per second",
+      "highlight": [
+        "Retriever B",
+        "Hybrid"
+      ],
+      "baseline": "BM25",
+      "title": "Hybrid slows sharply past 100 QPS",
+      "label": "p95 latency",
+      "unit": "ms"
+    }
+  ]
+}

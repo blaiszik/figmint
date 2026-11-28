@@ -1,6 +1,6 @@
 {
   "name": "mintfig",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Message-first scientific figures for coding agents (mint.explain, mint.table), automatic Matplotlib figure auditing (mint.check + PostToolUse hook), and publication-ready journal plates.",
   "author": {
     "name": "Ben Blaiszik"

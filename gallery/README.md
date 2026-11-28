@@ -526,19 +526,27 @@ Every built-in surface theme (`style=`) and color palette (`palette=`) is verifi
 
 ### Themes (`style=`)
 
-The same two-panel comparison + trend rendered across all ten built-in surface styles (including the three mint-inspired themes `mint`, `pine`/`mint_dark`, and `botanical`):
+The same two-panel comparison + trend rendered across all fifteen built-in surface styles — leading with the five flagship curated editions (`prism`, `folio`, `nordic`, `obsidian`, `monograph`):
 
-| `style="mint"` (flagship mint) | `style="pine"` (`mint_dark`) |
+| `style="prism"` (`npg` · crisp white sans) | `style="folio"` (`npg_editorial` · white serif) |
 | :---: | :---: |
+| ![prism theme](output/explain_themes/style_prism.png) | ![folio theme](output/explain_themes/style_folio.png) |
+| **`style="nordic"`** (whisper-mint Swiss) | **`style="obsidian"`** (deep pine dark) |
+| ![nordic theme](output/explain_themes/style_nordic.png) | ![obsidian theme](output/explain_themes/style_obsidian.png) |
+| **`style="monograph"`** (`ivory` · archival serif) | **`style="mintfig"`** (default) |
+| ![monograph theme](output/explain_themes/style_monograph.png) | ![mintfig theme](output/explain_themes/style_mintfig.png) |
+| **`style="mint"`** (whisper-mint + zero-yellow) | **`style="pine"`** (`mint_dark`) |
 | ![mint theme](output/explain_themes/style_mint.png) | ![pine dark theme](output/explain_themes/style_pine.png) |
-| **`style="botanical"`** (sage-ivory + serif) | **`style="mintfig"`** (default) |
-| ![botanical theme](output/explain_themes/style_botanical.png) | ![mintfig theme](output/explain_themes/style_mintfig.png) |
-| **`style="editorial"`** (newspaper + serif) | **`style="paper"`** (warm ivory + serif) |
-| ![editorial theme](output/explain_themes/style_editorial.png) | ![paper theme](output/explain_themes/style_paper.png) |
-| **`style="bold"`** (matte gray + heavy strokes) | **`style="dark"`** (slate charcoal) |
-| ![bold theme](output/explain_themes/style_bold.png) | ![dark theme](output/explain_themes/style_dark.png) |
-| **`style="mono"`** (monochrome print + single accent) | **`style="sketch"`** (hand-drawn illustrative) |
-| ![mono theme](output/explain_themes/style_mono.png) | ![sketch theme](output/explain_themes/style_sketch.png) |
+| **`style="botanical"`** (sage-ivory + serif) | **`style="editorial"`** (newspaper + serif) |
+| ![botanical theme](output/explain_themes/style_botanical.png) | ![editorial theme](output/explain_themes/style_editorial.png) |
+| **`style="paper"`** (warm ivory + serif) | **`style="bold"`** (matte gray + heavy strokes) |
+| ![paper theme](output/explain_themes/style_paper.png) | ![bold theme](output/explain_themes/style_bold.png) |
+| **`style="dark"`** (slate charcoal) | **`style="mono"`** (monochrome print + single accent) |
+| ![dark theme](output/explain_themes/style_dark.png) | ![mono theme](output/explain_themes/style_mono.png) |
+
+#### `style="sketch"` (hand-drawn illustrative)
+
+![sketch theme](output/explain_themes/style_sketch.png)
 
 ### Color Palettes (`palette=`)
 

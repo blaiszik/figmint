@@ -4,6 +4,19 @@ All notable changes to `mintfig` are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once 1.0 is reached.
 
+## [0.3.4] - 2026-11-28
+
+### Added
+- **Five promoted flagship surface themes (`style=`):** `prism` (aliases `npg`, `npg_clean`), `folio` (alias `npg_editorial`), `nordic`, `obsidian` (alias `pine_obsidian`), and `monograph` (alias `ivory`) — promoted to the top of `THEMES` and verified for grayscale separation (`>= 0.05`), deuteranopia/protanopia CVD distance (`>= 0.12`), and WCAG AA contrast (`>= 4.5:1`).
+- **Intuitive `--matrix` CLI flag & `mode="matrix"` API alias:** Added `--matrix` across `explain`, `show`, `plot`, `diff`, and `watch`, plus `mode="matrix"` on `Explanation.to_text()`, `Explanation.show()`, and `show_in_terminal()` for 2×4 Unicode dot-matrix terminal charts while keeping `--braille` / `mode="braille"` as backwards-compatible aliases.
+- **Flagship pure-white 3-panel hero, matching 116-column 3-panel dot-matrix counterpart, and Remotion showcase video/GIF (`gallery/make_repo_header.py`, `promo/demo-video/src/BrailleVideo.tsx`).**
+
+### Changed
+- **24-bit ANSI translucent CI ribbons in terminal dot-matrix plots (`terminal.py`):** Separated foreground, background, and band layers in `BrailleCanvas` so shaded 95% confidence bands render smoothly without corrupting line colors, with a non-colliding monochrome stipple fallback when `color=False`.
+- **1:1 cross-surface color alignment (`terminal.py`):** Locked `baseline=` series in terminal `trend`, `ecdf`, `swarm`, and scorecard tables to neutral ink (`#E8F1EE` on dark themes) and added per-entity `row_colors` to terminal tables.
+- **Cleaner booktabs `mint.table` styling (`_table.py`):** Removed noisy full-row colored background washes in favor of slim left accent stripes and contrast-safe entity-colored row labels.
+- **ECDF guide-label fidelity (`_explain/distribution.py`):** Labeled horizontal `p50`/`p95` guides directly on the dashed lines, omitted crowded `p99` guides within 3% of `100%`, and replaced arbitrary-y right-margin labels with a compact `Curve (p95)` key.
+
 ## [Unreleased]
 
 ### Added

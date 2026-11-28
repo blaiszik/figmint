@@ -111,7 +111,7 @@ def _render_palette_overview(out_path: Path) -> None:
             "savefig.facecolor": "#FFFFFF",
         }
     ):
-        fig = Figure(figsize=(9.2, 8.2), dpi=220)
+        fig = Figure(figsize=(9.2, 9.4), dpi=220)
         FigureCanvasAgg(fig)
         ax = fig.add_axes([0.0, 0.0, 1.0, 1.0])
         ax.set_xlim(0, 1)
@@ -121,10 +121,10 @@ def _render_palette_overview(out_path: Path) -> None:
         ink = "#13221D"
         muted = "#4D5F58"
 
-        ax.plot([0.03, 0.97], [0.978, 0.978], color="#0F8B6D", linewidth=2.0)
+        ax.plot([0.03, 0.97], [0.980, 0.980], color="#007A66", linewidth=2.0)
         ax.text(
             0.03,
-            0.962,
+            0.966,
             "mintfig Color Palettes, Surface Themes & Editorial Colormaps",
             fontsize=13.5,
             fontweight="bold",
@@ -133,26 +133,26 @@ def _render_palette_overview(out_path: Path) -> None:
         )
         ax.text(
             0.03,
-            0.928,
-            "Every mint.explain palette is verified for deuteranopia, protanopia, grayscale separation, and WCAG 4.5:1 text contrast.",
-            fontsize=8.4,
+            0.936,
+            "Every mint.explain palette and theme is verified for deuteranopia, protanopia, grayscale separation, and WCAG 4.5:1 text contrast.",
+            fontsize=8.3,
             color=muted,
             va="top",
         )
 
         # Left column: mint.explain palettes (palette=...)
-        ax.text(0.03, 0.888, "mint.explain palettes (palette=...)", fontsize=9.5, fontweight="bold", color=ink)
+        ax.text(0.03, 0.900, "mint.explain palettes (palette=...)", fontsize=9.5, fontweight="bold", color=ink)
         pal_items = list(EXPLAIN_PALETTES.items())
-        pal_step = min(0.042, 0.44 / max(1, len(pal_items)))
-        y = 0.850
+        pal_step = min(0.036, 0.39 / max(1, len(pal_items)))
+        y = 0.868
         for name, pal in pal_items:
-            ax.text(0.03, y, name, fontsize=8.1, fontweight="bold", color=ink, va="center")
+            ax.text(0.03, y, name, fontsize=8.0, fontweight="bold", color=ink, va="center")
             x0 = 0.160
             for idx, hex_col in enumerate(pal.series_colors):
                 rect = FancyBboxPatch(
-                    (x0 + idx * 0.064, y - 0.014),
+                    (x0 + idx * 0.064, y - 0.012),
                     0.055,
-                    0.028,
+                    0.024,
                     boxstyle="round,pad=0.001,rounding_size=0.004",
                     facecolor=hex_col,
                     edgecolor="#FFFFFF",
@@ -166,9 +166,9 @@ def _render_palette_overview(out_path: Path) -> None:
             seg_w = ramp_w / n_stops
             for idx, hex_col in enumerate(pal.seq_stops):
                 rect = FancyBboxPatch(
-                    (rx0 + idx * seg_w, y - 0.012),
+                    (rx0 + idx * seg_w, y - 0.010),
                     seg_w,
-                    0.024,
+                    0.020,
                     boxstyle="square,pad=0",
                     facecolor=hex_col,
                     edgecolor="none",
@@ -177,36 +177,43 @@ def _render_palette_overview(out_path: Path) -> None:
             y -= pal_step
 
         # Right column: publication PALETTES
-        ax.text(0.555, 0.888, "Publication palettes (mint.pub.get_palette)", fontsize=9.5, fontweight="bold", color=ink)
-        y = 0.850
+        ax.text(0.555, 0.900, "Publication palettes (mint.pub.get_palette)", fontsize=9.5, fontweight="bold", color=ink)
+        y = 0.868
         for name, cols in PALETTES.items():
             ax.text(0.555, y, name, fontsize=8.2, fontweight="bold", color=ink, va="center")
             x0 = 0.705
             sw = 0.029
             for idx, hex_col in enumerate(cols[:8]):
                 rect = FancyBboxPatch(
-                    (x0 + idx * (sw + 0.004), y - 0.015),
+                    (x0 + idx * (sw + 0.004), y - 0.013),
                     sw,
-                    0.030,
+                    0.026,
                     boxstyle="round,pad=0.001,rounding_size=0.004",
                     facecolor=hex_col,
                     edgecolor="#FFFFFF",
                     linewidth=0.5,
                 )
                 ax.add_patch(rect)
-            y -= 0.056
+            y -= 0.052
 
-        # Middle band: Built-in surface themes (style=...) in 2 rows x 5 columns
-        ax.plot([0.03, 0.97], [0.398, 0.398], color="#DFEBE6", linewidth=0.8)
-        ax.text(0.03, 0.372, "Surface themes (style=...)", fontsize=9.5, fontweight="bold", color=ink)
+        # Middle band: Built-in surface themes (style=...) in 3 rows x 5 columns
+        ax.plot([0.03, 0.97], [0.472, 0.472], color="#DFEBE6", linewidth=0.8)
+        ax.text(
+            0.03,
+            0.448,
+            "Surface themes (style=...) — curated flagship editions first",
+            fontsize=9.5,
+            fontweight="bold",
+            color=ink,
+        )
         theme_items = list(THEMES.items())
         ncols = 5
         nrows = max(1, math.ceil(len(theme_items) / ncols))
         gap_x = 0.014
         tw = (0.94 - (ncols - 1) * gap_x) / ncols
-        th = 0.088
-        gap_y = 0.018
-        top_y = 0.352
+        th = 0.082
+        gap_y = 0.015
+        top_y = 0.432
         for idx, (name, theme) in enumerate(theme_items):
             r = idx // ncols
             c = idx % ncols
@@ -228,7 +235,16 @@ def _render_palette_overview(out_path: Path) -> None:
                     [tx + 0.008, tx + tw - 0.008],
                     [ty + th - 0.007, ty + th - 0.007],
                     color=theme.top_rule_color,
-                    linewidth=1.4,
+                    linewidth=1.0 if theme.top_flag else 1.4,
+                )
+            if theme.top_flag:
+                flag_col = theme.top_flag_color or theme.top_rule_color or theme.ink
+                ax.plot(
+                    [tx + 0.008, tx + 0.008 + min(0.044, tw * 0.26)],
+                    [ty + th - 0.006, ty + th - 0.006],
+                    color=flag_col,
+                    linewidth=2.4,
+                    solid_capstyle="butt",
                 )
             ax.text(
                 tx + 0.010,
@@ -244,9 +260,9 @@ def _render_palette_overview(out_path: Path) -> None:
             sw_w = (tw - 0.020 - 3 * sw_gap) / 4.0
             for s_idx, hex_col in enumerate(theme.series_colors[:4]):
                 dot = FancyBboxPatch(
-                    (tx + 0.010 + s_idx * (sw_w + sw_gap), ty + 0.012),
+                    (tx + 0.010 + s_idx * (sw_w + sw_gap), ty + 0.011),
                     sw_w,
-                    0.026,
+                    0.023,
                     boxstyle="round,pad=0.001,rounding_size=0.003",
                     facecolor=hex_col,
                     edgecolor="none",
@@ -254,20 +270,20 @@ def _render_palette_overview(out_path: Path) -> None:
                 ax.add_patch(dot)
 
         # Bottom band: Editorial colormaps
-        cmap_hdr_y = top_y - nrows * th - (nrows - 1) * gap_y - 0.030
+        cmap_hdr_y = top_y - nrows * th - (nrows - 1) * gap_y - 0.032
         ax.text(0.03, cmap_hdr_y, "Editorial colormaps (Matplotlib registered)", fontsize=9.5, fontweight="bold", color=ink)
         grad = np.linspace(0, 1, 256)[np.newaxis, :]
         cx = 0.03
         cw = 0.215
         for name in EDITORIAL_COLORMAPS:
-            cax = fig.add_axes([cx, 0.035, cw, 0.044])
+            cax = fig.add_axes([cx, 0.028, cw, 0.040])
             cax.imshow(grad, aspect="auto", cmap=mpl.colormaps[name])
             cax.set_xticks([])
             cax.set_yticks([])
             for sp in cax.spines.values():
                 sp.set_edgecolor("#CBD3DF")
                 sp.set_linewidth(0.6)
-            ax.text(cx, 0.088, name, fontsize=8.0, fontweight="bold", color=muted, va="bottom")
+            ax.text(cx, 0.074, name, fontsize=8.0, fontweight="bold", color=muted, va="bottom")
             cx += cw + 0.026
 
         fig.savefig(out_path, dpi=220, facecolor="#FFFFFF")

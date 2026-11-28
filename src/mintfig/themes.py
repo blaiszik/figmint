@@ -1,8 +1,9 @@
 """Visual surface themes and color palettes for ``mint.explain``.
 
-Built-in themes: ``mintfig`` (default), ``mint``, ``pine`` (alias ``mint_dark``),
-``botanical``, ``prism`` (alias ``npg``), ``folio``, ``nordic``, ``obsidian``,
-``monograph``, ``bold``, ``editorial``, ``paper``, ``dark``, ``mono``, ``sketch``.
+Built-in themes (curated flagships first): ``prism`` (alias ``npg``), ``folio``,
+``nordic``, ``obsidian``, ``monograph`` (alias ``ivory``), ``mintfig`` (default),
+``mint``, ``pine`` (alias ``mint_dark``), ``botanical``, ``editorial``, ``paper``,
+``bold``, ``dark``, ``mono``, ``sketch``.
 Built-in explain palettes: ``default``, ``okabe_ito``, ``tol``, ``earth``,
 ``ocean``, ``berry``, ``mint``, ``spearmint``, ``matcha``, ``glacier``, ``mineral``.
 
@@ -666,18 +667,18 @@ MONOGRAPH_THEME = replace(
 )
 
 THEMES: dict[str, Theme] = {
-    "mintfig": MINTFIG_THEME,
-    "mint": MINT_THEME,
-    "pine": PINE_THEME,
-    "botanical": BOTANICAL_THEME,
     "prism": PRISM_THEME,
     "folio": FOLIO_THEME,
     "nordic": NORDIC_THEME,
     "obsidian": OBSIDIAN_THEME,
     "monograph": MONOGRAPH_THEME,
-    "bold": BOLD_THEME,
+    "mintfig": MINTFIG_THEME,
+    "mint": MINT_THEME,
+    "pine": PINE_THEME,
+    "botanical": BOTANICAL_THEME,
     "editorial": EDITORIAL_THEME,
     "paper": PAPER_THEME,
+    "bold": BOLD_THEME,
     "dark": DARK_THEME,
     "mono": MONO_THEME,
     "sketch": SKETCH_THEME,

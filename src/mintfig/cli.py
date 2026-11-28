@@ -475,7 +475,7 @@ def _build_parser() -> argparse.ArgumentParser:
     explain_parser.add_argument(
         "--style",
         default=None,
-        help="Visual style override: mintfig (default), mint, pine, botanical, prism, folio, nordic, obsidian, monograph, bold, editorial, paper, dark, mono, or sketch.",
+        help="Visual style override: prism, folio, nordic, obsidian, monograph, mintfig (default), mint, pine, botanical, editorial, paper, bold, dark, mono, or sketch.",
     )
     explain_parser.add_argument(
         "--palette",
