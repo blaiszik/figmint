@@ -32,7 +32,10 @@ from .specs import JournalSpec
 try:
     import tomllib
 except ImportError:  # pragma: no cover - Python 3.10 fallback
-    tomllib = None  # type: ignore[assignment]
+    try:
+        import tomli as tomllib  # type: ignore[no-redef]
+    except ImportError:
+        tomllib = None  # type: ignore[assignment]
 
 style = importlib.import_module("mintfig.style")
 
@@ -986,6 +989,27 @@ def register_palette(palette: ExplainPalette, *, overwrite: bool = False) -> Exp
     return palette
 
 
+def _parse_tool_mintfig_fallback(text: str) -> dict[str, Any]:
+    """Minimal zero-dep fallback parser for ``[tool.mintfig]`` on Python 3.10 without ``tomli``."""
+    cfg: dict[str, Any] = {}
+    in_section = False
+    for raw_line in text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_section = line[1:-1].strip() == "tool.mintfig"
+            continue
+        if not in_section or "=" not in line:
+            continue
+        key, val = line.split("=", 1)
+        key = key.strip()
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in {'"', "'"}:
+            cfg[key] = val[1:-1]
+    return cfg
+
+
 def _read_pyproject_mintfig(cwd: Path | None = None) -> dict[str, Any]:
     """Read ``[tool.mintfig]`` from the nearest ``pyproject.toml`` walking up from ``cwd``."""
     start = (cwd if cwd is not None else Path.cwd()).resolve()
@@ -995,11 +1019,15 @@ def _read_pyproject_mintfig(cwd: Path | None = None) -> dict[str, Any]:
         candidate = directory / "pyproject.toml"
         if not candidate.is_file():
             continue
-        if tomllib is None:  # pragma: no cover - Python 3.10 without tomllib
-            return {}
         try:
-            data = tomllib.loads(candidate.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            raw_text = candidate.read_text(encoding="utf-8")
+        except OSError:
+            return {}
+        if tomllib is None:  # pragma: no cover - Python 3.10 without tomllib/tomli
+            return _parse_tool_mintfig_fallback(raw_text)
+        try:
+            data = tomllib.loads(raw_text)
+        except ValueError:
             return {}
         tool = data.get("tool")
         if isinstance(tool, dict):
