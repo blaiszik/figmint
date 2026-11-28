@@ -1,6 +1,6 @@
 {
   "name": "mintfig",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Message-first scientific figures, automatic Matplotlib figure auditing, terminal Braille charts, PR KPI cards, and interactive MCP App UI for coding agents.",
   "contextFileName": "GEMINI.md",
   "mcpServers": {
